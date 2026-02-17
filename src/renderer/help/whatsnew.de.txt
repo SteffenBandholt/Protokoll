@@ -1,0 +1,6 @@
+ID: 0.1.2
+Was ist neu?
+
+- Fix: Import Kontakt – Buttons entfernt
+- Fix: Zuordnung Firma – Statusfarben korrekt
+- Fix: Nummernlücken – Reparatur beim Schließen

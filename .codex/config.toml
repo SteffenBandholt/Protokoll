@@ -1,0 +1,7 @@
+profile = "bbm"
+
+[profiles.bbm]
+model = "gpt-5.1-codex-mini"
+model_reasoning_effort = "low"
+sandbox_mode = "workspace-write"
+approval_policy = "never"

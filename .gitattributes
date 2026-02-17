@@ -1,0 +1,16 @@
+# Einheitliche Zeilenenden erzwingen (Repo-intern LF)
+* text eol=lf
+
+# Windows-Skripte explizit CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binärdateien niemals anfassen
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.db binary

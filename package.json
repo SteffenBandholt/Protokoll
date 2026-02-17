@@ -1,0 +1,54 @@
+{
+  "name": "baubesprechungs-manager",
+  "version": "0.1.2",
+  "main": "src/main/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps",
+    "gen:worklog": "powershell -ExecutionPolicy Bypass -File scripts/gen-worklog.ps1",
+    "prestart": "npm run gen:worklog",
+    "predist": "npm run gen:worklog"
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
+  },
+  "build": {
+    "appId": "de.bbm.baubesprechungsmanager",
+    "productName": "BBM",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "build/bbm-icon.ico",
+      "!src/main/db/app.db",
+      "!**/backups/**",
+      "!**/*.db",
+      "!**/*.sqlite",
+      "!**/*.sqlite3"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**"
+    ],
+    "win": {
+      "icon": "build/bbm-icon.ico",
+      "target": ["portable", "nsis"]
+    },
+    "nsis": {
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "BBM",
+      "installerIcon": "build/bbm-icon.ico",
+      "uninstallerIcon": "build/bbm-icon.ico",
+      "installerHeaderIcon": "build/bbm-icon.ico"
+    }
+  }
+}
