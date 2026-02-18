@@ -1022,7 +1022,26 @@ function registerTopsIpc() {
 
   ipcMain.handle("firms:deleteGlobal", (_e, firmId) => {
     try {
-      const info = firmService.deleteGlobal({ firmId });
+      const info = firmsRepo.markTrashed(firmId);
+      return { ok: true, info };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("firms:markTrashed", (_e, data) => {
+    try {
+      const firmId = data?.firmId ?? data;
+      const info = firmsRepo.markTrashed(firmId);
+      return { ok: true, info };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("firms:purgeTrashedSafe", () => {
+    try {
+      const info = firmsRepo.purgeTrashedSafe();
       return { ok: true, info };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
@@ -1285,7 +1304,26 @@ function registerTopsIpc() {
 
   ipcMain.handle("persons:delete", (_e, personId) => {
     try {
-      const info = personService.delete({ personId });
+      const info = personsRepo.markTrashed(personId);
+      return { ok: true, info };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("persons:markTrashed", (_e, data) => {
+    try {
+      const personId = data?.personId ?? data;
+      const info = personsRepo.markTrashed(personId);
+      return { ok: true, info };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("persons:purgeTrashedSafe", () => {
+    try {
+      const info = personsRepo.purgeTrashedSafe();
       return { ok: true, info };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };

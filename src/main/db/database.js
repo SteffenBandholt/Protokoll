@@ -288,6 +288,8 @@ function ensureFirmsAndPersonsSchema(dbConn) {
 
         role_code INTEGER DEFAULT 60,
 
+        is_trashed INTEGER NOT NULL DEFAULT 0,
+        trashed_at INTEGER,
         removed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -311,6 +313,8 @@ function ensureFirmsAndPersonsSchema(dbConn) {
     addFirmCol("gewerk", "TEXT");
     addFirmCol("notes", "TEXT");
     addFirmCol("role_code", "INTEGER DEFAULT 60");
+    addFirmCol("is_trashed", "INTEGER NOT NULL DEFAULT 0");
+    addFirmCol("trashed_at", "INTEGER");
     addFirmCol("removed_at", "TEXT");
 
     if (!columnExists(dbConn, "firms", "created_at")) {
@@ -351,6 +355,8 @@ function ensureFirmsAndPersonsSchema(dbConn) {
         email TEXT,
         phone TEXT,
 
+        is_trashed INTEGER NOT NULL DEFAULT 0,
+        trashed_at INTEGER,
         removed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -374,6 +380,8 @@ function ensureFirmsAndPersonsSchema(dbConn) {
     addPersonCol("notes", "TEXT");
     addPersonCol("email", "TEXT");
     addPersonCol("phone", "TEXT");
+    addPersonCol("is_trashed", "INTEGER NOT NULL DEFAULT 0");
+    addPersonCol("trashed_at", "INTEGER");
     addPersonCol("removed_at", "TEXT");
 
     if (!columnExists(dbConn, "persons", "created_at")) {

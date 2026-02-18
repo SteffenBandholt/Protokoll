@@ -18,6 +18,8 @@ const { registerPrintIpc } = require("./ipc/printIpc");
 const { registerSettingsIpc } = require("./ipc/settingsIpc");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
+const firmsRepo = require("./db/firmsRepo");
+const personsRepo = require("./db/personsRepo");
 
 let mainWindow;
 const WINDOWS_APP_ID = "de.bbm.baubesprechungsmanager";
@@ -169,6 +171,24 @@ app.whenReady().then(async () => {
   // ✅ App beenden (ohne Confirm) – über IPC
   ipcMain.handle("app:quit", () => {
     try {
+      try {
+        const personsRes = personsRepo.purgeTrashedSafe();
+        if (Number(personsRes?.skippedReferenced || 0) > 0) {
+          console.warn("[app:quit] persons purge skipped referenced:", personsRes);
+        }
+      } catch (err) {
+        console.warn("[app:quit] persons purge failed:", err?.message || err);
+      }
+
+      try {
+        const firmsRes = firmsRepo.purgeTrashedSafe();
+        if (Number(firmsRes?.skippedReferenced || 0) > 0) {
+          console.warn("[app:quit] firms purge skipped referenced:", firmsRes);
+        }
+      } catch (err) {
+        console.warn("[app:quit] firms purge failed:", err?.message || err);
+      }
+
       app.quit();
       return { ok: true };
     } catch (err) {

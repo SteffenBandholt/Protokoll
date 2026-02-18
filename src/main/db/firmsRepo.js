@@ -27,6 +27,10 @@ function _normRoleCode(v) {
   return i;
 }
 
+function _isActiveFirmWhere() {
+  return "removed_at IS NULL AND COALESCE(is_trashed, 0) = 0";
+}
+
 function getFirmById(firmId) {
   const db = initDatabase();
   if (!firmId) throw new Error("firmId required");
@@ -49,7 +53,7 @@ function listActive() {
       `
     SELECT *
     FROM firms
-    WHERE removed_at IS NULL
+    WHERE ${_isActiveFirmWhere()}
     ORDER BY
       COALESCE(role_code, 60) ASC,
       COALESCE(LOWER(name), ''),
@@ -184,7 +188,7 @@ function updateFirm({ firmId, patch }) {
     UPDATE firms
     SET ${sets.join(", ")}
     WHERE id = ?
-      AND removed_at IS NULL
+      AND ${_isActiveFirmWhere()}
   `
   ).run(...vals);
 
@@ -196,19 +200,24 @@ function softDeleteFirm(firmId) {
   if (!firmId) throw new Error("firmId required");
 
   const now = _nowIso();
+  const nowTs = Date.now();
 
   const info = db
     .prepare(
       `
     UPDATE firms
-    SET removed_at = ?, updated_at = ?
+    SET removed_at = ?, is_trashed = 1, trashed_at = COALESCE(trashed_at, ?), updated_at = ?
     WHERE id = ?
-      AND removed_at IS NULL
+      AND ${_isActiveFirmWhere()}
   `
     )
-    .run(now, now, firmId);
+    .run(now, nowTs, now, firmId);
 
   return { changed: info.changes, row: getFirmById(firmId) };
+}
+
+function markTrashed(firmId) {
+  return softDeleteFirm(firmId);
 }
 
 function countActivePersonsByFirm(firmId) {
@@ -222,6 +231,7 @@ function countActivePersonsByFirm(firmId) {
     FROM persons
     WHERE firm_id = ?
       AND removed_at IS NULL
+      AND COALESCE(is_trashed, 0) = 0
   `
     )
     .get(firmId);
@@ -239,7 +249,7 @@ function countByRoleCode(roleCode, dbConn) {
       `
     SELECT COUNT(*) AS n
     FROM firms
-    WHERE removed_at IS NULL
+    WHERE ${_isActiveFirmWhere()}
       AND role_code = ?
   `
     )
@@ -259,7 +269,7 @@ function reassignRoleCode({ fromCode, toCode, dbConn } = {}) {
       `
     UPDATE firms
     SET role_code = ?, updated_at = ?
-    WHERE removed_at IS NULL
+    WHERE ${_isActiveFirmWhere()}
       AND role_code = ?
   `
     )
@@ -295,7 +305,7 @@ function importFromOutlookStaging(stagingRows) {
         `
       SELECT id, short, name, name2, street, zip, city, phone, email, gewerk, notes
       FROM firms
-      WHERE removed_at IS NULL
+      WHERE ${_isActiveFirmWhere()}
     `
       )
       .all();
@@ -390,7 +400,7 @@ function importFromOutlookStaging(stagingRows) {
           UPDATE firms
           SET ${sets.join(", ")}
           WHERE id = ?
-            AND removed_at IS NULL
+            AND ${_isActiveFirmWhere()}
         `
         ).run(...vals);
 
@@ -406,12 +416,52 @@ function importFromOutlookStaging(stagingRows) {
   return tx();
 }
 
+function purgeTrashedSafe() {
+  const db = initDatabase();
+
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS n
+      FROM firms
+      WHERE COALESCE(is_trashed, 0) = 1
+    `
+    )
+    .get();
+  const trashedTotal = Number(row?.n || 0);
+
+  const deletable = db
+    .prepare(
+      `
+      SELECT f.id
+      FROM firms f
+      WHERE COALESCE(f.is_trashed, 0) = 1
+        AND NOT EXISTS (SELECT 1 FROM persons p WHERE p.firm_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM project_global_firms pgf WHERE pgf.firm_id = f.id)
+    `
+    )
+    .all()
+    .map((r) => String(r.id));
+
+  if (!deletable.length) {
+    return { deleted: 0, skippedReferenced: trashedTotal, trashedTotal };
+  }
+
+  const placeholders = deletable.map(() => "?").join(", ");
+  const info = db.prepare(`DELETE FROM firms WHERE id IN (${placeholders})`).run(...deletable);
+  const deleted = Number(info?.changes || 0);
+  const skippedReferenced = Math.max(0, trashedTotal - deleted);
+  return { deleted, skippedReferenced, trashedTotal };
+}
+
 module.exports = {
   getFirmById,
   listActive,
   createFirm,
   updateFirm,
   softDeleteFirm,
+  markTrashed,
+  purgeTrashedSafe,
   countActivePersonsByFirm,
   countByRoleCode,
   reassignRoleCode,

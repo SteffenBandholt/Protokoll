@@ -19,8 +19,8 @@ import { fireAndForget } from "../utils/async.js";
 // - Firm "Speichern" schließt die Editbox (zurück zur Liste)
 //
 // Preload APIs:
-// - firmsListGlobal / firmsCreateGlobal / firmsUpdateGlobal / firmsDeleteGlobal
-// - personsListByFirm / personsCreate / personsUpdate / personsDelete
+// - firmsListGlobal / firmsCreateGlobal / firmsUpdateGlobal / firmsDeleteGlobal / firmsMarkTrashed
+// - personsListByFirm / personsCreate / personsUpdate / personsDelete / personsMarkTrashed
 //
 export default class FirmsView {
   constructor({
@@ -415,7 +415,8 @@ const taFirmNotes = document.createElement("textarea");
     };
 
     const btnDeleteFirm = document.createElement("button");
-    btnDeleteFirm.textContent = "Löschen";
+    btnDeleteFirm.textContent = "Papierkorb";
+    btnDeleteFirm.title = "In Papierkorb";
     btnDeleteFirm.style.background = "#c62828";
     btnDeleteFirm.style.color = "#ffffff";
     btnDeleteFirm.style.border = "1px solid rgba(0,0,0,0.25)";
@@ -526,7 +527,8 @@ const taFirmNotes = document.createElement("textarea");
     };
 
     const btnDeletePerson = document.createElement("button");
-    btnDeletePerson.textContent = "Löschen";
+    btnDeletePerson.textContent = "Papierkorb";
+    btnDeletePerson.title = "In Papierkorb";
     btnDeletePerson.style.background = "#c62828";
     btnDeletePerson.style.color = "#ffffff";
     btnDeletePerson.style.border = "1px solid rgba(0,0,0,0.25)";
@@ -689,7 +691,8 @@ const taFirmNotes = document.createElement("textarea");
     };
 
     const btnDelete = document.createElement("button");
-    btnDelete.textContent = "Löschen";
+    btnDelete.textContent = "Papierkorb";
+    btnDelete.title = "In Papierkorb";
     btnDelete.style.background = "#c62828";
     btnDelete.style.color = "white";
     btnDelete.style.border = "1px solid rgba(0,0,0,0.25)";
@@ -4231,15 +4234,19 @@ const taFirmNotes = document.createElement("textarea");
     if (!targetFirmId) return;
 
     this.savingFirm = true;
-    this._setMsg("Lösche…");
+    this._setMsg("Verschiebe in Papierkorb…");
     this._applyFirmFormState();
     this._applyPersonFormState();
 
     let reloadAfterDelete = false;
     try {
-      const res = await window.bbmDb.firmsDeleteGlobal(targetFirmId);
+      const deleteCall =
+        typeof window.bbmDb?.firmsMarkTrashed === "function"
+          ? window.bbmDb.firmsMarkTrashed(targetFirmId)
+          : window.bbmDb.firmsDeleteGlobal(targetFirmId);
+      const res = await deleteCall;
       if (!res?.ok) {
-        alert(res?.error || "Löschen fehlgeschlagen");
+        alert(res?.error || "Papierkorb fehlgeschlagen");
         return;
       }
 
@@ -4364,15 +4371,19 @@ const taFirmNotes = document.createElement("textarea");
     if (!targetPersonId) return;
 
     this.savingPerson = true;
-    this._setMsg("Lösche Mitarbeiter…");
+    this._setMsg("Verschiebe Mitarbeiter in Papierkorb…");
     this._applyFirmFormState();
     this._applyPersonFormState();
 
     let reloadPersonsAfterDelete = false;
     try {
-      const res = await window.bbmDb.personsDelete(targetPersonId);
+      const deleteCall =
+        typeof window.bbmDb?.personsMarkTrashed === "function"
+          ? window.bbmDb.personsMarkTrashed(targetPersonId)
+          : window.bbmDb.personsDelete(targetPersonId);
+      const res = await deleteCall;
       if (!res?.ok) {
-        alert(res?.error || "Löschen fehlgeschlagen");
+        alert(res?.error || "Papierkorb fehlgeschlagen");
         return;
       }
 

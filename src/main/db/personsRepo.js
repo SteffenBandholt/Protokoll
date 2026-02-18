@@ -24,6 +24,16 @@ function _buildName(firstName, lastName) {
   return { fn, ln, name };
 }
 
+function _isActivePersonWhere() {
+  return "removed_at IS NULL AND COALESCE(is_trashed, 0) = 0";
+}
+
+function _isActivePersonWhereAlias(alias) {
+  const a = String(alias || "").trim();
+  if (!a) return _isActivePersonWhere();
+  return `${a}.removed_at IS NULL AND COALESCE(${a}.is_trashed, 0) = 0`;
+}
+
 function getPersonById(personId) {
   const db = initDatabase();
   if (!personId) throw new Error("personId required");
@@ -49,7 +59,7 @@ function listActiveByFirm(firmId) {
     SELECT *
     FROM persons
     WHERE firm_id = ?
-      AND removed_at IS NULL
+      AND ${_isActivePersonWhere()}
     ORDER BY
       COALESCE(LOWER(last_name), ''),
       COALESCE(LOWER(first_name), '')
@@ -65,7 +75,7 @@ function listActiveAll() {
       `
     SELECT *
     FROM persons
-    WHERE removed_at IS NULL
+    WHERE ${_isActivePersonWhere()}
     ORDER BY
       COALESCE(LOWER(last_name), ''),
       COALESCE(LOWER(first_name), '')
@@ -216,7 +226,7 @@ function updatePerson({ personId, patch }) {
     UPDATE persons
     SET ${sets.join(", ")}
     WHERE id = ?
-      AND removed_at IS NULL
+      AND ${_isActivePersonWhere()}
   `
   ).run(...vals);
 
@@ -236,7 +246,7 @@ function softDeletePerson(personId) {
       INNER JOIN meetings m ON m.project_id = pgf.project_id
       INNER JOIN meeting_participants mp ON mp.meeting_id = m.id
       WHERE p.id = ?
-        AND p.removed_at IS NULL
+        AND ${_isActivePersonWhereAlias("p")}
         AND pgf.removed_at IS NULL
         AND m.is_closed = 0
         AND mp.kind = 'global_person'
@@ -259,7 +269,7 @@ function softDeletePerson(personId) {
       INNER JOIN project_global_firms pgf ON pgf.firm_id = p.firm_id
       INNER JOIN project_candidates pc ON pc.project_id = pgf.project_id
       WHERE p.id = ?
-        AND p.removed_at IS NULL
+        AND ${_isActivePersonWhereAlias("p")}
         AND pgf.removed_at IS NULL
         AND pc.kind = 'global_person'
         AND pc.person_id = p.id
@@ -272,17 +282,39 @@ function softDeletePerson(personId) {
   }
 
   const now = _nowIso();
+  const nowTs = Date.now();
 
   const info = db
     .prepare(
       `
     UPDATE persons
-    SET removed_at = ?, updated_at = ?
+    SET removed_at = ?, is_trashed = 1, trashed_at = COALESCE(trashed_at, ?), updated_at = ?
     WHERE id = ?
-      AND removed_at IS NULL
+      AND ${_isActivePersonWhere()}
   `
     )
-    .run(now, now, personId);
+    .run(now, nowTs, now, personId);
+
+  return { changed: info.changes, row: getPersonById(personId) };
+}
+
+function markTrashed(personId) {
+  const db = initDatabase();
+  if (!personId) throw new Error("personId required");
+
+  const now = _nowIso();
+  const nowTs = Date.now();
+
+  const info = db
+    .prepare(
+      `
+    UPDATE persons
+    SET removed_at = COALESCE(removed_at, ?), is_trashed = 1, trashed_at = COALESCE(trashed_at, ?), updated_at = ?
+    WHERE id = ?
+      AND COALESCE(is_trashed, 0) = 0
+  `
+    )
+    .run(now, nowTs, now, personId);
 
   return { changed: info.changes, row: getPersonById(personId) };
 }
@@ -326,7 +358,7 @@ function importPersonsFromOutlookStaging(stagingRows) {
         `
       SELECT id, firm_id, first_name, last_name, email, phone, funktion, rolle, notes
       FROM persons
-      WHERE removed_at IS NULL
+      WHERE ${_isActivePersonWhere()}
     `
       )
       .all();
@@ -479,7 +511,7 @@ function importPersonsFromOutlookStaging(stagingRows) {
           UPDATE persons
           SET ${sets.join(", ")}
           WHERE id = ?
-            AND removed_at IS NULL
+            AND ${_isActivePersonWhere()}
         `
         ).run(...vals);
 
@@ -498,6 +530,54 @@ function importPersonsFromOutlookStaging(stagingRows) {
   return tx();
 }
 
+function purgeTrashedSafe() {
+  const db = initDatabase();
+
+  const row = db
+    .prepare(
+      `
+      SELECT COUNT(*) AS n
+      FROM persons
+      WHERE COALESCE(is_trashed, 0) = 1
+    `
+    )
+    .get();
+  const trashedTotal = Number(row?.n || 0);
+
+  const deletable = db
+    .prepare(
+      `
+      SELECT p.id
+      FROM persons p
+      WHERE COALESCE(p.is_trashed, 0) = 1
+        AND NOT EXISTS (
+          SELECT 1
+          FROM project_candidates pc
+          WHERE pc.kind = 'global_person'
+            AND pc.person_id = p.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM meeting_participants mp
+          WHERE mp.kind = 'global_person'
+            AND mp.person_id = p.id
+        )
+    `
+    )
+    .all()
+    .map((r) => String(r.id));
+
+  if (!deletable.length) {
+    return { deleted: 0, skippedReferenced: trashedTotal, trashedTotal };
+  }
+
+  const placeholders = deletable.map(() => "?").join(", ");
+  const info = db.prepare(`DELETE FROM persons WHERE id IN (${placeholders})`).run(...deletable);
+  const deleted = Number(info?.changes || 0);
+  const skippedReferenced = Math.max(0, trashedTotal - deleted);
+  return { deleted, skippedReferenced, trashedTotal };
+}
+
 module.exports = {
   getPersonById,
   listActiveByFirm,
@@ -505,5 +585,7 @@ module.exports = {
   createPerson,
   updatePerson,
   softDeletePerson,
+  markTrashed,
+  purgeTrashedSafe,
   importPersonsFromOutlookStaging,
 };
