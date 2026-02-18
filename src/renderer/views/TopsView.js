@@ -2275,7 +2275,7 @@ export default class TopsView {
       .map((x) => this._topIdKey(x.id))
       .filter(Boolean);
     const idx = visibleIds.indexOf(currentId);
-    const nextId = idx >= 0 ? visibleIds[idx + 1] || visibleIds[idx - 1] || null : null;
+    const nextId = idx >= 0 ? visibleIds[idx - 1] || visibleIds[idx + 1] || null : null;
 
     this._deleteInFlight = true;
     this._updateDeleteControls();
