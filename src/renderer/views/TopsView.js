@@ -76,6 +76,7 @@ export default class TopsView {
 
     // Save button
     this.btnSaveTop = null;
+    this.btnTrashTop = null;
     this.saveInfoEl = null;
 
     this.btnMove = null;
@@ -105,6 +106,7 @@ export default class TopsView {
 
     // Busy (NEVER-BLOCK-UI)
     this._busy = false;
+    this._deleteInFlight = false;
 
     // Markierungen für Nummernlücken
     this._markTopIds = new Set();
@@ -345,6 +347,7 @@ export default class TopsView {
 
       if (this.btnMove) this.btnMove.disabled = true;
       if (this.btnSaveTop) this.btnSaveTop.disabled = true;
+      if (this.btnTrashTop) this.btnTrashTop.disabled = true;
       if (this.btnDelete) this.btnDelete.disabled = true;
 
       if (this.btnPdfVorabzug) this.btnPdfVorabzug.disabled = true;
@@ -1486,6 +1489,25 @@ export default class TopsView {
       await this._saveMeetingTopPatch(patch, { reload: true, pulse: true });
     };
 
+    const btnTrashTop = document.createElement("button");
+    btnTrashTop.textContent = "Papierkorb";
+    btnTrashTop.title = "In Papierkorb (wie Ausblenden)";
+    btnTrashTop.style.background = "#fdd835";
+    btnTrashTop.style.color = "#1f1f1f";
+    btnTrashTop.style.border = "1px solid rgba(0,0,0,0.25)";
+    btnTrashTop.style.borderRadius = BTN_RADIUS;
+    btnTrashTop.style.padding = BTN_PAD_ACTION;
+    btnTrashTop.style.minHeight = BTN_MIN_H;
+    btnTrashTop.addEventListener("pointerdown", (e) => {
+      this._suppressBlurOnce = true;
+      e.preventDefault();
+    });
+    btnTrashTop.onclick = async (e) => {
+      e.preventDefault();
+      this._suppressBlurOnce = true;
+      await this.moveSelectedTopToTrash();
+    };
+
     const btnPdfVorabzug = document.createElement("button");
     btnPdfVorabzug.textContent = "PDF-Vorabzug";
     btnPdfVorabzug.style.background = "#1565c0";
@@ -1587,29 +1609,10 @@ export default class TopsView {
       });
     };
 
-    const btnDelete = document.createElement("button");
-    btnDelete.textContent = "Löschen";
-    btnDelete.style.background = "#c62828";
-    btnDelete.style.color = "white";
-    btnDelete.style.border = "1px solid rgba(0,0,0,0.25)";
-    btnDelete.style.borderRadius = BTN_RADIUS;
-    btnDelete.style.padding = BTN_PAD_ACTION;
-    btnDelete.style.minHeight = BTN_MIN_H;
-    btnDelete.addEventListener("pointerdown", (e) => {
-      this._suppressBlurOnce = true;
-      e.preventDefault();
-    });
-
-    btnDelete.onclick = async (e) => {
-      e.preventDefault();
-      this._suppressBlurOnce = true;
-      await this.deleteSelectedTop();
-    };
-
     if (this.isNewUi && topBar.contains(spacer)) {
       topBar.insertBefore(btnParticipants, spacer);
     }
-    headerActions.append(btnMove, btnSaveTop, btnPdfVorabzug, btnTodo, btnDelete);
+    headerActions.append(btnMove, btnSaveTop, btnPdfVorabzug, btnTodo, btnTrashTop);
     boxHeader.append(boxTitle, addActions, headerActions);
 
     // Editor
@@ -1840,10 +1843,10 @@ export default class TopsView {
     this.longCountEl = longCount;
 
     this.btnSaveTop = btnSaveTop;
+    this.btnTrashTop = btnTrashTop;
     this.saveInfoEl = null;
 
     this.btnMove = btnMove;
-    this.btnDelete = btnDelete;
 
     this.btnPdfVorabzug = btnPdfVorabzug;
     this.btnTodo = btnTodo;
@@ -2168,6 +2171,10 @@ export default class TopsView {
       this.btnSaveTop.disabled = busy || ro || !this.selectedTop;
       this.btnSaveTop.style.opacity = this.btnSaveTop.disabled ? "0.55" : "1";
     }
+    if (this.btnTrashTop) {
+      this.btnTrashTop.disabled = busy || ro || !this.selectedTop || this._deleteInFlight;
+      this.btnTrashTop.style.opacity = this.btnTrashTop.disabled ? "0.55" : "1";
+    }
 
     if (this.btnMove) {
       this.btnMove.disabled = busy || this.btnMove.disabled;
@@ -2228,6 +2235,7 @@ export default class TopsView {
     if (!t) return false;
     if (this.isReadOnly) return false;
     if (this._busy) return false;
+    if (this._deleteInFlight) return false;
     if (!this._isBlue(t)) return false;
     if (this._selectedHasChildren()) return false;
     return true;
@@ -2241,6 +2249,56 @@ export default class TopsView {
     this.btnDelete.style.cursor = can ? "pointer" : "default";
   }
 
+  async moveSelectedTopToTrash() {
+    const t = this.selectedTop;
+    if (!t) return;
+    if (this.isReadOnly) return;
+    if (this._busy) return;
+    if (this._deleteInFlight) return;
+
+    const currentId = this._topIdKey(t.id);
+    const visibleIds = (this.items || [])
+      .filter((x) => !this._shouldHideDoneTop(x))
+      .map((x) => this._topIdKey(x.id))
+      .filter(Boolean);
+    const idx = visibleIds.indexOf(currentId);
+    const nextId = idx >= 0 ? visibleIds[idx + 1] || visibleIds[idx - 1] || null : null;
+
+    this._deleteInFlight = true;
+    this._updateDeleteControls();
+
+    const savePromise = this._saveMeetingTopPatch(
+      { is_hidden: 1 },
+      { reload: false, pulse: false }
+    );
+
+    if (this.selectedTop && this._sameTopId(this.selectedTop.id, currentId)) {
+      this.selectedTop.is_hidden = 1;
+    }
+    const item = this._findTopById(currentId);
+    if (item) item.is_hidden = 1;
+
+    const nextTop = nextId ? this._findTopById(nextId) : null;
+    this.selectedTopId = nextTop?.id || null;
+    this.selectedTop = nextTop || null;
+
+    this.applyEditBoxState();
+    this._updateMoveControls();
+    this._updateDeleteControls();
+    this._updateCreateChildControls();
+    this._renderListOnly();
+
+    try {
+      const res = await savePromise;
+      if (!res?.ok) {
+        await this.reloadList(true);
+      }
+    } finally {
+      this._deleteInFlight = false;
+      this._updateDeleteControls();
+    }
+  }
+
   async deleteSelectedTop() {
     const t = this.selectedTop;
     if (!t) return;
@@ -2250,6 +2308,7 @@ export default class TopsView {
       return;
     }
     if (this._busy) return;
+    if (this._deleteInFlight) return;
 
     if (!this._isBlue(t)) {
       alert("Löschen ist nur für blaue (neue) TOPs erlaubt.");
@@ -2263,42 +2322,45 @@ export default class TopsView {
     const ok = confirm("TOP wirklich löschen?");
     if (!ok) return;
 
-    let needsReload = false;
-    this._setBusy(true);
+    const ids = (this.items || []).map((x) => this._topIdKey(x.id)).filter(Boolean);
+    const currentId = this._topIdKey(t.id);
+    const idx = ids.indexOf(currentId);
+    const nextId = idx >= 0 ? ids[idx + 1] || ids[idx - 1] || null : null;
+
+    this.moveModeActive = false;
+    this._deleteInFlight = true;
+    this._updateDeleteControls();
+
+    const savePromise = this._saveMeetingTopPatch(
+      { is_hidden: 1 },
+      { reload: false, pulse: false }
+    );
+
+    if (this.selectedTop && this._sameTopId(this.selectedTop.id, currentId)) {
+      this.selectedTop.is_hidden = 1;
+    }
+    const item = this._findTopById(currentId);
+    if (item) item.is_hidden = 1;
+
+    const nextTop = nextId ? this._findTopById(nextId) : null;
+    this.selectedTopId = nextTop?.id || null;
+    this.selectedTop = nextTop || null;
+
+    this.applyEditBoxState();
+    this._updateMoveControls();
+    this._updateDeleteControls();
+    this._updateCreateChildControls();
+    this._renderListOnly();
+
     try {
-      const ids = (this.items || []).map((x) => this._topIdKey(x.id));
-      const currentId = this._topIdKey(t.id);
-      const idx = ids.indexOf(currentId);
-      const nextId = idx >= 0 ? ids[idx + 1] || ids[idx - 1] || null : null;
-
-      const res = await window.bbmDb.topsDelete({
-        meetingId: this.meetingId,
-        topId: t.id,
-      });
-
+      const res = await savePromise;
       if (!res?.ok) {
         alert(res?.error || "Löschen fehlgeschlagen");
-        return;
+        await this.reloadList(false);
       }
-
-      this.moveModeActive = false;
-      this.items = (this.items || []).filter((x) => !this._sameTopId(x.id, t.id));
-      this._rebuildChildrenIndex(this.items);
-
-      const nextTop = nextId ? this._findTopById(nextId) : null;
-      this.selectedTopId = nextTop?.id || null;
-      this.selectedTop = nextTop || null;
-
-      this._renderListOnly();
-      this.applyEditBoxState();
-      needsReload = true;
     } finally {
-      this._setBusy(false);
-      if (needsReload) {
-        setTimeout(() => {
-          this.reloadList(true).catch(() => {});
-        }, 0);
-      }
+      this._deleteInFlight = false;
+      this._updateDeleteControls();
     }
   }
 
@@ -2720,6 +2782,10 @@ export default class TopsView {
         this.btnSaveTop.disabled = true;
         this.btnSaveTop.style.opacity = "0.55";
       }
+      if (this.btnTrashTop) {
+        this.btnTrashTop.disabled = true;
+        this.btnTrashTop.style.opacity = "0.55";
+      }
 
       this.moveModeActive = false;
       this._updateDeleteControls();
@@ -2795,6 +2861,10 @@ export default class TopsView {
         this.btnSaveTop.disabled = true;
         this.btnSaveTop.style.opacity = "0.55";
       }
+      if (this.btnTrashTop) {
+        this.btnTrashTop.disabled = true;
+        this.btnTrashTop.style.opacity = "0.55";
+      }
 
       this.moveModeActive = false;
       this._updateMoveControls();
@@ -2815,6 +2885,10 @@ export default class TopsView {
     if (this.btnSaveTop) {
       this.btnSaveTop.disabled = false;
       this.btnSaveTop.style.opacity = "1";
+    }
+    if (this.btnTrashTop) {
+      this.btnTrashTop.disabled = !!this._deleteInFlight;
+      this.btnTrashTop.style.opacity = this.btnTrashTop.disabled ? "0.55" : "1";
     }
 
     this._updateMoveControls();
