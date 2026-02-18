@@ -331,6 +331,7 @@ function listJoinedByMeeting(meetingId) {
   const topCreatedSel = _hasTopCol(db, "created_at")
     ? "t.created_at AS top_created_at"
     : "NULL AS top_created_at";
+  const trashedWhere = _hasTopCol(db, "is_trashed") ? "AND COALESCE(t.is_trashed, 0) = 0" : "";
 
   // Snapshot-Spalten (optional)
   const f = (col) => (_hasCol(db, col) ? `mt.${col}` : `NULL AS ${col}`);
@@ -374,6 +375,7 @@ function listJoinedByMeeting(meetingId) {
       JOIN tops t ON t.id = mt.top_id
       WHERE mt.meeting_id = ?
         AND t.removed_at IS NULL
+        ${trashedWhere}
     `
     )
     .all(meetingId);
