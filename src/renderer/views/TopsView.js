@@ -1166,6 +1166,19 @@ export default class TopsView {
       };
 
       const attemptClose = async () => {
+        try {
+          if (typeof window.bbmDb?.topsPurgeTrashedByMeeting === "function") {
+            const purgeRes = await window.bbmDb.topsPurgeTrashedByMeeting({
+              meetingId: this.meetingId,
+            });
+            if (purgeRes?.ok === false) {
+              console.warn("[tops] purgeTrashedByMeeting failed before close:", purgeRes.error);
+            }
+          }
+        } catch (err) {
+          console.warn("[tops] purgeTrashedByMeeting error before close:", err);
+        }
+
         const res = await window.bbmDb.meetingsClose(closePayload);
         if (res?.ok) {
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
@@ -2292,6 +2305,20 @@ export default class TopsView {
       const res = await savePromise;
       if (!res?.ok) {
         await this.reloadList(true);
+        return;
+      }
+
+      if (typeof window.bbmDb?.topsMarkTrashed === "function") {
+        window.bbmDb
+          .topsMarkTrashed({ topId: currentId })
+          .then((markRes) => {
+            if (markRes?.ok === false) {
+              console.warn("[tops] topsMarkTrashed failed:", markRes.error);
+            }
+          })
+          .catch((err) => {
+            console.warn("[tops] topsMarkTrashed error:", err);
+          });
       }
     } finally {
       this._deleteInFlight = false;

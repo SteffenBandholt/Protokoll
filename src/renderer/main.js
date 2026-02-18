@@ -702,6 +702,18 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("appQuit ist nicht verfügbar (Preload/IPC fehlt).");
         return;
       }
+
+      if (typeof window.bbmDb.topsPurgeTrashedGlobal === "function") {
+        try {
+          const purgeRes = await window.bbmDb.topsPurgeTrashedGlobal();
+          if (purgeRes?.ok === false) {
+            console.warn("[app] topsPurgeTrashedGlobal failed before quit:", purgeRes.error);
+          }
+        } catch (err) {
+          console.warn("[app] topsPurgeTrashedGlobal error before quit:", err);
+        }
+      }
+
       await window.bbmDb.appQuit();
     } catch (e) {
       alert(e?.message || "Beenden fehlgeschlagen");

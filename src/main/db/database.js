@@ -255,6 +255,8 @@ function ensureTopsSoftDeleteColumns(dbConn) {
   };
 
   addCol("removed_at", "TEXT");
+  addCol("is_trashed", "INTEGER NOT NULL DEFAULT 0");
+  addCol("trashed_at", "INTEGER");
 }
 
 function ensureMeetingsTodoSnapshotColumn(dbConn) {
@@ -792,6 +794,8 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
       number INTEGER NOT NULL,
       title TEXT NOT NULL,
       is_hidden INTEGER NOT NULL DEFAULT 0,
+      is_trashed INTEGER NOT NULL DEFAULT 0,
+      trashed_at INTEGER,
       removed_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
@@ -837,7 +841,7 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
 
   dbConn.exec(`
     INSERT INTO tops_new (
-      id, project_id, parent_top_id, level, number, title, is_hidden, removed_at, created_at, updated_at
+      id, project_id, parent_top_id, level, number, title, is_hidden, is_trashed, trashed_at, removed_at, created_at, updated_at
     )
     SELECT
       id,
@@ -847,6 +851,8 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
       number,
       title,
       0 AS is_hidden,
+      0 AS is_trashed,
+      NULL AS trashed_at,
       NULL AS removed_at,
       COALESCE(created_at, '${now}') AS created_at,
       COALESCE(updated_at, COALESCE(created_at, '${now}')) AS updated_at
@@ -928,6 +934,8 @@ function ensureSchema(dbConn) {
         number INTEGER NOT NULL,
         title TEXT NOT NULL,
         is_hidden INTEGER NOT NULL DEFAULT 0,
+        is_trashed INTEGER NOT NULL DEFAULT 0,
+        trashed_at INTEGER,
         removed_at TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),

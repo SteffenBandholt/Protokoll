@@ -901,6 +901,33 @@ function registerTopsIpc() {
     }
   });
 
+  ipcMain.handle("tops:markTrashed", (_e, data) => {
+    try {
+      const res = topsRepo.markTrashed({ topId: data?.topId });
+      return { ok: true, ...res };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("tops:purgeTrashedByMeeting", (_e, data) => {
+    try {
+      const res = topsRepo.purgeTrashedByMeeting({ meetingId: data?.meetingId });
+      return { ok: true, ...res };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("tops:purgeTrashedGlobal", () => {
+    try {
+      const res = topsRepo.purgeTrashedGlobal();
+      return { ok: true, ...res };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
   ipcMain.handle("meetingTops:update", (_e, data) => {
     try {
       const mt = topService.updateMeetingFields({

@@ -168,6 +168,54 @@ function softDeleteTop({ topId }) {
   return { topId, removed_at: now };
 }
 
+function markTrashed({ topId }) {
+  const db = initDatabase();
+  if (!topId) throw new Error("topId required");
+
+  const nowIso = new Date().toISOString();
+  const nowTs = Date.now();
+
+  const info = db.prepare(`
+    UPDATE tops
+    SET is_trashed = 1, trashed_at = ?, updated_at = ?
+    WHERE id = ?
+  `).run(nowTs, nowIso, topId);
+
+  if (info.changes === 0) {
+    throw new Error("TOP konnte nicht in den Papierkorb verschoben werden (nicht gefunden?)");
+  }
+
+  return { topId, is_trashed: 1, trashed_at: nowTs };
+}
+
+function purgeTrashedByMeeting({ meetingId }) {
+  const db = initDatabase();
+  if (!meetingId) throw new Error("meetingId required");
+
+  const info = db.prepare(`
+    DELETE FROM tops
+    WHERE is_trashed = 1
+      AND id IN (
+        SELECT mt.top_id
+        FROM meeting_tops mt
+        WHERE mt.meeting_id = ?
+      )
+  `).run(meetingId);
+
+  return { meetingId, deleted: info.changes };
+}
+
+function purgeTrashedGlobal() {
+  const db = initDatabase();
+
+  const info = db.prepare(`
+    DELETE FROM tops
+    WHERE is_trashed = 1
+  `).run();
+
+  return { deleted: info.changes };
+}
+
 function fixNumberGap({ meetingId, level, parentTopId, fromTopId, toNumber }) {
   const db = initDatabase();
   if (!meetingId) throw new Error("meetingId required");
@@ -194,6 +242,7 @@ function fixNumberGap({ meetingId, level, parentTopId, fromTopId, toNumber }) {
         JOIN tops t ON t.id = mt.top_id
         WHERE mt.meeting_id = ?
           AND t.removed_at IS NULL
+          AND COALESCE(t.is_trashed, 0) = 0
           AND t.level = ?
           AND t.parent_top_id IS ?
       `
@@ -262,5 +311,8 @@ module.exports = {
   updateTitle,
   setHidden,
   softDeleteTop,
+  markTrashed,
+  purgeTrashedByMeeting,
+  purgeTrashedGlobal,
   fixNumberGap,
 };
