@@ -922,7 +922,11 @@ function registerTopsIpc() {
   ipcMain.handle("tops:purgeTrashedGlobal", () => {
     try {
       const res = topsRepo.purgeTrashedGlobal();
-      return { ok: true, ...res };
+      return {
+        ok: true,
+        purgedCount: Number(res?.deleted || 0),
+        ...res,
+      };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
     }

@@ -705,8 +705,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (typeof window.bbmDb.topsPurgeTrashedGlobal === "function") {
         try {
-          const purgeRes = await window.bbmDb.topsPurgeTrashedGlobal();
-          if (purgeRes?.ok === false) {
+          const purgeRes = await Promise.race([
+            window.bbmDb.topsPurgeTrashedGlobal(),
+            new Promise((resolve) => setTimeout(() => resolve({ ok: false, timeout: true }), 1000)),
+          ]);
+          if (purgeRes?.timeout) {
+            console.warn("[app] topsPurgeTrashedGlobal timeout before quit");
+          } else if (purgeRes?.ok === false) {
             console.warn("[app] topsPurgeTrashedGlobal failed before quit:", purgeRes.error);
           }
         } catch (err) {
