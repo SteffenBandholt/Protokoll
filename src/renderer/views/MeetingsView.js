@@ -388,24 +388,11 @@ export default class MeetingsView {
   async _openTopListAllPreview() {
     if (this._printBusy) return;
 
-    const mid = this.selectedMeetingId || null;
-    if (!mid) {
-      alert("Bitte zuerst ein Protokoll auswählen.");
-      return;
-    }
-
-    const meeting = (this.meetings || []).find((m) => m.id === mid) || null;
-    if (!meeting) {
-      alert("Besprechung nicht gefunden.");
-      return;
-    }
-
     this._printBusy = true;
     try {
       if (typeof this.router?.openTopListAllPrintPreview === "function") {
         await this.router.openTopListAllPrintPreview({
           projectId: this.projectId,
-          meetingId: meeting.id,
         });
         return;
       }

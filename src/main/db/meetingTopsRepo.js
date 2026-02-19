@@ -410,16 +410,9 @@ function listLatestByProject(projectId) {
   // Snapshot-Spalten (optional)
   const f = (col) => (_hasCol(db, col) ? `mt.${col}` : `NULL AS ${col}`);
 
-  return db
+  const baseRows = db
     .prepare(
       `
-      WITH latest AS (
-        SELECT mt.top_id, MAX(mt.updated_at) AS max_updated
-        FROM meeting_tops mt
-        JOIN tops t ON t.id = mt.top_id
-        WHERE t.project_id = ?
-        GROUP BY mt.top_id
-      )
       SELECT
         t.id,
         t.project_id,
@@ -428,8 +421,20 @@ function listLatestByProject(projectId) {
         t.number,
         t.title,
         t.is_hidden,
-        ${topCreatedSel},
+        ${topCreatedSel}
+      FROM tops t
+      WHERE t.project_id = ?
+        AND t.removed_at IS NULL
+        ${trashedWhere}
+    `
+    )
+    .all(projectId);
 
+  const mtRows = db
+    .prepare(
+      `
+      SELECT
+        mt.top_id,
         mt.meeting_id,
         mt.status,
         mt.due_date,
@@ -453,13 +458,28 @@ function listLatestByProject(projectId) {
         ${f("frozen_ampel_color")},
         ${f("frozen_ampel_reason")}
       FROM meeting_tops mt
-      JOIN latest l ON l.top_id = mt.top_id AND l.max_updated = mt.updated_at
-      JOIN tops t ON t.id = mt.top_id
-      WHERE t.removed_at IS NULL
-        ${trashedWhere}
+      JOIN (
+        SELECT mt.top_id, MAX(mt.updated_at) AS max_updated
+        FROM meeting_tops mt
+        JOIN tops t ON t.id = mt.top_id
+        WHERE t.project_id = ?
+        GROUP BY mt.top_id
+      ) latest ON latest.top_id = mt.top_id AND latest.max_updated = mt.updated_at
     `
     )
     .all(projectId);
+
+  const mtById = new Map();
+  for (const row of mtRows) {
+    const topId = row.top_id;
+    const { top_id: _ignore, ...rest } = row;
+    mtById.set(topId, rest);
+  }
+
+  return baseRows.map((t) => ({
+    ...t,
+    ...(mtById.get(t.id) || {}),
+  }));
 }
 
 function deleteByTopId(topId) {

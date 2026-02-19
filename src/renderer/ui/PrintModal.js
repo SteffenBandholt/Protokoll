@@ -1483,10 +1483,6 @@ export default class PrintModal {
     }
 
     const api = window.bbmDb || {};
-    if (typeof api.topsListByMeeting !== "function") {
-      alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
-      return;
-    }
     if (typeof api.topsListByProject !== "function") {
       alert("topsListByProject ist nicht verfügbar (Preload/IPC fehlt).");
       return;
@@ -1620,13 +1616,9 @@ export default class PrintModal {
 
   async _printTopListAllPdf({ projectId, meetingId, preview = true } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
-    const mid = meetingId || this.router?.currentMeetingId || null;
+    const mid = meetingId || null;
     if (!pid) {
       alert("Bitte zuerst ein Projekt auswählen.");
-      return;
-    }
-    if (!mid) {
-      alert("Bitte zuerst eine Besprechung auswählen.");
       return;
     }
 
@@ -1653,15 +1645,22 @@ export default class PrintModal {
       let settings = this.router?.context?.settings || {};
       const protocolsDir = String(settings?.["pdf.protocolsDir"] || "").trim();
 
-      const resMeeting = await api.topsListByMeeting(mid);
-      if (!resMeeting?.ok) {
-        alert(resMeeting?.error || "Fehler beim Laden der Besprechung");
-        return;
-      }
-      const meeting = resMeeting.meeting || null;
-      if (!meeting) {
-        alert("Besprechung nicht gefunden.");
-        return;
+      let meeting = null;
+      if (mid) {
+        if (typeof api.topsListByMeeting !== "function") {
+          alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
+          return;
+        }
+        const resMeeting = await api.topsListByMeeting(mid);
+        if (!resMeeting?.ok) {
+          alert(resMeeting?.error || "Fehler beim Laden der Besprechung");
+          return;
+        }
+        meeting = resMeeting.meeting || null;
+        if (!meeting) {
+          alert("Besprechung nicht gefunden.");
+          return;
+        }
       }
 
       const resAll = await api.topsListByProject(pid);
@@ -1685,9 +1684,10 @@ export default class PrintModal {
         meeting?.updatedAt ||
         null;
       const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
-      const fileName =
-        this._sanitizeFileName(`${projectNumber}_TopListe-alle_#${meetingNr}-${meetingDateStr}`) +
-        ".pdf";
+      const fileName = meetingNr
+        ? this._sanitizeFileName(`${projectNumber}_TopListe-alle_#${meetingNr}-${meetingDateStr}`) +
+          ".pdf"
+        : this._sanitizeFileName(`${projectNumber}_TopListe-alle_${meetingDateStr}`) + ".pdf";
 
       const pdfLogoDefaults = {
         enabled: true,
@@ -2422,7 +2422,7 @@ export default class PrintModal {
       logoHeightMm,
     });
     const projectLine = headerTemplate.projectLine;
-    const meetingLine = headerTemplate.meetingLine;
+    const meetingLine = meeting ? headerTemplate.meetingLine : "";
     const pdfLogoHtml = headerTemplate.pdfLogoHtml;
     const pdfLogoTopMm = headerTemplate.pdfLogoTopMm;
     const pdfLogoHeightMm = headerTemplate.effectiveLogoHeightMm;
@@ -3621,7 +3621,7 @@ export default class PrintModal {
       <div class="projLabel">Projekt:</div>
       <div class="projLine">${this._escapeHtml(projectLine)}</div>
       <div class="meetingLine">Top-Liste (alle)</div>
-      <div class="meetingMetaLine">${meetingLine}</div>
+      <div class="meetingMetaLine">${meeting ? meetingLine : ""}</div>
     </div>
 
     <table class="tops">
