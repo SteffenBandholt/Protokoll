@@ -38,7 +38,7 @@ export default class TopsView {
     this.topBarEl = null;
     this.editMetaCol = null;
     this.editMetaSep = null;
-    this.boxTopNumEl = null;
+    this.boxTitleEl = null;
 
     this.inpTitle = null;
     this.taLongtext = null;
@@ -85,9 +85,6 @@ export default class TopsView {
 
     this.btnDelete = null;
 
-    // ✅ PDF-Vorabzug Button (offenes Meeting)
-    this.btnPdfVorabzug = null;
-    this.btnTodo = null;
     this.btnParticipants = null;
 
     this.items = [];
@@ -527,9 +524,6 @@ export default class TopsView {
       if (this.btnSaveTop) this.btnSaveTop.disabled = true;
       if (this.btnTrashTop) this.btnTrashTop.disabled = true;
       if (this.btnDelete) this.btnDelete.disabled = true;
-
-      if (this.btnPdfVorabzug) this.btnPdfVorabzug.disabled = true;
-      if (this.btnTodo) this.btnTodo.disabled = true;
 
       if (this.inpTitle) this.inpTitle.disabled = true;
       if (this.taLongtext) this.taLongtext.disabled = true;
@@ -1700,18 +1694,19 @@ export default class TopsView {
 
     const boxTitle = document.createElement("div");
     boxTitle.textContent = "TOP bearbeiten";
-    boxTitle.style.fontWeight = "700";
+    boxTitle.style.color = "#1b5e20";
+    boxTitle.style.fontWeight = "600";
     boxTitle.style.whiteSpace = "nowrap";
-
-    const boxTopNum = document.createElement("div");
-    boxTopNum.style.color = "#1b5e20";
-    boxTopNum.style.fontWeight = "600";
-    boxTopNum.style.whiteSpace = "nowrap";
+    boxTitle.style.minWidth = "7.5cm";
+    boxTitle.style.maxWidth = "7.5cm";
+    boxTitle.style.overflow = "hidden";
+    boxTitle.style.textOverflow = "ellipsis";
 
     const addActions = document.createElement("div");
     addActions.style.display = "inline-flex";
     addActions.style.alignItems = "center";
     addActions.style.gap = "8px";
+    addActions.style.marginLeft = "1.5cm";
     addActions.append(btnL1, btnChild);
 
     const headerActions = document.createElement("div");
@@ -1767,85 +1762,8 @@ export default class TopsView {
       await this.moveSelectedTopToTrash();
     };
 
-    const btnPdfVorabzug = document.createElement("button");
-    btnPdfVorabzug.textContent = "PDF-Vorabzug";
-    btnPdfVorabzug.style.background = "#1565c0";
-    btnPdfVorabzug.style.color = "white";
-    btnPdfVorabzug.style.border = "1px solid rgba(0,0,0,0.25)";
-    btnPdfVorabzug.style.borderRadius = BTN_RADIUS;
-    btnPdfVorabzug.style.padding = BTN_PAD_ACTION;
-    btnPdfVorabzug.style.minHeight = BTN_MIN_H;
-
-    btnPdfVorabzug.onclick = async () => {
-      if (this._busy) return;
-
-      this._setBusy(true);
-      try {
-        const defDate = this._computeNextMeetingDefaultDateIso();
-        const promptRes = await this.router?.promptNextMeetingSettings?.({
-          defaultDateIso: defDate,
-        });
-        if (promptRes?.cancelled) return;
-
-        const isOpen = this.meetingMeta && Number(this.meetingMeta.is_closed) === 0;
-        if (!isOpen) {
-          alert("PDF-Vorabzug ist nur für eine offene Besprechung verfügbar.");
-          return;
-        }
-
-        if (typeof this.router?.openPrintVorabzug === "function") {
-          await this.router.openPrintVorabzug({
-            projectId: this.projectId,
-            meetingId: this.meetingId,
-          });
-        } else {
-          alert("PrintModal unterstützt keinen Vorabzug (openPrintVorabzug fehlt).");
-        }
-      } finally {
-        this._setBusy(false);
-        if (typeof this.router?.closePrintModal === "function") {
-          await this.router.closePrintModal({ keepPreview: true });
-        }
-      }
-    };
-
-    const btnTodo = document.createElement("button");
-    btnTodo.textContent = "ToDo";
-    btnTodo.style.background = "#1565c0";
-    btnTodo.style.color = "white";
-    btnTodo.style.border = "1px solid rgba(0,0,0,0.25)";
-    btnTodo.style.borderRadius = BTN_RADIUS;
-    btnTodo.style.padding = BTN_PAD_ACTION;
-    btnTodo.style.minHeight = BTN_MIN_H;
-
-    btnTodo.onclick = async () => {
-      if (this._busy) return;
-
-      if (!this.projectId || !this.meetingId || !this.meetingMeta?.id) {
-        alert("ToDo ist erst verfügbar, wenn Projekt und Besprechung geladen sind.");
-        return;
-      }
-
-      this._setBusy(true);
-      try {
-        if (typeof this.router?.openTodoPrintPreview === "function") {
-          await this.router.openTodoPrintPreview({
-            projectId: this.projectId,
-            meetingId: this.meetingId,
-          });
-        } else {
-          alert("PrintModal unterstützt kein ToDo-PDF.");
-        }
-      } finally {
-        this._setBusy(false);
-        if (typeof this.router?.closePrintModal === "function") {
-          await this.router.closePrintModal({ keepPreview: true });
-        }
-      }
-    };
-
-    headerActions.append(btnMove, btnSaveTop, btnPdfVorabzug, btnTodo, btnTrashTop);
-    boxHeader.append(boxTitle, boxTopNum, addActions, headerActions);
+    headerActions.append(btnMove, btnSaveTop, btnTrashTop);
+    boxHeader.append(boxTitle, addActions, headerActions);
 
     // Editor
     const makeCountBadge = (initialText) => {
@@ -1881,6 +1799,7 @@ export default class TopsView {
     inpTitle.type = "text";
     inpTitle.placeholder = "Kurztext…";
     inpTitle.style.width = "100%";
+    inpTitle.style.fontFamily = "Calibri, \"Segoe UI\", Arial, sans-serif";
     inpTitle.maxLength = this._titleMax();
     inpTitle.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
@@ -1958,6 +1877,7 @@ export default class TopsView {
     taLong.rows = 4;
     taLong.placeholder = "Langtext…";
     taLong.style.width = "100%";
+    taLong.style.fontFamily = "Calibri, \"Segoe UI\", Arial, sans-serif";
     taLong.maxLength = this._longMax();
     // Hinweis: Enter = neue Zeile, Ctrl/Cmd+Enter = Speichern
     taLong.title = "Enter: neue Zeile · Ctrl/Cmd+Enter: speichern";
@@ -2080,7 +2000,7 @@ export default class TopsView {
 
     this.titleCountEl = titleCount;
     this.longCountEl = longCount;
-    this.boxTopNumEl = boxTopNum;
+    this.boxTitleEl = boxTitle;
 
     this._applyEditFontSizes();
 
@@ -2089,9 +2009,6 @@ export default class TopsView {
     this.saveInfoEl = null;
 
     this.btnMove = btnMove;
-
-    this.btnPdfVorabzug = btnPdfVorabzug;
-    this.btnTodo = btnTodo;
 
     this.topMetaEl = topMeta;
     this._updateAmpelToggleUi = updateAmpelToggleUi;
@@ -2375,24 +2292,6 @@ export default class TopsView {
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
       this.btnCloseMeeting.style.opacity = this.btnCloseMeeting.disabled ? "0.65" : "1";
-    }
-
-    if (this.btnPdfVorabzug) {
-      const isOpen = this.meetingMeta && Number(this.meetingMeta.is_closed) === 0;
-      const dis = busy || ro || !isOpen;
-      this.btnPdfVorabzug.disabled = dis;
-      this.btnPdfVorabzug.style.opacity = dis ? "0.65" : "1";
-      this.btnPdfVorabzug.title = isOpen
-        ? "PDF-Vorabzug drucken (offene Besprechung)"
-        : "Nur für offene Besprechung verfügbar";
-    }
-
-    if (this.btnTodo) {
-      const hasContext = !!(this.projectId && this.meetingId && this.meetingMeta?.id);
-      const dis = busy || !hasContext;
-      this.btnTodo.disabled = dis;
-      this.btnTodo.style.opacity = dis ? "0.65" : "1";
-      this.btnTodo.title = hasContext ? "ToDo-Liste als PDF-Vorschau" : "Nur mit geladenem Projekt und Besprechung verfügbar";
     }
 
     if (ro) this.moveModeActive = false;
@@ -3071,9 +2970,9 @@ export default class TopsView {
     if (this.editMetaCol) this.editMetaCol.style.display = isLevel1 ? "none" : "";
     if (this.editMetaSep) this.editMetaSep.style.display = isLevel1 ? "none" : "";
 
-    if (this.boxTopNumEl) {
+    if (this.boxTitleEl) {
       const num = t?.displayNumber ?? t?.number ?? "";
-      this.boxTopNumEl.textContent = num ? `TOP ${num}` : "";
+      this.boxTitleEl.textContent = num ? `TOP ${num} bearbeiten` : "TOP bearbeiten";
     }
 
     if (!t) {
@@ -3430,3 +3329,6 @@ export default class TopsView {
     this._gapPopupOverlay = overlay;
   }
 }
+
+
+
