@@ -108,6 +108,7 @@ export default class TopsView {
     this._fixedHorzSidebarEl = null;
     this._topsLimitsListenerBound = false;
     this._onTopLimitsChanged = null;
+    this._longtextSettingLoaded = false;
 
     // Busy (NEVER-BLOCK-UI)
     this._busy = false;
@@ -254,6 +255,45 @@ export default class TopsView {
     this._updateCharCounters();
     if (this.listEl) this._renderListOnly();
     this._updateTopBarMetaLabels();
+  }
+
+  async _loadLongtextSetting() {
+    if (this._longtextSettingLoaded) return;
+    const key = "tops.showLongtextInList";
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany === "function") {
+      const res = await api.appSettingsGetMany([key]);
+      if (res?.ok) {
+        const data = res.data || {};
+        this.showLongtextInList = this._parseBool(data[key], this.showLongtextInList);
+      }
+      this._longtextSettingLoaded = true;
+      return;
+    }
+
+    try {
+      const raw = window.localStorage?.getItem?.(key);
+      if (raw != null) {
+        this.showLongtextInList = this._parseBool(raw, this.showLongtextInList);
+      }
+    } catch (_e) {
+      // ignore
+    }
+    this._longtextSettingLoaded = true;
+  }
+
+  async _saveLongtextSetting() {
+    const key = "tops.showLongtextInList";
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsSetMany === "function") {
+      await api.appSettingsSetMany({ [key]: this.showLongtextInList ? "1" : "0" });
+      return;
+    }
+    try {
+      window.localStorage?.setItem?.(key, this.showLongtextInList ? "1" : "0");
+    } catch (_e) {
+      // ignore
+    }
   }
 
   async _loadLevel1CollapsedSetting() {
@@ -1408,6 +1448,7 @@ export default class TopsView {
       this.showLongtextInList = !this.showLongtextInList;
       updateLongToggleUi();
       this._renderListOnly();
+      this._saveLongtextSetting().catch(() => {});
     };
 
     btnLongToggle.addEventListener("keydown", (e) => {
@@ -1415,6 +1456,13 @@ export default class TopsView {
       e.preventDefault();
       btnLongToggle.click();
     });
+
+    this._loadLongtextSetting()
+      .then(() => {
+        updateLongToggleUi();
+        this._renderListOnly();
+      })
+      .catch(() => {});
 
     // Ampel Toggle
     const btnAmpelToggle = document.createElement("button");
@@ -1699,33 +1747,6 @@ export default class TopsView {
       }
     };
 
-    const btnParticipants = document.createElement("button");
-    btnParticipants.textContent = "Teilnehmer";
-    btnParticipants.style.background = "#1565c0";
-    btnParticipants.style.color = "white";
-    btnParticipants.style.border = "1px solid rgba(0,0,0,0.25)";
-    btnParticipants.style.borderRadius = BTN_RADIUS;
-    btnParticipants.style.padding = BTN_PAD_ACTION;
-    btnParticipants.style.minHeight = BTN_MIN_H;
-    btnParticipants.onclick = async () => {
-      if (this._busy) return;
-      if (!this.projectId || !this.meetingId || !this.meetingMeta?.id) {
-        alert("Teilnehmer ist nur mit geladenem Projekt und Besprechung verfügbar.");
-        return;
-      }
-      if (typeof this.router?.openParticipantsModal !== "function") {
-        alert("Teilnehmer-Modal ist nicht verfügbar.");
-        return;
-      }
-      await this.router.openParticipantsModal({
-        projectId: this.projectId,
-        meetingId: this.meetingId,
-      });
-    };
-
-    if (this.isNewUi && topBar.contains(spacer)) {
-      topBar.insertBefore(btnParticipants, spacer);
-    }
     headerActions.append(btnMove, btnSaveTop, btnPdfVorabzug, btnTodo, btnTrashTop);
     boxHeader.append(boxTitle, boxTopNum, addActions, headerActions);
 
@@ -1972,7 +1993,6 @@ export default class TopsView {
 
     this.btnPdfVorabzug = btnPdfVorabzug;
     this.btnTodo = btnTodo;
-    this.btnParticipants = btnParticipants;
 
     this.topMetaEl = topMeta;
     this._updateAmpelToggleUi = updateAmpelToggleUi;
@@ -2274,16 +2294,6 @@ export default class TopsView {
       this.btnTodo.disabled = dis;
       this.btnTodo.style.opacity = dis ? "0.65" : "1";
       this.btnTodo.title = hasContext ? "ToDo-Liste als PDF-Vorschau" : "Nur mit geladenem Projekt und Besprechung verfügbar";
-    }
-
-    if (this.btnParticipants) {
-      const hasContext = !!(this.projectId && this.meetingId && this.meetingMeta?.id);
-      const dis = busy || !hasContext;
-      this.btnParticipants.disabled = dis;
-      this.btnParticipants.style.opacity = dis ? "0.65" : "1";
-      this.btnParticipants.title = hasContext
-        ? "Teilnehmer für diese Besprechung bearbeiten"
-        : "Nur mit geladenem Projekt und Besprechung verfügbar";
     }
 
     if (ro) this.moveModeActive = false;

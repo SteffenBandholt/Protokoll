@@ -97,6 +97,9 @@ export default class MainHeader {
     root.style.borderBottom = "1px solid var(--card-border)";
     root.style.background = "var(--header-bg)";
     root.style.color = "var(--header-text)";
+    root.style.position = "sticky";
+    root.style.top = "0";
+    root.style.zIndex = "12010";
     if (this._isNewUi) {
       root.style.setProperty("--header-action-underline", "2.5px");
       root.style.setProperty("--header-action-baseline-offset", "10px");

@@ -195,6 +195,7 @@ function registerSettingsIpc() {
         "tops.titleMax",
         "tops.longMax",
         "tops.level1Collapsed",
+        "tops.showLongtextInList",
       ]);
       const data = {};
 
