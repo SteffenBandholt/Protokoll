@@ -782,7 +782,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     btnStart.textContent = "Start";
     btnProjects.textContent = "Projekte";
-    btnFirmsBase.textContent = "Firmenstamm";
+    btnFirmsBase.textContent = "Firmen (extern)";
     btnSettings.textContent = "Einstellungen";
     btnHelp.textContent = "Hilfe";
     btnQuit.textContent = "Beenden";

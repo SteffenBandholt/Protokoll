@@ -218,8 +218,16 @@ export default class MainHeader {
       btn.style.fontWeight = "700";
       btn.style.borderRadius = "0";
       btn.style.borderBottom = "var(--header-action-underline) solid currentColor";
+      btn.style.borderBottomColor = "currentColor";
       btn.style.cursor = "pointer";
       btn.style.whiteSpace = "nowrap";
+      btn.onmouseenter = () => {
+        if (btn.disabled) return;
+        btn.style.borderBottomColor = "#ff8c00";
+      };
+      btn.onmouseleave = () => {
+        btn.style.borderBottomColor = "currentColor";
+      };
     };
 
     const runProjectAction = async (fn) => {
