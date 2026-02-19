@@ -109,6 +109,12 @@ export default class TopsView {
     this._topsLimitsListenerBound = false;
     this._onTopLimitsChanged = null;
     this._longtextSettingLoaded = false;
+    this.listFontScale = "medium";
+    this._listFontScaleLoaded = false;
+    this.editFontScale = "small";
+    this._editFontScaleLoaded = false;
+    this._fontScaleListenerBound = false;
+    this._onFontScaleChanged = null;
 
     // Busy (NEVER-BLOCK-UI)
     this._busy = false;
@@ -294,6 +300,69 @@ export default class TopsView {
     } catch (_e) {
       // ignore
     }
+  }
+
+  async _loadListFontScaleSetting(force = false) {
+    if (this._listFontScaleLoaded && !force) return;
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") {
+      this.listFontScale = "medium";
+      this._listFontScaleLoaded = true;
+      return;
+    }
+    const res = await api.appSettingsGetMany(["tops.fontscale.list"]);
+    if (!res?.ok) {
+      this.listFontScale = "medium";
+      this._listFontScaleLoaded = true;
+      return;
+    }
+    const raw = String(res?.data?.["tops.fontscale.list"] || "").trim().toLowerCase();
+    this.listFontScale = ["small", "medium", "large"].includes(raw) ? raw : "medium";
+    this._listFontScaleLoaded = true;
+  }
+
+  async _loadEditFontScaleSetting(force = false) {
+    if (this._editFontScaleLoaded && !force) return;
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") {
+      this.editFontScale = "small";
+      this._editFontScaleLoaded = true;
+      return;
+    }
+    const res = await api.appSettingsGetMany(["tops.fontscale.editbox"]);
+    if (!res?.ok) {
+      this.editFontScale = "small";
+      this._editFontScaleLoaded = true;
+      return;
+    }
+    const raw = String(res?.data?.["tops.fontscale.editbox"] || "").trim().toLowerCase();
+    this.editFontScale = ["small", "large"].includes(raw) ? raw : "small";
+    this._editFontScaleLoaded = true;
+  }
+
+  _getListFontSizes() {
+    const scale = (this.listFontScale || "medium").toString().toLowerCase();
+    if (scale === "small") {
+      return { l1: 15, l24: 14, long: 13 };
+    }
+    if (scale === "large") {
+      return { l1: 21, l24: 20, long: 19 };
+    }
+    return { l1: 18, l24: 17, long: 16 };
+  }
+
+  _getEditFontSizes() {
+    const scale = (this.editFontScale || "small").toString().toLowerCase();
+    if (scale === "large") {
+      return { short: 18, long: 17 };
+    }
+    return { short: 14, long: 13 };
+  }
+
+  _applyEditFontSizes() {
+    const sizes = this._getEditFontSizes();
+    if (this.inpTitle) this.inpTitle.style.fontSize = `${sizes.short}px`;
+    if (this.taLongtext) this.taLongtext.style.fontSize = `${sizes.long}px`;
   }
 
   async _loadLevel1CollapsedSetting() {
@@ -1257,6 +1326,22 @@ export default class TopsView {
 
   render() {
     const root = document.createElement("div");
+    if (!this._fontScaleListenerBound) {
+      this._fontScaleListenerBound = true;
+      this._onFontScaleChanged = () => {
+        this._loadListFontScaleSetting(true)
+          .then(() => {
+            if (this.listEl) this._renderListOnly();
+          })
+          .catch(() => {});
+        this._loadEditFontScaleSetting(true)
+          .then(() => {
+            this._applyEditFontSizes();
+          })
+          .catch(() => {});
+      };
+      window.addEventListener("bbm:tops-fontscale-changed", this._onFontScaleChanged);
+    }
     if (!this._topsLimitsListenerBound) {
       this._onTopLimitsChanged = async () => {
         await this._loadTextLimitsSetting();
@@ -1461,6 +1546,18 @@ export default class TopsView {
       .then(() => {
         updateLongToggleUi();
         this._renderListOnly();
+      })
+      .catch(() => {});
+
+    this._loadListFontScaleSetting()
+      .then(() => {
+        this._renderListOnly();
+      })
+      .catch(() => {});
+
+    this._loadEditFontScaleSetting()
+      .then(() => {
+        this._applyEditFontSizes();
       })
       .catch(() => {});
 
@@ -1984,6 +2081,8 @@ export default class TopsView {
     this.titleCountEl = titleCount;
     this.longCountEl = longCount;
     this.boxTopNumEl = boxTopNum;
+
+    this._applyEditFontSizes();
 
     this.btnSaveTop = btnSaveTop;
     this.btnTrashTop = btnTrashTop;
@@ -2684,6 +2783,7 @@ export default class TopsView {
     list.innerHTML = "";
 
     const movingTop = this.moveModeActive ? this.selectedTop : null;
+    const fontSizes = this._getListFontSizes();
     const ampelCompute = createAmpelComputer(this.items, this._ampelBaseDate());
     const meeting = this.meetingMeta || { id: this.meetingId };
 
@@ -2757,6 +2857,7 @@ export default class TopsView {
       numBlock.style.fontVariantNumeric = "tabular-nums";
       numBlock.style.opacity = "0.85";
       numBlock.style.textAlign = "left";
+      numBlock.style.fontSize = isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`;
       numBlock.style.display = "flex";
       numBlock.style.alignItems = "center";
       numBlock.style.gap = "6px";
@@ -2800,7 +2901,7 @@ export default class TopsView {
       const shortLine = document.createElement("div");
       shortLine.textContent = `${top.title || ""}`;
       shortLine.style.color = shortColor;
-      shortLine.style.fontSize = isLevel1 ? "15px" : "14px";
+      shortLine.style.fontSize = isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`;
       shortLine.style.whiteSpace = "nowrap";
       shortLine.style.overflow = "hidden";
       shortLine.style.textOverflow = "ellipsis";
@@ -2812,7 +2913,7 @@ export default class TopsView {
         if (lt) {
           const longDiv = document.createElement("div");
           longDiv.textContent = this._clampStr(lt, this._longMax());
-          longDiv.style.fontSize = "13px";
+          longDiv.style.fontSize = `${fontSizes.long}px`;
           longDiv.style.opacity = "0.85";
           longDiv.style.whiteSpace = "pre-wrap";
           longDiv.style.color = longColor;

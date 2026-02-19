@@ -196,6 +196,8 @@ function registerSettingsIpc() {
         "tops.longMax",
         "tops.level1Collapsed",
         "tops.showLongtextInList",
+        "tops.fontscale.list",
+        "tops.fontscale.editbox",
       ]);
       const data = {};
 

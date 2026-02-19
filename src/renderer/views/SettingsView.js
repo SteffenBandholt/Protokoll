@@ -528,6 +528,8 @@ export default class SettingsView {
 
     const TOPS_TITLE_KEY = "tops.titleMax";
     const TOPS_LONG_KEY = "tops.longMax";
+    const TOPS_FONT_LIST_KEY = "tops.fontscale.list";
+    const TOPS_FONT_EDIT_KEY = "tops.fontscale.editbox";
 
     const topsLimitBox = document.createElement("div");
     applyPopupCardStyle(topsLimitBox);
@@ -640,6 +642,176 @@ export default class SettingsView {
     topsRowLong.style.marginBottom = "4px";
 
     topsLimitBox.append(topsLimitTitle, topsRowShort, topsRowLong, topsLimitMsg);
+
+    const fontScaleBox = document.createElement("div");
+    applyPopupCardStyle(fontScaleBox);
+    fontScaleBox.style.padding = "8px 10px";
+    fontScaleBox.style.maxWidth = "720px";
+    fontScaleBox.style.marginTop = "0";
+    fontScaleBox.style.width = "calc(100% - 1cm)";
+    fontScaleBox.style.justifySelf = "end";
+    fontScaleBox.style.marginLeft = "auto";
+
+    const fontScaleTitle = document.createElement("div");
+    fontScaleTitle.textContent = "Top-Liste (Schriftgrößen)";
+    fontScaleTitle.style.fontWeight = "bold";
+    fontScaleTitle.style.marginBottom = "6px";
+
+    const fontScaleMsg = document.createElement("div");
+    fontScaleMsg.style.fontSize = "12px";
+    fontScaleMsg.style.opacity = "0.75";
+    fontScaleMsg.style.marginTop = "4px";
+
+    let fontScaleMsgTimer = null;
+    const setFontScaleMsg = (txt) => {
+      fontScaleMsg.textContent = txt || "";
+      if (fontScaleMsgTimer) clearTimeout(fontScaleMsgTimer);
+      if (txt) {
+        fontScaleMsgTimer = setTimeout(() => {
+          fontScaleMsg.textContent = "";
+        }, 900);
+      }
+    };
+
+    let listScale = "medium";
+    let editScale = "small";
+
+    const mkScaleGroup = (labelText, buttons) => {
+      const wrap = document.createElement("div");
+      wrap.style.display = "grid";
+      wrap.style.gridTemplateColumns = "140px 1fr";
+      wrap.style.alignItems = "center";
+      wrap.style.gap = "8px";
+
+      const lab = document.createElement("div");
+      lab.textContent = labelText;
+      lab.style.fontWeight = "600";
+
+      const btnRow = document.createElement("div");
+      btnRow.style.display = "flex";
+      btnRow.style.gap = "8px";
+      for (const b of buttons) btnRow.append(b);
+
+      wrap.append(lab, btnRow);
+      return wrap;
+    };
+
+    const applyScaleBtnBase = (btn) => {
+      btn.type = "button";
+      btn.style.padding = "5px 8px";
+      btn.style.borderRadius = "8px";
+      btn.style.border = "1px solid rgba(0,0,0,0.18)";
+      btn.style.cursor = "pointer";
+      btn.style.minHeight = "24px";
+      btn.style.boxShadow = "none";
+      btn.style.transition = "background 120ms ease, box-shadow 120ms ease, border-color 120ms ease";
+    };
+
+    const setScaleBtnActive = (btn, active) => {
+      btn.style.background = active ? "#ef6c00" : "#f7f7f7";
+      btn.style.color = active ? "#fff" : "#1f1f1f";
+      btn.style.borderColor = active ? "rgba(239,108,0,0.7)" : "rgba(0,0,0,0.18)";
+      btn.style.boxShadow = active ? "0 1px 0 rgba(0,0,0,0.12)" : "none";
+    };
+
+    const btnListSmall = document.createElement("button");
+    btnListSmall.textContent = "klein";
+    applyScaleBtnBase(btnListSmall);
+    const btnListMedium = document.createElement("button");
+    btnListMedium.textContent = "mittel";
+    applyScaleBtnBase(btnListMedium);
+    const btnListLarge = document.createElement("button");
+    btnListLarge.textContent = "groß";
+    applyScaleBtnBase(btnListLarge);
+
+    const btnEditSmall = document.createElement("button");
+    btnEditSmall.textContent = "klein";
+    applyScaleBtnBase(btnEditSmall);
+    const btnEditLarge = document.createElement("button");
+    btnEditLarge.textContent = "groß";
+    applyScaleBtnBase(btnEditLarge);
+
+    const applyFontScaleUi = () => {
+      setScaleBtnActive(btnListSmall, listScale === "small");
+      setScaleBtnActive(btnListMedium, listScale === "medium");
+      setScaleBtnActive(btnListLarge, listScale === "large");
+      setScaleBtnActive(btnEditSmall, editScale === "small");
+      setScaleBtnActive(btnEditLarge, editScale === "large");
+    };
+
+    const loadFontScaleSettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsGetMany !== "function") {
+        fontScaleMsg.textContent = "Settings-API fehlt (IPC noch nicht aktiv).";
+        applyFontScaleUi();
+        return;
+      }
+      const res = await api.appSettingsGetMany([TOPS_FONT_LIST_KEY, TOPS_FONT_EDIT_KEY]);
+      if (!res?.ok) {
+        fontScaleMsg.textContent = res?.error || "Fehler beim Laden der Schriftgrößen";
+        applyFontScaleUi();
+        return;
+      }
+      const data = res.data || {};
+      const listRaw = String(data[TOPS_FONT_LIST_KEY] || "").trim().toLowerCase();
+      const editRaw = String(data[TOPS_FONT_EDIT_KEY] || "").trim().toLowerCase();
+      listScale = ["small", "medium", "large"].includes(listRaw) ? listRaw : "medium";
+      editScale = ["small", "large"].includes(editRaw) ? editRaw : "small";
+      fontScaleMsg.textContent = "";
+      applyFontScaleUi();
+    };
+
+    const saveFontScaleSettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsSetMany !== "function") {
+        fontScaleMsg.textContent = "Settings-API fehlt (IPC noch nicht aktiv).";
+        return false;
+      }
+      const res = await api.appSettingsSetMany({
+        [TOPS_FONT_LIST_KEY]: listScale,
+        [TOPS_FONT_EDIT_KEY]: editScale,
+      });
+      if (!res?.ok) {
+        fontScaleMsg.textContent = res?.error || "Speichern fehlgeschlagen";
+        return false;
+      }
+      setFontScaleMsg("Gespeichert");
+      window.dispatchEvent(new Event("bbm:tops-fontscale-changed"));
+      return true;
+    };
+
+    btnListSmall.onclick = async () => {
+      listScale = "small";
+      applyFontScaleUi();
+      await saveFontScaleSettings();
+    };
+    btnListMedium.onclick = async () => {
+      listScale = "medium";
+      applyFontScaleUi();
+      await saveFontScaleSettings();
+    };
+    btnListLarge.onclick = async () => {
+      listScale = "large";
+      applyFontScaleUi();
+      await saveFontScaleSettings();
+    };
+
+    btnEditSmall.onclick = async () => {
+      editScale = "small";
+      applyFontScaleUi();
+      await saveFontScaleSettings();
+    };
+    btnEditLarge.onclick = async () => {
+      editScale = "large";
+      applyFontScaleUi();
+      await saveFontScaleSettings();
+    };
+
+    const rowList = mkScaleGroup("Top-Liste", [btnListSmall, btnListMedium, btnListLarge]);
+    const rowEdit = mkScaleGroup("Editbox", [btnEditSmall, btnEditLarge]);
+    rowList.style.marginBottom = "8px";
+
+    fontScaleBox.append(fontScaleTitle, rowList, rowEdit, fontScaleMsg);
 
     const devTopCardsRow = document.createElement("div");
     devTopCardsRow.style.display = "grid";
@@ -1492,25 +1664,33 @@ export default class SettingsView {
     const btnOpenThemePopup = document.createElement("button");
     btnOpenThemePopup.type = "button";
     btnOpenThemePopup.textContent = "Farbschema öffnen";
+    btnOpenThemePopup.style.width = "100%";
     applyPopupButtonStyle(btnOpenThemePopup, { variant: "primary" });
     btnOpenThemePopup.onclick = () => openThemePopup();
 
-    const userThemeSide = document.createElement("div");
-    userThemeSide.style.display = "flex";
-    userThemeSide.style.alignItems = "flex-start";
-    userThemeSide.style.justifyContent = "flex-start";
-    userThemeSide.style.marginLeft = "1.5cm";
-    userThemeSide.append(btnOpenThemePopup);
+    const themeBtnWrap = document.createElement("div");
+    themeBtnWrap.style.width = "calc(100% - 1cm)";
+    themeBtnWrap.style.marginLeft = "auto";
+    themeBtnWrap.style.display = "flex";
+    themeBtnWrap.style.justifyContent = "center";
+    themeBtnWrap.append(btnOpenThemePopup);
+
+    const userRightCol = document.createElement("div");
+    userRightCol.style.display = "grid";
+    userRightCol.style.gridTemplateColumns = "1fr";
+    userRightCol.style.gap = "10px";
+    userRightCol.style.alignContent = "start";
+    userRightCol.append(fontScaleBox, themeBtnWrap);
 
     const userTopRow = document.createElement("div");
     userTopRow.style.display = "grid";
-    userTopRow.style.gridTemplateColumns = "minmax(0, 360px) auto";
+    userTopRow.style.gridTemplateColumns = "minmax(0, 360px) minmax(0, 360px)";
     userTopRow.style.gap = "14px";
     userTopRow.style.alignItems = "start";
     userTopRow.style.width = "100%";
     userTopRow.style.maxWidth = "720px";
     userTopRow.style.marginTop = "10px";
-    userTopRow.append(userBox, userThemeSide);
+    userTopRow.append(userBox, userRightCol);
 
     const openSettingsModal = ({ title, content, saveFn, closeOnly = false }) => {
       this._openSettingsModal({
@@ -1525,6 +1705,7 @@ export default class SettingsView {
       titleText: "Nutzereinstellungen",
       subText: "Nutzerdaten und PDF-Logo",
       onClick: async () => {
+        await loadFontScaleSettings();
         openSettingsModal({
           title: "Nutzereinstellungen",
           content: [userTopRow, pdfLogoBox],
@@ -1535,6 +1716,14 @@ export default class SettingsView {
             return okUser && okPdfLogo;
           },
         });
+        setTimeout(() => {
+          try {
+            const h = Math.round(userBox.getBoundingClientRect().height || 0);
+            if (h > 0) fontScaleBox.style.height = `${Math.max(1, Math.round(h * 0.5))}px`;
+          } catch (_e) {
+            // ignore
+          }
+        }, 0);
       },
     });
 
@@ -4598,4 +4787,3 @@ export default class SettingsView {
       }
     }
 }
-
