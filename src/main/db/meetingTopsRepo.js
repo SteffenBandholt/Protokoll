@@ -381,6 +381,87 @@ function listJoinedByMeeting(meetingId) {
     .all(meetingId);
 }
 
+function listLatestByProject(projectId) {
+  const db = initDatabase();
+  if (!projectId) throw new Error("projectId required");
+
+  // Wichtig (optional)
+  const impSel = _hasCol(db, "is_important") ? "mt.is_important" : "0";
+
+  // Touched (optional)
+  const touchedSel = _hasCol(db, "is_touched") ? "mt.is_touched" : "0";
+
+  // Completed-in (optional)
+  const completedSel = _hasCol(db, "completed_in_meeting_id")
+    ? "mt.completed_in_meeting_id"
+    : "NULL AS completed_in_meeting_id";
+
+  // Verantwortlich (optional)
+  const rkSel = _hasCol(db, "responsible_kind") ? "mt.responsible_kind" : "NULL AS responsible_kind";
+  const riSel = _hasCol(db, "responsible_id") ? "mt.responsible_id" : "NULL AS responsible_id";
+  const rlSel = _hasCol(db, "responsible_label") ? "mt.responsible_label" : "NULL AS responsible_label";
+
+  // TOP angelegt am (optional, aus tops.created_at)
+  const topCreatedSel = _hasTopCol(db, "created_at")
+    ? "t.created_at AS top_created_at"
+    : "NULL AS top_created_at";
+  const trashedWhere = _hasTopCol(db, "is_trashed") ? "AND COALESCE(t.is_trashed, 0) = 0" : "";
+
+  // Snapshot-Spalten (optional)
+  const f = (col) => (_hasCol(db, col) ? `mt.${col}` : `NULL AS ${col}`);
+
+  return db
+    .prepare(
+      `
+      WITH latest AS (
+        SELECT mt.top_id, MAX(mt.updated_at) AS max_updated
+        FROM meeting_tops mt
+        JOIN tops t ON t.id = mt.top_id
+        WHERE t.project_id = ?
+        GROUP BY mt.top_id
+      )
+      SELECT
+        t.id,
+        t.project_id,
+        t.parent_top_id,
+        t.level,
+        t.number,
+        t.title,
+        t.is_hidden,
+        ${topCreatedSel},
+
+        mt.meeting_id,
+        mt.status,
+        mt.due_date,
+        mt.longtext,
+        mt.is_carried_over,
+        ${impSel} AS is_important,
+        ${touchedSel} AS is_touched,
+        ${completedSel} AS completed_in_meeting_id,
+
+        ${rkSel},
+        ${riSel},
+        ${rlSel},
+
+        ${f("frozen_at")},
+        ${f("frozen_title")},
+        ${f("frozen_is_hidden")},
+        ${f("frozen_parent_top_id")},
+        ${f("frozen_level")},
+        ${f("frozen_number")},
+        ${f("frozen_display_number")},
+        ${f("frozen_ampel_color")},
+        ${f("frozen_ampel_reason")}
+      FROM meeting_tops mt
+      JOIN latest l ON l.top_id = mt.top_id AND l.max_updated = mt.updated_at
+      JOIN tops t ON t.id = mt.top_id
+      WHERE t.removed_at IS NULL
+        ${trashedWhere}
+    `
+    )
+    .all(projectId);
+}
+
 function deleteByTopId(topId) {
   const db = initDatabase();
   if (!topId) throw new Error("topId required");
@@ -520,6 +601,7 @@ module.exports = {
   attachTopToMeeting,
   updateMeetingTop,
   listJoinedByMeeting,
+  listLatestByProject,
   deleteByTopId,
   carryOverFromMeeting,
   snapshotMeetingTops,

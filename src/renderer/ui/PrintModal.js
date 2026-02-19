@@ -926,6 +926,11 @@ export default class PrintModal {
     await this._printTodoPdf({ projectId, meetingId, preview: true });
   }
 
+  // Top-Liste(alle): Vorschau mit PDF (gleiches Preview-Modal)
+  async openTopListAllPreview({ projectId, meetingId } = {}) {
+    await this._printTopListAllPdf({ projectId, meetingId, preview: true });
+  }
+
   async _printFirmsPdf({ projectId, preview = true } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
     if (!pid) {
@@ -1482,6 +1487,10 @@ export default class PrintModal {
       alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
       return;
     }
+    if (typeof api.topsListByProject !== "function") {
+      alert("topsListByProject ist nicht verfügbar (Preload/IPC fehlt).");
+      return;
+    }
     if (typeof api.printHtmlToPdf !== "function") {
       alert("printHtmlToPdf ist nicht verfügbar (Preload/IPC fehlt).");
       return;
@@ -1604,6 +1613,137 @@ export default class PrintModal {
     } catch (err) {
       console.error("[PrintModal] ToDo Vorschau fehlgeschlagen", err);
       alert("ToDo-Vorschau konnte nicht erzeugt werden.");
+    } finally {
+      if (preview) this._setPreviewLoading(false);
+    }
+  }
+
+  async _printTopListAllPdf({ projectId, meetingId, preview = true } = {}) {
+    const pid = projectId || this.router?.currentProjectId || null;
+    const mid = meetingId || this.router?.currentMeetingId || null;
+    if (!pid) {
+      alert("Bitte zuerst ein Projekt auswählen.");
+      return;
+    }
+    if (!mid) {
+      alert("Bitte zuerst eine Besprechung auswählen.");
+      return;
+    }
+
+    const api = window.bbmDb || {};
+    if (typeof api.topsListByMeeting !== "function") {
+      alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
+      return;
+    }
+    if (typeof api.printHtmlToPdf !== "function") {
+      alert("printHtmlToPdf ist nicht verfügbar (Preload/IPC fehlt).");
+      return;
+    }
+
+    if (preview) {
+      this._ensurePreviewDom();
+      this._setPreviewLoading(true);
+    }
+
+    try {
+      if (this.router?.ensureAppSettingsLoaded) {
+        await this.router.ensureAppSettingsLoaded({ force: false });
+      }
+
+      let settings = this.router?.context?.settings || {};
+      const protocolsDir = String(settings?.["pdf.protocolsDir"] || "").trim();
+
+      const resMeeting = await api.topsListByMeeting(mid);
+      if (!resMeeting?.ok) {
+        alert(resMeeting?.error || "Fehler beim Laden der Besprechung");
+        return;
+      }
+      const meeting = resMeeting.meeting || null;
+      if (!meeting) {
+        alert("Besprechung nicht gefunden.");
+        return;
+      }
+
+      const resAll = await api.topsListByProject(pid);
+      if (!resAll?.ok) {
+        alert(resAll?.error || "Fehler beim Laden der Projekt-TOPs");
+        return;
+      }
+
+      const projectLabel = await this._getProjectLabelWithNumber(pid);
+      const projectInfo = await this._getProjectInfo(pid);
+      const projectNumber = projectInfo.number || (pid || "");
+      const meetingNr =
+        meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+      const meetingDateRaw =
+        meeting?.meeting_date ||
+        meeting?.meetingDate ||
+        meeting?.date ||
+        meeting?.created_at ||
+        meeting?.createdAt ||
+        meeting?.updated_at ||
+        meeting?.updatedAt ||
+        null;
+      const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
+      const fileName =
+        this._sanitizeFileName(`${projectNumber}_TopListe-alle_#${meetingNr}-${meetingDateStr}`) +
+        ".pdf";
+
+      const pdfLogoDefaults = {
+        enabled: true,
+        widthMm: 35,
+        topMm: 8,
+        rightMm: 8,
+      };
+      const pdfLogoEnabled = this._parseBool(
+        settings?.["pdf.userLogoEnabled"],
+        pdfLogoDefaults.enabled
+      );
+      const pdfLogoWidthMm = this._clampNumber(
+        settings?.["pdf.userLogoWidthMm"],
+        10,
+        60,
+        pdfLogoDefaults.widthMm
+      );
+      const pdfLogoDataUrl = String(settings?.["pdf.userLogoPngDataUrl"] || "").trim();
+      const pdfLogoDummyHeightMm = Math.max(12, Math.round(pdfLogoWidthMm * 0.5));
+      const logoHeightMm = await this._calcLogoHeightMm({
+        enabled: pdfLogoEnabled,
+        dataUrl: pdfLogoDataUrl,
+        widthMm: pdfLogoWidthMm,
+        dummyHeightMm: pdfLogoDummyHeightMm,
+      });
+
+      const tops = resAll.list || [];
+      const html = this._buildTopListAllHtml({
+        projectLabel,
+        meeting,
+        tops,
+        settings,
+        logoHeightMm,
+      });
+
+      const out = await api.printHtmlToPdf({
+        html,
+        fileName,
+        bbmVersion: "1.0",
+        baseDir: protocolsDir,
+        projectNumber,
+        overwrite: true,
+      });
+      if (!out?.ok) {
+        alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
+        return;
+      }
+
+      if (preview) {
+        this._openPreview({ filePath: out.filePath, title: "Top-Liste (alle)" });
+      } else {
+        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
+      }
+    } catch (err) {
+      console.error("[PrintModal] Top-Liste(alle) Vorschau fehlgeschlagen", err);
+      alert("Top-Liste(alle)-Vorschau konnte nicht erzeugt werden.");
     } finally {
       if (preview) this._setPreviewLoading(false);
     }
@@ -2930,6 +3070,591 @@ export default class PrintModal {
       <div class="footerLine">${fmtFooterLine(footerLine4)}</div>
       <div class="footerLine">${fmtFooterLine(footerLine5)}</div>
     </div>
+  </div>
+  <script>
+    (function () {
+      const measureMm = () => {
+        const probe = document.createElement("div");
+        probe.style.position = "absolute";
+        probe.style.left = "-10000px";
+        probe.style.top = "-10000px";
+        probe.style.width = "100mm";
+        probe.style.height = "1px";
+        document.body.appendChild(probe);
+        const px = probe.getBoundingClientRect().width / 100;
+        probe.remove();
+        return px || 3.78;
+      };
+
+      const getLines = (row, lineHeight, longMarginTop) => {
+        const block = row.querySelector(".txtBlock");
+        if (!block) return 1;
+        const h = block.getBoundingClientRect().height;
+        const effective = Math.max(0, h - longMarginTop);
+        return Math.max(1, Math.round(effective / lineHeight));
+      };
+
+      const applyPagination = () => {
+        const table = document.querySelector("table.tops");
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        const thead = table.querySelector("thead");
+        if (!tbody) return;
+
+        const rows = Array.from(tbody.querySelectorAll("tr.topRow"));
+        if (!rows.length) return;
+
+        rows.forEach((r) => {
+          r.classList.remove("breakBefore", "allowSplit");
+          r.removeAttribute("data-keep-prev");
+        });
+
+        const mmPx = measureMm();
+        const pageHeight = 297 * mmPx;
+        const footerReserve = 15 * mmPx;
+        const headHeight = thead ? thead.getBoundingClientRect().height : 0;
+        const pageTbodyHeight = pageHeight - footerReserve - headHeight;
+
+        const longSample = tbody.querySelector(".long");
+        const lineHeight = longSample
+          ? parseFloat(getComputedStyle(longSample).lineHeight) || 14
+          : 14;
+        const longMarginTop = longSample
+          ? parseFloat(getComputedStyle(longSample).marginTop) || 0
+          : 0;
+
+        const tbodyTop = tbody.getBoundingClientRect().top + window.scrollY;
+        const pageStart = Math.floor(tbodyTop / pageHeight) * pageHeight;
+        let remaining = pageHeight - footerReserve - (tbodyTop - pageStart);
+        if (!Number.isFinite(remaining) || remaining <= 0) remaining = pageTbodyHeight;
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.getAttribute("data-keep-prev") === "1") {
+            const lines = getLines(row, lineHeight, longMarginTop);
+            if (lines >= 6) row.classList.add("allowSplit");
+            remaining -= row.getBoundingClientRect().height;
+            if (remaining < 0) remaining = pageTbodyHeight - row.getBoundingClientRect().height;
+            continue;
+          }
+
+          const level = Number(row.getAttribute("data-level") || "1");
+          if (level === 1) {
+            let nextIdx = -1;
+            for (let j = i + 1; j < rows.length; j++) {
+              const lvl = Number(rows[j].getAttribute("data-level") || "1");
+              if (lvl === 2) {
+                nextIdx = j;
+                break;
+              }
+              if (lvl === 1) break;
+            }
+            if (nextIdx !== -1) {
+              const nextRow = rows[nextIdx];
+              const groupHeight =
+                row.getBoundingClientRect().height + nextRow.getBoundingClientRect().height;
+              if (remaining < groupHeight) {
+                row.classList.add("breakBefore");
+                remaining = pageTbodyHeight;
+              }
+              remaining -= row.getBoundingClientRect().height;
+              nextRow.setAttribute("data-keep-prev", "1");
+              continue;
+            }
+          }
+
+          const lines = getLines(row, lineHeight, longMarginTop);
+          const allowSplit = lines >= 6;
+          if (allowSplit) row.classList.add("allowSplit");
+
+          const minLinesPx = 3 * lineHeight;
+          if (remaining < minLinesPx) {
+            row.classList.add("breakBefore");
+            remaining = pageTbodyHeight;
+          }
+
+          const rowHeight = row.getBoundingClientRect().height;
+          if (!allowSplit && rowHeight > remaining) {
+            row.classList.add("breakBefore");
+            remaining = pageTbodyHeight;
+          }
+
+          if (rowHeight <= remaining) {
+            remaining -= rowHeight;
+          } else if (allowSplit) {
+            let overflow = rowHeight - remaining;
+            if (overflow > 0) {
+              const fullPages = Math.floor(overflow / pageTbodyHeight);
+              overflow -= fullPages * pageTbodyHeight;
+              remaining = pageTbodyHeight - overflow;
+              if (overflow === 0) remaining = 0;
+            }
+          } else {
+            remaining -= rowHeight;
+          }
+        }
+      };
+
+      const run = () => applyPagination();
+      window.addEventListener("load", () => {
+        setTimeout(run, 0);
+        requestAnimationFrame(run);
+      });
+    })();
+  </script>
+</body>
+</html>
+    `.trim();
+
+    return html;
+  }
+
+  _buildTopListAllHtml({ projectLabel, meeting, tops, settings, logoHeightMm } = {}) {
+    const isClosed = Number(meeting?.is_closed) === 1;
+    const mode = isClosed ? "closed" : "vorabzug";
+
+    const protocolTitleRaw = String(settings?.["pdf.protocolTitle"] || "").trim();
+    const protocolTitle = protocolTitleRaw || "Baubesprechung";
+    const baseDateRaw = isClosed ? (meeting?.updated_at || meeting?.updatedAt || null) : null;
+    let baseDate = baseDateRaw ? new Date(baseDateRaw) : new Date();
+    if (Number.isNaN(baseDate.getTime())) baseDate = new Date();
+    const uiToggle = this._parseBool(
+      settings?.["tops.ampelEnabled"],
+      this._parseBool(settings?.["pdf.trafficLightAllEnabled"], true)
+    );
+    const trafficLightAllEnabled = this._shouldRenderAmpelInPdf({ mode, meeting, uiToggle });
+
+    const headerTemplate = this._buildPdfHeaderTemplate({
+      projectLabel,
+      meeting,
+      protocolTitle,
+      logoHeightMm,
+    });
+    const projectLine = headerTemplate.projectLine;
+    const meetingLine = headerTemplate.meetingLine;
+    const pdfLogoHtml = headerTemplate.pdfLogoHtml;
+    const pdfLogoTopMm = headerTemplate.pdfLogoTopMm;
+    const pdfLogoHeightMm = headerTemplate.effectiveLogoHeightMm;
+
+    const starSvg = `
+      <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+        <polygon
+          points="50,7 61,36 92,36 66,54 76,84 50,66 24,84 34,54 8,36 39,36"
+          fill="#fbc02d"
+          stroke="none"
+        />
+      </svg>
+    `.trim();
+
+    const isDoneStatus = (status) => {
+      const st = (status || "").toString().trim().toLowerCase();
+      return st === "erledigt";
+    };
+
+    const allTops = Array.isArray(tops) ? tops : [];
+    const ampelCompute = createAmpelComputer(allTops, baseDate);
+    const rowsHtml = allTops
+      .map((t) => {
+        const level = Number(t.level || 1);
+        const isLevel1 = level === 1;
+        const isImportant = Number(t.is_important ?? t.isImportant ?? 0) === 1;
+        const isOld = Number(t.is_carried_over ?? t.isCarriedOver ?? 0) === 1;
+        const isTouched = Number(t.is_touched ?? t.isTouched ?? 0) === 1;
+        const isDone = isDoneStatus(t.status);
+
+        const shouldMark = !isOld || (isOld && isTouched);
+        const BLUE = "#1565c0";
+        const RED = "#c62828";
+        const doneColor = "#9e9e9e";
+        const shortColor = isDone ? doneColor : isImportant ? RED : shouldMark ? BLUE : "#111";
+        const longColor = isDone ? doneColor : isImportant ? RED : shouldMark ? BLUE : "#111";
+        const hasStar = shouldMark;
+
+        const numRaw = t.displayNumber ?? t.display_number ?? t.number ?? "?";
+        const num = this._escapeHtml(String(numRaw));
+
+        const createdAtRaw =
+          t.created_at ?? t.createdAt ?? t.top_created_at ?? t.topCreatedAt ?? null;
+        const createdDate = this._fmtDateYYYYMMDD(createdAtRaw);
+
+        const shortText = this._truncate(t.title || "(ohne Bezeichnung)", 50);
+        const longTextRaw = t.longtext != null ? String(t.longtext) : "";
+        const longText = this._truncate(
+          longTextRaw.replace(/\r?\n/g, " ").replace(/ +/g, " "),
+          250
+        );
+
+        const statusRaw = (t.status || "").toString().trim();
+        const status = this._cut(statusRaw || "?", 20);
+
+        const dueRaw = (t.due_date || t.dueDate || "").toString().trim();
+        const due = dueRaw ? this._fmtDateYYYYMMDD(dueRaw) : "?";
+
+        const respRaw = (t.responsible_label || t.responsibleLabel || "").toString().trim();
+        const resp = this._cut(respRaw || "?", 20);
+
+        const dotHex =
+          !isLevel1 && trafficLightAllEnabled
+            ? this._ampelHex(ampelCompute(t)) || null
+            : null;
+
+        const dotHtml = trafficLightAllEnabled
+          ? `<span class="dot ${dotHex ? "fill" : "empty"}" style="${
+              dotHex ? `background:${dotHex};` : ""
+            }"></span>`
+          : "";
+
+        const metaHtml = isLevel1
+          ? ""
+          : `
+              <div class="metaLine1">
+                <span class="metaText">${this._escapeHtml(due)}</span>
+                ${dotHtml}
+              </div>
+              <div class="metaLine2">${this._escapeHtml(status)}</div>
+              <div class="metaLine3">${this._escapeHtml(resp)}</div>
+            `;
+
+        return `
+          <tr class="topRow ${isLevel1 ? "lvl1" : ""}" data-level="${level}">
+            <td class="colNr">
+              <div class="nr">${num}</div>
+              <div class="nrDate">${this._escapeHtml(createdDate)}</div>
+            </td>
+
+            <td class="colText">
+              <div class="textWrap">
+                <div class="txtStar ${hasStar ? "" : "empty"}">${hasStar ? starSvg : ""}</div>
+                <div class="txtBlock">
+                  <div class="short" style="color:${shortColor};">${this._escapeHtml(shortText)}</div>
+                  <div class="long" style="color:${longColor};">${this._escapeHtml(longText)}</div>
+                </div>
+              </div>
+            </td>
+
+            <td class="colMeta">
+              ${metaHtml}
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const html = `
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>BBM Top-Liste (alle)</title>
+  <style>
+    @page { size: A4; margin: 0 10mm 15mm 19mm; }
+
+    :root{
+      --sepW: 0.25pt;
+      --sepC: #000000;
+      --red: #2b6cb0;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 10.5pt;
+      color: #111;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .pageHeader {
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: var(--headerH);
+      z-index: 5;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .pageHeader .pdfLogo {
+      position: absolute;
+      z-index: 6;
+      pointer-events: none;
+    }
+
+    .pdfLogoDummy {
+      background: #f0f0f0;
+      border: 0.2mm solid #bbb;
+      color: #666;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 8.5pt;
+      padding: 1mm;
+      box-sizing: border-box;
+    }
+
+    .topRuleFixed {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      border-top: var(--sepW) solid var(--sepC);
+      pointer-events: none;
+    }
+
+    .page { position: relative; z-index: 1; }
+
+    .page1 {
+      margin: 0 0 6mm 0;
+      padding-top: calc(var(--logoTop) + var(--logoHeight) + 5mm);
+    }
+    .projLine {
+      margin-top: 1.5mm;
+      font-weight: 400;
+      font-size: 11pt;
+    }
+    .projLabel {
+      margin-top: 2mm;
+      font-weight: 400;
+      font-size: 11pt;
+    }
+    .meetingLine {
+      margin-top: 15mm;
+      margin-left: 15mm;
+      font-weight: 700;
+      font-size: 18pt;
+    }
+    .meetingMetaLine {
+      margin-top: 3mm;
+      margin-left: 15mm;
+      font-weight: 400;
+      font-size: 11pt;
+    }
+
+    table.tops {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin-top: calc(-1 * var(--headerH));
+    }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    thead .topsHeadPad th {
+      padding: 0;
+      height: var(--headerH);
+      border: 0;
+      border-bottom: var(--sepW) solid var(--sepC);
+      background: transparent;
+      font-size: 0;
+      line-height: 0;
+    }
+
+    .hdr th {
+      background: #efefef;
+      color: #111;
+      font-weight: 800;
+      font-size: 10pt;
+      text-align: left;
+      padding: 2.2mm 2mm;
+      border-bottom: var(--sepW) solid var(--sepC);
+    }
+
+    .hdrTop {
+      display: block;
+      margin-left: calc(4.5mm + 1.6mm);
+    }
+    .hdrTop .hdrTitle {
+      font-weight: 800;
+      font-size: 10pt;
+      line-height: 1.1;
+      font-style: normal;
+      margin-bottom: 0.6mm;
+    }
+    .hdrTop .hdrTops {
+      font-weight: 400;
+      font-size: 8.6pt;
+      line-height: 1.1;
+      font-style: normal;
+    }
+
+    .hdr th.metaHdr {
+      font-weight: 400;
+      font-size: 9pt;
+    }
+    .hdr th.metaHdr div {
+      font-weight: 400;
+      font-size: 8.6pt;
+      line-height: 1.1;
+    }
+
+    .wNr   { width: 20mm; }
+    .wText { width: 130mm; }
+    .wMeta { width: 25mm; }
+
+    tbody td {
+      vertical-align: top;
+      padding: 2.0mm 2mm;
+      border-bottom: var(--sepW) solid var(--sepC);
+      overflow: hidden;
+    }
+    tbody tr.topRow {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    tbody tr.topRow.allowSplit {
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+    tbody tr.topRow.breakBefore {
+      break-before: page;
+      page-break-before: always;
+    }
+
+    tr.lvl1 td {
+      background: #eeeeee;
+      padding-top: 1.8mm;
+      padding-bottom: 1.8mm;
+    }
+    tr.lvl1 .short { font-weight: 650; }
+
+    .colNr .nr {
+      font-weight: 400;
+      font-size: 9.2pt;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .colNr .nrDate {
+      font-size: 8.0pt;
+      line-height: 1.12;
+      margin-top: 0.7mm;
+      color: #777;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .textWrap {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.6mm;
+    }
+    .txtStar {
+      width: 2.5mm;
+      height: 2.5mm;
+      flex: 0 0 2.5mm;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0.2mm;
+    }
+    .txtStar svg {
+      width: 2.5mm;
+      height: 2.5mm;
+      display: block;
+    }
+    .txtStar.empty {
+      visibility: hidden;
+    }
+    .txtBlock {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .short {
+      font-weight: 400;
+      font-size: 11.4pt;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .long {
+      margin-top: 1.2mm;
+      font-size: 10.6pt;
+      line-height: 1.25;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      color: #111;
+      opacity: 0.95;
+    }
+
+    .colMeta { font-size: 9.2pt; color: #222; }
+    .metaLine1 {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+    }
+    .metaText {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: clip;
+      flex: 1;
+    }
+
+    .dot {
+      width: 4mm;
+      height: 4mm;
+      border-radius: 999px;
+      box-sizing: border-box;
+      flex: 0 0 auto;
+    }
+    .dot.fill { border: 0.2mm solid rgba(0,0,0,0.25); }
+    .dot.empty { background: transparent; border: 0.2mm solid #aaa; }
+
+    .empty {
+      padding: 3mm 2mm;
+      opacity: .7;
+    }
+    ${this._pdfCopyrightStyle()}
+  </style>
+</head>
+
+<body class="closed" style="--logoTop:${pdfLogoTopMm}mm; --logoHeight:${pdfLogoHeightMm}mm; --headerH:${pdfLogoTopMm + pdfLogoHeightMm + 5}mm;">
+  <div class="pageHeader" aria-hidden="true">
+    ${pdfLogoHtml}
+    <div class="topRuleFixed"></div>
+  </div>
+  ${this._pdfCopyrightHtml()}
+  <div class="page">
+    <div class="page1">
+      <div class="projLabel">Projekt:</div>
+      <div class="projLine">${this._escapeHtml(projectLine)}</div>
+      <div class="meetingLine">Top-Liste (alle)</div>
+      <div class="meetingMetaLine">${meetingLine}</div>
+    </div>
+
+    <table class="tops">
+      <colgroup>
+        <col class="wNr" />
+        <col class="wText" />
+        <col class="wMeta" />
+      </colgroup>
+      <thead>
+        <tr class="topsHeadPad"><th colspan="3"></th></tr>
+        <tr class="hdr">
+          <th class="wNr">Nr.</th>
+          <th class="wText">
+            <div class="hdrTop">
+              <div class="hdrTitle">Titel</div>
+              <div class="hdrTops">TOPs</div>
+            </div>
+          </th>
+          <th class="wMeta metaHdr">
+            <div>Fertig bis</div>
+            <div>Status</div>
+            <div>verantwortlich</div>
+          </th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${
+          rowsHtml ||
+          `<tr><td colspan="3" style="padding:3mm 2mm; opacity:.7;">Keine TOPs vorhanden.</td></tr>`
+        }
+      </tbody>
+    </table>
   </div>
   <script>
     (function () {

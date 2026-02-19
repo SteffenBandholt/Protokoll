@@ -871,6 +871,34 @@ function registerTopsIpc() {
     }
   });
 
+  ipcMain.handle("tops:listByProject", (_e, projectId) => {
+    try {
+      if (!projectId) throw new Error("Projekt nicht gefunden");
+
+      const rawList = meetingTopsRepo.listLatestByProject(projectId);
+      const list = normalizeDisplayNumbers(rawList, null);
+
+      list.sort((a, b) => {
+        const as = String(a.displayNumber || a.number || "").split(".").map((x) => Number(x));
+        const bs = String(b.displayNumber || b.number || "").split(".").map((x) => Number(x));
+        const n = Math.max(as.length, bs.length);
+
+        for (let i = 0; i < n; i++) {
+          const av = as[i] ?? -1;
+          const bv = bs[i] ?? -1;
+          if (av !== bv) return av - bv;
+        }
+        return 0;
+      });
+
+      return { ok: true, list };
+    } catch (err) {
+      const msg = err?.message || String(err);
+      console.error("[topsIpc] listByProject failed", { projectId, error: msg });
+      return { ok: false, error: msg };
+    }
+  });
+
   ipcMain.handle("tops:create", (_e, data) => {
     try {
       const created = topService.createTop(data);

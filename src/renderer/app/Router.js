@@ -817,6 +817,19 @@ export default class Router {
     }
   }
 
+  async openTopListAllPrintPreview({ projectId, meetingId } = {}) {
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.openTopListAllPreview !== "function") {
+      alert("PrintModal unterstützt keine Top-Liste(alle)-Vorschau.");
+      return;
+    }
+    try {
+      await pm.openTopListAllPreview({ projectId, meetingId });
+    } finally {
+      await this.closePrintModal({ keepPreview: true });
+    }
+  }
+
   async openFirmsPrintPreview({ projectId, meetingId } = {}) {
     const effectiveProjectId = projectId || this.currentProjectId || null;
     if (!effectiveProjectId) {

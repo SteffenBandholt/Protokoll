@@ -15,6 +15,7 @@ export default class MeetingsView {
     this.searchInput = null;
     this.btnSearch = null;
     this.btnFilterToggle = null;
+    this.btnTopListAll = null;
 
     this.meetings = [];
     this.openMeetingId = null;
@@ -175,10 +176,16 @@ export default class MeetingsView {
       this._openSelectedPdfPreview();
     };
 
+    const btnTopListAll = document.createElement("button");
+    btnTopListAll.textContent = "Top-Liste(alle)";
+    btnTopListAll.onclick = () => {
+      this._openTopListAllPreview();
+    };
+
     const searchActions = document.createElement("div");
     searchActions.style.display = "flex";
     searchActions.style.gap = "8px";
-    searchActions.append(btnSearch, btnFilterToggle, btnPdf);
+    searchActions.append(btnSearch, btnFilterToggle, btnPdf, btnTopListAll);
 
     searchRow.style.flexWrap = "wrap";
     searchRow.style.justifyContent = "flex-start";
@@ -212,6 +219,7 @@ export default class MeetingsView {
     this.btnSearch = btnSearch;
     this.btnFilterToggle = btnFilterToggle;
     this.btnPdf = btnPdf;
+    this.btnTopListAll = btnTopListAll;
 
     this._updateBackButtonState();
     this._updateFilterToggleText();
@@ -220,6 +228,12 @@ export default class MeetingsView {
       this.btnPdf.style.opacity = "0.55";
       this.btnPdf.style.cursor = "not-allowed";
       this.btnPdf.title = "Im Auswahlmodus nicht verf\u00fcgbar";
+    }
+    if (this.printSelectionMode && this.btnTopListAll) {
+      this.btnTopListAll.disabled = true;
+      this.btnTopListAll.style.opacity = "0.55";
+      this.btnTopListAll.style.cursor = "not-allowed";
+      this.btnTopListAll.title = "Im Auswahlmodus nicht verf\u00fcgbar";
     }
 
     return root;
@@ -363,6 +377,39 @@ export default class MeetingsView {
       }
 
       alert("PrintModal unterstützt keine Protokoll-Vorschau (openMeetingPrintPreview fehlt).");
+    } finally {
+      this._printBusy = false;
+      if (typeof this.router?.closePrintModal === "function") {
+        await this.router.closePrintModal({ keepPreview: true });
+      }
+    }
+  }
+
+  async _openTopListAllPreview() {
+    if (this._printBusy) return;
+
+    const mid = this.selectedMeetingId || null;
+    if (!mid) {
+      alert("Bitte zuerst ein Protokoll auswählen.");
+      return;
+    }
+
+    const meeting = (this.meetings || []).find((m) => m.id === mid) || null;
+    if (!meeting) {
+      alert("Besprechung nicht gefunden.");
+      return;
+    }
+
+    this._printBusy = true;
+    try {
+      if (typeof this.router?.openTopListAllPrintPreview === "function") {
+        await this.router.openTopListAllPrintPreview({
+          projectId: this.projectId,
+          meetingId: meeting.id,
+        });
+        return;
+      }
+      alert("PrintModal unterstützt keine Top-Liste(alle)-Vorschau (openTopListAllPrintPreview fehlt).");
     } finally {
       this._printBusy = false;
       if (typeof this.router?.closePrintModal === "function") {
