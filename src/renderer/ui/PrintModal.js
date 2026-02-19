@@ -2374,7 +2374,7 @@ export default class PrintModal {
             `;
 
         return `
-          <tr class="topRow ${isLevel1 ? "lvl1" : ""}">
+          <tr class="topRow ${isLevel1 ? "lvl1" : ""}" data-level="${level}">
             <td class="colNr">
               <div class="nr">${num}</div>
               <div class="nrDate">${this._escapeHtml(createdDate)}</div>
@@ -2505,7 +2505,7 @@ export default class PrintModal {
   <meta charset="utf-8"/>
   <title>BBM Druck</title>
   <style>
-    @page { size: A4; margin: 0 10mm 8mm 19mm; }
+    @page { size: A4; margin: 0 10mm 15mm 19mm; }
 
     :root{
       --sepW: 0.25pt;
@@ -2538,9 +2538,20 @@ export default class PrintModal {
       white-space: nowrap;
     }
 
-    .pdfLogo {
+    .pageHeader {
       position: fixed;
-      z-index: 9999;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: var(--headerH);
+      z-index: 5;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .pageHeader .pdfLogo {
+      position: absolute;
+      z-index: 6;
+      pointer-events: none;
     }
 
     .pdfLogoDummy {
@@ -2557,12 +2568,11 @@ export default class PrintModal {
     }
 
     .topRuleFixed {
-      position: fixed;
+      position: absolute;
       left: 0;
       right: 0;
-      top: var(--headerH);
+      bottom: 0;
       border-top: var(--sepW) solid var(--sepC);
-      z-index: 4;
       pointer-events: none;
     }
 
@@ -2710,6 +2720,18 @@ export default class PrintModal {
       border-bottom: var(--sepW) solid var(--sepC);
       overflow: hidden;
     }
+    tbody tr.topRow {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    tbody tr.topRow.allowSplit {
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+    tbody tr.topRow.breakBefore {
+      break-before: page;
+      page-break-before: always;
+    }
 
     tr.lvl1 td {
       background: #eeeeee;
@@ -2833,9 +2855,11 @@ export default class PrintModal {
 
 <body class="${bodyClass}" style="--logoTop:${pdfLogoTopMm}mm; --logoHeight:${pdfLogoHeightMm}mm; --headerH:${pdfLogoTopMm + pdfLogoHeightMm + 5}mm;">
   ${watermarkHtml}
-  ${pdfLogoHtml}
+  <div class="pageHeader" aria-hidden="true">
+    ${pdfLogoHtml}
+    <div class="topRuleFixed"></div>
+  </div>
   ${this._pdfCopyrightHtml()}
-  <div class="topRuleFixed" aria-hidden="true"></div>
     <div class="page">
       <div class="page1">
         <div class="projLabel">Projekt:</div>
@@ -2907,6 +2931,137 @@ export default class PrintModal {
       <div class="footerLine">${fmtFooterLine(footerLine5)}</div>
     </div>
   </div>
+  <script>
+    (function () {
+      const measureMm = () => {
+        const probe = document.createElement("div");
+        probe.style.position = "absolute";
+        probe.style.left = "-10000px";
+        probe.style.top = "-10000px";
+        probe.style.width = "100mm";
+        probe.style.height = "1px";
+        document.body.appendChild(probe);
+        const px = probe.getBoundingClientRect().width / 100;
+        probe.remove();
+        return px || 3.78;
+      };
+
+      const getLines = (row, lineHeight, longMarginTop) => {
+        const block = row.querySelector(".txtBlock");
+        if (!block) return 1;
+        const h = block.getBoundingClientRect().height;
+        const effective = Math.max(0, h - longMarginTop);
+        return Math.max(1, Math.round(effective / lineHeight));
+      };
+
+      const applyPagination = () => {
+        const table = document.querySelector("table.tops");
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        const thead = table.querySelector("thead");
+        if (!tbody) return;
+
+        const rows = Array.from(tbody.querySelectorAll("tr.topRow"));
+        if (!rows.length) return;
+
+        rows.forEach((r) => {
+          r.classList.remove("breakBefore", "allowSplit");
+          r.removeAttribute("data-keep-prev");
+        });
+
+        const mmPx = measureMm();
+        const pageHeight = 297 * mmPx;
+        const footerReserve = 15 * mmPx;
+        const headHeight = thead ? thead.getBoundingClientRect().height : 0;
+        const pageTbodyHeight = pageHeight - footerReserve - headHeight;
+
+        const longSample = tbody.querySelector(".long");
+        const lineHeight = longSample
+          ? parseFloat(getComputedStyle(longSample).lineHeight) || 14
+          : 14;
+        const longMarginTop = longSample
+          ? parseFloat(getComputedStyle(longSample).marginTop) || 0
+          : 0;
+
+        const tbodyTop = tbody.getBoundingClientRect().top + window.scrollY;
+        const pageStart = Math.floor(tbodyTop / pageHeight) * pageHeight;
+        let remaining = pageHeight - footerReserve - (tbodyTop - pageStart);
+        if (!Number.isFinite(remaining) || remaining <= 0) remaining = pageTbodyHeight;
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          if (row.getAttribute("data-keep-prev") === "1") {
+            const lines = getLines(row, lineHeight, longMarginTop);
+            if (lines >= 6) row.classList.add("allowSplit");
+            remaining -= row.getBoundingClientRect().height;
+            if (remaining < 0) remaining = pageTbodyHeight - row.getBoundingClientRect().height;
+            continue;
+          }
+
+          const level = Number(row.getAttribute("data-level") || "1");
+          if (level === 1) {
+            let nextIdx = -1;
+            for (let j = i + 1; j < rows.length; j++) {
+              const lvl = Number(rows[j].getAttribute("data-level") || "1");
+              if (lvl === 2) {
+                nextIdx = j;
+                break;
+              }
+              if (lvl === 1) break;
+            }
+            if (nextIdx !== -1) {
+              const nextRow = rows[nextIdx];
+              const groupHeight =
+                row.getBoundingClientRect().height + nextRow.getBoundingClientRect().height;
+              if (remaining < groupHeight) {
+                row.classList.add("breakBefore");
+                remaining = pageTbodyHeight;
+              }
+              remaining -= row.getBoundingClientRect().height;
+              nextRow.setAttribute("data-keep-prev", "1");
+              continue;
+            }
+          }
+
+          const lines = getLines(row, lineHeight, longMarginTop);
+          const allowSplit = lines >= 6;
+          if (allowSplit) row.classList.add("allowSplit");
+
+          const minLinesPx = 3 * lineHeight;
+          if (remaining < minLinesPx) {
+            row.classList.add("breakBefore");
+            remaining = pageTbodyHeight;
+          }
+
+          const rowHeight = row.getBoundingClientRect().height;
+          if (!allowSplit && rowHeight > remaining) {
+            row.classList.add("breakBefore");
+            remaining = pageTbodyHeight;
+          }
+
+          if (rowHeight <= remaining) {
+            remaining -= rowHeight;
+          } else if (allowSplit) {
+            let overflow = rowHeight - remaining;
+            if (overflow > 0) {
+              const fullPages = Math.floor(overflow / pageTbodyHeight);
+              overflow -= fullPages * pageTbodyHeight;
+              remaining = pageTbodyHeight - overflow;
+              if (overflow === 0) remaining = 0;
+            }
+          } else {
+            remaining -= rowHeight;
+          }
+        }
+      };
+
+      const run = () => applyPagination();
+      window.addEventListener("load", () => {
+        setTimeout(run, 0);
+        requestAnimationFrame(run);
+      });
+    })();
+  </script>
 </body>
 </html>
     `.trim();
