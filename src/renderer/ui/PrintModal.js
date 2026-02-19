@@ -2445,7 +2445,9 @@ export default class PrintModal {
       </svg>
     `.trim();
 
-    const visibleTops = (tops || []).filter((t) => shouldShowTopForMeeting(t, meeting));
+    const visibleTops = (tops || []).filter(
+      (t) => shouldShowTopForMeeting(t, meeting) && Number(t?.is_hidden ?? t?.isHidden ?? 0) !== 1
+    );
     const ampelCompute = createAmpelComputer(visibleTops, baseDate);
     const rowsHtml = visibleTops.map((t) => {
         const level = Number(t.level || 1);
