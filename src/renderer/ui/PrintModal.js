@@ -2300,9 +2300,7 @@ export default class PrintModal {
         <polygon
           points="50,7 61,36 92,36 66,54 76,84 50,66 24,84 34,54 8,36 39,36"
           fill="#fbc02d"
-          stroke="#111"
-          stroke-width="6"
-          stroke-linejoin="round"
+          stroke="none"
         />
       </svg>
     `.trim();
@@ -2317,8 +2315,9 @@ export default class PrintModal {
         const isTouched = Number(t.is_touched ?? t.isTouched ?? 0) === 1;
         const isDone = shouldGrayTopForMeeting(t, meeting);
 
-        const shortBlue = !isOld;
-        const longBlue = !isOld || (isOld && isTouched);
+        const shouldMark = !isOld || (isOld && isTouched);
+        const shortBlue = shouldMark;
+        const longBlue = shouldMark;
 
         const BLUE = "#1565c0";
         const RED = "#c62828";
@@ -2327,7 +2326,7 @@ export default class PrintModal {
         const shortColor = isDone ? doneColor : isImportant ? RED : shortBlue ? BLUE : "#111";
         const longColor = isDone ? doneColor : isImportant ? RED : longBlue ? BLUE : "#111";
 
-        const hasStar = !isImportant && (shortBlue || longBlue);
+        const hasStar = shouldMark;
 
         const numRaw = t.displayNumber ?? t.display_number ?? t.number ?? "?";
         const num = this._escapeHtml(String(numRaw));
@@ -2740,17 +2739,17 @@ export default class PrintModal {
       gap: 1.6mm;
     }
     .txtStar {
-      width: 4.5mm;
-      height: 4.5mm;
-      flex: 0 0 4.5mm;
+      width: 2.5mm;
+      height: 2.5mm;
+      flex: 0 0 2.5mm;
       display: flex;
       align-items: center;
       justify-content: center;
       margin-top: 0.2mm;
     }
     .txtStar svg {
-      width: 4.5mm;
-      height: 4.5mm;
+      width: 2.5mm;
+      height: 2.5mm;
       display: block;
     }
     .txtStar.empty {
