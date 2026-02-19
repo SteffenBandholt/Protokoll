@@ -254,7 +254,9 @@ function listProjectParticipantsPool(dbConn, projectId) {
         pp.id AS personId,
         pp.name AS name,
         COALESCE(pp.rolle, pp.funktion, '') AS rolle,
-        COALESCE(pf.short, pf.name, '') AS firm
+        COALESCE(pf.short, pf.name, '') AS firm,
+        pp.project_firm_id AS firmId,
+        COALESCE(pf.is_active, 1) AS firm_is_active
       FROM project_persons pp
       INNER JOIN project_firms pf ON pf.id = pp.project_firm_id
       WHERE pf.project_id = ?
@@ -268,7 +270,9 @@ function listProjectParticipantsPool(dbConn, projectId) {
         p.id AS personId,
         p.name AS name,
         COALESCE(p.rolle, p.funktion, '') AS rolle,
-        COALESCE(f.short, f.name, '') AS firm
+        COALESCE(f.short, f.name, '') AS firm,
+        f.id AS firmId,
+        COALESCE(pgf.is_active, 1) AS firm_is_active
       FROM project_global_firms pgf
       INNER JOIN firms f ON f.id = pgf.firm_id
       INNER JOIN persons p ON p.firm_id = f.id

@@ -44,6 +44,7 @@ export default class ParticipantsModals {
 
     this.searchLeft = "";
     this.searchRight = "";
+    this.onlyInternal = false;
 
     // key => [meeting_index,...] (offene Meetings)
     this.openParticipantRefs = new Map();
@@ -169,6 +170,7 @@ export default class ParticipantsModals {
     this.isSaving = false;
     this.searchLeft = "";
     this.searchRight = "";
+    this.onlyInternal = false;
     this._setError("");
 
     this.overlayEl.style.display = "flex";
@@ -200,6 +202,7 @@ export default class ParticipantsModals {
 
     this.searchLeft = "";
     this.searchRight = "";
+    this.onlyInternal = false;
     this.openParticipantRefs = new Map();
 
     this._setError("");
@@ -338,6 +341,10 @@ export default class ParticipantsModals {
     return (x?.kind || "").toString().trim();
   }
 
+  _isInternalPerson(x) {
+    return this._normKind(x) === "project_person";
+  }
+
   _normPersonId(x) {
     return x?.personId ?? x?.person_id ?? x?.id ?? null;
   }
@@ -376,20 +383,21 @@ export default class ParticipantsModals {
     container.appendChild(empty);
   }
 
-  _renderRow({ container, person, onDblClick, extraRight }) {
+  _renderRow({ container, person, onDblClick, extraRight, isDisabled, badgeText }) {
     const row = document.createElement("div");
     row.style.padding = "8px";
     row.style.borderRadius = "8px";
-    row.style.cursor = this.readOnly ? "default" : "pointer";
+    const canClick = !this.readOnly && !this.isSaving && !isDisabled;
+    row.style.cursor = canClick ? "pointer" : "default";
     row.style.userSelect = "none";
     row.style.border = "1px solid rgba(0,0,0,0.08)";
     row.style.marginBottom = "6px";
+    row.style.opacity = isDisabled ? "0.55" : "1";
     const isGlobalPoolPerson = this.mode === "candidates" && String(person?.kind || "") === "global_person";
     row.style.background = isGlobalPoolPerson ? "#fff3e6" : "#fff";
 
     row.ondblclick = () => {
-      if (this.readOnly) return;
-      if (this.isSaving) return;
+      if (!canClick) return;
       if (typeof onDblClick === "function") onDblClick();
     };
 
@@ -416,7 +424,25 @@ export default class ParticipantsModals {
     left.append(t1, t2);
     head.append(left);
 
-    if (extraRight) head.append(extraRight);
+    if (badgeText || extraRight) {
+      const rightWrap = document.createElement("div");
+      rightWrap.style.display = "flex";
+      rightWrap.style.alignItems = "center";
+      rightWrap.style.gap = "6px";
+      if (extraRight) rightWrap.append(extraRight);
+      if (badgeText) {
+        const badge = document.createElement("span");
+        badge.textContent = badgeText;
+        badge.style.fontSize = "11px";
+        badge.style.padding = "2px 6px";
+        badge.style.borderRadius = "999px";
+        badge.style.background = "#ffe3b3";
+        badge.style.color = "#7a4a00";
+        rightWrap.append(badge);
+        row.title = badgeText;
+      }
+      head.append(rightWrap);
+    }
 
     row.append(head);
     container.appendChild(row);
@@ -527,6 +553,10 @@ export default class ParticipantsModals {
           name: (x.name || "").toString(),
           rolle: (x.rolle || x.role || "").toString(),
           firm: (x.firm || x.firm_name || x.firmName || "").toString(),
+          firmId: x.firmId ?? x.firm_id ?? null,
+          firmIsActive: this._parseActiveFlag(
+            x.firm_is_active ?? x.firmIsActive ?? x.is_firm_active
+          ),
         };
       })
       .filter((x) => x.kind && x.personId);
@@ -560,7 +590,13 @@ export default class ParticipantsModals {
       const k = this._key(it.kind, it.personId);
       const p = poolMap.get(k);
       if (p) {
-        left.push({ ...p, is_active: this._parseActiveFlag(it?.is_active) });
+        left.push({
+          ...p,
+          is_active: this._parseActiveFlag(it?.is_active),
+          firmIsActive: this._parseActiveFlag(
+            p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
+          ),
+        });
       } else {
         left.push({
           kind: it.kind,
@@ -569,6 +605,8 @@ export default class ParticipantsModals {
           rolle: "",
           firm: "",
           is_active: this._parseActiveFlag(it?.is_active),
+          firmId: null,
+          firmIsActive: 0,
         });
       }
     }
@@ -657,6 +695,10 @@ export default class ParticipantsModals {
             name: (x.name || "").toString(),
             rolle: (x.rolle || x.role || "").toString(),
             firm: (x.firm || x.firm_name || x.firmName || "").toString(),
+            firmId: x.firmId ?? x.firm_id ?? null,
+            firmIsActive: this._parseActiveFlag(
+              x.firm_is_active ?? x.firmIsActive ?? x.is_firm_active
+            ),
           };
         })
         .filter((x) => x.kind && x.personId);
@@ -684,8 +726,24 @@ export default class ParticipantsModals {
       for (const it of items) {
         const k = this._key(it.kind, it.personId);
         const p = poolMap.get(k);
-        if (p) right.push({ ...p });
-        else right.push({ kind: it.kind, personId: it.personId, name: "€”", rolle: "", firm: "" });
+        if (p) {
+          right.push({
+            ...p,
+            firmIsActive: this._parseActiveFlag(
+              p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
+            ),
+          });
+        } else {
+          right.push({
+            kind: it.kind,
+            personId: it.personId,
+            name: "?",
+            rolle: "",
+            firm: "",
+            firmId: null,
+            firmIsActive: 0,
+          });
+        }
       }
       this.projectCandidates = this._sortPersons(right);
     } else {
@@ -716,6 +774,11 @@ export default class ParticipantsModals {
           name: (p?.name || x.name || "").toString() || "€”",
           rolle: (p?.rolle || x.rolle || "").toString(),
           firm: (p?.firm || x.firm || x.firm_name || "").toString(),
+          firmId: p?.firmId ?? p?.firm_id ?? null,
+          firmIsActive: this._parseActiveFlag(
+            p?.firmIsActive ?? p?.firm_is_active ?? p?.is_firm_active
+          ),
+          invalidReason: p ? "" : "Person nicht mehr verfuegbar",
           isPresent: rawPresent,
           isInDistribution: rawDistribution,
         };
@@ -977,6 +1040,27 @@ export default class ParticipantsModals {
     grid.append(leftCol.col, rightCol.col);
     this.bodyEl.appendChild(grid);
 
+    const filterWrap = document.createElement("label");
+    filterWrap.style.display = "flex";
+    filterWrap.style.alignItems = "center";
+    filterWrap.style.gap = "6px";
+    filterWrap.style.fontSize = "12px";
+    filterWrap.style.userSelect = "none";
+    filterWrap.style.margin = "2px 0 6px 0";
+
+    const filterCb = document.createElement("input");
+    filterCb.type = "checkbox";
+    filterCb.checked = !!this.onlyInternal;
+    filterCb.onchange = () => {
+      this.onlyInternal = filterCb.checked;
+      this._renderParticipantsLists(leftCol.list, rightCol.list);
+    };
+
+    const filterLabel = document.createElement("span");
+    filterLabel.textContent = "nur Mitarbeiter (intern)";
+    filterWrap.append(filterCb, filterLabel);
+    rightCol.col.insertBefore(filterWrap, rightCol.list);
+
     const btnCancel = document.createElement("button");
     btnCancel.textContent = "Abbrechen";
     applyPopupButtonStyle(btnCancel);
@@ -1040,6 +1124,15 @@ export default class ParticipantsModals {
 
     const leftSorted = this._sortPersons(left);
     for (const p of leftSorted) {
+      const firmIsActive = this._parseActiveFlag(
+        p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
+      );
+      const invalidReason = p.invalidReason
+        ? p.invalidReason
+        : firmIsActive === 1
+          ? ""
+          : "Firma im Projekt nicht aktiv";
+
       const controls = document.createElement("div");
       controls.style.display = "flex";
       controls.style.gap = "10px";
@@ -1065,6 +1158,7 @@ export default class ParticipantsModals {
         container: leftListEl,
         person: p,
         extraRight: controls,
+        badgeText: invalidReason ? invalidReason : "",
         onDblClick: () => {
           if (this.readOnly) return;
           const key = this._key(p.kind, p.personId);
@@ -1085,13 +1179,24 @@ export default class ParticipantsModals {
       right.push(c);
     }
 
-    const rightSorted = this._sortPersons(right);
+    const rightFiltered = this.onlyInternal
+      ? right.filter((p) => this._isInternalPerson(p))
+      : right;
+    const rightSorted = this._sortPersons(rightFiltered);
     for (const c of rightSorted) {
+      const firmIsActive = this._parseActiveFlag(
+        c.firmIsActive ?? c.firm_is_active ?? c.is_firm_active
+      );
+      const isDisabled = firmIsActive !== 1;
+      const badgeText = isDisabled ? "Firma im Projekt nicht aktiv" : "";
       this._renderRow({
         container: rightListEl,
         person: c,
+        isDisabled,
+        badgeText,
         onDblClick: () => {
           if (this.readOnly) return;
+          if (isDisabled) return;
           const key = this._key(c.kind, c.personId);
           if (selSet.has(key)) return;
 
