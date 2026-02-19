@@ -1870,28 +1870,15 @@ export default class PrintModal {
   }
 
   _pdfCopyrightText() {
-    return "Â© 2026 BBM Alle Rechte vorbehalten";
+    return "© 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
   }
 
   _pdfCopyrightStyle() {
-    return `
-    .bbmCopyright {
-      position: fixed;
-      left: 7pt;
-      bottom: 7pt;
-      font-family: Calibri, Arial, sans-serif;
-      font-size: 6pt;
-      color: #222;
-      z-index: 9999;
-      pointer-events: none;
-      user-select: none;
-      white-space: nowrap;
-    }
-    `;
+    return "";
   }
 
   _pdfCopyrightHtml() {
-    return `<div class="bbmCopyright">${this._escapeHtml(this._pdfCopyrightText())}</div>`;
+    return "";
   }
 
   _pad2(n) {
@@ -2340,7 +2327,15 @@ export default class PrintModal {
     );
     const pdfLogoDataUrl = String(settings?.["pdf.userLogoPngDataUrl"] || "").trim();
     const pdfLogoDummyHeightMm = Math.max(12, Math.round(pdfLogoWidthMm * 0.5));
-    const effectiveLogoHeightMm = Number(logoHeightMm) > 0 ? Number(logoHeightMm) : 0;
+    const hasLogo = pdfLogoEnabled && !!pdfLogoDataUrl;
+    const showDummy = pdfLogoEnabled && !pdfLogoDataUrl;
+    const effectiveLogoHeightMm = hasLogo
+      ? Number(logoHeightMm) > 0
+        ? Number(logoHeightMm)
+        : pdfLogoDummyHeightMm
+      : showDummy
+        ? pdfLogoDummyHeightMm
+        : 0;
     const headerHeightMm = pdfLogoTopMm + effectiveLogoHeightMm + 5;
     const pdfLogoPos = `top:${pdfLogoTopMm}mm; right:${pdfLogoRightMm}mm; width:${pdfLogoWidthMm}mm;`;
 
@@ -2647,7 +2642,7 @@ export default class PrintModal {
   <meta charset="utf-8"/>
   <title>BBM Druck</title>
   <style>
-    @page { size: A4; margin: 0 10mm 15mm 19mm; }
+    @page { size: A4; margin: 0 10mm 28mm 19mm; }
 
     :root{
       --sepW: 0.25pt;
@@ -2995,7 +2990,7 @@ export default class PrintModal {
   </style>
 </head>
 
-<body class="${bodyClass}" style="--logoTop:${pdfLogoTopMm}mm; --logoHeight:${pdfLogoHeightMm}mm; --headerH:${pdfLogoTopMm + pdfLogoHeightMm + 5}mm;">
+<body class="${bodyClass}" style="--logoTop:${pdfLogoTopMm}mm; --logoHeight:${pdfLogoHeightMm}mm; --headerH:${pdfLogoTopMm + pdfLogoHeightMm + 5}mm; --footerH:28mm;">
   ${watermarkHtml}
   <div class="pageHeader" aria-hidden="true">
     ${pdfLogoHtml}
@@ -3113,7 +3108,12 @@ export default class PrintModal {
 
         const mmPx = measureMm();
         const pageHeight = 297 * mmPx;
-        const footerReserve = 15 * mmPx;
+        const footerReserveMm = (() => {
+          const raw = getComputedStyle(document.body).getPropertyValue("--footerH");
+          const v = parseFloat(raw);
+          return Number.isFinite(v) && v > 0 ? v : 28;
+        })();
+        const footerReserve = footerReserveMm * mmPx;
         const headHeight = thead ? thead.getBoundingClientRect().height : 0;
         const pageTbodyHeight = pageHeight - footerReserve - headHeight;
 
@@ -3349,7 +3349,7 @@ export default class PrintModal {
   <meta charset="utf-8"/>
   <title>BBM Top-Liste (alle)</title>
   <style>
-    @page { size: A4; margin: 0 10mm 15mm 19mm; }
+    @page { size: A4; margin: 0 10mm 28mm 19mm; }
 
     :root{
       --sepW: 0.25pt;
@@ -3612,7 +3612,7 @@ export default class PrintModal {
   </style>
 </head>
 
-<body class="closed" style="--logoTop:${pdfLogoTopMm}mm; --logoHeight:${pdfLogoHeightMm}mm; --headerH:${pdfLogoTopMm + pdfLogoHeightMm + 5}mm;">
+<body class="closed" style="--logoTop:${pdfLogoTopMm}mm; --logoHeight:${pdfLogoHeightMm}mm; --headerH:${pdfLogoTopMm + pdfLogoHeightMm + 5}mm; --footerH:28mm;">
   <div class="pageHeader" aria-hidden="true">
     ${pdfLogoHtml}
     <div class="topRuleFixed"></div>
@@ -3698,7 +3698,12 @@ export default class PrintModal {
 
         const mmPx = measureMm();
         const pageHeight = 297 * mmPx;
-        const footerReserve = 15 * mmPx;
+        const footerReserveMm = (() => {
+          const raw = getComputedStyle(document.body).getPropertyValue("--footerH");
+          const v = parseFloat(raw);
+          return Number.isFinite(v) && v > 0 ? v : 28;
+        })();
+        const footerReserve = footerReserveMm * mmPx;
         const headHeight = thead ? thead.getBoundingClientRect().height : 0;
         const pageTbodyHeight = pageHeight - footerReserve - headHeight;
 
@@ -4346,3 +4351,14 @@ export default class PrintModal {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+

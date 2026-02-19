@@ -44,11 +44,12 @@ function uniquePath(dir, fileName) {
 
 function buildFooterTemplate() {
   // Chromium ersetzt pageNumber/totalPages/date automatisch (nur in header/footer templates!)
+  const copyright =
+    "© 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
   return `
-    <div style="width:100%; font-size:9px; color:#666; padding:0 18mm; box-sizing:border-box;">
+    <div style="width:100%; font-size:9px; color:#666; padding:0 18mm; box-sizing:border-box; font-family: Calibri, Arial, sans-serif; line-height:1;">
       <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-        <div></div>
-        <div></div>
+        <div>${copyright}</div>
         <div>Seite <span class="pageNumber"></span> / <span class="totalPages"></span></div>
       </div>
     </div>
