@@ -359,6 +359,7 @@ export default class ProjectFirmsView {
       <tr>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:160px;">Kurzbezeichnung</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Funktion/Gewerk</th>
+        <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;">Aktiv</th>
       </tr>
     `;
 
@@ -691,6 +692,7 @@ const taFirmNotes = document.createElement("textarea");
         <tr>
           <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Firma</th>
           <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:90px;">Typ</th>
+          <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;">Aktiv</th>
           <th style="text-align:right;padding:6px;border-bottom:1px solid #ddd;width:120px;">Aktion</th>
         </tr>
       `;
@@ -1636,6 +1638,68 @@ const taFirmNotes = document.createElement("textarea");
     return (f.gewerk || f.trade || f.function || "").trim();
   }
 
+  _parseActiveFlag(value) {
+    if (value === undefined || value === null || value === "") return 1;
+    if (typeof value === "boolean") return value ? 1 : 0;
+    const n = Number(value);
+    if (Number.isFinite(n)) return n === 0 ? 0 : 1;
+    const s = String(value).trim().toLowerCase();
+    if (["0", "false", "off", "nein", "inactive"].includes(s)) return 0;
+    return 1;
+  }
+
+  async _canDeactivateFirm(firmId) {
+    const api = window.bbmDb || {};
+    if (typeof api.projectFirmsCanDeactivate !== "function") return { ok: true, can: true };
+    try {
+      const res = await api.projectFirmsCanDeactivate({ projectId: this.projectId, firmId });
+      if (!res?.ok) return { ok: false, can: false, reason: res?.error || "" };
+      const can = res?.result?.canDeactivate !== false;
+      return {
+        ok: true,
+        can,
+        reason: res?.result?.reason || "",
+      };
+    } catch (e) {
+      return { ok: false, can: false, reason: e?.message || String(e) };
+    }
+  }
+
+  async _setFirmActiveWithGuard(firmId, isActive) {
+    if (!this.projectId || !firmId) return false;
+    const api = window.bbmDb || {};
+    if (typeof api.projectFirmsSetActive !== "function") {
+      alert("Aktiv/Inaktiv ist nicht verfuegbar (projectFirmsSetActive fehlt).");
+      return false;
+    }
+
+    if (!isActive) {
+      const check = await this._canDeactivateFirm(firmId);
+      if (!check.ok || !check.can) {
+        alert(
+          check.reason ||
+            "Firma kann nicht deaktiviert werden, solange Teilnehmer dieser Firma zugeordnet sind. Entferne zuerst die Teilnehmer und setze die Mitarbeiter im Personalpool inaktiv."
+        );
+        return false;
+      }
+    }
+
+    const res = await api.projectFirmsSetActive({
+      projectId: this.projectId,
+      firmId,
+      isActive: !!isActive,
+    });
+    if (!res?.ok) {
+      alert(res?.error || "Aktiv/Inaktiv konnte nicht gespeichert werden.");
+      return false;
+    }
+
+    await this.reloadFirms();
+    await this.reloadGlobalAssignments();
+    this._notifyPoolDataChanged("firm-active-changed");
+    return true;
+  }
+
   _normalizeFirmNameForDedupe(value) {
     return String(value || "").trim().toLocaleLowerCase("de-DE");
   }
@@ -1661,6 +1725,7 @@ const taFirmNotes = document.createElement("textarea");
         id: f.id,
         short: f.short || "",
         name: f.name || "",
+        is_active: this._parseActiveFlag(f?.is_active),
       });
     }
     for (const f of this.assignedGlobalFirms || []) {
@@ -1669,6 +1734,7 @@ const taFirmNotes = document.createElement("textarea");
         id: f.id,
         short: f.short || "",
         name: f.name || "",
+        is_active: this._parseActiveFlag(f?.is_active),
       });
     }
 
@@ -1817,7 +1883,7 @@ const taFirmNotes = document.createElement("textarea");
     if (!rows.length) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 3;
+      td.colSpan = 4;
       td.style.padding = "10px 6px";
       td.style.fontSize = "12px";
       td.style.opacity = "0.75";
@@ -1847,6 +1913,24 @@ const taFirmNotes = document.createElement("textarea");
       badge.style.background = row.kind === "global_firm" ? "#fff0dc" : "#eaf3ff";
       tdType.appendChild(badge);
 
+      const tdActive = document.createElement("td");
+      tdActive.style.padding = "6px";
+      tdActive.style.borderBottom = "1px solid #eee";
+      tdActive.style.textAlign = "center";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = this._parseActiveFlag(row?.is_active) === 1;
+      const canToggle = !this._isReadOnly() && !this.savingFirm && !this.savingPerson && !this.savingGlobalAssign;
+      cb.disabled = !canToggle;
+      cb.style.cursor = cb.disabled ? "default" : "pointer";
+      cb.onclick = (e) => e.stopPropagation();
+      cb.onchange = async (e) => {
+        e.stopPropagation();
+        const ok = await this._setFirmActiveWithGuard(row.id, cb.checked);
+        if (!ok) cb.checked = !cb.checked;
+      };
+      tdActive.appendChild(cb);
+
       const tdAction = document.createElement("td");
       tdAction.style.padding = "6px";
       tdAction.style.borderBottom = "1px solid #eee";
@@ -1865,7 +1949,7 @@ const taFirmNotes = document.createElement("textarea");
       };
       tdAction.appendChild(btnRemove);
 
-      tr.append(tdName, tdType, tdAction);
+      tr.append(tdName, tdType, tdActive, tdAction);
       tb.appendChild(tr);
     }
   }
@@ -1979,7 +2063,24 @@ const taFirmNotes = document.createElement("textarea");
       tdGewerk.style.borderBottom = "1px solid #eee";
       tdGewerk.textContent = this._firmGewerkText(f);
 
-      tr.append(tdShort, tdGewerk);
+      const tdActive = document.createElement("td");
+      tdActive.style.padding = "6px";
+      tdActive.style.borderBottom = "1px solid #eee";
+      tdActive.style.textAlign = "center";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = this._parseActiveFlag(f?.is_active) === 1;
+      cb.disabled = this._isReadOnly() || this.savingFirm || this.savingPerson || this.savingGlobalAssign;
+      cb.style.cursor = cb.disabled ? "default" : "pointer";
+      cb.onclick = (e) => e.stopPropagation();
+      cb.onchange = async (e) => {
+        e.stopPropagation();
+        const ok = await this._setFirmActiveWithGuard(f.id, cb.checked);
+        if (!ok) cb.checked = !cb.checked;
+      };
+      tdActive.appendChild(cb);
+
+      tr.append(tdShort, tdGewerk, tdActive);
 
       tr.onclick = async () => {
         if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
@@ -3200,11 +3301,15 @@ const taFirmNotes = document.createElement("textarea");
     const resC = await window.bbmDb.projectFirmsListFirmCandidatesByProject(this.projectId);
     const assignedIds = new Set();
     let fallbackAssigned = [];
+    const activeById = new Map();
 
     if (resC?.ok) {
       const list = (resC.list || []).filter((x) => x.kind === "global_firm");
       for (const x of list) {
-        if (x?.id) assignedIds.add(x.id);
+        if (x?.id) {
+          assignedIds.add(x.id);
+          activeById.set(x.id, x?.is_active ?? x?.isActive);
+        }
       }
       fallbackAssigned = list;
     }
@@ -3213,7 +3318,12 @@ const taFirmNotes = document.createElement("textarea");
     if (this.globalFirms && this.globalFirms.length) {
       const assigned = [];
       for (const gf of this.globalFirms) {
-        if (assignedIds.has(gf.id)) assigned.push(gf);
+        if (assignedIds.has(gf.id)) {
+          assigned.push({
+            ...gf,
+            is_active: activeById.has(gf.id) ? activeById.get(gf.id) : gf?.is_active,
+          });
+        }
       }
 
       // falls IDs existieren, die in globalFirms nicht enthalten sind (sollte selten sein)
@@ -3236,6 +3346,7 @@ const taFirmNotes = document.createElement("textarea");
         short: x.short ?? null,
         name: x.name ?? null,
         gewerk: null,
+        is_active: x?.is_active ?? x?.isActive,
       }));
     }
 

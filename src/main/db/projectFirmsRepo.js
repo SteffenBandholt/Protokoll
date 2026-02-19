@@ -194,6 +194,91 @@ function setProjectFirmActive({ projectId, firmId, isActive }) {
   };
 }
 
+function canDeactivateProjectFirm({ projectId, firmId }) {
+  const db = initDatabase();
+  if (!projectId) throw new Error("projectId required");
+  if (!firmId) throw new Error("firmId required");
+
+  const local = db
+    .prepare(
+      `
+      SELECT id
+      FROM project_firms
+      WHERE project_id = ?
+        AND id = ?
+        AND removed_at IS NULL
+      LIMIT 1
+    `
+    )
+    .get(projectId, firmId);
+
+  const global = db
+    .prepare(
+      `
+      SELECT firm_id
+      FROM project_global_firms
+      WHERE project_id = ?
+        AND firm_id = ?
+        AND removed_at IS NULL
+      LIMIT 1
+    `
+    )
+    .get(projectId, firmId);
+
+  if (!local && !global) {
+    return {
+      canDeactivate: false,
+      count: 0,
+      reason: "Firma ist dem Projekt nicht zugeordnet.",
+    };
+  }
+
+  let count = 0;
+
+  if (local) {
+    const c1 = db
+      .prepare(
+        `
+        SELECT COUNT(*) AS cnt
+        FROM meetings m
+        INNER JOIN meeting_participants mp
+          ON mp.meeting_id = m.id
+         AND mp.kind = 'project_person'
+        INNER JOIN project_persons pp
+          ON pp.id = mp.person_id
+        WHERE m.project_id = ?
+          AND pp.project_firm_id = ?
+      `
+      )
+      .get(projectId, firmId);
+    count += Number(c1?.cnt || 0);
+  }
+
+  if (global) {
+    const c2 = db
+      .prepare(
+        `
+        SELECT COUNT(*) AS cnt
+        FROM meetings m
+        INNER JOIN meeting_participants mp
+          ON mp.meeting_id = m.id
+         AND mp.kind = 'global_person'
+        INNER JOIN persons p
+          ON p.id = mp.person_id
+        WHERE m.project_id = ?
+          AND p.firm_id = ?
+      `
+      )
+      .get(projectId, firmId);
+    count += Number(c2?.cnt || 0);
+  }
+
+  return {
+    canDeactivate: count === 0,
+    count,
+  };
+}
+
 function createProjectFirm({
   projectId,
   short,
@@ -578,6 +663,7 @@ module.exports = {
   assignGlobalFirmToProject,
   unassignGlobalFirmFromProject,
   setProjectFirmActive,
+  canDeactivateProjectFirm,
   createProjectFirm,
   updateProjectFirm,
   softDeleteProjectFirm,

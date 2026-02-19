@@ -93,6 +93,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
   projectFirmsUnassignGlobalFirm: (data) =>
     ipcRenderer.invoke("projectFirms:unassignGlobalFirm", data),
   projectFirmsSetActive: (data) => ipcRenderer.invoke("projectFirms:setActive", data),
+  projectFirmsCanDeactivate: (data) => ipcRenderer.invoke("projectFirms:canDeactivate", data),
 
   // ============================================================
   // Kandidaten & Teilnehmer (INVARIANT)

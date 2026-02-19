@@ -510,6 +510,16 @@ export default class TopsView {
     return "Unbenannte Firma";
   }
 
+  _parseActiveFlag(value) {
+    if (value === undefined || value === null || value === "") return 1;
+    if (typeof value === "boolean") return value ? 1 : 0;
+    const n = Number(value);
+    if (Number.isFinite(n)) return n === 0 ? 0 : 1;
+    const s = String(value).trim().toLowerCase();
+    if (["0", "false", "off", "nein", "inactive"].includes(s)) return 0;
+    return 1;
+  }
+
   _getResponsibleLabelForSelection(sel, parsed) {
     if (!parsed?.id) return null;
 
@@ -529,6 +539,10 @@ export default class TopsView {
     const out = [];
     const seen = new Set();
     for (const row of list || []) {
+      const activeRaw = row?.is_active ?? row?.isActive;
+      if (activeRaw !== undefined && activeRaw !== null) {
+        if (this._parseActiveFlag(activeRaw) === 0) continue;
+      }
       const rawId = row?.id ?? row?.firm_id ?? row?.firmId ?? null;
       if (rawId === null || rawId === undefined || rawId === "") continue;
 

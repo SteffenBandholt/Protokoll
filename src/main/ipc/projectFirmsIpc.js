@@ -177,6 +177,18 @@ function registerProjectFirmsIpc() {
     }
   });
 
+  ipcMain.handle("projectFirms:canDeactivate", (_evt, data) => {
+    try {
+      const result = projectFirmsRepo.canDeactivateProjectFirm({
+        projectId: data?.projectId,
+        firmId: data?.firmId,
+      });
+      return { ok: true, result };
+    } catch (e) {
+      return { ok: false, error: _err(e) };
+    }
+  });
+
   // --------------------------------------------
   // Project Persons
   // --------------------------------------------

@@ -868,6 +868,10 @@ export default class ParticipantsModals {
     const rightSorted = this._sortPersons(right);
 
     for (const p of leftSorted) {
+      const firmIsActive = this._parseActiveFlag(
+        p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
+      );
+      const badgeText = firmIsActive === 1 ? "" : "Firma im Projekt nicht aktiv";
       let extraRight = null;
       if (this.isNewUi) {
         const wrap = document.createElement("label");
@@ -903,6 +907,7 @@ export default class ParticipantsModals {
         container: leftListEl,
         person: p,
         extraRight,
+        badgeText,
         onDblClick: () => {
           const key = this._key(p.kind, p.personId);
           const refs = this.openParticipantRefs.get(key) || [];
@@ -927,12 +932,20 @@ export default class ParticipantsModals {
     if (!leftSorted.length) this._renderEmpty(leftListEl);
 
     for (const p of rightSorted) {
+      const firmIsActive = this._parseActiveFlag(
+        p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
+      );
+      const isDisabled = firmIsActive !== 1;
+      const badgeText = isDisabled ? "Firma im Projekt nicht aktiv" : "";
       this._renderRow({
         container: rightListEl,
         person: p,
+        isDisabled,
+        badgeText,
         onDblClick: () => {
           const key = this._key(p.kind, p.personId);
           if (selectedSet.has(key)) return;
+          if (isDisabled) return;
           this.candidates = this._sortPersons([
             ...(this.candidates || []),
             { ...p, is_active: 1 },
