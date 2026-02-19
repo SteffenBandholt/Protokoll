@@ -38,6 +38,7 @@ export default class TopsView {
     this.topBarEl = null;
     this.editMetaCol = null;
     this.editMetaSep = null;
+    this.boxTopNumEl = null;
 
     this.inpTitle = null;
     this.taLongtext = null;
@@ -92,6 +93,10 @@ export default class TopsView {
     this.items = [];
     this.childrenCountByParent = new Map();
     this.isNewUi = this._readUiMode() === "new";
+    this.level1Collapsed = new Set();
+    this._level1CollapsedLoaded = false;
+    this._level1CollapsedProjectId = null;
+    this._level1CollapsedMap = {};
 
     this._suppressBlurOnce = false;
     this._saveInfoTimer = null;
@@ -249,6 +254,70 @@ export default class TopsView {
     this._updateCharCounters();
     if (this.listEl) this._renderListOnly();
     this._updateTopBarMetaLabels();
+  }
+
+  async _loadLevel1CollapsedSetting() {
+    const pid = this.projectId ? String(this.projectId) : "";
+    if (!pid) {
+      this.level1Collapsed = new Set();
+      this._level1CollapsedLoaded = true;
+      this._level1CollapsedProjectId = null;
+      return;
+    }
+
+    if (this._level1CollapsedLoaded && this._level1CollapsedProjectId === pid) return;
+
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") {
+      this.level1Collapsed = new Set();
+      this._level1CollapsedLoaded = true;
+      this._level1CollapsedProjectId = pid;
+      return;
+    }
+
+    const res = await api.appSettingsGetMany(["tops.level1Collapsed"]);
+    if (!res?.ok) {
+      this.level1Collapsed = new Set();
+      this._level1CollapsedLoaded = true;
+      this._level1CollapsedProjectId = pid;
+      return;
+    }
+
+    const raw = String(res?.data?.["tops.level1Collapsed"] || "").trim();
+    let map = {};
+    try {
+      const parsed = JSON.parse(raw || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        map = parsed;
+      }
+    } catch {
+      map = {};
+    }
+
+    this._level1CollapsedMap = map;
+    const list = Array.isArray(map[pid]) ? map[pid] : [];
+    this.level1Collapsed = new Set(list.map((x) => String(x)));
+    this._level1CollapsedLoaded = true;
+    this._level1CollapsedProjectId = pid;
+  }
+
+  async _saveLevel1CollapsedSetting() {
+    const pid = this.projectId ? String(this.projectId) : "";
+    if (!pid) return;
+
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsSetMany !== "function") return;
+
+    if (!this._level1CollapsedMap || typeof this._level1CollapsedMap !== "object") {
+      this._level1CollapsedMap = {};
+    }
+
+    this._level1CollapsedMap[pid] = Array.from(this.level1Collapsed || []);
+    const payload = {
+      "tops.level1Collapsed": JSON.stringify(this._level1CollapsedMap),
+    };
+
+    await api.appSettingsSetMany(payload);
   }
 
   async _saveAmpelSetting() {
@@ -988,9 +1057,22 @@ export default class TopsView {
   }
 
   _formatDue(v) {
-    if (!v) return "—";
-    const s = String(v);
-    return s.length >= 10 ? s.slice(0, 10) : s;
+    if (!v) return "-";
+    const s = String(v).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      const y = s.slice(0, 4);
+      const m = s.slice(5, 7);
+      const d = s.slice(8, 10);
+      return `${d}.${m}.${y}`;
+    }
+    const d = new Date(s);
+    if (!Number.isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yy = String(d.getFullYear());
+      return `${dd}.${mm}.${yy}`;
+    }
+    return s;
   }
 
   _formatStatus(v) {
@@ -1396,7 +1478,7 @@ export default class TopsView {
     topBar.style.background = "#fff";
     topBar.style.borderBottom = "1px solid #ddd";
     topBar.style.boxShadow = "0 2px 10px rgba(0,0,0,0.08)";
-    topBar.style.zIndex = "11";
+    topBar.style.zIndex = "5";
 
     const topsText = document.createElement("div");
     topsText.textContent = "TOPs";
@@ -1475,6 +1557,11 @@ export default class TopsView {
     boxTitle.textContent = "TOP bearbeiten";
     boxTitle.style.fontWeight = "700";
     boxTitle.style.whiteSpace = "nowrap";
+
+    const boxTopNum = document.createElement("div");
+    boxTopNum.style.color = "#1b5e20";
+    boxTopNum.style.fontWeight = "600";
+    boxTopNum.style.whiteSpace = "nowrap";
 
     const addActions = document.createElement("div");
     addActions.style.display = "inline-flex";
@@ -1640,7 +1727,7 @@ export default class TopsView {
       topBar.insertBefore(btnParticipants, spacer);
     }
     headerActions.append(btnMove, btnSaveTop, btnPdfVorabzug, btnTodo, btnTrashTop);
-    boxHeader.append(boxTitle, addActions, headerActions);
+    boxHeader.append(boxTitle, boxTopNum, addActions, headerActions);
 
     // Editor
     const makeCountBadge = (initialText) => {
@@ -1677,6 +1764,13 @@ export default class TopsView {
     inpTitle.placeholder = "Kurztext…";
     inpTitle.style.width = "100%";
     inpTitle.maxLength = this._titleMax();
+    inpTitle.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      if (this.taLongtext && !this.taLongtext.disabled) {
+        this.taLongtext.focus();
+      }
+    });
 
     const chkImportant = document.createElement("input");
     chkImportant.type = "checkbox";
@@ -1868,6 +1962,7 @@ export default class TopsView {
 
     this.titleCountEl = titleCount;
     this.longCountEl = longCount;
+    this.boxTopNumEl = boxTopNum;
 
     this.btnSaveTop = btnSaveTop;
     this.btnTrashTop = btnTrashTop;
@@ -2022,6 +2117,7 @@ export default class TopsView {
         { status: st, completed_in_meeting_id: completedIn },
         { reload: true, pulse: true }
       );
+      this._renderListOnly();
     });
 
     selResponsible.addEventListener("change", async () => {
@@ -2257,6 +2353,16 @@ export default class TopsView {
     return (this.childrenCountByParent.get(key) || 0) > 0;
   }
 
+  _canTrashSelected() {
+    const t = this.selectedTop;
+    if (!t) return false;
+    if (this.isReadOnly) return false;
+    if (this._busy) return false;
+    if (this._deleteInFlight) return false;
+    if (Number(t.is_carried_over) === 1) return false;
+    return true;
+  }
+
   _canDeleteSelected() {
     const t = this.selectedTop;
     if (!t) return false;
@@ -2269,11 +2375,23 @@ export default class TopsView {
   }
 
   _updateDeleteControls() {
-    if (!this.btnDelete) return;
     const can = this._canDeleteSelected();
-    this.btnDelete.disabled = !can;
-    this.btnDelete.style.opacity = can ? "1" : "0.55";
-    this.btnDelete.style.cursor = can ? "pointer" : "default";
+    if (this.btnDelete) {
+      this.btnDelete.disabled = !can;
+      this.btnDelete.style.opacity = can ? "1" : "0.55";
+      this.btnDelete.style.cursor = can ? "pointer" : "default";
+    }
+
+    if (this.btnTrashTop) {
+      const canTrash = this._canTrashSelected();
+      this.btnTrashTop.disabled = !canTrash;
+      this.btnTrashTop.style.opacity = canTrash ? "1" : "0.55";
+      if (!canTrash && Number(this.selectedTop?.is_carried_over) === 1) {
+        this.btnTrashTop.title = "Uebernommene TOPs koennen nicht geloescht werden.";
+      } else {
+        this.btnTrashTop.title = "In Papierkorb (wie Ausblenden)";
+      }
+    }
   }
 
   async moveSelectedTopToTrash() {
@@ -2282,6 +2400,10 @@ export default class TopsView {
     if (this.isReadOnly) return;
     if (this._busy) return;
     if (this._deleteInFlight) return;
+    if (Number(t.is_carried_over) === 1) {
+      alert("Uebernommene TOPs koennen nicht geloescht werden.");
+      return;
+    }
 
     const currentId = this._topIdKey(t.id);
     const visibleIds = (this.items || [])
@@ -2508,6 +2630,8 @@ export default class TopsView {
     this.items = items;
     this._rebuildChildrenIndex(items);
 
+    await this._loadLevel1CollapsedSetting();
+
     const selectedKey = this.selectedTopId == null ? "" : String(this.selectedTopId);
     if (keepSelection && selectedKey) {
       this.selectedTop = items.find((t) => String(t?.id) === selectedKey) || null;
@@ -2553,6 +2677,7 @@ export default class TopsView {
     const ampelCompute = createAmpelComputer(this.items, this._ampelBaseDate());
     const meeting = this.meetingMeta || { id: this.meetingId };
 
+    let collapsedParentId = null;
     for (const top of this.items) {
       if (this._shouldHideDoneTop(top)) continue;
       const li = document.createElement("li");
@@ -2571,6 +2696,14 @@ export default class TopsView {
       const isTouched = Number(top.is_touched) === 1;
       const isLevel1 = Number(top.level) === 1;
       const isDone = shouldGrayTopForMeeting(top, meeting);
+
+      const topIdKey = String(top.id);
+      const isCollapsed = isLevel1 && this.level1Collapsed.has(topIdKey);
+      if (isLevel1) {
+        collapsedParentId = isCollapsed ? topIdKey : null;
+      } else if (collapsedParentId) {
+        continue;
+      }
 
       const doneColor = "#9e9e9e";
       const shortColor = isDone
@@ -2614,7 +2747,38 @@ export default class TopsView {
       numBlock.style.fontVariantNumeric = "tabular-nums";
       numBlock.style.opacity = "0.85";
       numBlock.style.textAlign = "left";
-      numBlock.textContent = `${num}.`;
+      numBlock.style.display = "flex";
+      numBlock.style.alignItems = "center";
+      numBlock.style.gap = "6px";
+
+      if (isLevel1) {
+        const btnToggle = document.createElement("button");
+        btnToggle.type = "button";
+        btnToggle.textContent = isCollapsed ? "+" : "-";
+        btnToggle.style.width = "18px";
+        btnToggle.style.height = "18px";
+        btnToggle.style.minWidth = "18px";
+        btnToggle.style.borderRadius = "4px";
+        btnToggle.style.border = "1px solid #cfd8dc";
+        btnToggle.style.background = "#fff";
+        btnToggle.style.cursor = "pointer";
+        btnToggle.style.fontWeight = "700";
+        btnToggle.style.lineHeight = "1";
+        btnToggle.title = isCollapsed ? "Unterpunkte einblenden" : "Unterpunkte ausblenden";
+        btnToggle.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (isCollapsed) this.level1Collapsed.delete(topIdKey);
+          else this.level1Collapsed.add(topIdKey);
+          this._saveLevel1CollapsedSetting().catch(() => {});
+          this._renderListOnly();
+        };
+        numBlock.appendChild(btnToggle);
+      }
+
+      const numLabel = document.createElement("span");
+      numLabel.textContent = `${num}.`;
+      numBlock.appendChild(numLabel);
 
       const textCol = document.createElement("div");
       textCol.style.display = "flex";
@@ -2626,6 +2790,7 @@ export default class TopsView {
       const shortLine = document.createElement("div");
       shortLine.textContent = `${top.title || ""}`;
       shortLine.style.color = shortColor;
+      shortLine.style.fontSize = isLevel1 ? "15px" : "14px";
       shortLine.style.whiteSpace = "nowrap";
       shortLine.style.overflow = "hidden";
       shortLine.style.textOverflow = "ellipsis";
@@ -2637,7 +2802,7 @@ export default class TopsView {
         if (lt) {
           const longDiv = document.createElement("div");
           longDiv.textContent = this._clampStr(lt, this._longMax());
-          longDiv.style.fontSize = "12px";
+          longDiv.style.fontSize = "13px";
           longDiv.style.opacity = "0.85";
           longDiv.style.whiteSpace = "pre-wrap";
           longDiv.style.color = longColor;
@@ -2655,7 +2820,7 @@ export default class TopsView {
         metaCol.style.gap = "2px";
         metaCol.style.flex = `0 0 ${this.META_COL_W}px`;
         metaCol.style.width = `${this.META_COL_W}px`;
-        metaCol.style.fontSize = "11px";
+        metaCol.style.fontSize = "12px";
         metaCol.style.opacity = "0.65";
         metaCol.style.fontVariantNumeric = "tabular-nums";
         metaCol.style.paddingLeft = "10px";
@@ -2795,6 +2960,11 @@ export default class TopsView {
     if (this.editMetaCol) this.editMetaCol.style.display = isLevel1 ? "none" : "";
     if (this.editMetaSep) this.editMetaSep.style.display = isLevel1 ? "none" : "";
 
+    if (this.boxTopNumEl) {
+      const num = t?.displayNumber ?? t?.number ?? "";
+      this.boxTopNumEl.textContent = num ? `TOP ${num}` : "";
+    }
+
     if (!t) {
       this.inpTitle.value = "";
       if (this.taLongtext) this.taLongtext.value = "";
@@ -2928,12 +3098,19 @@ export default class TopsView {
       this.btnSaveTop.style.opacity = "1";
     }
     if (this.btnTrashTop) {
-      this.btnTrashTop.disabled = !!this._deleteInFlight;
-      this.btnTrashTop.style.opacity = this.btnTrashTop.disabled ? "0.55" : "1";
+      const canTrash = this._canTrashSelected();
+      this.btnTrashTop.disabled = !canTrash;
+      this.btnTrashTop.style.opacity = canTrash ? "1" : "0.55";
+      if (!canTrash && Number(t?.is_carried_over) === 1) {
+        this.btnTrashTop.title = "Uebernommene TOPs koennen nicht geloescht werden.";
+      } else {
+        this.btnTrashTop.title = "In Papierkorb (wie Ausblenden)";
+      }
     }
 
     this._updateMoveControls();
     this._updateCreateChildControls();
+    this._updateDeleteControls();
   }
 
   async createTop(level, parentTopId) {

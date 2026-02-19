@@ -194,6 +194,7 @@ function registerSettingsIpc() {
         "dbMigrationPromptDismissed",
         "tops.titleMax",
         "tops.longMax",
+        "tops.level1Collapsed",
       ]);
       const data = {};
 
