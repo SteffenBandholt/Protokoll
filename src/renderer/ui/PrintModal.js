@@ -2336,8 +2336,8 @@ export default class PrintModal {
       : showDummy
         ? pdfLogoDummyHeightMm
         : 0;
-    const headerHeightMm = pdfLogoTopMm + effectiveLogoHeightMm + 5;
-    const pdfLogoPos = `top:${pdfLogoTopMm}mm; right:${pdfLogoRightMm}mm; width:${pdfLogoWidthMm}mm;`;
+    const headerHeightMm = Math.max(18, pdfLogoTopMm + effectiveLogoHeightMm + 5);
+    const pdfLogoPos = `margin-top:${pdfLogoTopMm}mm; margin-right:${pdfLogoRightMm}mm; width:${pdfLogoWidthMm}mm;`;
 
     const pdfLogoHtml = !pdfLogoEnabled
       ? ""
@@ -2684,9 +2684,13 @@ export default class PrintModal {
       z-index: 5;
       overflow: hidden;
       pointer-events: none;
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-start;
+      box-sizing: border-box;
     }
     .pageHeader .pdfLogo {
-      position: absolute;
+      position: relative;
       z-index: 6;
       pointer-events: none;
     }
@@ -2717,7 +2721,7 @@ export default class PrintModal {
 
     .page1 {
       margin: 0 0 6mm 0;
-      padding-top: calc(var(--logoTop) + var(--logoHeight) + 5mm);
+      padding-top: var(--headerH);
     }
     .projLine {
       margin-top: 1.5mm;
@@ -3376,9 +3380,13 @@ export default class PrintModal {
       z-index: 5;
       overflow: hidden;
       pointer-events: none;
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-start;
+      box-sizing: border-box;
     }
     .pageHeader .pdfLogo {
-      position: absolute;
+      position: relative;
       z-index: 6;
       pointer-events: none;
     }
@@ -3409,7 +3417,7 @@ export default class PrintModal {
 
     .page1 {
       margin: 0 0 6mm 0;
-      padding-top: calc(var(--logoTop) + var(--logoHeight) + 5mm);
+      padding-top: var(--headerH);
     }
     .projLine {
       margin-top: 1.5mm;
@@ -4351,6 +4359,13 @@ export default class PrintModal {
     }
   }
 }
+
+
+
+
+
+
+
 
 
 
