@@ -346,22 +346,7 @@ export default class ProjectFirmsView {
       this._openLocalFirmEditModal(this.selectedFirm);
     };
 
-    const btnDeleteFirmList = document.createElement("button");
-    btnDeleteFirmList.textContent = "Löschen";
-    applyPopupButtonStyle(btnDeleteFirmList, { variant: "danger" });
-    btnDeleteFirmList.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (this._isReadOnly()) return;
-      if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
-      if (!this.selectedFirmId || !this.selectedFirm || this.firmMode !== "edit") {
-        alert("Bitte zuerst eine Projektfirma auswählen.");
-        return;
-      }
-      await this._deleteFirm();
-    };
-
-    listActions.append(btnNewFirm, btnImportCsv, btnEditFirmList, btnDeleteFirmList);
+    listActions.append(btnNewFirm, btnImportCsv, btnEditFirmList);
 
     listHead.append(localTitle, listActions);
 
@@ -434,8 +419,9 @@ export default class ProjectFirmsView {
     };
 
     const btnDeleteSelectedFirm = document.createElement("button");
-    btnDeleteSelectedFirm.textContent = "Loeschen";
+    btnDeleteSelectedFirm.textContent = "Papierkorb";
     applyPopupButtonStyle(btnDeleteSelectedFirm, { variant: "danger" });
+    btnDeleteSelectedFirm.title = "In Papierkorb";
     btnDeleteSelectedFirm.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -529,18 +515,7 @@ const taFirmNotes = document.createElement("textarea");
       await this._saveFirm();
     };
 
-    const btnDeleteFirm = document.createElement("button");
-    btnDeleteFirm.textContent = "Firma löschen";
-    btnDeleteFirm.style.background = "#c62828";
-    btnDeleteFirm.style.color = "white";
-    btnDeleteFirm.style.border = "1px solid rgba(0,0,0,0.25)";
-    btnDeleteFirm.style.borderRadius = "6px";
-    btnDeleteFirm.style.padding = "6px 10px";
-    btnDeleteFirm.onclick = async () => {
-      await this._deleteFirm();
-    };
-
-    firmButtons.append(btnSaveFirm, btnDeleteFirm);
+    firmButtons.append(btnSaveFirm);
 
     const personsWrap = document.createElement("div");
     applyPopupCardStyle(personsWrap);
@@ -675,12 +650,13 @@ const taFirmNotes = document.createElement("textarea");
     };
 
     const btnDeletePerson = document.createElement("button");
-    btnDeletePerson.textContent = "Löschen";
+    btnDeletePerson.textContent = "Papierkorb";
     btnDeletePerson.style.background = "#c62828";
     btnDeletePerson.style.color = "white";
     btnDeletePerson.style.border = "1px solid rgba(0,0,0,0.25)";
     btnDeletePerson.style.borderRadius = "6px";
     btnDeletePerson.style.padding = "6px 10px";
+    btnDeletePerson.title = "In Papierkorb";
     btnDeletePerson.onclick = async () => {
       if (!this.editPersonId) return;
       await this._deletePerson(this.editPersonId);
@@ -1027,7 +1003,8 @@ const taFirmNotes = document.createElement("textarea");
       await this._saveLocalFirmModal();
     };
     const localFirmBtnDelete = document.createElement("button");
-    localFirmBtnDelete.textContent = "Löschen";
+    localFirmBtnDelete.textContent = "Papierkorb";
+    localFirmBtnDelete.title = "In Papierkorb";
     applyPopupButtonStyle(localFirmBtnDelete);
     this._applyDangerDeleteButtonStyle(localFirmBtnDelete, true);
     localFirmBtnDelete.onclick = async () => {
@@ -1149,7 +1126,8 @@ const taFirmNotes = document.createElement("textarea");
       await this._saveLocalPersonModal();
     };
     const localPersonBtnDelete = document.createElement("button");
-    localPersonBtnDelete.textContent = "Löschen";
+    localPersonBtnDelete.textContent = "Papierkorb";
+    localPersonBtnDelete.title = "In Papierkorb";
     applyPopupButtonStyle(localPersonBtnDelete);
     this._applyDangerDeleteButtonStyle(localPersonBtnDelete, true);
     localPersonBtnDelete.onclick = async () => {
@@ -1172,7 +1150,6 @@ const taFirmNotes = document.createElement("textarea");
     this.btnNewFirm = btnNewFirm;
     this.btnImportCsv = btnImportCsv;
     this.btnEditFirmList = btnEditFirmList;
-    this.btnDeleteFirmList = btnDeleteFirmList;
     this.tableBodyEl = tbody;
 
     this.editWrapEl = editWrap;
@@ -1192,7 +1169,6 @@ const taFirmNotes = document.createElement("textarea");
     this.taFirmNotes = taFirmNotes;
 
     this.btnSaveFirm = btnSaveFirm;
-    this.btnDeleteFirm = btnDeleteFirm;
 
     this.personTableBodyEl = personsTbody;
     this.btnNewPerson = btnNewPerson;
@@ -1442,7 +1418,7 @@ const taFirmNotes = document.createElement("textarea");
       this.btnDeleteSelectedFirm.disabled = !can;
       this.btnDeleteSelectedFirm.style.opacity = can ? "1" : "0.55";
       this.btnDeleteSelectedFirm.title = hasPersons
-        ? "Loeschen nur moeglich, wenn keine Mitarbeiter vorhanden sind."
+        ? "In Papierkorb nur möglich, wenn keine Mitarbeiter vorhanden sind."
         : "";
     }
   }
@@ -1745,7 +1721,7 @@ const taFirmNotes = document.createElement("textarea");
       }
       const cnt = Array.isArray(res?.list) ? res.list.length : 0;
       if (cnt > 0) {
-        alert("Entfernen nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
+        alert("In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
         return false;
       }
       return true;
@@ -1758,7 +1734,7 @@ const taFirmNotes = document.createElement("textarea");
         return false;
       }
       if (cnt > 0) {
-        alert("Entfernen nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
+        alert("In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
         return false;
       }
       return true;
@@ -2157,19 +2133,6 @@ const taFirmNotes = document.createElement("textarea");
       this.btnEditFirmList.style.opacity = canEdit ? "1" : "0.55";
       this.btnEditFirmList.title = hasSelectedFirm ? "" : "Bitte zuerst eine Projektfirma auswählen.";
     }
-    if (this.btnDeleteFirmList) {
-      const hasPersons = Array.isArray(this.persons) && this.persons.length > 0;
-      const canDelete = !isSaving && !ro && hasSelectedFirm && !hasPersons;
-      this.btnDeleteFirmList.disabled = !canDelete;
-      this.btnDeleteFirmList.style.opacity = canDelete ? "1" : "0.55";
-      if (!hasSelectedFirm) {
-        this.btnDeleteFirmList.title = "Bitte zuerst eine Projektfirma auswählen.";
-      } else if (hasPersons) {
-        this.btnDeleteFirmList.title = "Löschen nur möglich, wenn keine Mitarbeiter vorhanden sind.";
-      } else {
-        this.btnDeleteFirmList.title = "";
-      }
-    }
     if (!hasEditor) return;
 
     const setInp = (el, val) => {
@@ -2205,7 +2168,7 @@ const taFirmNotes = document.createElement("textarea");
       this.btnSaveFirm.style.opacity = canSave ? "1" : "0.55";
     }
 
-    if (this.btnDeleteFirm) {
+    if (this.btnDeleteSelectedFirm) {
       const hasPersons = Array.isArray(this.persons) && this.persons.length > 0;
       const canDelete =
         !isSaving &&
@@ -2213,11 +2176,11 @@ const taFirmNotes = document.createElement("textarea");
         this.firmMode === "edit" &&
         !!this.selectedFirmId &&
         !hasPersons;
-      this.btnDeleteFirm.disabled = !canDelete;
-      this.btnDeleteFirm.style.opacity = canDelete ? "1" : "0.55";
-      this.btnDeleteFirm.title = hasPersons
-        ? "Löschen nur möglich, wenn keine Mitarbeiter vorhanden sind."
-        : "";
+      this.btnDeleteSelectedFirm.disabled = !canDelete;
+      this.btnDeleteSelectedFirm.style.opacity = canDelete ? "1" : "0.55";
+      this.btnDeleteSelectedFirm.title = hasPersons
+        ? "In Papierkorb nur möglich, wenn keine Mitarbeiter vorhanden sind."
+        : "In Papierkorb";
     }
 
     if (this.btnNewPerson) {
@@ -2266,6 +2229,7 @@ const taFirmNotes = document.createElement("textarea");
       this.btnDeletePerson.disabled = !canDelete;
       this.btnDeletePerson.style.opacity = canDelete ? "1" : "0.55";
       this.btnDeletePerson.style.display = show ? "inline-block" : "none";
+      this.btnDeletePerson.title = canDelete ? "In Papierkorb" : "";
     }
   }
 
@@ -2337,8 +2301,8 @@ const taFirmNotes = document.createElement("textarea");
       this.localFirmBtnDeleteEl.style.display =
         this.localFirmModalMode === "edit" ? "inline-block" : "none";
       this.localFirmBtnDeleteEl.title = hasPersons
-        ? "Löschen nur möglich, wenn keine Mitarbeiter vorhanden sind."
-        : "";
+        ? "In Papierkorb nur möglich, wenn keine Mitarbeiter vorhanden sind."
+        : "In Papierkorb";
     }
     setDisabled(this.localFirmBtnCancelEl, busy);
     setDisabled(this.localFirmBtnCloseEl, busy);
@@ -2361,6 +2325,7 @@ const taFirmNotes = document.createElement("textarea");
       this._applyDangerDeleteButtonStyle(this.localPersonBtnDeleteEl, canDelete);
       this.localPersonBtnDeleteEl.style.display =
         this.localPersonModalMode === "edit" ? "inline-block" : "none";
+      this.localPersonBtnDeleteEl.title = canDelete ? "In Papierkorb" : "";
     }
     setDisabled(this.localPersonBtnCancelEl, busy);
     setDisabled(this.localPersonBtnCloseEl, busy);
@@ -2778,7 +2743,7 @@ const taFirmNotes = document.createElement("textarea");
     try {
       const res = await window.bbmDb.projectPersonsDelete(personId);
       if (!res?.ok) {
-        this._setLocalPersonCreateError(res?.error || "Loeschen fehlgeschlagen.");
+        this._setLocalPersonCreateError(res?.error || "Papierkorb fehlgeschlagen.");
         return;
       }
       this.persons = (this.persons || []).filter((p) => p.id !== personId);
@@ -2819,8 +2784,8 @@ const taFirmNotes = document.createElement("textarea");
     if (Array.isArray(this.persons) && this.persons.length > 0) {
       this._setLocalFirmCreateError(
         this.isNewUi
-          ? "Entfernen nicht möglich: zuerst zugeordnete Mitarbeiter entfernen."
-          : "Löschen nicht möglich: Projektfirma hat noch aktive Mitarbeiter."
+          ? "In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen."
+          : "In Papierkorb nicht möglich: Projektfirma hat noch aktive Mitarbeiter."
       );
       return;
     }
@@ -2839,7 +2804,7 @@ const taFirmNotes = document.createElement("textarea");
     try {
       const res = await window.bbmDb.projectFirmsDelete(firmId);
       if (!res?.ok) {
-        this._setLocalFirmCreateError(res?.error || "Löschen fehlgeschlagen.");
+        this._setLocalFirmCreateError(res?.error || "Papierkorb fehlgeschlagen.");
         return;
       }
 
@@ -2994,8 +2959,8 @@ const taFirmNotes = document.createElement("textarea");
     if (Array.isArray(this.persons) && this.persons.length > 0) {
       alert(
         this.isNewUi
-          ? "Entfernen nicht möglich: zuerst zugeordnete Mitarbeiter entfernen."
-          : "Löschen nicht möglich: Projektfirma hat noch aktive Mitarbeiter."
+          ? "In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen."
+          : "In Papierkorb nicht möglich: Projektfirma hat noch aktive Mitarbeiter."
       );
       return;
     }
@@ -3004,7 +2969,7 @@ const taFirmNotes = document.createElement("textarea");
     let setupChanged = false;
     let reloadFirmsAfter = false;
     let reloadGlobalAfter = false;
-    this._setMsg("Lösche…");
+    this._setMsg("Verschiebe in Papierkorb…");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
@@ -3013,7 +2978,7 @@ const taFirmNotes = document.createElement("textarea");
       const firmId = this.selectedFirmId;
       const res = await window.bbmDb.projectFirmsDelete(firmId);
       if (!res?.ok) {
-        alert(res?.error || "Löschen fehlgeschlagen");
+        alert(res?.error || "Papierkorb fehlgeschlagen");
         return;
       }
 
@@ -3153,7 +3118,7 @@ const taFirmNotes = document.createElement("textarea");
     let reloadPersonsAfter = false;
     let reloadFirmsAfter = false;
     let reloadGlobalAfter = false;
-    this._setMsg("Lösche Mitarbeiter…");
+    this._setMsg("Verschiebe Mitarbeiter in Papierkorb…");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
@@ -3161,7 +3126,7 @@ const taFirmNotes = document.createElement("textarea");
     try {
       const res = await window.bbmDb.projectPersonsDelete(projectPersonId);
       if (!res?.ok) {
-        alert(res?.error || "Löschen fehlgeschlagen");
+        alert(res?.error || "Papierkorb fehlgeschlagen");
         return;
       }
 
@@ -3618,7 +3583,7 @@ const taFirmNotes = document.createElement("textarea");
         alert("Stammfirma bereits zugeordnet.");
       }
       if (blockedUnassign.length) {
-        alert("Entfernen nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
+        alert("In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
       }
     } catch (e) {
       alert(e?.message || "Fehler beim Speichern der Zuordnung");
