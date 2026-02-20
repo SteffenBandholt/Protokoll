@@ -44,7 +44,6 @@ export default class ParticipantsModals {
 
     this.searchLeft = "";
     this.searchRight = "";
-    this.onlyInternal = false;
 
     // key => [meeting_index,...] (offene Meetings)
     this.openParticipantRefs = new Map();
@@ -170,7 +169,6 @@ export default class ParticipantsModals {
     this.isSaving = false;
     this.searchLeft = "";
     this.searchRight = "";
-    this.onlyInternal = false;
     this._setError("");
 
     this.overlayEl.style.display = "flex";
@@ -202,7 +200,6 @@ export default class ParticipantsModals {
 
     this.searchLeft = "";
     this.searchRight = "";
-    this.onlyInternal = false;
     this.openParticipantRefs = new Map();
 
     this._setError("");
@@ -1053,27 +1050,6 @@ export default class ParticipantsModals {
     grid.append(leftCol.col, rightCol.col);
     this.bodyEl.appendChild(grid);
 
-    const filterWrap = document.createElement("label");
-    filterWrap.style.display = "flex";
-    filterWrap.style.alignItems = "center";
-    filterWrap.style.gap = "6px";
-    filterWrap.style.fontSize = "12px";
-    filterWrap.style.userSelect = "none";
-    filterWrap.style.margin = "2px 0 6px 0";
-
-    const filterCb = document.createElement("input");
-    filterCb.type = "checkbox";
-    filterCb.checked = !!this.onlyInternal;
-    filterCb.onchange = () => {
-      this.onlyInternal = filterCb.checked;
-      this._renderParticipantsLists(leftCol.list, rightCol.list);
-    };
-
-    const filterLabel = document.createElement("span");
-    filterLabel.textContent = "nur Mitarbeiter (intern)";
-    filterWrap.append(filterCb, filterLabel);
-    rightCol.col.insertBefore(filterWrap, rightCol.list);
-
     const btnCancel = document.createElement("button");
     btnCancel.textContent = "Abbrechen";
     applyPopupButtonStyle(btnCancel);
@@ -1195,10 +1171,7 @@ export default class ParticipantsModals {
     const rightActive = right.filter(
       (p) => this._parseActiveFlag(p?.is_active ?? p?.isActive) === 1
     );
-    const rightFiltered = this.onlyInternal
-      ? rightActive.filter((p) => this._isInternalPerson(p))
-      : rightActive;
-    const rightSorted = this._sortPersons(rightFiltered);
+    const rightSorted = this._sortPersons(rightActive);
     for (const c of rightSorted) {
       const firmIsActive = this._parseActiveFlag(
         c.firmIsActive ?? c.firm_is_active ?? c.is_firm_active
