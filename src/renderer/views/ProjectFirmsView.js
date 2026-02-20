@@ -156,10 +156,7 @@ export default class ProjectFirmsView {
     this.localPersonBtnCloseEl = null;
 
     // global main (right column)
-    this.btnOpenGlobalAssign = null;
     this.globalAssignedBodyEl = null;
-    this.assignedFirmsBodyEl = null;
-    this.assignedFirmsCardEl = null;
 
     this.isNewUi = this._readUiMode() === "new";
 
@@ -256,19 +253,12 @@ export default class ProjectFirmsView {
       await r.showTops(meetingId, pid);
     };
 
-    const btnOpenGlobalAssign = document.createElement("button");
-    btnOpenGlobalAssign.textContent = "Global zuordnen";
-    applyPopupButtonStyle(btnOpenGlobalAssign);
-    btnOpenGlobalAssign.onclick = async () => {
-      await this._openGlobalAssignModal();
-    };
-
     const msg = document.createElement("div");
     msg.style.marginLeft = "auto";
     msg.style.fontSize = "12px";
     msg.style.opacity = "0.85";
 
-    head.append(titleWrap, btnToProject, btnOpenGlobalAssign, msg);
+    head.append(titleWrap, btnToProject, msg);
 
     // ------------------------------------------------------------
     // Layout: Lokale Firmen
@@ -366,7 +356,13 @@ export default class ProjectFirmsView {
     const tbody = document.createElement("tbody");
     firmsTable.append(thead, tbody);
 
-    listWrap.append(listHead, firmsTable);
+    const listHint = document.createElement("div");
+    listHint.textContent = "Aktiv = Firma ist in der Verantwortlich-Auswahl f\u00fcr TOPs sichtbar.";
+    listHint.style.fontSize = "12px";
+    listHint.style.opacity = "0.75";
+    listHint.style.marginBottom = "6px";
+
+    listWrap.append(listHead, listHint, firmsTable);
 
     // ------------------------------------------------------------
     // Lokale Firmen Editbox (bestehend, weiterverwendet)
@@ -671,37 +667,6 @@ const taFirmNotes = document.createElement("textarea");
 
     localCol.append(listWrap);
 
-    let assignedFirmsWrap = null;
-    let assignedFirmsBody = null;
-    if (this.isNewUi) {
-      assignedFirmsWrap = document.createElement("div");
-      applyPopupCardStyle(assignedFirmsWrap);
-      assignedFirmsWrap.style.padding = "10px";
-
-      const assignedHead = document.createElement("div");
-      assignedHead.textContent = "Zugeordnete Firmen";
-      assignedHead.style.fontWeight = "bold";
-      assignedHead.style.marginBottom = "8px";
-
-      const assignedTable = document.createElement("table");
-      assignedTable.style.width = "100%";
-      assignedTable.style.borderCollapse = "collapse";
-
-      const assignedThead = document.createElement("thead");
-      assignedThead.innerHTML = `
-        <tr>
-          <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Firma</th>
-          <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:90px;">Typ</th>
-          <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;">Aktiv</th>
-          <th style="text-align:right;padding:6px;border-bottom:1px solid #ddd;width:120px;">Aktion</th>
-        </tr>
-      `;
-
-      assignedFirmsBody = document.createElement("tbody");
-      assignedTable.append(assignedThead, assignedFirmsBody);
-      assignedFirmsWrap.append(assignedHead, assignedTable);
-      localCol.append(assignedFirmsWrap);
-    }
 
     const detailCol = document.createElement("div");
     detailCol.style.display = "flex";
@@ -1194,10 +1159,7 @@ const taFirmNotes = document.createElement("textarea");
     this.btnDeletePerson = btnDeletePerson;
 
     // global main refs
-    this.btnOpenGlobalAssign = btnOpenGlobalAssign;
     this.globalAssignedBodyEl = null;
-    this.assignedFirmsBodyEl = assignedFirmsBody;
-    this.assignedFirmsCardEl = assignedFirmsWrap;
 
     // modal refs
     this.globalAssignOverlayEl = overlay;
@@ -1267,7 +1229,6 @@ const taFirmNotes = document.createElement("textarea");
       this._closeFirmEditor();
       this._renderFirmsOnly();
       this._renderPersonsOnly();
-      this._renderAssignedFirmsOnly();
       this._updateVisibility();
       this._applyFirmFormState();
       this._applyPersonFormState();
@@ -1717,38 +1678,6 @@ const taFirmNotes = document.createElement("textarea");
     return null;
   }
 
-  _buildAssignedFirmRows() {
-    const rows = [];
-    for (const f of this.firms || []) {
-      rows.push({
-        kind: "project_firm",
-        id: f.id,
-        short: f.short || "",
-        name: f.name || "",
-        is_active: this._parseActiveFlag(f?.is_active),
-      });
-    }
-    for (const f of this.assignedGlobalFirms || []) {
-      rows.push({
-        kind: "global_firm",
-        id: f.id,
-        short: f.short || "",
-        name: f.name || "",
-        is_active: this._parseActiveFlag(f?.is_active),
-      });
-    }
-
-    rows.sort((a, b) => {
-      const aa = this._firmShortText(a).toLowerCase();
-      const bb = this._firmShortText(b).toLowerCase();
-      if (aa < bb) return -1;
-      if (aa > bb) return 1;
-      return 0;
-    });
-
-    return rows;
-  }
-
   async _countGlobalFirmAssignedPersons(firmId) {
     const api = window.bbmDb || {};
     if (!firmId || !this.projectId) return 0;
@@ -1776,184 +1705,6 @@ const taFirmNotes = document.createElement("textarea");
     return count;
   }
 
-  async _canRemoveAssignedFirm(row) {
-    if (!row || !row.id) return false;
-
-    if (row.kind === "project_firm") {
-      const res = await window.bbmDb.projectPersonsListByProjectFirm(row.id);
-      if (!res?.ok) {
-        alert(res?.error || "Entfernen fehlgeschlagen.");
-        return false;
-      }
-      const cnt = Array.isArray(res?.list) ? res.list.length : 0;
-      if (cnt > 0) {
-        alert("In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
-        return false;
-      }
-      return true;
-    }
-
-    if (row.kind === "global_firm") {
-      const cnt = await this._countGlobalFirmAssignedPersons(row.id);
-      if (cnt < 0) {
-        alert("Entfernen fehlgeschlagen.");
-        return false;
-      }
-      if (cnt > 0) {
-        alert("In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
-        return false;
-      }
-      return true;
-    }
-
-    return false;
-  }
-
-  async _removeAssignedFirm(row) {
-    if (this._isReadOnly()) return;
-    if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
-    if (!row || !row.id) return;
-    if (!this.projectId) return;
-
-    const canRemove = await this._canRemoveAssignedFirm(row);
-    if (!canRemove) return;
-
-    this.savingFirm = true;
-    this._setMsg("Entferne Zuordnung...");
-    this._applyFirmFormState();
-    this._applyPersonFormState();
-    this._applyGlobalAssignState();
-    this._renderAssignedFirmsOnly();
-    let changed = false;
-    let refreshAfter = false;
-    try {
-      if (row.kind === "project_firm") {
-        const res = await window.bbmDb.projectFirmsDelete(row.id);
-        if (!res?.ok) {
-          alert(res?.error || "Entfernen fehlgeschlagen.");
-          return;
-        }
-        if (this.selectedFirmId === row.id) {
-          this._closeFirmEditor();
-          this._selectFirm(null);
-          this.persons = [];
-          this._renderPersonsOnly();
-        }
-        refreshAfter = true;
-        changed = true;
-      } else if (row.kind === "global_firm") {
-        const res = await window.bbmDb.projectFirmsUnassignGlobalFirm({
-          projectId: this.projectId,
-          firmId: row.id,
-        });
-        if (!res?.ok) {
-          alert(res?.error || "Entfernen fehlgeschlagen.");
-          return;
-        }
-        refreshAfter = true;
-        changed = true;
-      }
-    } finally {
-      this.savingFirm = false;
-      this._setMsg("");
-      this._applyFirmFormState();
-      this._applyPersonFormState();
-      this._applyGlobalAssignState();
-      this._renderAssignedFirmsOnly();
-      if (changed) this._notifyPoolDataChanged("assigned-firm-removed");
-    }
-
-    if (refreshAfter) {
-      fireAndForget(
-        async () => {
-          await this.reloadFirms();
-          await this.reloadGlobalAssignments();
-        },
-        "ProjectFirmsView reload after removeAssignedFirm"
-      );
-    }
-  }
-
-  _renderAssignedFirmsOnly() {
-    const tb = this.assignedFirmsBodyEl;
-    if (!tb) return;
-    tb.innerHTML = "";
-
-    const rows = this._buildAssignedFirmRows();
-    if (!rows.length) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 4;
-      td.style.padding = "10px 6px";
-      td.style.fontSize = "12px";
-      td.style.opacity = "0.75";
-      td.textContent = "Keine Firmen zugeordnet.";
-      tr.appendChild(td);
-      tb.appendChild(tr);
-      return;
-    }
-
-    for (const row of rows) {
-      const tr = document.createElement("tr");
-      const tdName = document.createElement("td");
-      tdName.style.padding = "6px";
-      tdName.style.borderBottom = "1px solid #eee";
-      tdName.textContent = this._firmShortText(row);
-
-      const tdType = document.createElement("td");
-      tdType.style.padding = "6px";
-      tdType.style.borderBottom = "1px solid #eee";
-      const badge = document.createElement("span");
-      badge.textContent = row.kind === "global_firm" ? "Stamm" : "Projekt";
-      badge.style.display = "inline-block";
-      badge.style.fontSize = "11px";
-      badge.style.padding = "2px 6px";
-      badge.style.borderRadius = "999px";
-      badge.style.border = "1px solid #d2dbe8";
-      badge.style.background = row.kind === "global_firm" ? "#fff0dc" : "#eaf3ff";
-      tdType.appendChild(badge);
-
-      const tdActive = document.createElement("td");
-      tdActive.style.padding = "6px";
-      tdActive.style.borderBottom = "1px solid #eee";
-      tdActive.style.textAlign = "center";
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = this._parseActiveFlag(row?.is_active) === 1;
-      const canToggle = !this._isReadOnly() && !this.savingFirm && !this.savingPerson && !this.savingGlobalAssign;
-      cb.disabled = !canToggle;
-      cb.style.cursor = cb.disabled ? "default" : "pointer";
-      cb.onclick = (e) => e.stopPropagation();
-      cb.onchange = async (e) => {
-        e.stopPropagation();
-        const ok = await this._setFirmActiveWithGuard(row.id, cb.checked);
-        if (!ok) cb.checked = !cb.checked;
-      };
-      tdActive.appendChild(cb);
-
-      const tdAction = document.createElement("td");
-      tdAction.style.padding = "6px";
-      tdAction.style.borderBottom = "1px solid #eee";
-      tdAction.style.textAlign = "right";
-
-      const btnRemove = document.createElement("button");
-      btnRemove.textContent = "Entfernen";
-      applyPopupButtonStyle(btnRemove, { variant: "danger" });
-      const can = !this._isReadOnly() && !this.savingFirm && !this.savingPerson && !this.savingGlobalAssign;
-      btnRemove.disabled = !can;
-      btnRemove.style.opacity = can ? "1" : "0.55";
-      btnRemove.onclick = async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        await this._removeAssignedFirm(row);
-      };
-      tdAction.appendChild(btnRemove);
-
-      tr.append(tdName, tdType, tdActive, tdAction);
-      tb.appendChild(tr);
-    }
-  }
-
   // ------------------------------------------------------------
   // Data loading (lokal)
   // ------------------------------------------------------------
@@ -1972,7 +1723,6 @@ const taFirmNotes = document.createElement("textarea");
 
       this._renderFirmsOnly();
       this._renderPersonsOnly();
-      this._renderAssignedFirmsOnly();
       this._applyFirmFormState();
       this._applyPersonFormState();
       this._updateVisibility();
@@ -1993,8 +1743,6 @@ const taFirmNotes = document.createElement("textarea");
     }
 
     this._renderFirmsOnly();
-    this._renderAssignedFirmsOnly();
-
     if (this.firmMode === "edit" && this.selectedFirmId) {
       await this._reloadPersons();
     } else {
@@ -3276,7 +3024,6 @@ const taFirmNotes = document.createElement("textarea");
       this.globalFirms = [];
       this.assignedGlobalFirms = [];
       this._renderAssignedGlobalFirmsOnly();
-      this._renderAssignedFirmsOnly();
       this._applyGlobalAssignState();
       return;
     }
@@ -3351,7 +3098,6 @@ const taFirmNotes = document.createElement("textarea");
     }
 
     this._renderAssignedGlobalFirmsOnly();
-    this._renderAssignedFirmsOnly();
     this._applyGlobalAssignState();
   }
 
@@ -3397,13 +3143,6 @@ const taFirmNotes = document.createElement("textarea");
     const hasProject = !!this.projectId;
     const ro = this._isReadOnly();
 
-    // Button im Hauptscreen
-    if (this.btnOpenGlobalAssign) {
-      const can = hasProject && !isSaving && !ro;
-      this.btnOpenGlobalAssign.disabled = !can;
-      this.btnOpenGlobalAssign.style.opacity = can ? "1" : "0.55";
-    }
-
     // Modal Controls (wenn offen)
     const modalOpen = !!this.globalAssignOpen && !!this.globalAssignOverlayEl;
     if (modalOpen) {
@@ -3422,7 +3161,6 @@ const taFirmNotes = document.createElement("textarea");
     }
 
     this._applyLocalCreateModalState();
-    if (this.isNewUi) this._renderAssignedFirmsOnly();
   }
 
   // ------------------------------------------------------------
