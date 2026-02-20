@@ -136,3 +136,16 @@ Ziel: Diese Funktionen dürfen durch spätere Features (z.B. PDF-Druck) **nicht 
 - Storage-Key (localStorage): `bbm.useNewCompanyWorkflow`
 - Default: `false`
 - Aktueller Stand: nur globaler Umschalter im UI, noch keine Routing-/Workflow-Umschaltung.
+
+## 11)Ampel-Regel für PDF (Vorabzug & Protokoll)
+Die Ampel wird im PDF nur dann angezeigt, wenn sie für den jeweiligen Druckmodus aktiviert ist (Vorabzug folgt dem Nutzer-Toggle; 
+beim endgültigen Protokoll kann die Einstellung beim Schließen der Besprechung „eingefroren“ sein und dann gilt dieser gespeicherte Wert). 
+Ampeln werden nur für TOP Level 2–4 gedruckt; Level 1 bekommt keine Ampel. Die Ampelfarbe wird pro TOP wie folgt bestimmt: 
+Für Blatt-TOPs (ohne Kinder) richtet sich die Farbe nach Status und ggf. 
+Fälligkeitsdatum: blockiert → blau, verzug → rot, erledigt → grün; 
+bei offen/in Arbeit gibt es nur dann eine Ampel, wenn ein Fälligkeitsdatum gesetzt ist: 
+überfällig/Heute → rot, 1–10 Tage → orange, >10 Tage → grün; ohne Datum gibt es keine Ampel. 
+Für Eltern-TOPs (mit Kindern) wird die Ampel aus den Kindern aggregiert: 
+es gilt die Priorität blau > rot > orange > grün (wenn irgendein Kind blau ist, ist der Eltern-TOP blau usw.). 
+Die Darstellung im PDF ist ein kleiner Punkt in der Meta-Spalte; wenn keine Farbe ermittelt wird, 
+wird keine Ampel (oder ein leerer Punkt) ausgegeben.
