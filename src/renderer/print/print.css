@@ -1,0 +1,293 @@
+﻿@page {
+  size: A4;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #fff;
+  color: #111;
+  font-family: Calibri, "Segoe UI", Arial, sans-serif;
+  font-size: 11pt;
+  --page-w: 210mm;
+  --page-h: 297mm;
+  --pad-left: 22mm;
+  --pad-right: 12mm;
+  --pad-top: 18mm;
+  --pad-bottom: 18mm;
+  --header-h: 16mm;
+  --footer-h: 0mm;
+}
+
+.printRoot {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.page {
+  width: var(--page-w);
+  height: var(--page-h);
+  padding: var(--pad-top) var(--pad-right) var(--pad-bottom) var(--pad-left);
+  background: #fff;
+  page-break-after: always;
+}
+
+.page:last-child {
+  page-break-after: auto;
+}
+
+.pageHeader {
+  height: var(--header-h);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  font-size: 10px;
+  gap: 6mm;
+}
+
+.pageHeaderSpacer {
+  height: var(--header-h);
+}
+
+.pageHeaderLine.isSpacer {
+  border-bottom-color: transparent;
+}
+
+.headerLeft {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.headerRight {
+  white-space: nowrap;
+}
+
+.pageHeaderLine {
+  border-bottom: 1px solid #000;
+  margin-top: 2mm;
+}
+
+.tableHeadRow {
+  font-weight: 600;
+}
+
+.topsTable,
+.firmsTable,
+.todoTable {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.topsTable th,
+.topsTable td,
+.firmsTable th,
+.firmsTable td,
+.todoTable th,
+.todoTable td {
+  border-bottom: 1px solid #ddd;
+  padding: 2mm 1mm;
+  text-align: left;
+  vertical-align: top;
+}
+
+.topsTable th,
+.firmsTable th,
+.todoTable th {
+  background: #f3f3f3;
+  font-weight: 700;
+}
+
+.topsTable .colNr {
+  width: 23mm;
+  min-width: 23mm;
+  white-space: nowrap;
+  padding-right: 0;
+}
+
+.topsTable .colText {
+  width: auto;
+  padding-right: 5mm;
+  padding-left: 0;
+}
+
+.topsTable .colMeta {
+  width: 15ch;
+  min-width: 15ch;
+  max-width: 15ch;
+  padding-left: 5mm;
+  text-align: left;
+  font-size: 9.5pt;
+  color: #444;
+}
+
+.topsTable thead .colMeta {
+  color: #111;
+}
+
+.metaHead {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+  font-size: 9.5pt;
+  padding-left: 0;
+}
+
+.topNumber {
+  font-weight: 700;
+}
+
+.nrBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+  align-items: stretch;
+  width: 100%;
+}
+
+.nrDate {
+  font-size: 9pt;
+  line-height: 1.1;
+}
+
+.newStar {
+  width: 3mm;
+  height: 3mm;
+  display: block;
+  margin: 1mm auto 0 auto;
+  align-self: center;
+}
+
+.newStar svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.topRow.isNewTop .topNumber,
+.topRow.isNewTop .shortText,
+.topRow.isNewTop .longText,
+.lvl1Row.isNewTop .topNumber,
+.lvl1Row.isNewTop .lvl1Text {
+  color: #1565c0;
+}
+
+.topsTable .shortText {
+  font-weight: 600;
+}
+
+.topsTable .longText {
+  margin-top: 2mm;
+  font-size: 10.5pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.topsTable .meta3 {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0;
+}
+
+.topsTable .metaLine {
+  min-height: 4.5mm;
+  line-height: 4.5mm;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 11ch;
+  text-align: left;
+}
+
+.topsTable .metaLine.meta1 {
+  display: flex;
+  align-items: center;
+  gap: 1.5mm;
+}
+
+.metaText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ampelDot {
+  width: 3mm;
+  height: 3mm;
+  border-radius: 50%;
+  border: 0.3mm solid #333;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.ampelDot.red {
+  background: #e53935;
+}
+
+.ampelDot.yellow {
+  background: #fbc02d;
+}
+
+.ampelDot.green {
+  background: #43a047;
+}
+
+.ampelDot.orange {
+  background: #ef6c00;
+}
+
+.ampelDot.blue {
+  background: #1565c0;
+}
+
+.lvl1Row td {
+  background: #e7f2ff;
+}
+
+.lvl1Cell {
+  font-size: 12.5pt;
+  font-weight: 700;
+  padding: 2mm 1mm;
+}
+
+.lvl1Wrap {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  overflow: hidden;
+}
+
+.lvl1Text {
+  flex: 1 1 auto;
+  text-align: left;
+  font-weight: 700;
+  padding-left: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lvl1Row .nrBox {
+  width: 23mm;
+  min-width: 23mm;
+  flex: 0 0 23mm;
+}
+
+.measureRoot {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
