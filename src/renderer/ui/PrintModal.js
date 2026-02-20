@@ -12,7 +12,7 @@
 // - Level 1: hellgrau, KEINE Meta (kein Status/Due/Verantw/Ampel), kein "Linien-Gefrickel"
 // - Text-Limits: Kurz 50 Zeichen, Lang 250 Zeichen
 //
-// INVARIANT (BBM): Print bleibt ?ber bbmDb.printHtmlToPdf (print:htmlToPdf).
+// INVARIANT (BBM): Print bleibt ueber bbmPrint.printPdf (print:toPdf).
 //
 // Erweiterung:
 // - printVorabzug({ projectId, meetingId }) erlaubt Vorabzug für OFFENE Besprechung
@@ -26,6 +26,11 @@
 import { shouldShowTopForMeeting, shouldGrayTopForMeeting } from "../utils/topVisibility.js";
 import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
+import {
+  ampelColorToHex,
+  computeAmpelMapForTops,
+  shouldShowAmpelInPdf,
+} from "../../shared/ampel/pdfAmpelRule.js";
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 
@@ -963,8 +968,9 @@ export default class PrintModal {
       alert("personsListByFirm ist nicht verfuegbar (Preload/IPC fehlt).");
       return;
     }
-    if (typeof api.printHtmlToPdf !== "function") {
-      alert("printHtmlToPdf ist nicht verfuegbar (Preload/IPC fehlt).");
+
+    if (typeof window?.bbmPrint?.printPdf !== "function") {
+      alert("printPdf ist nicht verfuegbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -1105,22 +1111,11 @@ export default class PrintModal {
       );
 
       const projectLabel = await this._getProjectLabelWithNumber(pid);
-      const html = this._buildFirmsPrintHtml({
-        projectLabel,
-        localFirms,
-        globalFirms,
-        localPeopleByFirm,
-        globalPeopleByFirm,
-        roleLabels: roleMeta.roleLabels,
-        roleOrder: roleMeta.roleOrder,
-        settings,
-      });
-
       const fn = this._sanitizeFileName(`BBM ${projectLabel || ""} Firmenliste`) + ".pdf";
-      const out = await api.printHtmlToPdf({
-        html,
+      const out = await window.bbmPrint.printPdf({
+        mode: "firms",
+        projectId: pid,
         fileName: fn,
-        bbmVersion: "1.0",
         ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
@@ -1487,8 +1482,9 @@ export default class PrintModal {
       alert("topsListByProject ist nicht verfügbar (Preload/IPC fehlt).");
       return;
     }
-    if (typeof api.printHtmlToPdf !== "function") {
-      alert("printHtmlToPdf ist nicht verfügbar (Preload/IPC fehlt).");
+
+    if (typeof window?.bbmPrint?.printPdf !== "function") {
+      alert("printPdf ist nicht verfuegbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -1587,14 +1583,16 @@ export default class PrintModal {
         dummyHeightMm: pdfLogoDummyHeightMm,
       });
 
-      const html = this._buildTodoPrintHtml({ projectLabel, meeting, rows, settings, logoHeightMm });
-      const out = await api.printHtmlToPdf({
-        html,
+      const out = await window.bbmPrint.printPdf({
+        mode: "todo",
+        projectId: pid,
+        meetingId: mid,
         fileName,
         bbmVersion: "1.0",
         baseDir: protocolsDir,
         projectNumber,
         overwrite: true,
+        ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
@@ -1627,8 +1625,9 @@ export default class PrintModal {
       alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
       return;
     }
-    if (typeof api.printHtmlToPdf !== "function") {
-      alert("printHtmlToPdf ist nicht verfügbar (Preload/IPC fehlt).");
+
+    if (typeof window?.bbmPrint?.printPdf !== "function") {
+      alert("printPdf ist nicht verfuegbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -1723,13 +1722,16 @@ export default class PrintModal {
         logoHeightMm,
       });
 
-      const out = await api.printHtmlToPdf({
-        html,
+      const out = await window.bbmPrint.printPdf({
+        mode: "topsAll",
+        projectId: pid,
+        meetingId: mid,
         fileName,
         bbmVersion: "1.0",
         baseDir: protocolsDir,
         projectNumber,
         overwrite: true,
+        ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
@@ -1786,7 +1788,7 @@ export default class PrintModal {
     try {
       const api = window.bbmDb || {};
       if (typeof api.meetingsListByProject !== "function") {
-        alert("meetingsListByProject ist nicht verf?gbar (Preload/IPC fehlt).");
+        alert("meetingsListByProject ist nicht verfuegbar (Preload/IPC fehlt).");
         return;
       }
 
@@ -1912,21 +1914,8 @@ export default class PrintModal {
   _ampelHex(color) {
     return ampelHexFrom(color);
   }
-
-  _shouldRenderAmpelInPdf({ mode, meeting, uiToggle } = {}) {
-    const isVorabzug = mode === "vorabzug";
-    const isClosed = Number(meeting?.is_closed) === 1;
-    const uiOn = !!uiToggle;
-
-    if (isVorabzug) return uiOn;
-
-    if (isClosed) {
-      const frozenRaw = meeting?.pdf_show_ampel ?? meeting?.pdfShowAmpel ?? null;
-      if (frozenRaw === 0 || frozenRaw === "0" || frozenRaw === false) return false;
-      if (frozenRaw === 1 || frozenRaw === "1" || frozenRaw === true) return true;
-    }
-
-    return uiOn;
+  _shouldRenderAmpelInPdf({ mode, meeting, settings } = {}) {
+    return shouldShowAmpelInPdf({ mode, meeting, settings });
   }
 
   _parseBool(value, fallback) {
@@ -2376,11 +2365,6 @@ export default class PrintModal {
     const baseDateRaw = isClosed ? (meeting?.updated_at || meeting?.updatedAt || null) : null;
     let baseDate = baseDateRaw ? new Date(baseDateRaw) : new Date();
     if (Number.isNaN(baseDate.getTime())) baseDate = new Date();
-    const uiToggle = this._parseBool(
-      settings?.["tops.ampelEnabled"],
-      this._parseBool(settings?.["pdf.trafficLightAllEnabled"], true)
-    );
-    const trafficLightAllEnabled = this._shouldRenderAmpelInPdf({ mode, meeting, uiToggle });
     const footerUseUserData = this._parseBool(settings?.["pdf.footerUseUserData"], false);
     const footerPlace = String(settings?.["pdf.footerPlace"] || "").trim();
     const footerDate = String(settings?.["pdf.footerDate"] || "").trim();
@@ -2443,7 +2427,7 @@ export default class PrintModal {
     const visibleTops = (tops || []).filter(
       (t) => shouldShowTopForMeeting(t, meeting) && Number(t?.is_hidden ?? t?.isHidden ?? 0) !== 1
     );
-    const ampelCompute = createAmpelComputer(visibleTops, baseDate);
+    const ampelMap = computeAmpelMapForTops({ tops: visibleTops, mode, meeting, settings, now: baseDate });
     const rowsHtml = visibleTops.map((t) => {
         const level = Number(t.level || 1);
         const isLevel1 = level === 1;
@@ -2487,17 +2471,9 @@ export default class PrintModal {
 
         const respRaw = (t.responsible_label || t.responsibleLabel || "").toString().trim();
         const resp = this._cut(respRaw || "?", 20);
-
-        const dotHex =
-          !isLevel1 && trafficLightAllEnabled
-            ? this._ampelHex(ampelCompute(t)) || null
-            : null;
-
-        const dotHtml = trafficLightAllEnabled
-          ? `<span class="dot ${dotHex ? "fill" : "empty"}" style="${
-              dotHex ? `background:${dotHex};` : ""
-            }"></span>`
-          : "";
+        const ampel = ampelMap.get(String(t?.id ?? t?.top_id ?? t?.topId ?? ""));
+        const dotHex = ampel && ampel.show ? ampelColorToHex(ampel.color) : null;
+        const dotHtml = dotHex ? `<span class="dot fill" style="background:${dotHex};"></span>` : "";
 
         const metaHtml = isLevel1
           ? ""
@@ -3224,11 +3200,6 @@ export default class PrintModal {
     const baseDateRaw = isClosed ? (meeting?.updated_at || meeting?.updatedAt || null) : null;
     let baseDate = baseDateRaw ? new Date(baseDateRaw) : new Date();
     if (Number.isNaN(baseDate.getTime())) baseDate = new Date();
-    const uiToggle = this._parseBool(
-      settings?.["tops.ampelEnabled"],
-      this._parseBool(settings?.["pdf.trafficLightAllEnabled"], true)
-    );
-    const trafficLightAllEnabled = this._shouldRenderAmpelInPdf({ mode, meeting, uiToggle });
 
     const headerTemplate = this._buildPdfHeaderTemplate({
       projectLabel,
@@ -3258,7 +3229,7 @@ export default class PrintModal {
     };
 
     const allTops = Array.isArray(tops) ? tops : [];
-    const ampelCompute = createAmpelComputer(allTops, baseDate);
+    const ampelMap = computeAmpelMapForTops({ tops: allTops, mode, meeting, settings, now: baseDate });
     const rowsHtml = allTops
       .map((t) => {
         const level = Number(t.level || 1);
@@ -3298,17 +3269,9 @@ export default class PrintModal {
 
         const respRaw = (t.responsible_label || t.responsibleLabel || "").toString().trim();
         const resp = this._cut(respRaw || "?", 20);
-
-        const dotHex =
-          !isLevel1 && trafficLightAllEnabled
-            ? this._ampelHex(ampelCompute(t)) || null
-            : null;
-
-        const dotHtml = trafficLightAllEnabled
-          ? `<span class="dot ${dotHex ? "fill" : "empty"}" style="${
-              dotHex ? `background:${dotHex};` : ""
-            }"></span>`
-          : "";
+        const ampel = ampelMap.get(String(t?.id ?? t?.top_id ?? t?.topId ?? ""));
+        const dotHex = ampel && ampel.show ? ampelColorToHex(ampel.color) : null;
+        const dotHtml = dotHex ? `<span class="dot fill" style="background:${dotHex};"></span>` : "";
 
         const metaHtml = isLevel1
           ? ""
@@ -4171,15 +4134,16 @@ export default class PrintModal {
     const api = window.bbmDb || {};
 
     if (typeof api.topsListByMeeting !== "function") {
-      alert("topsListByMeeting ist nicht verf?gbar (Preload/IPC fehlt).");
+      alert("topsListByMeeting ist nicht verfuegbar (Preload/IPC fehlt).");
       return;
     }
     if (typeof api.meetingParticipantsList !== "function") {
-      alert("meetingParticipantsList ist nicht verf?gbar (Preload/IPC fehlt).");
+      alert("meetingParticipantsList ist nicht verfuegbar (Preload/IPC fehlt).");
       return;
     }
-    if (typeof api.printHtmlToPdf !== "function") {
-      alert("printHtmlToPdf ist nicht verf?gbar (Preload/IPC fehlt).");
+
+    if (typeof window?.bbmPrint?.printPdf !== "function") {
+      alert("printPdf ist nicht verfuegbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -4306,8 +4270,10 @@ export default class PrintModal {
             `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`
           ) + ".pdf";
 
-      const out = await api.printHtmlToPdf({
-        html,
+      const out = await window.bbmPrint.printPdf({
+        mode: isVorabzug ? "preview" : "protocol",
+        projectId: pid,
+        meetingId,
         fileName: fn,
         bbmVersion: "1.0",
         ...(isVorabzug && doPreview ? { targetDir: "temp" } : {}),
