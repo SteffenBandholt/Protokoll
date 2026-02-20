@@ -581,10 +581,6 @@ export default class MainHeader {
         await runProjectAction(async (projectId) => {
           if (typeof this.router?.showFirmsPool !== "function") return;
           await this.router.showFirmsPool(projectId);
-          const current = this.router?.currentView || null;
-          if (current && typeof current.openGlobalAssign === "function") {
-            await current.openGlobalAssign();
-          }
         });
       } catch (err) {
         console.error("[header] action Firmenpool failed:", err);

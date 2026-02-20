@@ -1192,9 +1192,12 @@ export default class ParticipantsModals {
       right.push(c);
     }
 
+    const rightActive = right.filter(
+      (p) => this._parseActiveFlag(p?.is_active ?? p?.isActive) === 1
+    );
     const rightFiltered = this.onlyInternal
-      ? right.filter((p) => this._isInternalPerson(p))
-      : right;
+      ? rightActive.filter((p) => this._isInternalPerson(p))
+      : rightActive;
     const rightSorted = this._sortPersons(rightFiltered);
     for (const c of rightSorted) {
       const firmIsActive = this._parseActiveFlag(

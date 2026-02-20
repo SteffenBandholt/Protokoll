@@ -24,35 +24,19 @@ export default class FirmsPoolView {
     this.leftErrorEl = null;
     this.rightErrorEl = null;
     this.btnDeleteFirmEl = null;
-    this.btnOpenGlobalAssignEl = null;
 
     this.firms = [];
     this.selectedFirmKey = null;
     this.selectedFirm = null;
     this.persons = [];
     this.selectedPersonId = null;
+    this.candidates = [];
+    this.candidatesByKey = new Map();
 
     this.loadingFirms = false;
     this.loadingPersons = false;
     this.deletingFirm = false;
     this.activePersonModal = null;
-
-    this.globalAssignOpen = false;
-    this.globalAssignAll = [];
-    this.globalAssignSelectedIds = new Set();
-    this.globalAssignInitialIds = new Set();
-    this.globalAssignSearchLeft = "";
-    this.globalAssignSearchRight = "";
-    this.globalAssignErr = "";
-    this.globalAssignOverlayEl = null;
-    this.globalAssignErrEl = null;
-    this.globalAssignLeftListEl = null;
-    this.globalAssignRightListEl = null;
-    this.globalAssignInpLeftEl = null;
-    this.globalAssignInpRightEl = null;
-    this.globalAssignBtnSaveEl = null;
-    this.globalAssignBtnCancelEl = null;
-    this.globalAssignBtnCloseEl = null;
 
     this.isNewUi = this._readUiMode() === "new";
   }
@@ -138,7 +122,7 @@ export default class FirmsPoolView {
   }
 
   _personsTitle() {
-    return "Mitarbeiter (Lokal)";
+    return "Mitarbeiter";
   }
 
   _selectedFirmMeta() {
@@ -158,6 +142,18 @@ export default class FirmsPoolView {
 
   _personId(p) {
     return String(p?.id || p?.personId || "").trim();
+  }
+
+  _personKindForSelectedFirm() {
+    if (!this.selectedFirm) return "";
+    return this.selectedFirm.kind === "global_firm" ? "global_person" : "project_person";
+  }
+
+  _candidateKey(kind, personId) {
+    const k = String(kind || "").trim();
+    const id = String(personId || "").trim();
+    if (!k || !id) return "";
+    return `${k}::${id}`;
   }
 
   _personFirstName(p) {
@@ -295,6 +291,30 @@ export default class FirmsPoolView {
     }
   }
 
+  async _goToTopsView() {
+    const r = this.router || null;
+    const pid = this.projectId || r?.currentProjectId || null;
+    if (!r || !pid || typeof r.showTops !== "function") {
+      if (r && typeof r.showProjects === "function") await r.showProjects();
+      return;
+    }
+
+    let meetingId = r.currentMeetingId || null;
+    if (!meetingId && typeof window?.bbmDb?.meetingsListByProject === "function") {
+      const res = await window.bbmDb.meetingsListByProject(pid);
+      if (res?.ok && Array.isArray(res.list) && res.list.length) {
+        meetingId = res.list[0]?.id || null;
+      }
+    }
+
+    if (!meetingId) {
+      alert("Keine Besprechung vorhanden. Bitte zuerst ein Protokoll anlegen.");
+      return;
+    }
+
+    await r.showTops(meetingId, pid);
+  }
+
   render() {
     const root = document.createElement("div");
     root.style.display = "flex";
@@ -311,12 +331,26 @@ export default class FirmsPoolView {
     title.textContent = "Firmenpool";
     title.style.margin = "0";
 
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "SchlieÃŸen";
+    applyPopupButtonStyle(btnClose);
+    btnClose.onclick = async () => {
+      await this._goToTopsView();
+    };
+
     const msg = document.createElement("div");
-    msg.style.marginLeft = "auto";
     msg.style.fontSize = "12px";
     msg.style.opacity = "0.85";
 
-    head.append(title, msg);
+    const headActions = document.createElement("div");
+    headActions.style.display = "flex";
+    headActions.style.alignItems = "center";
+    headActions.style.gap = "8px";
+    headActions.style.marginLeft = "auto";
+    headActions.append(btnClose, msg);
+
+    head.append(title, headActions);
 
     const grid = document.createElement("div");
     grid.style.display = "grid";
@@ -339,7 +373,7 @@ export default class FirmsPoolView {
     leftHead.style.marginBottom = "8px";
 
     const leftTitle = document.createElement("div");
-    leftTitle.textContent = "Firmen (Lokal)";
+    leftTitle.textContent = "Firmen";
     leftTitle.style.fontWeight = "700";
 
     const leftSubtitle = document.createElement("div");
@@ -353,17 +387,6 @@ export default class FirmsPoolView {
     leftActions.style.alignItems = "center";
     leftActions.style.gap = "8px";
 
-    const btnOpenGlobalAssign = document.createElement("button");
-    btnOpenGlobalAssign.textContent = "Global zuordnen";
-    applyPopupButtonStyle(btnOpenGlobalAssign);
-    btnOpenGlobalAssign.onclick = async () => {
-      try {
-        await this.openGlobalAssign();
-      } catch (e) {
-        this._setLeftError(e?.message || "Global-Zuordnung konnte nicht geöffnet werden.");
-      }
-    };
-
     const btnDeleteFirm = document.createElement("button");
     btnDeleteFirm.textContent = "Löschen";
     applyPopupButtonStyle(btnDeleteFirm, { variant: "danger" });
@@ -371,11 +394,8 @@ export default class FirmsPoolView {
       await this._deleteSelectedFirm();
     };
 
-    if (this.isNewUi) {
-      leftActions.append(btnDeleteFirm);
-    } else {
-      leftActions.append(btnOpenGlobalAssign, btnDeleteFirm);
-    }
+    leftActions.append(btnDeleteFirm);
+
     const leftTitleWrap = document.createElement("div");
     leftTitleWrap.style.display = "flex";
     leftTitleWrap.style.flexDirection = "column";
@@ -449,7 +469,7 @@ export default class FirmsPoolView {
     rightMeta.style.marginBottom = "8px";
 
     const personsTitle = document.createElement("div");
-    personsTitle.textContent = "Mitarbeiter (Lokal)";
+    personsTitle.textContent = "Mitarbeiter";
     personsTitle.style.fontWeight = "700";
     personsTitle.style.marginBottom = "8px";
 
@@ -473,9 +493,9 @@ export default class FirmsPoolView {
     const personsHead = document.createElement("thead");
     personsHead.innerHTML = `
       <tr>
+        <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;">aktiv</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rolle</th>
-        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">E-Mail</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Telefon</th>
       </tr>
     `;
@@ -486,133 +506,8 @@ export default class FirmsPoolView {
 
     rightCard.append(rightHead, rightMeta, personsTitle, rightError, personsWrap);
 
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.background = "rgba(0,0,0,0.35)";
-    overlay.style.display = "none";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "9999";
-    overlay.tabIndex = -1;
-    overlay.onclick = (e) => {
-      if (e.target === overlay) this._closeGlobalAssignModal();
-    };
-    overlay.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      this._closeGlobalAssignModal();
-    });
-
-    const modal = document.createElement("div");
-    applyPopupCardStyle(modal);
-    modal.style.width = "min(980px, calc(100vw - 24px))";
-    modal.style.maxHeight = "calc(100vh - 24px)";
-    modal.style.display = "flex";
-    modal.style.flexDirection = "column";
-    modal.style.overflow = "hidden";
-    modal.style.padding = "0";
-
-    const modalHead = document.createElement("div");
-    modalHead.style.display = "flex";
-    modalHead.style.alignItems = "center";
-    modalHead.style.justifyContent = "space-between";
-    modalHead.style.gap = "10px";
-    modalHead.style.padding = "12px";
-    modalHead.style.borderBottom = "1px solid #e2e8f0";
-
-    const modalTitle = document.createElement("div");
-    modalTitle.textContent = "Globale Firmen zuordnen";
-    modalTitle.style.fontWeight = "bold";
-
-    const btnClose = document.createElement("button");
-    btnClose.textContent = "X";
-    applyPopupButtonStyle(btnClose);
-    btnClose.onclick = () => this._closeGlobalAssignModal();
-    modalHead.append(modalTitle, btnClose);
-
-    const modalErr = document.createElement("div");
-    modalErr.style.color = "#c62828";
-    modalErr.style.fontSize = "12px";
-    modalErr.style.marginBottom = "8px";
-    modalErr.style.display = "none";
-
-    const modalBodyWrap = document.createElement("div");
-    modalBodyWrap.style.flex = "1 1 auto";
-    modalBodyWrap.style.minHeight = "0";
-    modalBodyWrap.style.overflow = "auto";
-    modalBodyWrap.style.padding = "12px";
-
-    const mkListCol = (titleText) => {
-      const col = document.createElement("div");
-      col.style.border = "1px solid #ddd";
-      col.style.borderRadius = "8px";
-      col.style.padding = "8px";
-      col.style.background = "#fff";
-      col.style.minHeight = "340px";
-      col.style.display = "flex";
-      col.style.flexDirection = "column";
-      const title = document.createElement("div");
-      title.textContent = titleText;
-      title.style.fontWeight = "bold";
-      title.style.marginBottom = "6px";
-      const inp = document.createElement("input");
-      inp.type = "text";
-      inp.placeholder = "Suchen...";
-      inp.style.width = "100%";
-      inp.style.marginBottom = "8px";
-      const list = document.createElement("div");
-      list.style.flex = "1 1 auto";
-      list.style.minHeight = "0";
-      list.style.overflow = "auto";
-      list.style.border = "1px solid #e2e8f0";
-      list.style.borderRadius = "6px";
-      col.append(title, inp, list);
-      return { col, inp, list };
-    };
-
-    const listsGrid = document.createElement("div");
-    listsGrid.style.display = "grid";
-    listsGrid.style.gridTemplateColumns = "1fr 1fr";
-    listsGrid.style.gap = "10px";
-
-    const leftCol = mkListCol("Alle globalen Firmen");
-    const rightCol = mkListCol("Dem Projekt zugeordnet");
-    listsGrid.append(leftCol.col, rightCol.col);
-    modalBodyWrap.append(modalErr, listsGrid);
-
-    const modalFoot = document.createElement("div");
-    modalFoot.style.display = "flex";
-    modalFoot.style.justifyContent = "flex-end";
-    modalFoot.style.gap = "8px";
-    modalFoot.style.borderTop = "1px solid #e2e8f0";
-    modalFoot.style.padding = "10px 12px";
-
-    const btnCancel = document.createElement("button");
-    btnCancel.textContent = "Abbrechen";
-    applyPopupButtonStyle(btnCancel);
-    btnCancel.onclick = () => this._closeGlobalAssignModal();
-
-    const btnSave = document.createElement("button");
-    btnSave.textContent = "Speichern";
-    applyPopupButtonStyle(btnSave, { variant: "primary" });
-    btnSave.onclick = async () => {
-      await this._saveGlobalAssignments();
-    };
-
-    modalFoot.append(btnCancel, btnSave);
-    modal.append(modalHead, modalBodyWrap, modalFoot);
-    overlay.appendChild(modal);
-
-    const bottomActions = document.createElement("div");
-    bottomActions.style.display = this.isNewUi ? "flex" : "none";
-    bottomActions.style.justifyContent = "flex-end";
-    bottomActions.style.alignItems = "center";
-    bottomActions.style.gap = "8px";
-    bottomActions.append(btnOpenGlobalAssign);
-
     grid.append(leftCard, rightCard);
-    root.append(head, grid, bottomActions, overlay);
+    root.append(head, grid);
 
     this.root = root;
     this.msgEl = msg;
@@ -624,28 +519,8 @@ export default class FirmsPoolView {
     this.leftErrorEl = leftError;
     this.rightErrorEl = rightError;
     this.btnDeleteFirmEl = btnDeleteFirm;
-    this.btnOpenGlobalAssignEl = btnOpenGlobalAssign;
-    this.globalAssignOverlayEl = overlay;
-    this.globalAssignErrEl = modalErr;
-    this.globalAssignLeftListEl = leftCol.list;
-    this.globalAssignRightListEl = rightCol.list;
-    this.globalAssignInpLeftEl = leftCol.inp;
-    this.globalAssignInpRightEl = rightCol.inp;
-    this.globalAssignBtnSaveEl = btnSave;
-    this.globalAssignBtnCancelEl = btnCancel;
-    this.globalAssignBtnCloseEl = btnClose;
-
-    this.globalAssignInpLeftEl.oninput = () => {
-      this.globalAssignSearchLeft = (this.globalAssignInpLeftEl?.value || "").trim();
-      this._renderGlobalAssignLists();
-    };
-    this.globalAssignInpRightEl.oninput = () => {
-      this.globalAssignSearchRight = (this.globalAssignInpRightEl?.value || "").trim();
-      this._renderGlobalAssignLists();
-    };
 
     this._applyDeleteFirmButtonState();
-    this._applyGlobalAssignState();
 
     return root;
   }
@@ -660,23 +535,10 @@ export default class FirmsPoolView {
       this.persons = [];
       this._renderFirms();
       this._renderPersons();
-      this._applyGlobalAssignState();
       return;
     }
 
     await this.reloadFirms();
-    this._applyGlobalAssignState();
-  }
-
-  async openGlobalAssign() {
-    this._ensureProjectId();
-    if (!this.projectId) {
-      this._setLeftError("Bitte zuerst ein Projekt auswählen.");
-      this._applyGlobalAssignState();
-      return false;
-    }
-    await this._openGlobalAssignModal();
-    return true;
   }
 
   async reloadFirms() {
@@ -729,8 +591,7 @@ export default class FirmsPoolView {
       this._renderFirms();
       this._renderPersons();
       this._applyDeleteFirmButtonState();
-      this._applyGlobalAssignState();
-    }
+      }
   }
 
   async _selectFirm(item) {
@@ -816,6 +677,137 @@ export default class FirmsPoolView {
     modal.open();
   }
 
+  async _loadProjectCandidates() {
+    this.candidates = [];
+    this.candidatesByKey = new Map();
+
+    const api = window.bbmDb || {};
+    if (!this.projectId || typeof api.projectCandidatesList !== "function") return;
+
+    const res = await api.projectCandidatesList({ projectId: this.projectId });
+    if (!res?.ok) {
+      this._setRightError(res?.error || "Fehler beim Laden der Projektpersonen.");
+      return;
+    }
+
+    const raw = Array.isArray(res.items)
+      ? res.items
+      : Array.isArray(res.list)
+        ? res.list
+        : [];
+
+    const out = [];
+    for (const it of raw) {
+      const kind = String(it?.kind || "").trim();
+      const personId = String(it?.personId ?? it?.person_id ?? "").trim();
+      if (!kind || !personId) continue;
+      const row = {
+        kind,
+        personId,
+        is_active: this._parseActiveFlag(it?.is_active ?? it?.isActive),
+      };
+      out.push(row);
+    }
+
+    this.candidates = out;
+    this.candidatesByKey = new Map(
+      out.map((x) => [this._candidateKey(x.kind, x.personId), x])
+    );
+  }
+
+  async _ensureCandidatesForPersons(kind, persons) {
+    const api = window.bbmDb || {};
+    if (!this.projectId || typeof api.projectCandidatesSet !== "function") return;
+
+    const map = new Map(this.candidatesByKey);
+    let changed = false;
+
+    for (const p of persons || []) {
+      const personId = this._personId(p);
+      const key = this._candidateKey(kind, personId);
+      if (!key || map.has(key)) continue;
+      map.set(key, { kind, personId, is_active: 1 });
+      changed = true;
+    }
+
+    if (!changed) return;
+
+    const items = Array.from(map.values()).map((x) => ({
+      kind: x.kind,
+      personId: x.personId,
+      isActive: this._parseActiveFlag(x.is_active) === 1,
+    }));
+
+    const res = await api.projectCandidatesSet({ projectId: this.projectId, items });
+    if (!res?.ok) {
+      this._setRightError(res?.error || "Aktiv-Status konnte nicht gespeichert werden.");
+      return;
+    }
+
+    this.candidatesByKey = map;
+    this.candidates = Array.from(map.values());
+    this._notifyPoolDataChanged("person-candidates-upserted");
+  }
+
+  async _setPersonCandidateActive(person, isActive) {
+    const api = window.bbmDb || {};
+    const kind = this._personKindForSelectedFirm();
+    const personId = this._personId(person);
+    if (!this.projectId || !kind || !personId) return false;
+
+    const key = this._candidateKey(kind, personId);
+    if (!key) return false;
+
+    this._setRightError("");
+
+    if (!this.candidatesByKey.has(key)) {
+      if (!isActive) return true;
+      await this._ensureCandidatesForPersons(kind, [person]);
+      return this.candidatesByKey.has(key);
+    }
+
+    if (typeof api.projectCandidatesSetActive === "function") {
+      const res = await api.projectCandidatesSetActive({
+        projectId: this.projectId,
+        kind,
+        personId,
+        isActive: !!isActive,
+      });
+      if (!res?.ok) {
+        this._setRightError(res?.error || "Aktiv/Inaktiv konnte nicht gespeichert werden.");
+        return false;
+      }
+    } else if (typeof api.projectCandidatesSet === "function") {
+      const map = new Map(this.candidatesByKey);
+      const prev = map.get(key) || { kind, personId, is_active: 1 };
+      map.set(key, { ...prev, is_active: this._parseActiveFlag(isActive) });
+      const items = Array.from(map.values()).map((x) => ({
+        kind: x.kind,
+        personId: x.personId,
+        isActive: this._parseActiveFlag(x.is_active) === 1,
+      }));
+      const res = await api.projectCandidatesSet({ projectId: this.projectId, items });
+      if (!res?.ok) {
+        this._setRightError(res?.error || "Aktiv/Inaktiv konnte nicht gespeichert werden.");
+        return false;
+      }
+      this.candidatesByKey = map;
+      this.candidates = Array.from(map.values());
+      this._notifyPoolDataChanged("person-candidate-active-changed");
+      return true;
+    } else {
+      this._setRightError("API projectCandidatesSetActive ist nicht verfügbar.");
+      return false;
+    }
+
+    const next = this._parseActiveFlag(isActive);
+    const current = this.candidatesByKey.get(key) || { kind, personId };
+    this.candidatesByKey.set(key, { ...current, is_active: next });
+    this.candidates = Array.from(this.candidatesByKey.values());
+    this._notifyPoolDataChanged("person-candidate-active-changed");
+    return true;
+  }
+
   async reloadPersonsForSelectedFirm() {
     this._setRightError("");
     this.persons = [];
@@ -823,7 +815,11 @@ export default class FirmsPoolView {
     this._renderPersons();
 
     try {
-      if (!this.selectedFirm) return;
+      if (!this.selectedFirm) {
+        this.candidates = [];
+        this.candidatesByKey = new Map();
+        return;
+      }
 
       const api = window.bbmDb || {};
       let res = null;
@@ -847,6 +843,11 @@ export default class FirmsPoolView {
       }
 
       this.persons = Array.isArray(res.list) ? res.list : [];
+      await this._loadProjectCandidates();
+      const kind = this._personKindForSelectedFirm();
+      if (kind) {
+        await this._ensureCandidatesForPersons(kind, this.persons);
+      }
       if (this.selectedPersonId) {
         const exists = this.persons.some((p) => this._personId(p) === this.selectedPersonId);
         if (!exists) this.selectedPersonId = null;
@@ -1009,6 +1010,27 @@ export default class FirmsPoolView {
         await this._openPersonEditModal(p);
       };
 
+      const kind = this._personKindForSelectedFirm();
+      const key = this._candidateKey(kind, pid);
+      const candidate = this.candidatesByKey.get(key) || null;
+      const isActive = candidate ? this._parseActiveFlag(candidate.is_active) === 1 : true;
+
+      const tdActive = document.createElement("td");
+      tdActive.style.padding = "6px";
+      tdActive.style.borderBottom = "1px solid #eee";
+      tdActive.style.textAlign = "center";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = isActive;
+      cb.disabled = this.loadingPersons || this.loadingFirms || this.deletingFirm;
+      cb.onclick = (e) => e.stopPropagation();
+      cb.onchange = async (e) => {
+        e.stopPropagation();
+        const ok = await this._setPersonCandidateActive(p, cb.checked);
+        if (!ok) cb.checked = !cb.checked;
+      };
+      tdActive.appendChild(cb);
+
       const tdName = document.createElement("td");
       tdName.style.padding = "6px";
       tdName.style.borderBottom = "1px solid #eee";
@@ -1019,239 +1041,13 @@ export default class FirmsPoolView {
       tdRole.style.borderBottom = "1px solid #eee";
       tdRole.textContent = String(p.rolle || p.role || "").trim() || "—";
 
-      const tdEmail = document.createElement("td");
-      tdEmail.style.padding = "6px";
-      tdEmail.style.borderBottom = "1px solid #eee";
-      tdEmail.textContent = String(p.email || "").trim() || "—";
-
       const tdPhone = document.createElement("td");
       tdPhone.style.padding = "6px";
       tdPhone.style.borderBottom = "1px solid #eee";
       tdPhone.textContent = String(p.phone || p.funktion || "").trim() || "—";
 
-      tr.append(tdName, tdRole, tdEmail, tdPhone);
+      tr.append(tdActive, tdName, tdRole, tdPhone);
       tb.appendChild(tr);
-    }
-  }
-
-  _applyGlobalAssignState() {
-    const can = !!this.projectId && !this.loadingFirms && !this.deletingFirm;
-    if (this.btnOpenGlobalAssignEl) {
-      this.btnOpenGlobalAssignEl.disabled = !can;
-      this.btnOpenGlobalAssignEl.style.opacity = can ? "1" : "0.55";
-      this.btnOpenGlobalAssignEl.title = can
-        ? "Globale Firmen dem Projekt zuordnen"
-        : "Projekt wählen";
-    }
-  }
-
-  _setGlobalAssignError(text) {
-    this.globalAssignErr = text || "";
-    const el = this.globalAssignErrEl;
-    if (!el) return;
-    if (!this.globalAssignErr) {
-      el.style.display = "none";
-      el.textContent = "";
-      return;
-    }
-    el.style.display = "block";
-    el.textContent = this.globalAssignErr;
-  }
-
-  async _openGlobalAssignModal() {
-    this._ensureProjectId();
-    if (!this.projectId || !this.globalAssignOverlayEl) return;
-    this.globalAssignOpen = true;
-    this.globalAssignSearchLeft = "";
-    this.globalAssignSearchRight = "";
-    this._setGlobalAssignError("");
-
-    this.globalAssignOverlayEl.style.display = "flex";
-    try {
-      this.globalAssignOverlayEl.focus();
-    } catch (_e) {
-      // ignore
-    }
-
-    if (this.globalAssignInpLeftEl) this.globalAssignInpLeftEl.value = "";
-    if (this.globalAssignInpRightEl) this.globalAssignInpRightEl.value = "";
-
-    await this._loadGlobalAssignData();
-    this._renderGlobalAssignLists();
-    this._applyGlobalAssignState();
-  }
-
-  _closeGlobalAssignModal() {
-    this.globalAssignOpen = false;
-    this.globalAssignSearchLeft = "";
-    this.globalAssignSearchRight = "";
-    this.globalAssignAll = [];
-    this.globalAssignSelectedIds = new Set();
-    this.globalAssignInitialIds = new Set();
-    this._setGlobalAssignError("");
-    if (this.globalAssignOverlayEl) this.globalAssignOverlayEl.style.display = "none";
-  }
-
-  async _loadGlobalAssignData() {
-    const api = window.bbmDb || {};
-    if (typeof api.firmsListGlobal !== "function") {
-      this.globalAssignAll = [];
-      this._setGlobalAssignError("API firmsListGlobal ist nicht verfügbar.");
-      return;
-    }
-    if (typeof api.projectFirmsListFirmCandidatesByProject !== "function") {
-      this.globalAssignAll = [];
-      this._setGlobalAssignError("API projectFirmsListFirmCandidatesByProject ist nicht verfügbar.");
-      return;
-    }
-
-    const [resF, resC] = await Promise.all([
-      api.firmsListGlobal(),
-      api.projectFirmsListFirmCandidatesByProject(this.projectId),
-    ]);
-
-    if (!resF?.ok) {
-      this.globalAssignAll = [];
-      this._setGlobalAssignError(resF?.error || "Fehler beim Laden der globalen Firmen.");
-      return;
-    }
-
-    const all = (resF.list || []).map((f) => ({
-      id: String(f?.id || ""),
-      short: String(f?.short || "").trim(),
-      name: String(f?.name || "").trim(),
-    }));
-    all.sort((a, b) => this._labelFirm(a).localeCompare(this._labelFirm(b), "de"));
-    this.globalAssignAll = all;
-
-    const selected = new Set();
-    if (resC?.ok) {
-      for (const x of resC.list || []) {
-        if (String(x?.kind || "") === "global_firm" && x?.id) selected.add(String(x.id));
-      }
-    }
-    this.globalAssignInitialIds = new Set([...selected]);
-    this.globalAssignSelectedIds = new Set([...selected]);
-  }
-
-  _renderGlobalAssignLists() {
-    if (!this.globalAssignLeftListEl || !this.globalAssignRightListEl) return;
-    this.globalAssignLeftListEl.innerHTML = "";
-    this.globalAssignRightListEl.innerHTML = "";
-
-    const qL = (this.globalAssignSearchLeft || "").toLowerCase();
-    const qR = (this.globalAssignSearchRight || "").toLowerCase();
-    const selectedIds = this.globalAssignSelectedIds || new Set();
-    const all = this.globalAssignAll || [];
-
-    const left = [];
-    const right = [];
-    for (const f of all) {
-      const label = this._labelFirm(f).toLowerCase();
-      const isSel = selectedIds.has(f.id);
-      if (isSel) {
-        if (!qR || label.includes(qR)) right.push(f);
-      } else if (!qL || label.includes(qL)) {
-        left.push(f);
-      }
-    }
-
-    const renderList = (host, items, onDbl) => {
-      host.innerHTML = "";
-      for (const f of items) {
-        const row = document.createElement("div");
-        row.textContent = this._labelFirm(f);
-        row.style.padding = "6px 8px";
-        row.style.borderBottom = "1px solid #eee";
-        row.style.cursor = "pointer";
-        row.onmouseenter = () => {
-          row.style.background = "#f4f8ff";
-        };
-        row.onmouseleave = () => {
-          row.style.background = "transparent";
-        };
-        row.ondblclick = () => {
-          onDbl(f);
-        };
-        host.appendChild(row);
-      }
-      if (!items.length) {
-        const empty = document.createElement("div");
-        empty.style.padding = "8px";
-        empty.style.fontSize = "12px";
-        empty.style.opacity = "0.75";
-        empty.textContent = "Keine Einträge.";
-        host.appendChild(empty);
-      }
-    };
-
-    renderList(this.globalAssignLeftListEl, left, (f) => {
-      this.globalAssignSelectedIds.add(f.id);
-      this._renderGlobalAssignLists();
-    });
-    renderList(this.globalAssignRightListEl, right, (f) => {
-      this.globalAssignSelectedIds.delete(f.id);
-      this._renderGlobalAssignLists();
-    });
-  }
-
-  async _saveGlobalAssignments() {
-    const api = window.bbmDb || {};
-    if (!this.projectId) return;
-    if (typeof api.projectFirmsAssignGlobalFirm !== "function") {
-      this._setGlobalAssignError("API projectFirmsAssignGlobalFirm ist nicht verfügbar.");
-      return;
-    }
-    if (typeof api.projectFirmsUnassignGlobalFirm !== "function") {
-      this._setGlobalAssignError("API projectFirmsUnassignGlobalFirm ist nicht verfügbar.");
-      return;
-    }
-
-    const initial = this.globalAssignInitialIds || new Set();
-    const current = this.globalAssignSelectedIds || new Set();
-    const toAssign = [];
-    const toUnassign = [];
-    for (const id of current) if (!initial.has(id)) toAssign.push(id);
-    for (const id of initial) if (!current.has(id)) toUnassign.push(id);
-
-    this._setGlobalAssignError("");
-    if (this.globalAssignBtnSaveEl) this.globalAssignBtnSaveEl.disabled = true;
-    let changed = false;
-    let refreshAfterSave = false;
-    const selectedKeyBeforeReload = this.selectedFirmKey || null;
-    try {
-      for (const firmId of toAssign) {
-        const res = await api.projectFirmsAssignGlobalFirm({ projectId: this.projectId, firmId });
-        if (!res?.ok) throw new Error(res?.error || "Zuordnung fehlgeschlagen.");
-        changed = true;
-      }
-      for (const firmId of toUnassign) {
-        const res = await api.projectFirmsUnassignGlobalFirm({ projectId: this.projectId, firmId });
-        if (!res?.ok) throw new Error(res?.error || "Entfernen fehlgeschlagen.");
-        changed = true;
-      }
-      this._closeGlobalAssignModal();
-      refreshAfterSave = true;
-      if (changed) this._notifyPoolDataChanged("global-assignments-saved");
-    } catch (e) {
-      this._setGlobalAssignError(e?.message || "Fehler beim Speichern der Zuordnung.");
-    } finally {
-      if (this.globalAssignBtnSaveEl) this.globalAssignBtnSaveEl.disabled = false;
-      this._applyGlobalAssignState();
-    }
-
-    if (refreshAfterSave) {
-      fireAndForget(
-        async () => {
-          await this.reloadFirms();
-          if (selectedKeyBeforeReload) {
-            this.selectedFirm = this.firms.find((x) => x.key === selectedKeyBeforeReload) || null;
-            this.selectedFirmKey = this.selectedFirm?.key || null;
-          }
-          if (this.selectedFirm) await this.reloadPersonsForSelectedFirm();
-        },
-        "FirmsPoolView reload after saveGlobalAssignments"
-      );
     }
   }
 
@@ -1260,6 +1056,5 @@ export default class FirmsPoolView {
       this.activePersonModal.close();
       this.activePersonModal = null;
     }
-    this._closeGlobalAssignModal();
   }
 }
