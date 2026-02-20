@@ -114,6 +114,9 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // ============================================================
   printHtmlToPdf: (data) => ipcRenderer.invoke("print:htmlToPdf", data),
 
+  // Neue Print-API (Hidden Print Window)
+  printPdf: (data) => ipcRenderer.invoke("print:toPdf", data),
+
   // ============================================================
   // App
   // ============================================================
@@ -150,4 +153,8 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // ============================================================
   userProfileGet: () => ipcRenderer.invoke("userProfile:get"),
   userProfileUpsert: (data) => ipcRenderer.invoke("userProfile:upsert", data),
+});
+
+contextBridge.exposeInMainWorld("bbmPrint", {
+  printPdf: (data) => ipcRenderer.invoke("print:toPdf", data),
 });

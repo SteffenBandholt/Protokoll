@@ -1,4 +1,4 @@
-// src/main/ipc/printIpc.js
+﻿// src/main/ipc/printIpc.js
 //
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
@@ -7,15 +7,19 @@
 // INVARIANT (DO NOT BREAK) – ONE PRINT PATH RULE
 // ------------------------------------------------------------
 // Renderer -> bbmDb.printHtmlToPdf -> IPC "print:htmlToPdf" -> printIpc.js
-// Kein paralleler/zweiter Pfad, der heimlich genutzt wird.
+// ------------------------------------------------------------
+// Der alte Name bleibt, die Implementierung nutzt jetzt die neue Print-Engine.
 // ============================================================
-//
-// Druck: HTML -> PDF via Chromium printToPDF
-// Phase 1.1: nur Rendering/Optik (Footer Seite X/Y), keine Business-Logik.
 
-const { BrowserWindow, ipcMain, app } = require("electron");
+const { ipcMain, app } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const { createPrintWindow, getPrintAppUrl } = require("../print/printWindow");
+const { getPrintData } = require("../print/printData");
+
+function _randId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function sanitizeFileName(name) {
   const s = String(name || "").trim() || "BBM.pdf";
@@ -42,103 +46,208 @@ function uniquePath(dir, fileName) {
   return path.join(dir, `${stem} (${Date.now()})${ext}`);
 }
 
-function buildFooterTemplate() {
-  // Chromium ersetzt pageNumber/totalPages/date automatisch (nur in header/footer templates!)
-  const copyright =
-    "© 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
-  return `
-    <div style="width:100%; font-size:9px; color:#666; padding:0 18mm; box-sizing:border-box; font-family: Calibri, Arial, sans-serif; line-height:1;">
-      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-        <div>${copyright}</div>
-        <div>Seite <span class="pageNumber"></span> / <span class="totalPages"></span></div>
-      </div>
-    </div>
-  `;
+function buildPrintToPdfOptions() {
+  return {
+    printBackground: true,
+    landscape: false,
+    pageSize: "A4",
+    displayHeaderFooter: false,
+    margin: {
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+    },
+  };
 }
 
-function buildHeaderTemplate() {
-  // wir nutzen den PDF-Header im HTML selbst -> hier bewusst leer
-  return `<div></div>`;
-}
-
-async function htmlToPdf({ html, fileName, bbmVersion, targetDir, baseDir, projectNumber, overwrite } = {}) {
-  if (!html) throw new Error("html fehlt");
-
+async function _buildOutputPath({ fileName, targetDir, baseDir, projectNumber, overwrite } = {}) {
   const downloads = app.getPath("downloads");
   const tempDir = app.getPath("temp");
   let outBaseDir = targetDir === "temp" ? tempDir : downloads;
-  if (targetDir && targetDir !== "temp") {
-    outBaseDir = targetDir;
-  } else if (baseDir) {
-    outBaseDir = baseDir;
-  }
+
+  if (targetDir && targetDir !== "temp") outBaseDir = targetDir;
+  else if (baseDir) outBaseDir = baseDir;
+
   let outDir = outBaseDir;
   if (projectNumber && targetDir !== "temp") {
     outDir = path.join(outBaseDir, "bbm", String(projectNumber));
   }
+
   fs.mkdirSync(outDir, { recursive: true });
-  const outPath = overwrite
+
+  return overwrite
     ? path.join(outDir, sanitizeFileName(fileName || "BBM.pdf"))
     : uniquePath(outDir, fileName || "BBM.pdf");
+}
 
-  const win = new BrowserWindow({
-    show: false,
-    width: 1200,
-    height: 900,
-    webPreferences: {
-      sandbox: false,
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
+function attachPrintDebugPipes(win, jobId) {
+  win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    const lvl = ["LOG", "WARN", "ERROR", "DEBUG"][level] || String(level);
+    console.log(`[print:${jobId}] [${lvl}] ${message} (${sourceId}:${line})`);
   });
 
-  try {
-    const url = `data:text/html;charset=utf-8,${encodeURIComponent(String(html))}`;
-    await win.loadURL(url);
+  win.webContents.on("did-finish-load", () => console.log(`[print:${jobId}] did-finish-load`));
+  win.webContents.on("did-fail-load", (_e, code, desc, validatedURL) =>
+    console.log(`[print:${jobId}] did-fail-load code=${code} desc=${desc} url=${validatedURL}`)
+  );
+  win.webContents.on("render-process-gone", (_e, details) =>
+    console.log(`[print:${jobId}] render-process-gone reason=${details?.reason} exitCode=${details?.exitCode}`)
+  );
+  win.webContents.on("crashed", () => console.log(`[print:${jobId}] webContents crashed`));
+}
 
-    const pdfBuffer = await win.webContents.printToPDF({
-      printBackground: true,
-      landscape: false,
-      pageSize: "A4",
+async function printToPdf(payload = {}) {
+  const jobId = _randId();
+  const mode = String(payload.mode || "").trim() || "protocol";
+  const projectId = payload.projectId || null;
+  const meetingId = payload.meetingId || null;
 
-      // Footer Seite X/Y + BBM 1.0 + Datum (Chromium)
-      displayHeaderFooter: true,
-      headerTemplate: buildHeaderTemplate(),
-      footerTemplate: buildFooterTemplate(),
+  console.log(`[print:${jobId}] start mode=${mode} projectId=${projectId} meetingId=${meetingId}`);
 
-      // In Electron/Chromium sind margins in inches (wenn unterstützt)
-      margin: {
-        top: 0.0, // ~0mm
-        bottom: 1.1, // ~28mm (Footer Platz)
-        left: 0.7, // ~18mm
-        right: 0.7, // ~18mm
-      },
+  const data = await getPrintData({ mode, projectId, meetingId });
+  const projectNumber = data?.project?.project_number || data?.project?.projectNumber || null;
+
+  const outPath = await _buildOutputPath({
+    fileName: payload.fileName || null,
+    targetDir: payload.targetDir,
+    baseDir: payload.baseDir,
+    projectNumber,
+    overwrite: payload.overwrite,
+  });
+
+  const debug = !!payload.debug || !app.isPackaged;
+
+  const win = createPrintWindow({ debug });
+  attachPrintDebugPipes(win, jobId);
+
+  if (debug) {
+    try {
+      win.show();
+      win.focus();
+      win.webContents.openDevTools({ mode: "detach" });
+    } catch (_e) {}
+  }
+
+  const url = getPrintAppUrl();
+  console.log(`[print:${jobId}] loadURL ${url}`);
+
+  return new Promise((resolve, reject) => {
+    let done = false;
+
+    const cleanup = () => {
+      try {
+        ipcMain.removeListener("print:ready", onReady);
+      } catch (_e) {}
+      try {
+        clearTimeout(timeout);
+      } catch (_e) {}
+      try {
+        win.close();
+      } catch (_e) {}
+    };
+
+    const timeout = setTimeout(() => {
+      if (done) return;
+      done = true;
+      console.log(`[print:${jobId}] TIMEOUT`);
+      cleanup();
+      reject(new Error("Print-Window Timeout"));
+    }, 30000);
+
+    const onReady = async (evt, msg) => {
+      if (evt.sender !== win.webContents) return;
+      if (msg?.jobId && msg.jobId !== jobId) return;
+
+      console.log(`[print:${jobId}] print:ready received`);
+
+      try {
+        const options = buildPrintToPdfOptions();
+        console.log(
+          `[PRINT_ACTIVE] printToPDF options: ${JSON.stringify(
+            {
+              displayHeaderFooter: options.displayHeaderFooter,
+              margin: options.margin,
+              pageSize: options.pageSize,
+            },
+            null,
+            0
+          )}`
+        );
+        const pdfBuffer = await win.webContents.printToPDF(options);
+        fs.writeFileSync(outPath, pdfBuffer);
+        console.log(`[print:${jobId}] PDF written -> ${outPath}`);
+        done = true;
+        cleanup();
+        resolve(outPath);
+      } catch (err) {
+        console.log(`[print:${jobId}] printToPDF ERROR: ${err?.message || err}`);
+        done = true;
+        cleanup();
+        reject(err);
+      }
+    };
+
+    ipcMain.on("print:ready", onReady);
+
+    win.webContents.once("did-finish-load", () => {
+      console.log(`[print:${jobId}] sending print:init (debug=${debug})`);
+      win.webContents.send("print:init", {
+        jobId,
+        mode,
+        projectId,
+        meetingId,
+        debug,
+      });
     });
 
-    fs.writeFileSync(outPath, pdfBuffer);
-    return outPath;
-  } finally {
-    try {
-      win.close();
-    } catch (_e) {
-      // ignore
-    }
-  }
+    win.loadURL(url).catch((err) => {
+      if (done) return;
+      done = true;
+      console.log(`[print:${jobId}] loadURL ERROR: ${err?.message || err}`);
+      cleanup();
+      reject(err);
+    });
+  });
 }
 
 function registerPrintIpc() {
-  ipcMain.handle("print:htmlToPdf", async (_evt, payload) => {
+  ipcMain.handle("print:getData", async (_evt, payload) => {
     try {
       const p = payload || {};
-      const outPath = await htmlToPdf({
-        html: p.html,
-        fileName: p.fileName,
-        bbmVersion: p.bbmVersion,
-        targetDir: p.targetDir,
-        baseDir: p.baseDir,
-        projectNumber: p.projectNumber,
-        overwrite: p.overwrite,
+      const data = await getPrintData({
+        mode: p.mode,
+        projectId: p.projectId,
+        meetingId: p.meetingId,
       });
+      return { ok: true, data };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("print:toPdf", async (_evt, payload) => {
+    try {
+      console.log(
+        `[PRINT_ACTIVE] handler=print:toPdf payload.mode=${payload?.mode || ""} projectId=${
+          payload?.projectId ?? ""
+        } meetingId=${payload?.meetingId ?? ""}`
+      );
+      const outPath = await printToPdf(payload || {});
+      return { ok: true, filePath: outPath };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("print:htmlToPdf", async (_evt, payload) => {
+    try {
+      console.log(
+        `[PRINT_ACTIVE] handler=print:htmlToPdf payload.mode=${payload?.mode || ""} projectId=${
+          payload?.projectId ?? ""
+        } meetingId=${payload?.meetingId ?? ""}`
+      );
+      const outPath = await printToPdf(payload || {});
       return { ok: true, filePath: outPath };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
