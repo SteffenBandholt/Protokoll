@@ -1,0 +1,227 @@
+﻿.headerTestRoot .page {
+  padding-top: var(--ht-pad-top, 10mm);
+  padding-left: var(--ht-pad-x, 12mm);
+  padding-right: var(--ht-pad-x, 12mm);
+  padding-bottom: var(--ht-pad-bottom, 18mm);
+}
+
+.headerTestRoot .globalHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.headerTestRoot .logoRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ht-logo-gap, 4mm);
+}
+
+.headerTestRoot .logoBox {
+  width: var(--ht-global-logo-box, 40mm);
+  height: var(--ht-global-logo-box, 40mm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #ccc;
+  padding: 1mm;
+}
+
+.headerTestRoot .logoBox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.headerTestRoot .logoPlaceholder {
+  font-size: 8pt;
+  color: #666;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.headerTestRoot .htDivider {
+  width: 100%;
+  height: 0;
+  border-bottom: var(--ht-line-thickness, 1px) solid #000;
+}
+
+.headerTestRoot .htGlobalGapLogoLine {
+  height: var(--ht-global-gap-logo-line, 3mm);
+}
+
+.headerTestRoot .htFullHeader {
+  height: var(--ht-full-height, 40mm);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.headerTestRoot .htSpaceFullProject {
+  height: var(--ht-full-gap-project-line, 3mm);
+}
+
+.headerTestRoot .htFullGapLineList {
+  height: var(--ht-full-gap-line-list, 3mm);
+}
+
+.headerTestRoot .htMiniGapTextLine {
+  height: var(--ht-mini-gap-text-line, 3mm);
+}
+
+.headerTestRoot .htMiniGapLineList {
+  height: var(--ht-mini-gap-line-list, 3mm);
+}
+
+.headerTestRoot .stdHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.headerTestRoot .stdHeader.full {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.headerTestRoot .fullHeaderTextBlock {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.headerTestRoot .fullHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+}
+
+.headerTestRoot .stdHeader.mini {
+  width: 100%;
+}
+
+.headerTestRoot .htMiniHeader {
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+.headerTestRoot .htMiniTextRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.headerTestRoot .miniLeft,
+.headerTestRoot .miniRight {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.headerTestRoot .htDividerWrap {
+  width: 100%;
+  overflow: visible !important;
+  padding: 0;
+  margin: 0;
+}
+
+.headerTestRoot .ht-header-left {
+  min-width: 0;
+}
+
+.headerTestRoot .ht-header-right {
+  text-align: right;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5mm;
+  align-items: flex-end;
+}
+
+.headerTestRoot .stdHeader.full .ht-project {
+  font-size: 14pt;
+  font-weight: 700;
+}
+
+.headerTestRoot .stdHeader.full .ht-meeting {
+  font-size: 11pt;
+  font-weight: 600;
+  margin-top: 1mm;
+}
+
+.headerTestRoot .stdHeader.mini .ht-project {
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+.headerTestRoot .stdHeader.mini .ht-meeting {
+  font-size: 9pt;
+  font-weight: 500;
+  margin-top: 0.5mm;
+}
+
+.headerTestRoot .ht-meta {
+  margin-top: 1mm;
+  font-size: 8.5pt;
+  color: #555;
+}
+
+.headerTestRoot .ht-page {
+  font-size: 8pt;
+  color: #333;
+}
+
+.headerTestRoot .ht-mode {
+  font-size: 8pt;
+  border: 1px solid #000;
+  padding: 0.6mm 1.6mm;
+  border-radius: 3mm;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.headerTestRoot .ht-body {
+  margin: 0;
+  padding: 0;
+}
+
+.headerTestRoot .ht-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+  margin: 0;
+  padding: 0;
+}
+
+.headerTestRoot .ht-row {
+  display: grid;
+  grid-template-columns: 12mm 1fr 35mm;
+  gap: 3mm;
+  border-bottom: 1px dashed #ddd;
+  padding-bottom: 1mm;
+}
+
+.headerTestRoot .ht-row-no {
+  font-weight: 700;
+}
+
+.headerTestRoot .ht-row-text {
+  font-size: 9.8pt;
+}
+
+.headerTestRoot .ht-row-meta {
+  font-size: 8.5pt;
+  color: #555;
+  text-align: right;
+}

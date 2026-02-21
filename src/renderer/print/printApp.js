@@ -539,7 +539,7 @@ async function handleInit(payload) {
     }
 
     if (data.mode === "headerTest") {
-      const root = renderHeaderTestPages({ data });
+      const root = renderHeaderTestPages({ data, debug: !!payload?.debug });
       app.innerHTML = "";
       app.appendChild(root);
       window.bbmPrint.ready({ jobId: payload?.jobId || null, ok: true });

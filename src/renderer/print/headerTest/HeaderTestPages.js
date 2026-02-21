@@ -1,120 +1,15 @@
-﻿import { headerTestConfig } from "./headerTestConfig.js";
-import { renderHeaderTestHeader } from "./HeaderTestHeader.js";
+﻿import { renderHeaderTestHeader } from "./HeaderTestHeader.js";
+import { renderGlobalHeader } from "./GlobalHeader.js";
+import { HEADERTEST_LAYOUT } from "./headerTestLayoutConfig.js";
+import { runHeaderTestChecks } from "./devHeaderTestCheck.js";
+
+let _headerTestChecksRun = false;
 
 function _el(tag, className, text) {
   const el = document.createElement(tag);
   if (className) el.className = className;
   if (text != null) el.textContent = text;
   return el;
-}
-
-function _buildStyle() {
-  const style = document.createElement("style");
-  style.textContent = `
-    .headerTestRoot .ht-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 8mm;
-      padding-bottom: 2mm;
-    }
-
-    .headerTestRoot .ht-header.full .ht-project {
-      font-size: 14pt;
-      font-weight: 700;
-    }
-
-    .headerTestRoot .ht-header.full .ht-meeting {
-      font-size: 11pt;
-      font-weight: 600;
-      margin-top: 1mm;
-    }
-
-    .headerTestRoot .ht-header.mini .ht-project {
-      font-size: 10pt;
-      font-weight: 600;
-    }
-
-    .headerTestRoot .ht-header.mini .ht-meeting {
-      font-size: 9pt;
-      font-weight: 500;
-      margin-top: 0.5mm;
-    }
-
-    .headerTestRoot .ht-meta {
-      margin-top: 1mm;
-      font-size: 8.5pt;
-      color: #555;
-    }
-
-    .headerTestRoot .ht-header-right {
-      text-align: right;
-      white-space: nowrap;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5mm;
-      align-items: flex-end;
-    }
-
-    .headerTestRoot .ht-page {
-      font-size: 8pt;
-      color: #333;
-    }
-
-    .headerTestRoot .ht-mode {
-      font-size: 8pt;
-      border: 1px solid #000;
-      padding: 0.6mm 1.6mm;
-      border-radius: 3mm;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
-    }
-
-    .headerTestRoot .ht-title {
-      font-size: 8.5pt;
-      color: #444;
-    }
-
-    .headerTestRoot .ht-header-line {
-      border-bottom: 1px solid #000;
-      margin: 1mm 0 4mm 0;
-    }
-
-    .headerTestRoot .ht-body-title {
-      font-size: 10pt;
-      font-weight: 700;
-      margin-bottom: 2mm;
-    }
-
-    .headerTestRoot .ht-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1mm;
-    }
-
-    .headerTestRoot .ht-row {
-      display: grid;
-      grid-template-columns: 12mm 1fr 35mm;
-      gap: 3mm;
-      border-bottom: 1px dashed #ddd;
-      padding-bottom: 1mm;
-    }
-
-    .headerTestRoot .ht-row-no {
-      font-weight: 700;
-    }
-
-    .headerTestRoot .ht-row-text {
-      font-size: 9.8pt;
-    }
-
-    .headerTestRoot .ht-row-meta {
-      font-size: 8.5pt;
-      color: #555;
-      text-align: right;
-    }
-  `;
-  return style;
 }
 
 function _normalizeTopNumber(top) {
@@ -143,7 +38,7 @@ function _buildRows(data) {
     });
   }
 
-  const minRows = 42;
+  const minRows = 32;
   for (let i = rows.length; i < minRows; i++) {
     rows.push({
       no: String(i + 1),
@@ -182,12 +77,38 @@ function _buildRowElement(row) {
   return el;
 }
 
-export function renderHeaderTestPages({ data } = {}) {
+export function renderHeaderTestPages({ data, debug } = {}) {
   const root = _el("div", "printRoot headerTestRoot");
-  root.appendChild(_buildStyle());
+  root.style.setProperty("--ht-pad-top", `${HEADERTEST_LAYOUT.page.padTopMm}mm`);
+  root.style.setProperty("--ht-pad-x", `${HEADERTEST_LAYOUT.page.padXmm}mm`);
+  root.style.setProperty("--ht-pad-bottom", `${HEADERTEST_LAYOUT.page.padBottomMm}mm`);
+  root.style.setProperty("--ht-global-logo-box", `${HEADERTEST_LAYOUT.global.logoBoxMm}mm`);
+  root.style.setProperty("--ht-logo-gap", `${HEADERTEST_LAYOUT.global.logoGapMm}mm`);
+  root.style.setProperty(
+    "--ht-global-gap-logo-line",
+    `${HEADERTEST_LAYOUT.global.gapLogoToLineMm}mm`
+  );
+  root.style.setProperty("--ht-full-height", `${HEADERTEST_LAYOUT.full.heightMm}mm`);
+  root.style.setProperty(
+    "--ht-full-gap-project-line",
+    `${HEADERTEST_LAYOUT.full.gapProjectToLineMm}mm`
+  );
+  root.style.setProperty(
+    "--ht-full-gap-line-list",
+    `${HEADERTEST_LAYOUT.full.gapLineToListMm}mm`
+  );
+  root.style.setProperty(
+    "--ht-mini-gap-text-line",
+    `${HEADERTEST_LAYOUT.mini.gapTextToLineMm}mm`
+  );
+  root.style.setProperty(
+    "--ht-mini-gap-line-list",
+    `${HEADERTEST_LAYOUT.mini.gapLineToListMm}mm`
+  );
+  root.style.setProperty("--ht-line-thickness", `${HEADERTEST_LAYOUT.global.lineThicknessPx}px`);
 
   const rows = _buildRows(data);
-  const perPage = { full: 18, mini: 24 };
+  const perPage = { full: 16, mini: 22 };
   const pages = _splitPages(rows, perPage, { firstVariant: "full" });
 
   if (pages.length < 2) {
@@ -197,28 +118,46 @@ export function renderHeaderTestPages({ data } = {}) {
   const totalPages = pages.length;
 
   pages.forEach((page, idx) => {
+    const pageNo = idx + 1;
     const pageEl = _el("div", "page headerTestPage");
-    pageEl.appendChild(
-      renderHeaderTestHeader({
-        variant: page.variant,
-        data,
-        pageNo: idx + 1,
-        totalPages,
-      })
-    );
-    pageEl.appendChild(_el("div", "ht-header-line"));
+    pageEl.setAttribute("data-ht-page", String(pageNo));
+
+    if (pageNo === 1) {
+      pageEl.appendChild(renderGlobalHeader({ data }));
+      pageEl.appendChild(
+        renderHeaderTestHeader({
+          variant: "full",
+          data,
+          pageNo,
+          totalPages,
+        })
+      );
+      pageEl.appendChild(_el("div", "htFullGapLineList"));
+    } else {
+      pageEl.appendChild(
+        renderHeaderTestHeader({
+          variant: "mini",
+          data,
+          pageNo,
+          totalPages,
+        })
+      );
+    }
 
     const body = _el("div", "ht-body");
-    const title = page.variant === "full" ? "Full-Header Demo" : "Mini-Header Demo";
-    body.appendChild(_el("div", "ht-body-title", title));
-
     const list = _el("div", "ht-list");
+    list.setAttribute("data-ht", "listStart");
     page.rows.forEach((row) => list.appendChild(_buildRowElement(row)));
     body.appendChild(list);
 
     pageEl.appendChild(body);
     root.appendChild(pageEl);
   });
+
+  if (!_headerTestChecksRun) {
+    _headerTestChecksRun = true;
+    runHeaderTestChecks({ debug: !!debug, cfg: HEADERTEST_LAYOUT });
+  }
 
   return root;
 }

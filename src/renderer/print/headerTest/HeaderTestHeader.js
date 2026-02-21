@@ -59,22 +59,60 @@ function _meetingMeta(meeting) {
 }
 
 export function renderHeaderTestHeader({ variant = "full", data, pageNo, totalPages } = {}) {
-  const cfg = variant === "mini" ? headerTestConfig.mini : headerTestConfig.full;
-  const header = _el("div", `ht-header ${variant}`);
-  header.style.minHeight = `${cfg.minHeightMm}mm`;
+  const header = _el("div", `stdHeader ${variant}${variant === "full" ? " htFullHeader" : ""}`);
 
   const left = _el("div", "ht-header-left");
-  left.appendChild(_el("div", "ht-project", _projectLabel(data?.project)));
-  left.appendChild(_el("div", "ht-meeting", _meetingLabel(data?.meeting)));
+  const meetingLine = _el("div", "ht-meeting", _meetingLabel(data?.meeting));
+  const projectLine = _el("div", "ht-project", _projectLabel(data?.project));
 
+  left.appendChild(meetingLine);
   const meta = _meetingMeta(data?.meeting);
   if (meta) left.appendChild(_el("div", "ht-meta", meta));
+  left.appendChild(projectLine);
 
   const right = _el("div", "ht-header-right");
   right.appendChild(_el("div", "ht-page", `Seite ${pageNo} / ${totalPages}`));
   right.appendChild(_el("div", "ht-mode", headerTestConfig.modeLabel));
-  right.appendChild(_el("div", "ht-title", cfg.title));
 
-  header.append(left, right);
+  if (variant === "full") {
+    const textBlock = _el("div", "fullHeaderTextBlock");
+    const row = _el("div", "fullHeaderRow");
+    row.append(left, right);
+    textBlock.appendChild(row);
+    header.append(
+      textBlock,
+      _el("div", "htSpaceFullProject"),
+      _el("div", "htDivider htFullDivider")
+    );
+    const line2 = header.querySelector(".htFullDivider");
+    if (line2) line2.setAttribute("data-ht", "line2");
+    return header;
+  }
+
+  const miniHeader = _el("div", "htMiniHeader");
+  const miniRow = _el("div", "htMiniTextRow");
+  const miniLeft = _el("div", "miniLeft", _meetingLabel(data?.meeting));
+  const miniRight = _el(
+    "div",
+    "miniRight",
+    `${_projectLabel(data?.project)} | Seite ${pageNo} / ${totalPages} | ${String(
+      headerTestConfig.modeLabel || "KOPF-TEST"
+    ).toUpperCase()}`
+  );
+  miniRow.append(miniLeft, miniRight);
+  miniRow.setAttribute("data-ht", "miniText");
+
+  const dividerWrap = _el("div", "htDividerWrap");
+  const miniDivider = _el("div", "htDivider htMiniDivider");
+  miniDivider.setAttribute("data-ht", "miniLine");
+  dividerWrap.appendChild(miniDivider);
+
+  miniHeader.append(
+    miniRow,
+    _el("div", "htMiniGapTextLine"),
+    dividerWrap,
+    _el("div", "htMiniGapLineList")
+  );
+  header.appendChild(miniHeader);
   return header;
 }
