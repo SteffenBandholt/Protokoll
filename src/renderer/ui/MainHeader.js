@@ -1,4 +1,4 @@
-// src/renderer/ui/MainHeader.js
+﻿// src/renderer/ui/MainHeader.js
 //
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
@@ -32,6 +32,7 @@ export default class MainHeader {
     this.elPrintWrap = null;
     this.elPrintMenu = null;
     this.elPrintItemPreview = null;
+    this.elPrintItemHeaderTest = null;
     this.elPrintBranchFirms = null;
     this.elPrintBranchTodo = null;
     this.elPrintBranchFirmsWrap = null;
@@ -472,7 +473,36 @@ export default class MainHeader {
       });
     });
 
-    const firmsBranch = mkSubmenuBranch("Firmenliste ▶", "firms");
+
+    const itemHeaderTest = mkPrintItem("Kopf-Test", async (state) => {
+      if (typeof window?.bbmPrint?.printPdf !== "function") {
+        alert("printPdf ist nicht verfuegbar (Preload/IPC fehlt).");
+        return;
+      }
+      const projectId = state.projectId || null;
+      const meetingId = state.currentMeetingId || state.openMeetingId || null;
+      if (!projectId) {
+        alert("Bitte zuerst ein Projekt auswaehlen.");
+        return;
+      }
+      if (!meetingId) {
+        alert("Bitte zuerst eine offene Besprechung in der TopsView laden.");
+        return;
+      }
+      const out = await window.bbmPrint.printPdf({
+        mode: "headerTest",
+        projectId,
+        meetingId,
+        targetDir: "C:\\Users\\Steffen\\Downloads\\bbm",
+        fileName: "Kopf-Test.pdf",
+      });
+      if (!out?.ok) {
+        alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
+        return;
+      }
+      alert(`Kopf-Test PDF erzeugt:\n${out.filePath || "(Pfad unbekannt)"}`);
+    });
+    const firmsBranch = mkSubmenuBranch("Firmenliste â–¶", "firms");
     const itemFirmsOpen = mkPrintItem("Offene Besprechung", async (state) => {
       if (!state.openMeetingId) return;
       if (typeof this.router?.openFirmsPrintPreview !== "function") return;
@@ -481,7 +511,7 @@ export default class MainHeader {
         meetingId: state.openMeetingId,
       });
     });
-    const itemFirmsClosed = mkPrintItem("Geschlossene Besprechung…", async (state) => {
+    const itemFirmsClosed = mkPrintItem("Geschlossene Besprechungâ€¦", async (state) => {
       if (typeof this.router?.openMeetingsForPrintSelection !== "function") return;
       await this.router.openMeetingsForPrintSelection({
         projectId: state.projectId,
@@ -490,7 +520,7 @@ export default class MainHeader {
     });
     firmsBranch.submenu.append(itemFirmsOpen, itemFirmsClosed);
 
-    const todoBranch = mkSubmenuBranch("ToDo-Liste ▶", "todo");
+    const todoBranch = mkSubmenuBranch("ToDo-Liste â–¶", "todo");
     const itemTodoOpen = mkPrintItem("Offene Besprechung", async (state) => {
       if (!state.openMeetingId) return;
       if (typeof this.router?.openTodoPrintPreview !== "function") return;
@@ -499,7 +529,7 @@ export default class MainHeader {
         meetingId: state.openMeetingId,
       });
     });
-    const itemTodoClosed = mkPrintItem("Geschlossene Besprechung…", async (state) => {
+    const itemTodoClosed = mkPrintItem("Geschlossene Besprechungâ€¦", async (state) => {
       if (typeof this.router?.openMeetingsForPrintSelection !== "function") return;
       await this.router.openMeetingsForPrintSelection({
         projectId: state.projectId,
@@ -513,7 +543,7 @@ export default class MainHeader {
       await this.router.showMeetings(state.projectId);
     });
 
-    printMenu.append(itemPreview, firmsBranch.wrap, todoBranch.wrap, itemMeetings);
+    printMenu.append(itemPreview, itemHeaderTest, firmsBranch.wrap, todoBranch.wrap, itemMeetings);
     printWrap.append(printBtn, printMenu);
 
     printBtn.onclick = async (e) => {
@@ -650,7 +680,7 @@ export default class MainHeader {
 
     const stickyNoticeClose = document.createElement("button");
     stickyNoticeClose.type = "button";
-    stickyNoticeClose.textContent = "Schließen";
+    stickyNoticeClose.textContent = "SchlieÃŸen";
     stickyNoticeClose.style.padding = "4px 8px";
     stickyNoticeClose.style.borderRadius = "8px";
     stickyNoticeClose.style.border = "1px solid #d9b94b";
@@ -705,6 +735,7 @@ export default class MainHeader {
     this.elPrintWrap = printWrap;
     this.elPrintMenu = printMenu;
     this.elPrintItemPreview = itemPreview;
+    this.elPrintItemHeaderTest = itemHeaderTest;
     this.elPrintBranchFirms = firmsBranch.trigger;
     this.elPrintBranchTodo = todoBranch.trigger;
     this.elPrintBranchFirmsWrap = firmsBranch.wrap;
@@ -847,7 +878,7 @@ export default class MainHeader {
     if (!this.elActive) return;
 
     const value = (val ?? "").toString().trim();
-    const shown = value || "—";
+    const shown = value || "â€”";
 
     // "aktiv:" 14/16 normal, Wert 16/18 600, Abstand 0,75cm
     this.elActive.textContent = "";
@@ -983,9 +1014,9 @@ export default class MainHeader {
         const sh = (p.short ?? "").toString().trim();
         const nm = (p.name ?? "").toString().trim();
 
-        // Ziel: Projektnummer – Kurzbez (Fallbacks siehe Spec)
+        // Ziel: Projektnummer â€“ Kurzbez (Fallbacks siehe Spec)
         let label = "";
-        if (pn && sh) label = `${pn} – ${sh}`;
+        if (pn && sh) label = `${pn} â€“ ${sh}`;
         else if (pn && !sh) label = pn;
         else if (!pn && sh) label = sh;
         else if (nm) label = nm;
@@ -1194,42 +1225,47 @@ export default class MainHeader {
     this._setMenuButtonEnabled(
       this.elPrintItemPreview,
       !!s.canPreviewProtocol,
-      "Nur in der TopsView mit geladener offener Besprechung verfügbar"
+      "Nur in der TopsView mit geladener offener Besprechung verfÃ¼gbar"
+    );
+    this._setMenuButtonEnabled(
+      this.elPrintItemHeaderTest,
+      !!s.canPreviewProtocol,
+      "Nur in der TopsView mit geladener offener Besprechung verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
       this.elPrintBranchFirms,
       hasProject,
-      "Nur mit aktivem Projekt verfügbar"
+      "Nur mit aktivem Projekt verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
       this.elPrintItemFirmsOpen,
       !!s.canOpenMeetingActions,
-      "Keine offene Besprechung verfügbar"
+      "Keine offene Besprechung verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
       this.elPrintItemFirmsClosed,
       !!s.canSelectClosedMeeting,
-      "Nur mit aktivem Projekt verfügbar"
+      "Nur mit aktivem Projekt verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
       this.elPrintBranchTodo,
       hasProject,
-      "Nur mit aktivem Projekt verfügbar"
+      "Nur mit aktivem Projekt verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
       this.elPrintItemTodoOpen,
       !!s.canOpenMeetingActions,
-      "Keine offene Besprechung verfügbar"
+      "Keine offene Besprechung verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
       this.elPrintItemTodoClosed,
       !!s.canSelectClosedMeeting,
-      "Nur mit aktivem Projekt verfügbar"
+      "Nur mit aktivem Projekt verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
       this.elPrintItemMeetings,
       !!s.canNavigateMeetings,
-      "Nur mit aktivem Projekt verfügbar"
+      "Nur mit aktivem Projekt verfÃ¼gbar"
     );
 
     if (!hasProject) {
@@ -1467,8 +1503,8 @@ export default class MainHeader {
   _applyHeaderActionState() {
     const hasProject = !!this.router?.currentProjectId;
     const hasMeeting = !!this.router?.currentMeetingId;
-    const projectDisabledTitle = "Nur mit aktivem Projekt verfügbar";
-    const participantsDisabledTitle = "Nur mit geöffneter Besprechung verfügbar";
+    const projectDisabledTitle = "Nur mit aktivem Projekt verfÃ¼gbar";
+    const participantsDisabledTitle = "Nur mit geÃ¶ffneter Besprechung verfÃ¼gbar";
     this._setMenuButtonEnabled(this.elActionProjectFirmsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionFirmsPoolBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionCandidatesBtn, hasProject, projectDisabledTitle);
@@ -1491,8 +1527,8 @@ export default class MainHeader {
       this.elSetupBtn.style.opacity = hasProject ? "1" : "0.55";
       this.elSetupBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
       this.elSetupBtn.title = hasProject
-        ? "Setup öffnen"
-        : "Nur mit aktivem Projekt verfügbar";
+        ? "Setup Ã¶ffnen"
+        : "Nur mit aktivem Projekt verfÃ¼gbar";
     }
     if (!hasProject || !visible) {
       this._setSetupOpen(false);
@@ -1506,8 +1542,8 @@ export default class MainHeader {
     this.elPrintBtn.style.opacity = hasProject ? "1" : "0.55";
     this.elPrintBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
     this.elPrintBtn.title = hasProject
-      ? "Drucken-Menü öffnen"
-      : "Nur mit aktivem Projekt verfügbar";
+      ? "Drucken-MenÃ¼ Ã¶ffnen"
+      : "Nur mit aktivem Projekt verfÃ¼gbar";
     if (!hasProject) this._setPrintOpen(false);
 
     const fallbackState = this._printMenuState || {

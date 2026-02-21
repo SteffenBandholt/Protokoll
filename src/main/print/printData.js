@@ -282,7 +282,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
   let firms = [];
   let todoRows = [];
 
-  if (mode === "preview" || mode === "protocol") {
+  if (mode === "preview" || mode === "protocol" || mode === "headerTest") {
     participants = _listMeetingParticipants(db, meetingId);
     tops = meetingId ? meetingTopsRepo.listJoinedByMeeting(meetingId) : [];
     tops = (tops || []).map(_mapTopRow);

@@ -1,5 +1,6 @@
 ﻿import { renderPrint } from "./layout/PrintShell.js";
 import { computeAmpelMapForTops } from "../../shared/ampel/pdfAmpelRule.js";
+import { renderHeaderTestPages } from "./headerTest/HeaderTestPages.js";
 
 const app = document.getElementById("app");
 
@@ -29,6 +30,7 @@ function _docLabel(mode) {
   if (mode === "topsAll") return "Top-Liste (alle)";
   if (mode === "firms") return "Firmenliste";
   if (mode === "todo") return "ToDo";
+  if (mode === "headerTest") return "Kopf-Test";
   return "Dokument";
 }
 
@@ -534,6 +536,14 @@ async function handleInit(payload) {
       try {
         await document.fonts.ready;
       } catch (_e) {}
+    }
+
+    if (data.mode === "headerTest") {
+      const root = renderHeaderTestPages({ data });
+      app.innerHTML = "";
+      app.appendChild(root);
+      window.bbmPrint.ready({ jobId: payload?.jobId || null, ok: true });
+      return;
     }
 
     const pages = _buildPages(data);
