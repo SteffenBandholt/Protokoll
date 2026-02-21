@@ -958,6 +958,11 @@ export default class TopsView {
     sel.innerHTML = "";
     this._respLegacyReadonly = false;
 
+    const optAll = document.createElement("option");
+    optAll.value = this._buildResponsibleOptionValue("all", "all");
+    optAll.textContent = "alle";
+    sel.appendChild(optAll);
+
     const optEmpty = document.createElement("option");
     optEmpty.value = "";
     optEmpty.textContent = "-";

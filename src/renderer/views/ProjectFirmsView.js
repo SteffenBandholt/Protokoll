@@ -5,6 +5,7 @@
 //
 // NEU:
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
+import { OVERLAY, OVERLAY_TOP } from "../ui/zIndex.js";
 import FirmsView from "./FirmsView.js";
 import { fireAndForget } from "../utils/async.js";
 // - Hauptscreen: 2 Spalten nebeneinander
@@ -157,6 +158,7 @@ export default class ProjectFirmsView {
 
     // global main (right column)
     this.globalAssignedBodyEl = null;
+    this.btnGlobalAssign = null;
 
     this.isNewUi = this._readUiMode() === "new";
 
@@ -185,8 +187,17 @@ export default class ProjectFirmsView {
         return this._hasFirmSelectedSaved() ? this.selectedFirmId : "";
       },
       onImportRefresh: async () => {
-        await this.reloadFirms();
-        await this.reloadGlobalAssignments();
+        try {
+          await this.reloadFirms();
+          await this.reloadGlobalAssignments();
+        } finally {
+          this.savingFirm = false;
+          this.savingPerson = false;
+          this.savingGlobalAssign = false;
+          this._applyFirmFormState();
+          this._applyPersonFormState();
+          this._applyGlobalAssignState();
+        }
       },
     });
   }
@@ -667,7 +678,6 @@ const taFirmNotes = document.createElement("textarea");
 
     localCol.append(listWrap);
 
-
     const detailCol = document.createElement("div");
     detailCol.style.display = "flex";
     detailCol.style.flexDirection = "column";
@@ -685,7 +695,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "none";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "9999";
+    overlay.style.zIndex = String(OVERLAY);
     overlay.tabIndex = -1;
     overlay.onclick = (e) => {
       if (e.target === overlay) this._closeGlobalAssignModal();
@@ -829,7 +839,7 @@ const taFirmNotes = document.createElement("textarea");
     localFirmOverlay.style.display = "none";
     localFirmOverlay.style.alignItems = "center";
     localFirmOverlay.style.justifyContent = "center";
-    localFirmOverlay.style.zIndex = "10000";
+    localFirmOverlay.style.zIndex = String(OVERLAY_TOP);
     localFirmOverlay.onclick = (e) => {
       if (e.target === localFirmOverlay) this._closeLocalFirmCreateModal();
     };
@@ -992,7 +1002,7 @@ const taFirmNotes = document.createElement("textarea");
     localPersonOverlay.style.display = "none";
     localPersonOverlay.style.alignItems = "center";
     localPersonOverlay.style.justifyContent = "center";
-    localPersonOverlay.style.zIndex = "10000";
+    localPersonOverlay.style.zIndex = String(OVERLAY_TOP);
     localPersonOverlay.onclick = (e) => {
       if (e.target === localPersonOverlay) this._closeLocalPersonCreateModal();
     };
@@ -3142,6 +3152,12 @@ const taFirmNotes = document.createElement("textarea");
     this._ensureProjectId();
     const hasProject = !!this.projectId;
     const ro = this._isReadOnly();
+
+    if (this.btnGlobalAssign) {
+      const canAssign = hasProject && !ro && !isSaving;
+      this.btnGlobalAssign.disabled = !canAssign;
+      this.btnGlobalAssign.style.opacity = canAssign ? "1" : "0.55";
+    }
 
     // Modal Controls (wenn offen)
     const modalOpen = !!this.globalAssignOpen && !!this.globalAssignOverlayEl;

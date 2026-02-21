@@ -3,6 +3,7 @@
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
 //
+import { HEADER, POPOVER_MENU } from "./zIndex.js";
 
 export default class MainHeader {
   constructor({ router, version = "1.0", sidebarWidth = 220, padding = 12 } = {}) {
@@ -100,7 +101,7 @@ export default class MainHeader {
     root.style.color = "var(--header-text)";
     root.style.position = "sticky";
     root.style.top = "0";
-    root.style.zIndex = "12010";
+    root.style.zIndex = String(HEADER);
     if (this._isNewUi) {
       root.style.setProperty("--header-action-underline", "2.5px");
       root.style.setProperty("--header-action-baseline-offset", "10px");
@@ -264,7 +265,7 @@ export default class MainHeader {
     setupMenu.style.borderRadius = "8px";
     setupMenu.style.background = "var(--card-bg)";
     setupMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-    setupMenu.style.zIndex = "12001";
+    setupMenu.style.zIndex = String(POPOVER_MENU);
 
     const runSetupAction = async (fn) => {
       this._setSetupOpen(false);
@@ -313,8 +314,16 @@ export default class MainHeader {
       await this.router.showFirmsPool(projectId);
     });
     const itemCandidates = mkSetupItem("Personalpool", async (projectId) => {
-      if (typeof this.router?.openCandidatesModal !== "function") return;
-      await this.router.openCandidatesModal({ projectId });
+      if (typeof this.router?.openCandidatesModal !== "function") {
+        alert("Personalpool ist nicht verfÃ¼gbar.");
+        return;
+      }
+      try {
+        await this.router.openCandidatesModal({ projectId });
+      } catch (err) {
+        console.error("[header] setup Personalpool failed:", err);
+        alert("Personalpool konnte nicht geÃ¶ffnet werden.");
+      }
     });
     setupMenu.append(itemProjectFirms, itemFirmsPool, itemCandidates);
 
@@ -364,7 +373,7 @@ export default class MainHeader {
     printMenu.style.borderRadius = "8px";
     printMenu.style.background = "var(--card-bg)";
     printMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-    printMenu.style.zIndex = "12001";
+    printMenu.style.zIndex = String(POPOVER_MENU);
 
     const mkPrintItem = (label, onPick) => {
       const item = document.createElement("button");
@@ -450,7 +459,7 @@ export default class MainHeader {
       submenu.style.borderRadius = "8px";
       submenu.style.background = "var(--card-bg)";
       submenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-      submenu.style.zIndex = "12002";
+      submenu.style.zIndex = String(POPOVER_MENU);
 
       wrap.addEventListener("pointerenter", () => {
         if (!this._printOpen || trigger.disabled) return;
@@ -628,11 +637,15 @@ export default class MainHeader {
       this._setPrintOpen(false);
       try {
         await runProjectAction(async (projectId) => {
-          if (typeof this.router?.openCandidatesModal !== "function") return;
+          if (typeof this.router?.openCandidatesModal !== "function") {
+            alert("Personalpool ist nicht verfÃ¼gbar.");
+            return;
+          }
           await this.router.openCandidatesModal({ projectId });
         });
       } catch (err) {
         console.error("[header] action Personalpool failed:", err);
+        alert("Personalpool konnte nicht geÃ¶ffnet werden.");
       }
     };
 

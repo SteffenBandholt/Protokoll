@@ -24,6 +24,7 @@ export default class FirmsPoolView {
     this.leftErrorEl = null;
     this.rightErrorEl = null;
     this.btnDeleteFirmEl = null;
+    this.btnAssignGlobalEl = null;
 
     this.firms = [];
     this.selectedFirmKey = null;
@@ -126,7 +127,7 @@ export default class FirmsPoolView {
   }
 
   _selectedFirmMeta() {
-    if (!this.selectedFirm) return "Bitte links eine Firma auswählen.";
+    if (!this.selectedFirm) return "Bitte links eine Firma ausw\u00e4hlen.";
     const isGlobal = this.selectedFirm.kind === "global_firm";
     return isGlobal ? "Kategorie: Firmenstamm" : "Kategorie: Projektfirma";
   }
@@ -192,7 +193,7 @@ export default class FirmsPoolView {
 
     const selected = this.selectedFirm;
     if (!selected) {
-      btn.title = "Bitte zuerst eine Projektfirma auswählen.";
+      btn.title = "Bitte zuerst eine Projektfirma ausw\u00e4hlen.";
       return;
     }
     if (selected.kind !== "project_firm") {
@@ -208,12 +209,19 @@ export default class FirmsPoolView {
       return;
     }
     btn.title = "";
+
+    const btnAssign = this.btnAssignGlobalEl;
+    if (btnAssign) {
+      const canAssign = !!this.projectId && !this.deletingFirm && !this.loadingFirms;
+      btnAssign.disabled = !canAssign;
+      btnAssign.style.opacity = canAssign ? "1" : "0.55";
+    }
   }
 
   async _deleteSelectedFirm() {
     const selected = this.selectedFirm;
     if (!selected) {
-      alert("Bitte zuerst eine Projektfirma auswählen.");
+      alert("Bitte zuerst eine Projektfirma ausw\u00e4hlen.");
       return;
     }
     if (selected.kind !== "project_firm") {
@@ -228,7 +236,7 @@ export default class FirmsPoolView {
 
     const api = window.bbmDb || {};
     if (typeof api.projectFirmsDelete !== "function") {
-      alert("Löschen ist nicht verfügbar (Preload/IPC fehlt).");
+      alert("Löschen ist nicht verf\u00fcgbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -323,13 +331,20 @@ export default class FirmsPoolView {
     root.style.minHeight = "0";
 
     const head = document.createElement("div");
-    head.style.display = "flex";
+    head.style.display = "grid";
+    head.style.gridTemplateColumns = "1fr 1fr";
     head.style.alignItems = "center";
-    head.style.gap = "10px";
+    head.style.columnGap = "12px";
 
     const title = document.createElement("h2");
     title.textContent = "Firmenpool";
     title.style.margin = "0";
+
+    const headLeft = document.createElement("div");
+    headLeft.style.display = "flex";
+    headLeft.style.alignItems = "center";
+    headLeft.style.gap = "8px";
+    headLeft.append(title);
 
     const btnClose = document.createElement("button");
     btnClose.type = "button";
@@ -350,7 +365,7 @@ export default class FirmsPoolView {
     headActions.style.marginLeft = "auto";
     headActions.append(btnClose, msg);
 
-    head.append(title, headActions);
+    head.append(headLeft, headActions);
 
     const grid = document.createElement("div");
     grid.style.display = "grid";
@@ -386,6 +401,35 @@ export default class FirmsPoolView {
     leftActions.style.display = "flex";
     leftActions.style.alignItems = "center";
     leftActions.style.gap = "8px";
+
+    const btnAssignGlobal = document.createElement("button");
+    btnAssignGlobal.textContent = "Firma (extern) zuordnen";
+    applyPopupButtonStyle(btnAssignGlobal);
+    btnAssignGlobal.onclick = async () => {
+      this._ensureProjectId();
+      if (!this.projectId) {
+        alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+        return;
+      }
+      if (typeof this.router?.showProjectFirms !== "function") {
+        alert("Projektfirmen sind nicht verf\u00fcgbar.");
+        return;
+      }
+      try {
+        await this.router.showProjectFirms(this.projectId);
+        const view = this.router?.currentView || null;
+        if (view && typeof view._openGlobalAssignModal === "function") {
+          await view._openGlobalAssignModal();
+        } else {
+          alert("Zuordnen-Dialog konnte nicht ge\u00f6ffnet werden.");
+        }
+      } catch (err) {
+        console.error("[FirmsPoolView] open global assign failed:", err);
+        alert("Zuordnen fehlgeschlagen.");
+      }
+    };
+    btnAssignGlobal.style.marginLeft = "auto";
+    headLeft.append(btnAssignGlobal);
 
     const btnDeleteFirm = document.createElement("button");
     btnDeleteFirm.textContent = "Löschen";
@@ -463,7 +507,7 @@ export default class FirmsPoolView {
     rightHead.append(rightTitle);
 
     const rightMeta = document.createElement("div");
-    rightMeta.textContent = "Bitte links eine Firma auswählen.";
+    rightMeta.textContent = "Bitte links eine Firma ausw\u00e4hlen.";
     rightMeta.style.fontSize = "12px";
     rightMeta.style.opacity = "0.8";
     rightMeta.style.marginBottom = "8px";
@@ -519,6 +563,7 @@ export default class FirmsPoolView {
     this.leftErrorEl = leftError;
     this.rightErrorEl = rightError;
     this.btnDeleteFirmEl = btnDeleteFirm;
+    this.btnAssignGlobalEl = btnAssignGlobal;
 
     this._applyDeleteFirmButtonState();
 
@@ -528,7 +573,7 @@ export default class FirmsPoolView {
   async load() {
     this._ensureProjectId();
     if (!this.projectId) {
-      this._setMsg("Bitte zuerst ein Projekt auswählen.");
+      this._setMsg("Bitte zuerst ein Projekt ausw\u00e4hlen.");
       this.firms = [];
       this.selectedFirmKey = null;
       this.selectedFirm = null;
@@ -550,7 +595,7 @@ export default class FirmsPoolView {
       const api = window.bbmDb || {};
       if (typeof api.projectFirmsListFirmCandidatesByProject !== "function") {
         this.firms = [];
-        this._setLeftError("API projectFirmsListFirmCandidatesByProject ist nicht verfügbar.");
+        this._setLeftError("API projectFirmsListFirmCandidatesByProject ist nicht verf\u00fcgbar.");
         return;
       }
 
@@ -624,8 +669,8 @@ export default class FirmsPoolView {
     if ((isGlobal && !canUpdateGlobal) || (!isGlobal && !canUpdateProject)) {
       alert(
         isGlobal
-          ? "Bearbeiten nicht verfügbar (personsUpdate fehlt)."
-          : "Bearbeiten nicht verfügbar (projectPersonsUpdate fehlt)."
+          ? "Bearbeiten nicht verf\u00fcgbar (personsUpdate fehlt)."
+          : "Bearbeiten nicht verf\u00fcgbar (projectPersonsUpdate fehlt)."
       );
       return;
     }
@@ -796,7 +841,7 @@ export default class FirmsPoolView {
       this._notifyPoolDataChanged("person-candidate-active-changed");
       return true;
     } else {
-      this._setRightError("API projectCandidatesSetActive ist nicht verfügbar.");
+      this._setRightError("API projectCandidatesSetActive ist nicht verf\u00fcgbar.");
       return false;
     }
 
@@ -825,13 +870,13 @@ export default class FirmsPoolView {
       let res = null;
       if (this.selectedFirm.kind === "project_firm") {
         if (typeof api.projectPersonsListByProjectFirm !== "function") {
-          this._setRightError("API projectPersonsListByProjectFirm ist nicht verfügbar.");
+          this._setRightError("API projectPersonsListByProjectFirm ist nicht verf\u00fcgbar.");
           return;
         }
         res = await api.projectPersonsListByProjectFirm(this.selectedFirm.id);
       } else {
         if (typeof api.personsListByFirm !== "function") {
-          this._setRightError("API personsListByFirm ist nicht verfügbar.");
+          this._setRightError("API personsListByFirm ist nicht verf\u00fcgbar.");
           return;
         }
         res = await api.personsListByFirm(this.selectedFirm.id);
@@ -961,7 +1006,7 @@ export default class FirmsPoolView {
       td.colSpan = 4;
       td.style.padding = "10px";
       td.style.opacity = "0.75";
-      td.textContent = "Bitte links eine Firma auswählen.";
+      td.textContent = "Bitte links eine Firma ausw\u00e4hlen.";
       tr.appendChild(td);
       tb.appendChild(tr);
       return;

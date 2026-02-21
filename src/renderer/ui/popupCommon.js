@@ -1,8 +1,9 @@
 import { applyPopupCardStyle } from "./popupButtonStyles.js";
+import { OVERLAY } from "./zIndex.js";
 
 const CLOSE_HANDLERS = Symbol("bbm.popup.closeHandlers");
 
-export function createPopupOverlay({ background = "rgba(0,0,0,0.25)", zIndex = 9999 } = {}) {
+export function createPopupOverlay({ background = "rgba(0,0,0,0.25)", zIndex = OVERLAY } = {}) {
   const overlay = document.createElement("div");
   overlay.style.position = "fixed";
   overlay.style.left = "0";

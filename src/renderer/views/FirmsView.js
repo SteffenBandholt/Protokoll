@@ -1,8 +1,9 @@
-// TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
+﻿// TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
 // src/renderer/views/FirmsView.js
 
 import { applyPopupButtonStyle } from "../ui/popupButtonStyles.js";
+import { OVERLAY, OVERLAY_TOP } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 //
 // GLOBAL Firmen (Stamm) + GLOBAL Mitarbeiter (Persons) je Firma
@@ -807,7 +808,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "none";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "10005";
+    overlay.style.zIndex = String(OVERLAY);
     overlay.tabIndex = -1;
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) this._closeFirmEditor();
@@ -907,7 +908,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "none";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "10006";
+    overlay.style.zIndex = String(OVERLAY_TOP);
     overlay.tabIndex = -1;
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) this._closePersonEditor();
@@ -1500,6 +1501,7 @@ const taFirmNotes = document.createElement("textarea");
       this.btnDeleteFirm.style.opacity = canDelete ? "1" : "0.55";
     }
 
+
     if (this.btnNewPerson) {
       const canNewPerson = !isSaving && this._hasFirmSelectedSaved();
       this.btnNewPerson.disabled = !canNewPerson;
@@ -1587,7 +1589,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "none";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "10001";
+    overlay.style.zIndex = String(OVERLAY);
     overlay.tabIndex = -1;
     overlay.addEventListener("mousedown", (e) => {
       if (e.target === overlay) this._closeImportModal();
@@ -1868,48 +1870,60 @@ const taFirmNotes = document.createElement("textarea");
     const btnImport = document.createElement("button");
     btnImport.textContent = "Importieren";
     btnImport.onclick = async () => {
+      if (this.savingFirm || this.savingPerson) return;
       const api = window.bbmDb || {};
       if (typeof api.firmsImportApplyStaging !== "function") {
         alert("Import ist nicht verfügbar (Preload/IPC fehlt).");
         return;
       }
-      const ctxPayload = this._getImportContextPayload();
-      if (ctxPayload.context === "projekt" && !ctxPayload.projectId) {
-        alert("Bitte zuerst ein Projekt auswählen.");
-        return;
-      }
-      const res = await api.firmsImportApplyStaging({
-        items: this.importItems || [],
-        filePath: this.importSourceFilePath,
-        includePersonsFromCsv: 1,
-        ...ctxPayload,
-      });
-      if (!res?.ok) {
-        alert(res?.error || "Import fehlgeschlagen");
-        return;
-      }
-      const s = res.summary || {};
-      const p = res.personsSummary || null;
-      let msg =
-        `Import Firmen abgeschlossen:\n` +
-        `${s.created || 0} neu\n` +
-        `${s.merged || 0} gemerged\n` +
-        `${s.skipped || 0} übersprungen`;
-      if (p) {
-        msg +=
-          `\n\nImport Kontakte (gleiche CSV):\n` +
-          `${p.created || 0} neu\n` +
-          `${p.merged || 0} überschrieben\n` +
-          `${p.skipped || 0} übersprungen\n` +
-          `${p.missingFirm || 0} ohne gültige Firma\n` +
-          `${p.duplicate || 0} Dubletten erkannt`;
-        if (Number(p.autoSkippedConflicts || 0) > 0) {
-          msg += `\n${p.autoSkippedConflicts} Dubletten automatisch nicht überschrieben`;
+      this.savingFirm = true;
+      this.savingPerson = true;
+      this._applyFirmFormState();
+      this._applyPersonFormState();
+      try {
+        const ctxPayload = this._getImportContextPayload();
+        if (ctxPayload.context === "projekt" && !ctxPayload.projectId) {
+          alert("Bitte zuerst ein Projekt auswählen.");
+          return;
         }
+        const res = await api.firmsImportApplyStaging({
+          items: this.importItems || [],
+          filePath: this.importSourceFilePath,
+          includePersonsFromCsv: 1,
+          ...ctxPayload,
+        });
+        if (!res?.ok) {
+          alert(res?.error || "Import fehlgeschlagen");
+          return;
+        }
+        const s = res.summary || {};
+        const p = res.personsSummary || null;
+        let msg =
+          `Import Firmen abgeschlossen:\n` +
+          `${s.created || 0} neu\n` +
+          `${s.merged || 0} gemerged\n` +
+          `${s.skipped || 0} übersprungen`;
+        if (p) {
+          msg +=
+            `\n\nImport Kontakte (gleiche CSV):\n` +
+            `${p.created || 0} neu\n` +
+            `${p.merged || 0} überschrieben\n` +
+            `${p.skipped || 0} übersprungen\n` +
+            `${p.missingFirm || 0} ohne gültige Firma\n` +
+            `${p.duplicate || 0} Dubletten erkannt`;
+          if (Number(p.autoSkippedConflicts || 0) > 0) {
+            msg += `\n${p.autoSkippedConflicts} Dubletten automatisch nicht überschrieben`;
+          }
+        }
+        alert(msg);
+        this._closeImportModal();
+        await this._refreshAfterImport();
+      } finally {
+        this.savingFirm = false;
+        this.savingPerson = false;
+        this._applyFirmFormState();
+        this._applyPersonFormState();
       }
-      alert(msg);
-      this._closeImportModal();
-      await this._refreshAfterImport();
     };
 
     const btnClose = document.createElement("button");
@@ -1978,6 +1992,7 @@ const taFirmNotes = document.createElement("textarea");
     this._renderImportRows();
     this._renderImportDetail();
     if (this.importModalRoot) {
+      this.importModalRoot.style.pointerEvents = "auto";
       this.importModalRoot.style.display = "flex";
       try {
         this.importModalRoot.focus();
@@ -2200,7 +2215,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "flex";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "10005";
+    overlay.style.zIndex = String(OVERLAY_TOP);
     overlay.tabIndex = -1;
     overlay.addEventListener("mousedown", (event) => {
       if (event.target === overlay) this._closeImportDetailPopup();
@@ -2588,7 +2603,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "flex";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "10007";
+    overlay.style.zIndex = String(OVERLAY_TOP);
     overlay.tabIndex = -1;
     overlay.addEventListener("mousedown", (e) => {
       if (e.target === overlay) this._closePersonImportNewFirmPopup();
@@ -2759,7 +2774,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "none";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "10001";
+    overlay.style.zIndex = String(OVERLAY);
     overlay.tabIndex = -1;
     overlay.addEventListener("mousedown", (e) => {
       if (e.target === overlay) this._closePersonImportModal();
@@ -3088,41 +3103,53 @@ const taFirmNotes = document.createElement("textarea");
     const btnImport = document.createElement("button");
     btnImport.textContent = "Importieren";
     btnImport.onclick = async () => {
+      if (this.savingFirm || this.savingPerson) return;
       const api = window.bbmDb || {};
       if (typeof api.personsImportApplyStaging !== "function") {
         alert("Import ist nicht verfügbar (Preload/IPC fehlt).");
         return;
       }
-      const activeItems = (this.personImportItems || []).filter((it) => Number(it?.take || 0) === 1);
-      const unresolved = activeItems.filter((it) => this._personImportNeedsDecision(it));
-      if (unresolved.length > 0) {
-        this.personImportSelectedRowId = unresolved[0].row_id;
-        this._renderPersonImportRows();
-        this._renderPersonImportDetail();
+      this.savingFirm = true;
+      this.savingPerson = true;
+      this._applyFirmFormState();
+      this._applyPersonFormState();
+      try {
+        const activeItems = (this.personImportItems || []).filter((it) => Number(it?.take || 0) === 1);
+        const unresolved = activeItems.filter((it) => this._personImportNeedsDecision(it));
+        if (unresolved.length > 0) {
+          this.personImportSelectedRowId = unresolved[0].row_id;
+          this._renderPersonImportRows();
+          this._renderPersonImportDetail();
+          alert(
+            `Bitte Dubletten prüfen: ${unresolved.length} Kontakt(e) benötigen eine Entscheidung (Überschreiben/Nicht überschreiben).`
+          );
+          return;
+        }
+        const ctxPayload = this._getImportContextPayload();
+        if (ctxPayload.context === "projekt" && !ctxPayload.projectId) {
+          alert("Bitte zuerst ein Projekt auswählen.");
+          return;
+        }
+        const res = await api.personsImportApplyStaging({
+          items: activeItems,
+          ...ctxPayload,
+        });
+        if (!res?.ok) {
+          alert(res?.error || "Import fehlgeschlagen");
+          return;
+        }
+        const s = res.summary || {};
         alert(
-          `Bitte Dubletten prüfen: ${unresolved.length} Kontakt(e) benötigen eine Entscheidung (Überschreiben/Nicht überschreiben).`
+          `Import abgeschlossen:\n${s.created || 0} neu\n${s.merged || 0} gemerged\n${s.skipped || 0} übersprungen`
         );
-        return;
+        this._closePersonImportModal();
+        await this._refreshAfterImport();
+      } finally {
+        this.savingFirm = false;
+        this.savingPerson = false;
+        this._applyFirmFormState();
+        this._applyPersonFormState();
       }
-      const ctxPayload = this._getImportContextPayload();
-      if (ctxPayload.context === "projekt" && !ctxPayload.projectId) {
-        alert("Bitte zuerst ein Projekt auswählen.");
-        return;
-      }
-      const res = await api.personsImportApplyStaging({
-        items: activeItems,
-        ...ctxPayload,
-      });
-      if (!res?.ok) {
-        alert(res?.error || "Import fehlgeschlagen");
-        return;
-      }
-      const s = res.summary || {};
-      alert(
-        `Import abgeschlossen:\n${s.created || 0} neu\n${s.merged || 0} gemerged\n${s.skipped || 0} übersprungen`
-      );
-      this._closePersonImportModal();
-      await this._refreshAfterImport();
     };
 
     const btnClose = document.createElement("button");
@@ -3549,7 +3576,7 @@ const taFirmNotes = document.createElement("textarea");
     overlay.style.display = "flex";
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "10008";
+    overlay.style.zIndex = String(OVERLAY_TOP);
     overlay.tabIndex = -1;
     overlay.addEventListener("mousedown", (event) => {
       if (event.target === overlay) this._closePersonImportDetailPopup();
@@ -3746,7 +3773,7 @@ const taFirmNotes = document.createElement("textarea");
       createOverlay.style.display = "flex";
       createOverlay.style.alignItems = "center";
       createOverlay.style.justifyContent = "center";
-      createOverlay.style.zIndex = "10009";
+      createOverlay.style.zIndex = String(OVERLAY_TOP);
       createOverlay.tabIndex = -1;
       createOverlay.addEventListener("mousedown", (event) => {
         if (event.target === createOverlay) closeCreateFirmPopup();
