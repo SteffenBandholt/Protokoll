@@ -1,0 +1,5 @@
+﻿WORKLOG.txt
+==========
+
+Kurzlog (für schnellen Überblick)
+
