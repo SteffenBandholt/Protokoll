@@ -16,6 +16,7 @@ const { registerProjectFirmsIpc } = require("./ipc/projectFirmsIpc");
 const { registerParticipantsIpc } = require("./ipc/participantsIpc");
 const { registerPrintIpc } = require("./ipc/printIpc");
 const { registerSettingsIpc } = require("./ipc/settingsIpc");
+const { registerEditorIpc } = require("./ipc/editorIpc");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -167,6 +168,7 @@ app.whenReady().then(async () => {
   registerParticipantsIpc();
   registerPrintIpc();
   registerSettingsIpc();
+  registerEditorIpc({ getMainWindow: () => mainWindow });
 
   // ✅ App beenden (ohne Confirm) – über IPC
   ipcMain.handle("app:quit", () => {

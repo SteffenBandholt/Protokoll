@@ -2234,13 +2234,53 @@ const taFirmNotes = document.createElement("textarea");
     this._applyLocalCreateModalState();
   }
 
-  _openLocalFirmEditModal(firm) {
+  async _openEditorWindow(payload, onSaved) {
+    if (typeof window.bbmDb?.editorOpen !== "function") return false;
+    try {
+      const res = await window.bbmDb.editorOpen(payload);
+      if (res?.status === "saved" && typeof onSaved === "function") {
+        await onSaved(res?.data || {});
+      }
+      return true;
+    } catch (err) {
+      console.error("[ProjectFirmsView] editorOpen failed:", err);
+      alert("Editor-Fenster konnte nicht geöffnet werden.");
+      return true;
+    }
+  }
+
+  async _openLocalFirmEditModal(firm) {
     if (this._isReadOnly()) return;
     if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
     if (!firm || !firm.id) return;
     if (!this.localFirmOverlayEl) return;
 
     this.router?.cleanupTransientOverlays?.();
+
+    const usedEditor = await this._openEditorWindow(
+      {
+        kind: "firm",
+        title: "Firma bearbeiten",
+        firm: {
+          id: firm.id,
+          short: firm.short || "",
+          name: firm.name || "",
+          name2: firm.name2 || "",
+          street: firm.street || "",
+          zip: firm.zip || "",
+          city: firm.city || "",
+          phone: firm.phone || "",
+          email: firm.email || "",
+          gewerk: firm.gewerk || "",
+          role_code: firm.role_code || "",
+          notes: firm.notes || "",
+        },
+      },
+      async (data) => {
+        await this._saveLocalFirmFromEditor(firm.id, data);
+      }
+    );
+    if (usedEditor) return;
 
     this.localFirmModalMode = "edit";
     this.localFirmEditId = firm.id;
@@ -2317,7 +2357,7 @@ const taFirmNotes = document.createElement("textarea");
     this._applyLocalCreateModalState();
   }
 
-  _openLocalPersonEditModal(person) {
+  async _openLocalPersonEditModal(person) {
     if (this._isReadOnly()) return;
     if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
     if (!this._hasFirmSelectedSaved()) return;
@@ -2325,6 +2365,29 @@ const taFirmNotes = document.createElement("textarea");
     if (!this.localPersonOverlayEl) return;
 
     this.router?.cleanupTransientOverlays?.();
+
+    const usedEditor = await this._openEditorWindow(
+      {
+        kind: "person",
+        title: "Mitarbeiter bearbeiten",
+        subtitle: this.selectedFirm?.name || "",
+        person: {
+          id: person.id,
+          firstName: person.first_name || "",
+          lastName: person.last_name || "",
+          funktion: person.phone || "",
+          phone: person.phone || "",
+          email: person.email || "",
+          rolle: person.rolle || "",
+          notes: person.notes || "",
+          firmName: this.selectedFirm?.name || "",
+        },
+      },
+      async (data) => {
+        await this._saveLocalPersonFromEditor(person.id, data);
+      }
+    );
+    if (usedEditor) return;
 
     this.localPersonModalMode = "edit";
     this.localPersonEditId = person.id;
@@ -2494,6 +2557,107 @@ const taFirmNotes = document.createElement("textarea");
     }
   }
 
+  async _saveLocalFirmFromEditor(firmId, data) {
+    if (this._isReadOnly()) return;
+    if (this.savingFirm) return;
+    this._ensureProjectId();
+    if (!this.projectId || !firmId) return;
+
+    const name = String(data?.name || "").trim();
+    if (!name) {
+      alert("Name 1 ist Pflicht.");
+      return;
+    }
+
+    if (this.isNewUi) {
+      const duplicate = this._findLocalFirmNameDuplicate(name, { excludeId: firmId });
+      if (duplicate) {
+        alert("Firma bereits vorhanden (Duplikat Name).");
+        return;
+      }
+    }
+
+    const payload = {
+      short: String(data?.short || "").trim(),
+      name,
+      name2: String(data?.name2 || "").trim(),
+      street: String(data?.street || "").trim(),
+      zip: String(data?.zip || "").trim(),
+      city: String(data?.city || "").trim(),
+      phone: String(data?.phone || "").trim(),
+      email: String(data?.email || "").trim(),
+      gewerk: String(data?.gewerk || "").trim(),
+      role_code: String(data?.role_code || "60").toString(),
+      notes: String(data?.notes || "").trim(),
+    };
+
+    let success = false;
+    let setupChanged = false;
+    let reloadFirmsAfter = false;
+    let reloadGlobalAfter = false;
+    let reloadPersonsAfter = false;
+    this.savingFirm = true;
+    this._setMsg("Speichere Firma...");
+    this._applyFirmFormState();
+    this._applyPersonFormState();
+    this._applyGlobalAssignState();
+    this._applyLocalCreateModalState();
+    try {
+      const res = await window.bbmDb.projectFirmsUpdate({
+        projectFirmId: firmId,
+        patch: {
+          short: payload.short,
+          name: payload.name,
+          name2: payload.name2,
+          street: payload.street,
+          zip: payload.zip,
+          city: payload.city,
+          phone: payload.phone,
+          email: payload.email,
+          gewerk: payload.gewerk,
+          role_code: payload.role_code,
+          notes: payload.notes,
+        },
+      });
+      if (!res?.ok) {
+        alert(res?.error || "Fehler beim Speichern.");
+        return;
+      }
+      reloadFirmsAfter = true;
+      reloadPersonsAfter = true;
+      this.firmMode = "edit";
+      this._selectFirm(firmId);
+      this._setMsg("Firma wurde gespeichert.");
+      reloadGlobalAfter = true;
+      setupChanged = true;
+      success = true;
+      this._renderFirmsOnly();
+      this._renderFirmDetails();
+      this._applyFirmFormState();
+      this._applyPersonFormState();
+      this._updateVisibility();
+    } finally {
+      this.savingFirm = false;
+      if (!success) this._setMsg("");
+      this._applyFirmFormState();
+      this._applyPersonFormState();
+      this._applyGlobalAssignState();
+      this._applyLocalCreateModalState();
+      if (setupChanged) this._notifyPoolDataChanged("local-firm-saved");
+    }
+
+    if (reloadFirmsAfter || reloadPersonsAfter || reloadGlobalAfter) {
+      fireAndForget(
+        async () => {
+          if (reloadFirmsAfter) await this.reloadFirms();
+          if (reloadPersonsAfter && this.selectedFirmId) await this._reloadPersons();
+          if (reloadGlobalAfter) await this.reloadGlobalAssignments();
+        },
+        "ProjectFirmsView reload after saveLocalFirmFromEditor"
+      );
+    }
+  }
+
   async _saveLocalPersonModal() {
     if (this._isReadOnly()) return;
     if (this.savingPerson) return;
@@ -2586,6 +2750,77 @@ const taFirmNotes = document.createElement("textarea");
           if (reloadGlobalAfter) await this.reloadGlobalAssignments();
         },
         "ProjectFirmsView reload after saveLocalPersonModal"
+      );
+    }
+  }
+
+  async _saveLocalPersonFromEditor(personId, data) {
+    if (this._isReadOnly()) return;
+    if (this.savingPerson) return;
+    if (!this._hasFirmSelectedSaved()) return;
+    if (!personId) return;
+
+    const firstName = String(data?.firstName || "").trim();
+    const lastName = String(data?.lastName || "").trim();
+    if (!firstName && !lastName) {
+      alert("Vorname oder Nachname ist Pflicht.");
+      return;
+    }
+
+    let success = false;
+    let setupChanged = false;
+    let reloadPersonsAfter = false;
+    let reloadFirmsAfter = false;
+    let reloadGlobalAfter = false;
+    this.savingPerson = true;
+    this._setMsg("Speichere Mitarbeiter...");
+    this._applyFirmFormState();
+    this._applyPersonFormState();
+    this._applyGlobalAssignState();
+    this._applyLocalCreateModalState();
+    try {
+      const res = await window.bbmDb.projectPersonsUpdate({
+        projectPersonId: personId,
+        patch: {
+          first_name: firstName,
+          last_name: lastName,
+          phone: String(data?.phone || data?.funktion || "").trim(),
+          email: String(data?.email || "").trim(),
+          rolle: String(data?.rolle || "").trim(),
+          notes: String(data?.notes || "").trim(),
+        },
+      });
+      if (!res?.ok) {
+        alert(res?.error || "Fehler beim Speichern.");
+        return;
+      }
+      reloadPersonsAfter = true;
+      reloadFirmsAfter = true;
+      reloadGlobalAfter = true;
+      setupChanged = true;
+      success = true;
+      this._renderPersonsOnly();
+      this._applyPersonFormState();
+      this._updateVisibility();
+      this._setMsg("Mitarbeiter wurde gespeichert.");
+    } finally {
+      this.savingPerson = false;
+      if (!success) this._setMsg("");
+      this._applyFirmFormState();
+      this._applyPersonFormState();
+      this._applyGlobalAssignState();
+      this._applyLocalCreateModalState();
+      if (setupChanged) this._notifyPoolDataChanged("local-person-saved");
+    }
+
+    if (reloadPersonsAfter || reloadFirmsAfter || reloadGlobalAfter) {
+      fireAndForget(
+        async () => {
+          if (reloadPersonsAfter && this.selectedFirmId) await this._reloadPersons();
+          if (reloadFirmsAfter) await this.reloadFirms();
+          if (reloadGlobalAfter) await this.reloadGlobalAssignments();
+        },
+        "ProjectFirmsView reload after saveLocalPersonFromEditor"
       );
     }
   }

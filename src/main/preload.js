@@ -149,6 +149,13 @@ contextBridge.exposeInMainWorld("bbmDb", {
   personsImportApplyStaging: (data) => ipcRenderer.invoke("persons:importApplyStaging", data),
 
   // ============================================================
+  // Editor (separates Bearbeiten-Fenster)
+  // ============================================================
+  editorOpen: (data) => ipcRenderer.invoke("editor:open", data),
+  editorGetInit: () => ipcRenderer.invoke("editor:getInit"),
+  editorDone: (data) => ipcRenderer.invoke("editor:done", data),
+
+  // ============================================================
   // Nutzerdaten (DB)
   // ============================================================
   userProfileGet: () => ipcRenderer.invoke("userProfile:get"),

@@ -732,9 +732,56 @@ const taFirmNotes = document.createElement("textarea");
     this._updateVisibility();
   }
 
+  async _openEditorWindow(payload, onSaved) {
+    if (typeof window.bbmDb?.editorOpen !== "function") return false;
+    try {
+      const res = await window.bbmDb.editorOpen(payload);
+      if (res?.status === "saved" && typeof onSaved === "function") {
+        await onSaved(res?.data || {});
+      }
+      return true;
+    } catch (err) {
+      console.error("[FirmsView] editorOpen failed:", err);
+      alert("Editor-Fenster konnte nicht geöffnet werden.");
+      return true;
+    }
+  }
+
   async _openFirmEditor({ mode = "edit", firmId = null } = {}) {
     this._releaseImportUiLock();
     if (this.savingFirm || this.savingPerson) return;
+    if (mode === "edit") {
+      const targetId = firmId || this.selectedFirmId;
+      if (!targetId) return;
+      const firm =
+        (this.firms || []).find((f) => String(f?.id) === String(targetId)) ||
+        this.selectedFirm ||
+        null;
+      const usedEditor = await this._openEditorWindow(
+        {
+          kind: "firm",
+          title: "Firma bearbeiten",
+          firm: {
+            id: targetId,
+            short: firm?.short || "",
+            name: firm?.name || "",
+            name2: firm?.name2 || "",
+            street: firm?.street || "",
+            zip: firm?.zip || "",
+            city: firm?.city || "",
+            phone: firm?.phone || "",
+            email: firm?.email || "",
+            gewerk: firm?.gewerk || "",
+            role_code: firm?.role_code || "",
+            notes: firm?.notes || "",
+          },
+        },
+        async (data) => {
+          await this._saveFirmFromEditor(targetId, data);
+        }
+      );
+      if (usedEditor) return;
+    }
     if (mode === "create") {
       this._beginCreateFirm();
       this.persons = [];
@@ -767,6 +814,37 @@ const taFirmNotes = document.createElement("textarea");
     this._releaseImportUiLock();
     if (this.savingPerson || this.savingFirm) return;
     if (!this._hasFirmSelectedSaved()) return;
+    if (mode === "edit") {
+      const targetId = personId !== null && personId !== undefined ? String(personId) : null;
+      if (!targetId) return;
+      let person = (this.persons || []).find((p) => String(p?.id) === targetId) || null;
+      if (!person) {
+        await this._reloadPersons();
+        person = (this.persons || []).find((p) => String(p?.id) === targetId) || null;
+      }
+      const usedEditor = await this._openEditorWindow(
+        {
+          kind: "person",
+          title: "Mitarbeiter bearbeiten",
+          subtitle: this.selectedFirm?.name || "",
+          person: {
+            id: targetId,
+            firstName: person?.first_name || "",
+            lastName: person?.last_name || "",
+            funktion: person?.funktion || "",
+            phone: person?.phone || "",
+            email: person?.email || "",
+            rolle: person?.rolle || "",
+            notes: person?.notes || "",
+            firmName: this.selectedFirm?.name || "",
+          },
+        },
+        async (data) => {
+          await this._savePersonFromEditor(targetId, data);
+        }
+      );
+      if (usedEditor) return;
+    }
     if (mode === "edit" && personId !== null && personId !== undefined) {
       const targetId = String(personId);
       const hasPerson = (this.persons || []).some((p) => String(p?.id) === targetId);
@@ -4255,6 +4333,73 @@ const taFirmNotes = document.createElement("textarea");
     }
   }
 
+  async _saveFirmFromEditor(firmId, data) {
+    if (this.savingFirm) return;
+    const name = String(data?.name || "").trim();
+    if (!name) {
+      alert("Name 1 ist Pflicht.");
+      return;
+    }
+
+    const patch = {
+      short: String(data?.short || "").trim(),
+      name,
+      name2: String(data?.name2 || "").trim(),
+      street: String(data?.street || "").trim(),
+      zip: String(data?.zip || "").trim(),
+      city: String(data?.city || "").trim(),
+      phone: String(data?.phone || "").trim(),
+      email: String(data?.email || "").trim(),
+      gewerk: String(data?.gewerk || "").trim(),
+      role_code: String(data?.role_code || "").trim(),
+      notes: String(data?.notes || "").trim(),
+    };
+
+    this.savingFirm = true;
+    this._setMsg("Speichere…");
+    this._applyFirmFormState();
+    this._applyPersonFormState();
+
+    try {
+      const res = await window.bbmDb.firmsUpdateGlobal({
+        firmId,
+        patch,
+      });
+      if (!res?.ok) {
+        alert(res?.error || "Fehler beim Speichern");
+        return;
+      }
+
+      const updatedFirm = {
+        ...(this.selectedFirm || {}),
+        id: firmId,
+        ...patch,
+      };
+      this.firms = (this.firms || []).map((f) => (f.id === firmId ? updatedFirm : f));
+      this.selectedFirmId = firmId;
+      this.selectedFirm = updatedFirm;
+      this._renderFirmsOnly();
+      this._renderFirmDetails();
+
+      try {
+        await this.reloadFirms();
+      } catch (reloadError) {
+        console.warn("Firms reload after save failed:", reloadError);
+      }
+      this.selectedFirm = (this.firms || []).find((f) => f.id === firmId) || null;
+      this._renderFirmsOnly();
+      this._renderFirmDetails();
+    } finally {
+      this.savingFirm = false;
+      this._setMsg("");
+      this._applyFirmFormState();
+      this._applyPersonFormState();
+      this._renderFirmsOnly();
+      this._renderPersonsOnly();
+      this._updateVisibility();
+    }
+  }
+
   async _deleteFirm(firmId = null) {
     if (this.savingFirm) return;
     const targetFirmId = firmId || this.selectedFirmId;
@@ -4388,6 +4533,57 @@ const taFirmNotes = document.createElement("textarea");
 
     if (reloadPersonsAfter) {
       fireAndForget(() => this._reloadPersons(), "FirmsView reload persons after save");
+    }
+  }
+
+  async _savePersonFromEditor(personId, data) {
+    if (this.savingPerson) return;
+    if (!this._hasFirmSelectedSaved()) return;
+    const firstName = String(data?.firstName || "").trim();
+    const lastName = String(data?.lastName || "").trim();
+    if (!firstName && !lastName) {
+      alert("Name ist Pflicht.");
+      return;
+    }
+
+    this.savingPerson = true;
+    this._setMsg("Speichere Mitarbeiter…");
+    this._applyFirmFormState();
+    this._applyPersonFormState();
+
+    let reloadPersonsAfter = false;
+    try {
+      const res = await window.bbmDb.personsUpdate({
+        personId,
+        patch: {
+          first_name: firstName,
+          last_name: lastName,
+          funktion: String(data?.funktion || "").trim(),
+          email: String(data?.email || "").trim(),
+          phone: String(data?.phone || "").trim(),
+          rolle: String(data?.rolle || "").trim(),
+          notes: String(data?.notes || "").trim(),
+        },
+      });
+
+      if (!res?.ok) {
+        alert(res?.error || "Fehler beim Speichern");
+        return;
+      }
+
+      this.personMode = "none";
+      this.editPersonId = null;
+      reloadPersonsAfter = true;
+    } finally {
+      this.savingPerson = false;
+      this._setMsg("");
+      this._applyFirmFormState();
+      this._applyPersonFormState();
+      this._updateVisibility();
+    }
+
+    if (reloadPersonsAfter) {
+      fireAndForget(() => this._reloadPersons(), "FirmsView reload persons after save (editor)");
     }
   }
 

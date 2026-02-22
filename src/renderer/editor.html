@@ -1,0 +1,79 @@
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Editor</title>
+<style>
+  html, body {
+    font-family: Calibri, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f7f7f9;
+    color: #111;
+  }
+  #root {
+    padding: 16px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .header {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .title {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .subtitle {
+    font-size: 13px;
+    opacity: 0.75;
+  }
+  .form {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 8px 12px;
+    align-items: center;
+  }
+  .form input, .form textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  .actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  button {
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #bbb;
+    background: #eee;
+    cursor: pointer;
+  }
+  button.primary {
+    background: #2f6fed;
+    color: #fff;
+    border-color: #2558bc;
+  }
+  .note {
+    font-size: 12px;
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="./editor.js"></script>
+</body>
+</html>
