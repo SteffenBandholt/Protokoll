@@ -4,7 +4,7 @@
 ## Arbeitsregeln
 - Antworte immer auf Deutsch.
 - Keine Refactors/Umbenennungen ohne expliziten Auftrag. Kleine, lokale Anpassungen zur Bugfix-Umsetzung sind ok.
-- Änderungen klein halten: i.d.R. max. 3 Dateien pro Fix; bis 6 Dateien erlaubt, wenn alles eindeutig zu EINEM Feature/Bugfix gehört. Wenn >6 nötig: STOP und Aufgabe kleiner schneiden.
+- Änderungen klein halten: i.d.R. max. 3 Dateien pro Fix; bis 10 Dateien erlaubt, wenn alles eindeutig zu EINEM Feature/Bugfix gehört. Wenn >10 nötig: STOP und Aufgabe kleiner schneiden.
 - UTF-8 beibehalten (Umlaute korrekt). Keine neuen globalen Variablen.
 
 
