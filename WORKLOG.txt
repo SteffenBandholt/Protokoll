@@ -1,7 +1,0 @@
-﻿WORKLOG.txt
-==========
-
-Kurzlog (für schnellen Überblick)
-
-2026-02-22: Steffen versucht einen Überblick zu bekommen
-2026-02-22: Start Bugfix: Popup für Bearbeiten gesperrt
