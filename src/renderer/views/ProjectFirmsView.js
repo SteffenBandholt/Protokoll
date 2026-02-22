@@ -215,11 +215,11 @@ export default class ProjectFirmsView {
     head.style.marginBottom = "10px";
 
     const title = document.createElement("h2");
-    title.textContent = "Projektfirmen";
+    title.textContent = "Firmen (intern)";
     title.style.margin = "0";
 
     const viewLabel = document.createElement("div");
-    viewLabel.textContent = "(Firmen Lokal)";
+    viewLabel.textContent = "";
     viewLabel.style.fontSize = "16px";
     viewLabel.style.fontWeight = "600";
     viewLabel.style.opacity = "0.9";
@@ -2195,6 +2195,8 @@ const taFirmNotes = document.createElement("textarea");
     if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
     if (!this.localFirmOverlayEl) return;
 
+    this.router?.cleanupTransientOverlays?.();
+
     this.localFirmModalMode = "create";
     this.localFirmEditId = null;
     this.localFirmCreateOpen = true;
@@ -2238,6 +2240,8 @@ const taFirmNotes = document.createElement("textarea");
     if (!firm || !firm.id) return;
     if (!this.localFirmOverlayEl) return;
 
+    this.router?.cleanupTransientOverlays?.();
+
     this.localFirmModalMode = "edit";
     this.localFirmEditId = firm.id;
     this.localFirmCreateOpen = true;
@@ -2279,6 +2283,8 @@ const taFirmNotes = document.createElement("textarea");
     if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
     if (!this.localPersonOverlayEl) return;
 
+    this.router?.cleanupTransientOverlays?.();
+
     this.localPersonModalMode = "create";
     this.localPersonEditId = null;
     this.localPersonCreateOpen = true;
@@ -2317,6 +2323,8 @@ const taFirmNotes = document.createElement("textarea");
     if (!this._hasFirmSelectedSaved()) return;
     if (!person || !person.id) return;
     if (!this.localPersonOverlayEl) return;
+
+    this.router?.cleanupTransientOverlays?.();
 
     this.localPersonModalMode = "edit";
     this.localPersonEditId = person.id;
