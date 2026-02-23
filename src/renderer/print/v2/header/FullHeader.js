@@ -24,8 +24,7 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   header.append(
     textBlock,
     headerUtils.el("div", "v2FullGapProjectLine"),
-    line2,
-    headerUtils.el("div", "v2FullGapLineBody")
+    line2
   );
 
   return header;
