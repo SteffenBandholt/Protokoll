@@ -150,9 +150,10 @@
 
 .printV2Root .v2UserBox {
   width: var(--v2-global-logo-box, 40mm);
+  max-width: 55mm;
   border: 1px solid #ccc;
-  padding: 1mm;
-  font-size: 8pt;
+  padding: 1.5mm;
+  font-size: 8.5pt;
   line-height: 1.2;
   box-sizing: border-box;
   overflow: hidden;
@@ -160,7 +161,7 @@
   text-align: left;
 }
 
-.printV2Root .v2UserLine {
+.printV2Root .v2UserRow {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -184,10 +185,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.printV2Root .v2UserPlaceholder {
-  color: #666;
 }
 
 /* MiniHeader (page 2+) */
