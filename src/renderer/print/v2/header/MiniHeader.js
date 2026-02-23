@@ -16,11 +16,7 @@ export function renderV2MiniHeader({ data, pageNo, totalPages, modeLabel } = {})
   const rightPage = headerUtils.el("div", "v2MiniRight", "Seite " + pageNo + " / " + totalPages);
   topRow.append(line1Project, rightPage);
 
-  const line2Protocol = headerUtils.el(
-    "div",
-    "v2MiniProtocol",
-    protocolLine
-  );
+  const line2Protocol = headerUtils.el("div", "v2MiniProtocolTitle", protocolLine);
   line2Protocol.setAttribute("data-v2", "miniText");
 
   const line = headerUtils.el("div", "v2Divider v2MiniDivider");

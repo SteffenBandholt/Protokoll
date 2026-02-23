@@ -1,4 +1,4 @@
-﻿// src/main/ipc/printIpc.js
+// src/main/ipc/printIpc.js
 //
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
@@ -134,6 +134,8 @@ async function printToPdf(payload = {}) {
 
   return new Promise((resolve, reject) => {
     let done = false;
+    const timeoutMsRaw = Number(payload?.timeoutMs);
+    const timeoutMs = Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0 ? timeoutMsRaw : 120000;
 
     const cleanup = () => {
       try {
@@ -150,10 +152,10 @@ async function printToPdf(payload = {}) {
     const timeout = setTimeout(() => {
       if (done) return;
       done = true;
-      console.log(`[print:${jobId}] TIMEOUT`);
+      console.log(`[print:${jobId}] TIMEOUT after ${timeoutMs}ms`);
       cleanup();
       reject(new Error("Print-Window Timeout"));
-    }, 30000);
+    }, timeoutMs);
 
     const onReady = async (evt, msg) => {
       if (evt.sender !== win.webContents) return;

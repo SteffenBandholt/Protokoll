@@ -22,9 +22,8 @@
 }
 
 .printV2Root .v2LogoBox {
-  width: auto;
+  width: var(--v2-global-logo-box, 40mm);
   max-width: 55mm;
-  min-width: 0;
   height: var(--v2-global-logo-box, 40mm);
   flex: 0 0 auto;
   display: flex;
@@ -38,10 +37,8 @@
 
 .printV2Root .v2LogoBox img {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: min(100%, 55mm);
-  max-height: 30mm;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
 }
 
@@ -55,6 +52,10 @@
 
 .printV2Root .v2LogoBox.v2LogoSizeLarge img {
   max-height: 100%;
+}
+
+.printV2Root .v2LogoBox.v2LogoSizeLarge {
+  width: 55mm;
 }
 
 .printV2Root .v2LogoPlaceholder {
@@ -98,7 +99,6 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  padding-top: var(--v2-full-gap-line1-project, 10mm);
 }
 
 .printV2Root .v2FullRow {
@@ -106,6 +106,10 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 8mm;
+}
+
+.printV2Root .v2FullLeftWrap {
+  padding-top: 10mm;
 }
 
 .printV2Root .v2HeaderRight {
@@ -124,14 +128,14 @@
 }
 
 .printV2Root .v2Project {
-  font-size: var(--v2-full-project-font, 16pt);
+  font-size: 16pt;
   font-weight: 700;
 }
 
-.printV2Root .v2Protocol {
-  font-size: var(--v2-full-protocol-font, 14pt);
+.printV2Root .v2ProtocolTitle {
+  font-size: 14pt;
   font-weight: 600;
-  margin-top: var(--v2-full-gap-project-protocol, 5mm);
+  margin-top: 5mm;
 }
 
 .printV2Root .v2Page {
@@ -149,38 +153,35 @@
 }
 
 .printV2Root .v2UserBox {
-  width: var(--v2-global-logo-box, 40mm);
+  width: var(--v2-userbox-w, var(--v2-global-logo-box, 40mm));
   border: 1px solid #ccc;
   padding: 1mm;
-  font-size: 8pt;
-  line-height: 1.2;
+  font-size: 8.5pt;
+  line-height: 1.25;
   box-sizing: border-box;
   overflow: hidden;
-  margin-top: 2mm;
   text-align: left;
 }
 
-.printV2Root .v2UserLine {
+.printV2Root .v2UserRow {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.printV2Root .v2UserZipCity {
+.printV2Root .v2UserRowZipCity {
   display: flex;
-  gap: 3mm;
-  width: 100%;
+  justify-content: space-between;
+  gap: 2mm;
 }
 
 .printV2Root .v2UserZip {
-  flex: 0 0 auto;
-  min-width: 12mm;
   white-space: nowrap;
 }
 
 .printV2Root .v2UserCity {
   flex: 1 1 auto;
-  min-width: 0;
+  text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -227,8 +228,8 @@
   font-weight: 700;
 }
 
-.printV2Root .v2MiniProtocol {
-  font-size: var(--v2-mini-protocol-font, 10pt);
+.printV2Root .v2MiniProtocolTitle {
+  font-size: 10pt;
   margin-top: 2mm;
 }
 
