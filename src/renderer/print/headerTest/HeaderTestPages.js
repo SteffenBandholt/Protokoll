@@ -1,7 +1,9 @@
-﻿import { renderHeaderTestHeader } from "./HeaderTestHeader.js";
-import { renderGlobalHeader } from "./GlobalHeader.js";
-import { HEADERTEST_LAYOUT } from "./headerTestLayoutConfig.js";
+import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
+import { renderV2FullHeader } from "../v2/header/FullHeader.js";
+import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
+import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
 import { runHeaderTestChecks } from "./devHeaderTestCheck.js";
+import { headerTestConfig } from "./headerTestConfig.js";
 
 let _headerTestChecksRun = false;
 
@@ -29,6 +31,7 @@ function _buildRows(data) {
   const rows = [];
   const tops = Array.isArray(data?.tops) ? data.tops : [];
   const realCount = Math.min(6, tops.length);
+
   for (let i = 0; i < realCount; i++) {
     const t = tops[i] || {};
     rows.push({
@@ -42,7 +45,7 @@ function _buildRows(data) {
   for (let i = rows.length; i < minRows; i++) {
     rows.push({
       no: String(i + 1),
-      text: `Testzeile ${i + 1} - Demo-Content fuer Kopf-Test`,
+      text: "Testzeile " + (i + 1) + " - Demo-Content fuer Kopf-Test",
       meta: "Demo",
     });
   }
@@ -78,44 +81,33 @@ function _buildRowElement(row) {
 }
 
 export function renderHeaderTestPages({ data, debug } = {}) {
-  const root = _el("div", "printRoot headerTestRoot");
-  root.style.setProperty("--ht-pad-top", `${HEADERTEST_LAYOUT.page.padTopMm}mm`);
-  root.style.setProperty("--ht-pad-x", `${HEADERTEST_LAYOUT.page.padXmm}mm`);
-  root.style.setProperty("--ht-pad-bottom", `${HEADERTEST_LAYOUT.page.padBottomMm}mm`);
-  root.style.setProperty("--ht-global-logo-box", `${HEADERTEST_LAYOUT.global.logoBoxMm}mm`);
-  root.style.setProperty("--ht-logo-gap", `${HEADERTEST_LAYOUT.global.logoGapMm}mm`);
-  root.style.setProperty(
-    "--ht-global-gap-logo-line",
-    `${HEADERTEST_LAYOUT.global.gapLogoToLineMm}mm`
-  );
-  root.style.setProperty("--ht-full-height", `${HEADERTEST_LAYOUT.full.heightMm}mm`);
-  root.style.setProperty(
-    "--ht-full-gap-project-line",
-    `${HEADERTEST_LAYOUT.full.gapProjectToLineMm}mm`
-  );
-  root.style.setProperty(
-    "--ht-full-gap-line-list",
-    `${HEADERTEST_LAYOUT.full.gapLineToListMm}mm`
-  );
-  root.style.setProperty(
-    "--ht-mini-gap-text-line",
-    `${HEADERTEST_LAYOUT.mini.gapTextToLineMm}mm`
-  );
-  root.style.setProperty(
-    "--ht-mini-gap-line-list",
-    `${HEADERTEST_LAYOUT.mini.gapLineToListMm}mm`
-  );
-  root.style.setProperty("--ht-line-thickness", `${HEADERTEST_LAYOUT.global.lineThicknessPx}px`);
+  const root = _el("div", "printRoot headerTestRoot printV2Root");
+
+  // V2 CSS vars (scoped via .printV2Root)
+  root.style.setProperty("--v2-pad-top", String(V2_LAYOUT.page.padTopMm) + "mm");
+  root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-pad-bottom", String(V2_LAYOUT.page.padBottomMm) + "mm");
+  root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
+  root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
+  root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
+  root.style.setProperty("--v2-full-height", String(V2_LAYOUT.full.heightMm) + "mm");
+  root.style.setProperty("--v2-full-gap-project-line", String(V2_LAYOUT.full.gapProjectToLineMm) + "mm");
+  root.style.setProperty("--v2-full-gap-line-body", String(V2_LAYOUT.full.gapLineToBodyMm) + "mm");
+  root.style.setProperty("--v2-mini-gap-text-line", String(V2_LAYOUT.mini.gapTextToLineMm) + "mm");
+  root.style.setProperty("--v2-mini-gap-line-body", String(V2_LAYOUT.mini.gapLineToBodyMm) + "mm");
+  root.style.setProperty("--v2-line-thickness", String(V2_LAYOUT.global.lineThicknessPx) + "px");
 
   const rows = _buildRows(data);
   const perPage = { full: 16, mini: 22 };
   const pages = _splitPages(rows, perPage, { firstVariant: "full" });
 
+  // ensure we always have a page 2+ so mini header is validated in debug
   if (pages.length < 2) {
     pages.push({ variant: "mini", rows: rows.slice(0, perPage.mini) });
   }
 
   const totalPages = pages.length;
+  const modeLabel = String(headerTestConfig?.modeLabel || "Kopf-Test").trim() || "Kopf-Test";
 
   pages.forEach((page, idx) => {
     const pageNo = idx + 1;
@@ -123,25 +115,12 @@ export function renderHeaderTestPages({ data, debug } = {}) {
     pageEl.setAttribute("data-ht-page", String(pageNo));
 
     if (pageNo === 1) {
-      pageEl.appendChild(renderGlobalHeader({ data }));
-      pageEl.appendChild(
-        renderHeaderTestHeader({
-          variant: "full",
-          data,
-          pageNo,
-          totalPages,
-        })
-      );
-      pageEl.appendChild(_el("div", "htFullGapLineList"));
+      pageEl.appendChild(renderV2GlobalHeader({ data }));
+      pageEl.appendChild(renderV2FullHeader({ data, pageNo, totalPages, modeLabel }));
+      // gap AFTER line2 (outside of the 40mm block)
+      pageEl.appendChild(_el("div", "v2FullGapLineBody"));
     } else {
-      pageEl.appendChild(
-        renderHeaderTestHeader({
-          variant: "mini",
-          data,
-          pageNo,
-          totalPages,
-        })
-      );
+      pageEl.appendChild(renderV2MiniHeader({ data, pageNo, totalPages, modeLabel }));
     }
 
     const body = _el("div", "ht-body");
@@ -156,7 +135,7 @@ export function renderHeaderTestPages({ data, debug } = {}) {
 
   if (!_headerTestChecksRun) {
     _headerTestChecksRun = true;
-    runHeaderTestChecks({ debug: !!debug, cfg: HEADERTEST_LAYOUT });
+    runHeaderTestChecks({ debug: !!debug, cfg: V2_LAYOUT });
   }
 
   return root;

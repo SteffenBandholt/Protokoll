@@ -1,4 +1,4 @@
-﻿import { HEADERTEST_LAYOUT } from "./headerTestLayoutConfig.js";
+import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
 
 function pxToMm(px) {
   return (px * 25.4) / 96;
@@ -8,7 +8,11 @@ function _rect(el) {
   return el?.getBoundingClientRect ? el.getBoundingClientRect() : null;
 }
 
-export function runHeaderTestChecks({ debug, cfg = HEADERTEST_LAYOUT } = {}) {
+function _q(page, key) {
+  return page.querySelector('[data-v2="' + key + '"], [data-ht="' + key + '"]');
+}
+
+export function runHeaderTestChecks({ debug, cfg = V2_LAYOUT } = {}) {
   if (!debug) return;
 
   const pages = Array.from(document.querySelectorAll(".headerTestPage"));
@@ -19,8 +23,8 @@ export function runHeaderTestChecks({ debug, cfg = HEADERTEST_LAYOUT } = {}) {
   // Page 1: line1 -> line2 distance
   const page1 = pages.find((p) => String(p.getAttribute("data-ht-page")) === "1") || pages[0];
   if (page1) {
-    const line1 = page1.querySelector('[data-ht="line1"]');
-    const line2 = page1.querySelector('[data-ht="line2"]');
+    const line1 = _q(page1, "line1");
+    const line2 = _q(page1, "line2");
     if (!line1 || !line2) {
       console.error("[HEADERTEST_CHECK] page1 missing line1/line2", { line1: !!line1, line2: !!line2 });
     } else {
@@ -47,9 +51,9 @@ export function runHeaderTestChecks({ debug, cfg = HEADERTEST_LAYOUT } = {}) {
     const pageNo = Number(page.getAttribute("data-ht-page") || 0);
     if (pageNo < 2) continue;
 
-    const miniText = page.querySelector('[data-ht="miniText"]');
-    const miniLine = page.querySelector('[data-ht="miniLine"]');
-    const listStart = page.querySelector('[data-ht="listStart"]');
+    const miniText = _q(page, "miniText");
+    const miniLine = _q(page, "miniLine");
+    const listStart = page.querySelector('[data-ht="listStart"], [data-v2="listStart"]');
 
     if (!miniLine) {
       console.error("[HEADERTEST_CHECK] page", pageNo, "missing mini line");
@@ -64,7 +68,7 @@ export function runHeaderTestChecks({ debug, cfg = HEADERTEST_LAYOUT } = {}) {
         const gapTextToLineMm = pxToMm(rLine.top - rText.bottom);
         const gapLineToListMm = pxToMm(rList.top - rLine.top);
         const targetTextLine = Number(cfg?.mini?.gapTextToLineMm || 3);
-        const targetLineList = Number(cfg?.mini?.gapLineToListMm || 3);
+        const targetLineBody = Number(cfg?.mini?.gapLineToBodyMm || 3);
 
         console.warn(
           "[HEADERTEST_CHECK] page",
@@ -76,7 +80,7 @@ export function runHeaderTestChecks({ debug, cfg = HEADERTEST_LAYOUT } = {}) {
           "targets",
           targetTextLine,
           "/",
-          targetLineList
+          targetLineBody
         );
 
         if (Math.abs(gapTextToLineMm - targetTextLine) > tol) {
@@ -87,11 +91,11 @@ export function runHeaderTestChecks({ debug, cfg = HEADERTEST_LAYOUT } = {}) {
             toleranceMm: tol,
           });
         }
-        if (Math.abs(gapLineToListMm - targetLineList) > tol) {
-          console.error("[HEADERTEST_CHECK] mini gap line->list out of tolerance", {
+        if (Math.abs(gapLineToListMm - targetLineBody) > tol) {
+          console.error("[HEADERTEST_CHECK] mini gap line->body out of tolerance", {
             pageNo,
             gapLineToListMm,
-            targetLineList,
+            targetLineBody,
             toleranceMm: tol,
           });
         }
