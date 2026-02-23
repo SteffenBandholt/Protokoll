@@ -1258,8 +1258,13 @@ export default class SettingsView {
         alert(res?.error || "Legacy-Import fehlgeschlagen.");
         return;
       }
-      alert("Legacy-Datenbank wurde uebernommen. Die Ansicht wird neu geladen.");
-      window.location.reload();
+      alert("Legacy-Datenbank wurde uebernommen. Einstellungen werden aktualisiert.");
+      if (this.router && typeof this.router.ensureAppSettingsLoaded === "function") {
+        await this.router.ensureAppSettingsLoaded({ force: true });
+      }
+      await this._reload();
+      window.dispatchEvent(new Event("bbm:header-refresh"));
+      await loadDbDiagnostics();
     };
 
     btnDbOpenActive.onclick = async () => {
@@ -5201,13 +5206,30 @@ export default class SettingsView {
           return false;
         }
 
-      // Router-Kontext aktualisieren + Header refresh
-      if (this.router && typeof this.router.ensureAppSettingsLoaded === "function") {
-        await this.router.ensureAppSettingsLoaded({ force: true });
-      } else {
-        this.router?.refreshHeader?.();
-        window.dispatchEvent(new Event("bbm:header-refresh"));
+      if (this.router?.context) {
+        this.router.context.settings = {
+          ...(this.router.context.settings || {}),
+          user_name,
+          user_company,
+          user_name1,
+          user_name2,
+          user_street,
+          user_zip,
+          user_city,
+          "pdf.protocolTitle": pdfValues.protocolTitle,
+          "pdf.trafficLightAllEnabled": pdfValues.trafficLightAllEnabled ? "true" : "false",
+          "pdf.footerPlace": pdfValues.footerPlace,
+          "pdf.footerDate": pdfValues.footerDate,
+          "pdf.footerName1": pdfValues.footerName1,
+          "pdf.footerName2": pdfValues.footerName2,
+          "pdf.footerRecorder": pdfValues.footerRecorder,
+          "pdf.footerStreet": pdfValues.footerStreet,
+          "pdf.footerZip": pdfValues.footerZip,
+          "pdf.footerCity": pdfValues.footerCity,
+          "pdf.footerUseUserData": pdfValues.footerUseUserData ? "true" : "false",
+        };
       }
+      window.dispatchEvent(new Event("bbm:header-refresh"));
 
         this._setMsg("Gespeichert");
         return true;
