@@ -132,6 +132,19 @@ export default class SettingsView {
     this.btnPdfFooterUseUserData = null;
     this._pdfLogoDataUrl = "";
     this._pdfLogoPx = null;
+    this.printLogoEnabledInputs = [null, null, null];
+    this.printLogoFileInputs = [null, null, null];
+    this.printLogoPreviewImgs = [null, null, null];
+    this.printLogoPlaceholderEls = [null, null, null];
+    this.printLogoRemoveBtns = [null, null, null];
+    this.printLogoPresetInputs = {
+      small: null,
+      medium: null,
+      large: null,
+    };
+    this._printLogoDataUrls = ["", "", ""];
+    this._printLogoSaving = false;
+    this._printLogoSaveTimer = null;
 
     this.btnSave = null;
     this.btnArchive = null;
@@ -1552,6 +1565,152 @@ export default class SettingsView {
       mkRow("PLZ", inpPdfFooterZip),
       mkRow("Ort (Adresse)", inpPdfFooterCity)
     );
+
+    const logosBox = document.createElement("div");
+    applyPopupCardStyle(logosBox);
+    logosBox.style.padding = "10px";
+    logosBox.style.maxWidth = "720px";
+    logosBox.style.marginTop = "10px";
+
+    const logosTitle = document.createElement("div");
+    logosTitle.textContent = "Logos";
+    logosTitle.style.fontWeight = "bold";
+    logosTitle.style.marginBottom = "6px";
+
+    const logoPresetWrap = document.createElement("div");
+    logoPresetWrap.style.display = "flex";
+    logoPresetWrap.style.gap = "10px";
+    logoPresetWrap.style.alignItems = "center";
+
+    const mkPresetOption = (value, label) => {
+      const wrap = document.createElement("label");
+      wrap.style.display = "inline-flex";
+      wrap.style.alignItems = "center";
+      wrap.style.gap = "6px";
+      const inp = document.createElement("input");
+      inp.type = "radio";
+      inp.name = "printLogoSizePreset";
+      inp.value = value;
+      inp.addEventListener("change", () => this._schedulePrintLogoSave());
+      const txt = document.createElement("span");
+      txt.textContent = label;
+      wrap.append(inp, txt);
+      this.printLogoPresetInputs[value] = inp;
+      return wrap;
+    };
+
+    logoPresetWrap.append(
+      mkPresetOption("small", "Klein"),
+      mkPresetOption("medium", "Mittel"),
+      mkPresetOption("large", "Groß")
+    );
+
+    const buildPrintLogoSlot = (slotIndex) => {
+      const idx = slotIndex + 1;
+      const slotWrap = document.createElement("div");
+      slotWrap.style.border = "1px solid #e2e8f0";
+      slotWrap.style.borderRadius = "8px";
+      slotWrap.style.padding = "10px";
+      slotWrap.style.display = "grid";
+      slotWrap.style.gap = "8px";
+
+      const slotTitle = document.createElement("div");
+      slotTitle.textContent = "Logo " + idx;
+      slotTitle.style.fontWeight = "600";
+
+      const inpEnabled = document.createElement("input");
+      inpEnabled.type = "checkbox";
+      inpEnabled.addEventListener("change", () => this._schedulePrintLogoSave());
+      this.printLogoEnabledInputs[slotIndex] = inpEnabled;
+
+      const enabledWrap = document.createElement("div");
+      enabledWrap.style.display = "flex";
+      enabledWrap.style.alignItems = "center";
+      enabledWrap.append(inpEnabled);
+
+      const fileRow = document.createElement("div");
+      fileRow.style.display = "flex";
+      fileRow.style.alignItems = "center";
+      fileRow.style.gap = "8px";
+
+      const inpFile = document.createElement("input");
+      inpFile.type = "file";
+      inpFile.accept = "image/png,image/jpeg,image/jpg";
+      inpFile.style.display = "none";
+      inpFile.addEventListener("change", async () => {
+        await this._handlePrintLogoFileInput(slotIndex);
+      });
+      this.printLogoFileInputs[slotIndex] = inpFile;
+
+      const btnSelect = document.createElement("button");
+      btnSelect.textContent = "Bild auswählen";
+      applyPopupButtonStyle(btnSelect);
+      btnSelect.onclick = () => {
+        if (inpFile.disabled) return;
+        inpFile.click();
+      };
+
+      const btnRemove = document.createElement("button");
+      btnRemove.textContent = "Entfernen";
+      applyPopupButtonStyle(btnRemove);
+      btnRemove.onclick = () => {
+        this._setPrintLogoDataUrl(slotIndex, "");
+        if (this.printLogoEnabledInputs[slotIndex]) {
+          this.printLogoEnabledInputs[slotIndex].checked = false;
+        }
+        this._schedulePrintLogoSave();
+      };
+      this.printLogoRemoveBtns[slotIndex] = btnRemove;
+
+      fileRow.append(inpFile, btnSelect, btnRemove);
+
+      const previewWrap = document.createElement("div");
+      previewWrap.style.display = "flex";
+      previewWrap.style.alignItems = "center";
+      previewWrap.style.gap = "8px";
+
+      const placeholder = document.createElement("div");
+      placeholder.style.width = "120px";
+      placeholder.style.height = "70px";
+      placeholder.style.border = "1px solid #ddd";
+      placeholder.style.borderRadius = "6px";
+      placeholder.style.background = "#f5f5f5";
+      placeholder.style.display = "flex";
+      placeholder.style.alignItems = "center";
+      placeholder.style.justifyContent = "center";
+      placeholder.style.fontSize = "11px";
+      placeholder.style.color = "#666";
+      placeholder.style.textAlign = "center";
+      placeholder.textContent = "Kein Logo";
+      this.printLogoPlaceholderEls[slotIndex] = placeholder;
+
+      const img = document.createElement("img");
+      img.style.maxWidth = "120px";
+      img.style.maxHeight = "70px";
+      img.style.border = "1px solid #ddd";
+      img.style.borderRadius = "6px";
+      img.style.background = "#fafafa";
+      img.style.display = "none";
+      this.printLogoPreviewImgs[slotIndex] = img;
+
+      previewWrap.append(placeholder, img);
+
+      slotWrap.append(
+        slotTitle,
+        mkRow("Aktiv", enabledWrap),
+        mkRow("Bild", fileRow),
+        mkRow("Vorschau", previewWrap)
+      );
+      return slotWrap;
+    };
+
+    logosBox.append(
+      logosTitle,
+      mkRow("Größe", logoPresetWrap),
+      buildPrintLogoSlot(0),
+      buildPrintLogoSlot(1),
+      buildPrintLogoSlot(2)
+    );
     const actions = document.createElement("div");
     actions.style.display = "flex";
     actions.style.gap = "8px";
@@ -1695,6 +1854,15 @@ export default class SettingsView {
     userTopRow.style.marginTop = "10px";
     userTopRow.append(userBox, userRightCol);
 
+    const userLogoRedirectBox = document.createElement("div");
+    applyPopupCardStyle(userLogoRedirectBox);
+    userLogoRedirectBox.style.padding = "10px";
+    userLogoRedirectBox.style.maxWidth = "720px";
+    userLogoRedirectBox.style.marginTop = "10px";
+    const userLogoRedirectText = document.createElement("div");
+    userLogoRedirectText.textContent = "Logos jetzt unter Druckeinstellungen -> Logos.";
+    userLogoRedirectBox.appendChild(userLogoRedirectText);
+
     const openSettingsModal = ({ title, content, saveFn, closeOnly = false }) => {
       this._openSettingsModal({
         title,
@@ -1706,18 +1874,14 @@ export default class SettingsView {
 
     const tileUser = mkTile({
       titleText: "Nutzereinstellungen",
-      subText: "Nutzerdaten und PDF-Logo",
+      subText: "Nutzerdaten",
       onClick: async () => {
         await loadFontScaleSettings();
         openSettingsModal({
           title: "Nutzereinstellungen",
-          content: [userTopRow, pdfLogoBox],
+          content: [userTopRow, userLogoRedirectBox],
           closeOnly: true,
-          saveFn: async () => {
-            const okUser = (await this._save()) !== false;
-            const okPdfLogo = (await this._savePdfLogoSettings()) !== false;
-            return okUser && okPdfLogo;
-          },
+          saveFn: async () => (await this._save()) !== false,
         });
         setTimeout(() => {
           try {
@@ -1743,6 +1907,9 @@ export default class SettingsView {
         const tabBtnPdf = document.createElement("button");
         tabBtnPdf.textContent = "PDF-Einstellungen";
 
+        const tabBtnLogos = document.createElement("button");
+        tabBtnLogos.textContent = "Logos";
+
         const tabBtnRoles = document.createElement("button");
         tabBtnRoles.textContent = "Firmenliste";
 
@@ -1759,7 +1926,9 @@ export default class SettingsView {
 
         const applyHover = (btn) => {
           btn.onmouseenter = () => {
-            if (btn === (activeTab === "pdf" ? tabBtnPdf : tabBtnRoles)) return;
+            const activeBtn =
+              activeTab === "pdf" ? tabBtnPdf : activeTab === "logos" ? tabBtnLogos : tabBtnRoles;
+            if (btn === activeBtn) return;
             btn.style.background = "#f7f9fc";
             btn.style.boxShadow = "0 1px 0 rgba(0,0,0,0.08)";
           };
@@ -1769,8 +1938,10 @@ export default class SettingsView {
         };
 
         applyTabButtonBase(tabBtnPdf);
+        applyTabButtonBase(tabBtnLogos);
         applyTabButtonBase(tabBtnRoles);
         applyHover(tabBtnPdf);
+        applyHover(tabBtnLogos);
         applyHover(tabBtnRoles);
 
         const tabBody = document.createElement("div");
@@ -1781,14 +1952,23 @@ export default class SettingsView {
 
         const applyTabStyles = () => {
           const isPdf = activeTab === "pdf";
+          const isLogos = activeTab === "logos";
+          const isRoles = activeTab === "roles";
+
           tabBtnPdf.style.background = isPdf ? "#1976d2" : "#fff";
           tabBtnPdf.style.color = isPdf ? "white" : "#1565c0";
           tabBtnPdf.style.borderColor = isPdf ? "rgba(25,118,210,0.65)" : "rgba(0,0,0,0.18)";
           tabBtnPdf.style.boxShadow = isPdf ? "0 1px 0 rgba(0,0,0,0.12)" : "none";
-          tabBtnRoles.style.background = !isPdf ? "#1976d2" : "#fff";
-          tabBtnRoles.style.color = !isPdf ? "white" : "#1565c0";
-          tabBtnRoles.style.borderColor = !isPdf ? "rgba(25,118,210,0.65)" : "rgba(0,0,0,0.18)";
-          tabBtnRoles.style.boxShadow = !isPdf ? "0 1px 0 rgba(0,0,0,0.12)" : "none";
+
+          tabBtnLogos.style.background = isLogos ? "#1976d2" : "#fff";
+          tabBtnLogos.style.color = isLogos ? "white" : "#1565c0";
+          tabBtnLogos.style.borderColor = isLogos ? "rgba(25,118,210,0.65)" : "rgba(0,0,0,0.18)";
+          tabBtnLogos.style.boxShadow = isLogos ? "0 1px 0 rgba(0,0,0,0.12)" : "none";
+
+          tabBtnRoles.style.background = isRoles ? "#1976d2" : "#fff";
+          tabBtnRoles.style.color = isRoles ? "white" : "#1565c0";
+          tabBtnRoles.style.borderColor = isRoles ? "rgba(25,118,210,0.65)" : "rgba(0,0,0,0.18)";
+          tabBtnRoles.style.boxShadow = isRoles ? "0 1px 0 rgba(0,0,0,0.12)" : "none";
         };
 
         const showTab = (next) => {
@@ -1796,6 +1976,9 @@ export default class SettingsView {
           tabBody.innerHTML = "";
           if (activeTab === "pdf") {
             tabBody.append(pdfSettingsBox);
+            this._settingsModalCloseOnly = false;
+          } else if (activeTab === "logos") {
+            tabBody.append(logosBox);
             this._settingsModalCloseOnly = false;
           } else {
             tabBody.append(rolesBox);
@@ -1814,9 +1997,10 @@ export default class SettingsView {
         };
 
         tabBtnPdf.onclick = () => showTab("pdf");
+        tabBtnLogos.onclick = () => showTab("logos");
         tabBtnRoles.onclick = () => showTab("roles");
 
-        tabHead.append(tabBtnPdf, tabBtnRoles);
+        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles);
         tabWrap.append(tabHead, tabBody);
 
         showTab("pdf");
@@ -1828,6 +2012,9 @@ export default class SettingsView {
           saveFn: async () => {
             if (activeTab === "roles") {
               return (await this._saveRoleMeta()) !== false;
+            }
+            if (activeTab === "logos") {
+              return (await this._savePrintLogoSettings()) !== false;
             }
             return (await this._savePdfSettings()) !== false;
           },
@@ -1928,7 +2115,7 @@ export default class SettingsView {
     settingsFooterInner.style.maxWidth = "720px";
 
     const settingsSave = document.createElement("button");
-    settingsSave.textContent = "schließen";
+    settingsSave.textContent = "Schließen";
     applyPopupButtonStyle(settingsSave, { variant: "primary" });
     settingsSave.onclick = async () => {
       if (this._settingsModalCloseOnly) {
@@ -2307,6 +2494,7 @@ export default class SettingsView {
     const themeBusy = busy || this._themeSaving;
     const securityBusy = busy || this._securityPinSaving;
     const pdfSettingsBusy = busy || this._pdfSettingsSaving;
+    const printLogosBusy = busy || this._printLogoSaving;
     if (this.inpName) this.inpName.disabled = busy;
     if (this.inpCompany) this.inpCompany.disabled = busy;
     if (this.inpUserName1) this.inpUserName1.disabled = busy;
@@ -2368,6 +2556,19 @@ export default class SettingsView {
     if (this.btnPdfFooterUseUserData) this.btnPdfFooterUseUserData.disabled = pdfSettingsBusy;
     if (this.btnPdfProtocolsBrowse) this.btnPdfProtocolsBrowse.disabled = pdfSettingsBusy;
     if (this.btnPdfSettingsSave) this.btnPdfSettingsSave.disabled = pdfSettingsBusy;
+    for (const inp of this.printLogoEnabledInputs || []) {
+      if (inp) inp.disabled = printLogosBusy;
+    }
+    for (const inp of this.printLogoFileInputs || []) {
+      if (inp) inp.disabled = printLogosBusy;
+    }
+    for (const btn of this.printLogoRemoveBtns || []) {
+      if (btn) btn.disabled = printLogosBusy;
+    }
+    for (const key of ["small", "medium", "large"]) {
+      const inp = this.printLogoPresetInputs?.[key];
+      if (inp) inp.disabled = printLogosBusy;
+    }
     this._updateRoleActionsState();
     if (this.btnSave) this.btnSave.disabled = busy;
     // bewusst NICHT mehr disable'n (bekannter Delete-UI-Bug)
@@ -3588,6 +3789,152 @@ export default class SettingsView {
     }
   }
 
+  _normalizePrintLogoSizePreset(value) {
+    const s = String(value || "").trim().toLowerCase();
+    if (s === "small" || s === "medium" || s === "large") return s;
+    return "medium";
+  }
+
+  _applyPrintLogoPreset(preset) {
+    const normalized = this._normalizePrintLogoSizePreset(preset);
+    const inputs = this.printLogoPresetInputs || {};
+    if (inputs.small) inputs.small.checked = normalized === "small";
+    if (inputs.medium) inputs.medium.checked = normalized === "medium";
+    if (inputs.large) inputs.large.checked = normalized === "large";
+  }
+
+  _setPrintLogoDataUrl(slotIndex, dataUrl, { skipSave = false } = {}) {
+    const idx = Number(slotIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 2) return;
+    const next = String(dataUrl || "");
+    this._printLogoDataUrls[idx] = next;
+
+    const placeholder = this.printLogoPlaceholderEls?.[idx];
+    if (placeholder) {
+      placeholder.style.display = next ? "none" : "flex";
+    }
+
+    const img = this.printLogoPreviewImgs?.[idx];
+    if (img) {
+      if (next) {
+        img.src = next;
+        img.style.display = "block";
+      } else {
+        img.src = "";
+        img.style.display = "none";
+      }
+    }
+
+    const fileInp = this.printLogoFileInputs?.[idx];
+    if (fileInp) fileInp.value = "";
+
+    if (!skipSave) this._schedulePrintLogoSave();
+  }
+
+  _applyPrintLogoInputsFromSettings(data) {
+    for (let i = 0; i < 3; i++) {
+      const keyNo = String(i + 1);
+      const enabled = this._parseBool(data["print.logo" + keyNo + ".enabled"], false);
+      const dataUrl = String(data["print.logo" + keyNo + ".pngDataUrl"] || "").trim();
+      const inp = this.printLogoEnabledInputs?.[i];
+      if (inp) inp.checked = !!enabled;
+      this._setPrintLogoDataUrl(i, dataUrl, { skipSave: true });
+    }
+    this._applyPrintLogoPreset(data["print.logoSizePreset"]);
+  }
+
+  _getPrintLogoValues() {
+    const values = {
+      preset: "medium",
+      slots: [
+        { enabled: false, dataUrl: "" },
+        { enabled: false, dataUrl: "" },
+        { enabled: false, dataUrl: "" },
+      ],
+    };
+    for (let i = 0; i < 3; i++) {
+      values.slots[i].enabled = !!this.printLogoEnabledInputs?.[i]?.checked;
+      values.slots[i].dataUrl = String(this._printLogoDataUrls?.[i] || "").trim();
+    }
+    if (this.printLogoPresetInputs?.small?.checked) values.preset = "small";
+    if (this.printLogoPresetInputs?.large?.checked) values.preset = "large";
+    return values;
+  }
+
+  _schedulePrintLogoSave() {
+    if (this._printLogoSaveTimer) {
+      clearTimeout(this._printLogoSaveTimer);
+      this._printLogoSaveTimer = null;
+    }
+    this._printLogoSaveTimer = setTimeout(() => {
+      this._printLogoSaveTimer = null;
+      this._savePrintLogoSettings();
+    }, 200);
+  }
+
+  async _savePrintLogoSettings() {
+    if (this._printLogoSaving) return false;
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsSetMany !== "function") {
+      alert("Settings-API fehlt (IPC noch nicht aktiv).");
+      return false;
+    }
+
+    const values = this._getPrintLogoValues();
+    this._printLogoSaving = true;
+    this._applyState();
+    try {
+      const payload = {
+        "print.logoSizePreset": values.preset,
+      };
+      for (let i = 0; i < 3; i++) {
+        const keyNo = String(i + 1);
+        payload["print.logo" + keyNo + ".enabled"] = values.slots[i].enabled ? "true" : "false";
+        payload["print.logo" + keyNo + ".pngDataUrl"] = values.slots[i].dataUrl;
+      }
+      const res = await api.appSettingsSetMany(payload);
+      if (!res?.ok) {
+        alert(res?.error || "Logo-Einstellungen konnten nicht gespeichert werden.");
+        return false;
+      }
+      if (this.router?.context) {
+        this.router.context.settings = {
+          ...(this.router.context.settings || {}),
+          ...payload,
+        };
+      }
+      return true;
+    } finally {
+      this._printLogoSaving = false;
+      this._applyState();
+    }
+  }
+
+  async _handlePrintLogoFileInput(slotIndex) {
+    const idx = Number(slotIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 2) return;
+    const file = this.printLogoFileInputs?.[idx]?.files?.[0] || null;
+    if (!file) return;
+    try {
+      const dataUrl = await this._convertImageFileToPngDataUrl(file);
+      if (!dataUrl) {
+        alert("Logo konnte nicht gelesen werden.");
+        return;
+      }
+      this._setPrintLogoDataUrl(idx, dataUrl, { skipSave: true });
+      if (this.printLogoEnabledInputs?.[idx]) {
+        this.printLogoEnabledInputs[idx].checked = true;
+      }
+      this._schedulePrintLogoSave();
+    } catch (_e) {
+      alert("Logo konnte nicht verarbeitet werden.");
+    } finally {
+      if (this.printLogoFileInputs?.[idx]) {
+        this.printLogoFileInputs[idx].value = "";
+      }
+    }
+  }
+
   async _handlePdfLogoFileInput() {
     const file = this.inpPdfLogoFile?.files?.[0] || null;
     if (!file) return;
@@ -4408,6 +4755,13 @@ export default class SettingsView {
       "pdf.userLogoTopMm",
       "pdf.userLogoRightMm",
       "pdf.userLogoFilePath",
+      "print.logo1.enabled",
+      "print.logo1.pngDataUrl",
+      "print.logo2.enabled",
+      "print.logo2.pngDataUrl",
+      "print.logo3.enabled",
+      "print.logo3.pngDataUrl",
+      "print.logoSizePreset",
       "pdf.protocolTitle",
       "pdf.trafficLightAllEnabled",
       "pdf.protocolsDir",
@@ -4622,6 +4976,25 @@ export default class SettingsView {
     this._applyPdfLogoInputs({ enabled, widthMm, topMm, rightMm });
     this._setPdfLogoDataUrl(dataUrl, { skipSave: true });
     this._setPdfLogoFilePath(logoFilePath, { skipSave: true });
+
+    const legacyPdfLogoDataUrl = String(data["pdf.userLogoPngDataUrl"] || "").trim();
+    const printLogo1DataUrl = String(data["print.logo1.pngDataUrl"] || "").trim();
+    if (!printLogo1DataUrl && legacyPdfLogoDataUrl && typeof api.appSettingsSetMany === "function") {
+      try {
+        const migrateRes = await api.appSettingsSetMany({
+          "print.logo1.enabled": "true",
+          "print.logo1.pngDataUrl": legacyPdfLogoDataUrl,
+        });
+        if (migrateRes?.ok) {
+          data["print.logo1.enabled"] = "true";
+          data["print.logo1.pngDataUrl"] = legacyPdfLogoDataUrl;
+        }
+      } catch (_e) {
+        // Migration ist optional; bei Fehlern nicht den Settings-Dialog blockieren.
+      }
+    }
+
+    this._applyPrintLogoInputsFromSettings(data);
 
     const pdfSettingsDefaults = this._pdfSettingsDefaults();
     const protocolTitleRaw = data["pdf.protocolTitle"];

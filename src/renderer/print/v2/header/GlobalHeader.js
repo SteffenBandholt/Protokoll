@@ -3,8 +3,9 @@ import { headerUtils } from "./headerUtils.js";
 
 function _buildLogoBox(logo, index) {
   const box = headerUtils.el("div", "v2LogoBox");
+  const enabled = !!logo?.enabled;
   const dataUrl = String(logo?.dataUrl || "").trim();
-  if (dataUrl) {
+  if (enabled && dataUrl) {
     const img = document.createElement("img");
     img.src = dataUrl;
     img.alt = "Logo " + (index + 1);

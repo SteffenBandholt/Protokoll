@@ -221,6 +221,7 @@ function _loadSettings(db) {
     "print.logo1.pngDataUrl",
     "print.logo2.pngDataUrl",
     "print.logo3.pngDataUrl",
+    "print.logoSizePreset",
     "print.nextMeeting.enabled",
     "print.nextMeeting.date",
     "print.nextMeeting.time",
@@ -244,24 +245,23 @@ function _loadSettings(db) {
 }
 
 function _buildLogos(settings) {
-  const out = [
+  return [
     {
       key: "logo1",
-      enabled: _parseBool(settings?.["print.logo1.enabled"]) || !!settings?.["print.logo1.pngDataUrl"],
+      enabled: _parseBool(settings?.["print.logo1.enabled"]),
       dataUrl: String(settings?.["print.logo1.pngDataUrl"] || "").trim(),
     },
     {
       key: "logo2",
-      enabled: _parseBool(settings?.["print.logo2.enabled"]) || !!settings?.["print.logo2.pngDataUrl"],
+      enabled: _parseBool(settings?.["print.logo2.enabled"]),
       dataUrl: String(settings?.["print.logo2.pngDataUrl"] || "").trim(),
     },
     {
       key: "logo3",
-      enabled: _parseBool(settings?.["print.logo3.enabled"]) || !!settings?.["print.logo3.pngDataUrl"],
+      enabled: _parseBool(settings?.["print.logo3.enabled"]),
       dataUrl: String(settings?.["print.logo3.pngDataUrl"] || "").trim(),
     },
   ];
-  return out.filter((l) => l.enabled && l.dataUrl);
 }
 
 async function getPrintData({ mode, projectId, meetingId } = {}) {
