@@ -148,27 +148,25 @@
   text-transform: uppercase;
 }
 
-.printV2Root .v2UserDataBox {
+.printV2Root .v2UserBox {
   width: var(--v2-global-logo-box, 40mm);
   border: 1px solid #ccc;
   padding: 1mm;
-  margin-top: 2mm;
-  font-size: 8.5pt;
+  font-size: 8pt;
   line-height: 1.2;
   box-sizing: border-box;
   overflow: hidden;
-  max-height: 24mm;
+  margin-top: 2mm;
 }
 
-.printV2Root .v2UserDataPlaceholder {
-  color: #666;
-  text-align: center;
-}
-
-.printV2Root .v2UserDataLine {
+.printV2Root .v2UserLine {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.printV2Root .v2UserPlaceholder {
+  color: #666;
 }
 
 /* MiniHeader (page 2+) */

@@ -133,7 +133,7 @@ function _applyHierDisplayNumbers(tops, isOpen) {
       return own;
     }
     const parent = baseById.get(top.parent_top_id);
-    const val = parent ? `${buildDisplay(parent)}.${own}` : own;
+    const val = parent ? (buildDisplay(parent) + "." + own) : own;
     cache.set(top.id, val);
     return val;
   };
@@ -277,30 +277,21 @@ function _buildLogos(settings) {
   ];
 }
 
-function _buildUserDataLines(settings) {
-  const footerUseUserData = _parseBool(settings?.["pdf.footerUseUserData"]);
-  const footerName1 = String(settings?.["pdf.footerName1"] || "").trim();
-  const footerName2 = String(settings?.["pdf.footerName2"] || "").trim();
-  const footerRecorder = String(settings?.["pdf.footerRecorder"] || "").trim();
-  const footerStreet = String(settings?.["pdf.footerStreet"] || "").trim();
-  const footerZip = String(settings?.["pdf.footerZip"] || "").trim();
-  const footerCity = String(settings?.["pdf.footerCity"] || "").trim();
-
-  const hasAnyField = !!(
-    footerName1 ||
-    footerName2 ||
-    footerRecorder ||
-    footerStreet ||
-    footerZip ||
-    footerCity
-  );
-  if (!footerUseUserData && !hasAnyField) return [];
-
-  const zipCity = [footerZip, footerCity].filter((v) => v).join(" ").trim();
-  return [footerName1, footerName2, footerStreet, zipCity, footerRecorder]
-    .map((v) => String(v || "").trim())
-    .filter((v) => v)
-    .slice(0, 5);
+function _buildUserData(settings) {
+  const name1 = String(settings?.["pdf.footerName1"] || "").trim();
+  const name2 = String(settings?.["pdf.footerName2"] || "").trim();
+  const street = String(settings?.["pdf.footerStreet"] || "").trim();
+  const zip = String(settings?.["pdf.footerZip"] || "").trim();
+  const city = String(settings?.["pdf.footerCity"] || "").trim();
+  const hasAnyField = !!(name1 || name2 || street || zip || city);
+  return {
+    enabled: _parseBool(settings?.["pdf.footerUseUserData"]) || hasAnyField,
+    name1,
+    name2,
+    street,
+    zip,
+    city,
+  };
 }
 
 async function getPrintData({ mode, projectId, meetingId } = {}) {
@@ -308,6 +299,8 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
   const project = projectId ? projectsRepo.getById(projectId) : null;
   const meeting = meetingId ? meetingsRepo.getMeetingById(meetingId) : null;
   const settings = _loadSettings(db);
+  const protocolTitle = String(settings?.["pdf.protocolTitle"] || "").trim();
+  const userData = _buildUserData(settings);
   const logos = _buildLogos(settings);
 
   const interludeText = String(settings?.["print.interludeText"] || "").trim();
@@ -364,8 +357,8 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     project,
     meeting,
     settings,
-    protocolTitle: String(settings?.["pdf.protocolTitle"] || "").trim(),
-    userDataLines: _buildUserDataLines(settings),
+    protocolTitle,
+    userData,
     logos,
     interludeText,
     nextMeeting,

@@ -38,8 +38,29 @@ function _projectLabel(project) {
   return "Projekt: -";
 }
 
-function _meetingLabel(meeting, settings) {
-  return _protocolLine(meeting, settings, { withColon: true });
+function _meetingLabel(meeting, titlePrefix) {
+  const base = String(titlePrefix || "").trim() || "Besprechung";
+  if (!meeting) return base;
+  const nr =
+    meeting.meeting_index ??
+    meeting.meetingIndex ??
+    meeting.index ??
+    meeting.number ??
+    "";
+  const dateRaw =
+    meeting.meeting_date ||
+    meeting.meetingDate ||
+    meeting.date ||
+    meeting.created_at ||
+    meeting.createdAt ||
+    meeting.updated_at ||
+    meeting.updatedAt ||
+    "";
+  const date = _formatDateIso(dateRaw);
+  const nrPart = nr ? "#" + nr : "";
+  const datePart = date ? "vom " + date : "";
+  const parts = [base, nrPart, datePart].filter((p) => String(p || "").trim());
+  return parts.join(" ");
 }
 
 function _protocolLine(meeting, settings, { withColon = true } = {}) {

@@ -2,6 +2,8 @@ import { headerUtils } from "./headerUtils.js";
 
 export function renderV2MiniHeader({ data, pageNo, totalPages, modeLabel } = {}) {
   const header = headerUtils.el("div", "v2Header v2HeaderMini");
+  const protocolTitle = String(data?.protocolTitle || data?.settings?.["pdf.protocolTitle"] || "").trim();
+  const titlePrefix = protocolTitle || "Besprechung";
 
   const topRow = headerUtils.el("div", "v2MiniTopRow");
   const leftBlock = headerUtils.el("div", "v2MiniTextBlock");
@@ -11,7 +13,7 @@ export function renderV2MiniHeader({ data, pageNo, totalPages, modeLabel } = {})
   const leftLine2 = headerUtils.el(
     "div",
     "v2MiniProtocol",
-    headerUtils.protocolLine(data?.meeting, data?.settings, { withColon: false })
+    headerUtils.meetingLabel(data?.meeting, titlePrefix)
   );
   leftBlock.append(leftLine1, leftLine2);
 
