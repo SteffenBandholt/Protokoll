@@ -131,6 +131,7 @@
   justify-content: center;
   text-align: center;
   overflow: hidden;
+  margin-top: 3mm;
 }
 
 .printV2Root .v2UserTitle {
