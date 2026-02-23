@@ -80,13 +80,6 @@ function _buildRowElement(row) {
   return el;
 }
 
-function _logoBoxMmFromPreset(settings) {
-  const preset = String(settings?.["print.logoSizePreset"] || "").trim().toLowerCase();
-  if (preset === "small") return 30;
-  if (preset === "large") return 50;
-  return 40;
-}
-
 export function renderHeaderTestPages({ data, debug } = {}) {
   const root = _el("div", "printRoot headerTestRoot printV2Root");
 
@@ -94,7 +87,7 @@ export function renderHeaderTestPages({ data, debug } = {}) {
   root.style.setProperty("--v2-pad-top", String(V2_LAYOUT.page.padTopMm) + "mm");
   root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
   root.style.setProperty("--v2-pad-bottom", String(V2_LAYOUT.page.padBottomMm) + "mm");
-  root.style.setProperty("--v2-global-logo-box", String(_logoBoxMmFromPreset(data?.settings)) + "mm");
+  root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
   root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
   root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
   root.style.setProperty("--v2-full-height", String(V2_LAYOUT.full.heightMm) + "mm");

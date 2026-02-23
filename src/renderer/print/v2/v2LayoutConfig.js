@@ -1,6 +1,6 @@
 export const V2_LAYOUT = {
   page: {
-    padTopMm: 10,
+    padTopMm: 5,
     padXmm: 12,
     padBottomMm: 18,
   },

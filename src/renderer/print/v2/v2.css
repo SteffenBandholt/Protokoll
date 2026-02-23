@@ -22,8 +22,11 @@
 }
 
 .printV2Root .v2LogoBox {
-  width: var(--v2-global-logo-box, 40mm);
+  width: auto;
+  max-width: 55mm;
+  min-width: 0;
   height: var(--v2-global-logo-box, 40mm);
+  flex: 0 0 auto;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -37,7 +40,7 @@
   display: block;
   width: auto;
   height: auto;
-  max-width: 100%;
+  max-width: min(100%, 55mm);
   max-height: 30mm;
   object-fit: contain;
 }
@@ -51,7 +54,7 @@
 }
 
 .printV2Root .v2LogoBox.v2LogoSizeLarge img {
-  max-height: 38mm;
+  max-height: 100%;
 }
 
 .printV2Root .v2LogoPlaceholder {
