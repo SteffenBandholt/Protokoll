@@ -110,8 +110,17 @@
 
 .printV2Root .v2HeaderRight {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: flex-end;
   justify-content: flex-end;
+  min-width: var(--v2-global-logo-box, 40mm);
+}
+
+.printV2Root .v2HeaderRightMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1mm;
 }
 
 .printV2Root .v2Project {
@@ -139,37 +148,27 @@
   text-transform: uppercase;
 }
 
-.printV2Root .v2UserBox {
+.printV2Root .v2UserDataBox {
+  width: var(--v2-global-logo-box, 40mm);
   border: 1px solid #ccc;
   padding: 1mm;
-  width: 40mm;
-  height: 40mm;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  overflow: hidden;
-  margin-top: 3mm;
-}
-
-.printV2Root .v2UserTitle {
-  font-weight: 700;
+  margin-top: 2mm;
   font-size: 8.5pt;
-  margin-bottom: 1.5mm;
+  line-height: 1.2;
+  box-sizing: border-box;
+  overflow: hidden;
+  max-height: 24mm;
 }
 
-.printV2Root .v2UserLine {
-  font-size: 8pt;
-  line-height: 1.25;
-}
-
-.printV2Root .v2UserPlaceholder {
-  font-size: 8pt;
-  text-align: center;
+.printV2Root .v2UserDataPlaceholder {
   color: #666;
-  line-height: 1.3;
+  text-align: center;
+}
+
+.printV2Root .v2UserDataLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* MiniHeader (page 2+) */

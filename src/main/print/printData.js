@@ -277,6 +277,32 @@ function _buildLogos(settings) {
   ];
 }
 
+function _buildUserDataLines(settings) {
+  const footerUseUserData = _parseBool(settings?.["pdf.footerUseUserData"]);
+  const footerName1 = String(settings?.["pdf.footerName1"] || "").trim();
+  const footerName2 = String(settings?.["pdf.footerName2"] || "").trim();
+  const footerRecorder = String(settings?.["pdf.footerRecorder"] || "").trim();
+  const footerStreet = String(settings?.["pdf.footerStreet"] || "").trim();
+  const footerZip = String(settings?.["pdf.footerZip"] || "").trim();
+  const footerCity = String(settings?.["pdf.footerCity"] || "").trim();
+
+  const hasAnyField = !!(
+    footerName1 ||
+    footerName2 ||
+    footerRecorder ||
+    footerStreet ||
+    footerZip ||
+    footerCity
+  );
+  if (!footerUseUserData && !hasAnyField) return [];
+
+  const zipCity = [footerZip, footerCity].filter((v) => v).join(" ").trim();
+  return [footerName1, footerName2, footerStreet, zipCity, footerRecorder]
+    .map((v) => String(v || "").trim())
+    .filter((v) => v)
+    .slice(0, 5);
+}
+
 async function getPrintData({ mode, projectId, meetingId } = {}) {
   const db = initDatabase();
   const project = projectId ? projectsRepo.getById(projectId) : null;
@@ -338,6 +364,8 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     project,
     meeting,
     settings,
+    protocolTitle: String(settings?.["pdf.protocolTitle"] || "").trim(),
+    userDataLines: _buildUserDataLines(settings),
     logos,
     interludeText,
     nextMeeting,
