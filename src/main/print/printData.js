@@ -283,8 +283,9 @@ function _buildUserData(settings) {
   const street = String(settings?.["pdf.footerStreet"] || "").trim();
   const zip = String(settings?.["pdf.footerZip"] || "").trim();
   const city = String(settings?.["pdf.footerCity"] || "").trim();
+  const hasAnyField = !!(name1 || name2 || street || zip || city);
   return {
-    enabled: _parseBool(settings?.["pdf.footerUseUserData"]),
+    enabled: _parseBool(settings?.["pdf.footerUseUserData"]) || hasAnyField,
     name1,
     name2,
     street,
