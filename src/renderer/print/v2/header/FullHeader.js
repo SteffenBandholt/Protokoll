@@ -4,14 +4,25 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const header = headerUtils.el("div", "v2Header v2HeaderFull");
 
   const left = headerUtils.el("div", "v2HeaderLeft");
-  left.appendChild(headerUtils.el("div", "v2Meeting", headerUtils.meetingLabel(data?.meeting)));
-  const meta = headerUtils.meetingMeta(data?.meeting);
-  if (meta) left.appendChild(headerUtils.el("div", "v2Meta", meta));
   left.appendChild(headerUtils.el("div", "v2Project", headerUtils.projectLabel(data?.project)));
+  left.appendChild(
+    headerUtils.el("div", "v2Protocol", headerUtils.protocolLine(data?.meeting, data?.settings))
+  );
 
   const right = headerUtils.el("div", "v2HeaderRight");
-  right.appendChild(headerUtils.el("div", "v2Page", "Seite " + pageNo + " / " + totalPages));
-  right.appendChild(headerUtils.el("div", "v2Mode", String(modeLabel || "").trim() || "PDF"));
+  const userBox = headerUtils.el("div", "v2UserBox");
+  userBox.appendChild(headerUtils.el("div", "v2UserTitle", "Nutzerdaten"));
+  const lines = headerUtils.footerLines(data?.settings);
+  if (lines.length) {
+    lines.forEach((line) => {
+      userBox.appendChild(headerUtils.el("div", "v2UserLine", line));
+    });
+  } else {
+    userBox.appendChild(
+      headerUtils.el("div", "v2UserPlaceholder", "Hier koennen die Nutzerdaten hin")
+    );
+  }
+  right.appendChild(userBox);
 
   const textBlock = headerUtils.el("div", "v2FullTextBlock");
   const row = headerUtils.el("div", "v2FullRow");

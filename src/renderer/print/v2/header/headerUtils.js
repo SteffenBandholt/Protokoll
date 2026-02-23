@@ -15,6 +15,19 @@ function _formatDateIso(value) {
   return d + "." + m + "." + y;
 }
 
+function _parseBool(value, fallback = false) {
+  const s = String(value ?? "").trim().toLowerCase();
+  if (!s) return fallback;
+  if (["1", "true", "yes", "ja", "on"].includes(s)) return true;
+  if (["0", "false", "no", "nein", "off"].includes(s)) return false;
+  return fallback;
+}
+
+function _protocolTitle(settings) {
+  const raw = String(settings?.["pdf.protocolTitle"] || "").trim();
+  return raw || "Besprechung";
+}
+
 function _projectLabel(project) {
   if (!project) return "Projekt: -";
   const nr = String(project.project_number || project.projectNumber || "").trim();
@@ -50,6 +63,32 @@ function _meetingLabel(meeting) {
   return parts || "Besprechung: -";
 }
 
+function _protocolLine(meeting, settings) {
+  const title = _protocolTitle(settings);
+  if (!meeting) return title + ": -";
+  const nr =
+    meeting.meeting_index ??
+    meeting.meetingIndex ??
+    meeting.index ??
+    meeting.number ??
+    "";
+  const dateRaw =
+    meeting.meeting_date ||
+    meeting.meetingDate ||
+    meeting.date ||
+    meeting.created_at ||
+    meeting.createdAt ||
+    meeting.updated_at ||
+    meeting.updatedAt ||
+    "";
+  const date = _formatDateIso(dateRaw);
+  const parts = [];
+  if (nr) parts.push("# " + nr);
+  if (date) parts.push("vom " + date);
+  if (!parts.length) return title + ": -";
+  return title + ": " + parts.join(" ");
+}
+
 function _meetingMeta(meeting) {
   if (!meeting) return "";
   const place = String(meeting.place || meeting.location || "").trim();
@@ -59,10 +98,36 @@ function _meetingMeta(meeting) {
   return parts.join(" | ");
 }
 
+function _footerLines(settings) {
+  const useUserData = _parseBool(settings?.["pdf.footerUseUserData"], false);
+  if (!useUserData) return [];
+  const footerPlace = String(settings?.["pdf.footerPlace"] || "").trim();
+  const footerDate = String(settings?.["pdf.footerDate"] || "").trim();
+  const footerName1 = String(settings?.["pdf.footerName1"] || "").trim();
+  const footerName2 = String(settings?.["pdf.footerName2"] || "").trim();
+  const footerRecorder = String(settings?.["pdf.footerRecorder"] || "").trim();
+  const footerStreet = String(settings?.["pdf.footerStreet"] || "").trim();
+  const footerZip = String(settings?.["pdf.footerZip"] || "").trim();
+  const footerCity = String(settings?.["pdf.footerCity"] || "").trim();
+
+  const line1 = [footerPlace, footerDate].filter((v) => v).join(", ");
+  const line2 = [footerName1, footerName2].filter((v) => v).join(", ");
+  const line3 = footerRecorder || "";
+  const line4 = footerStreet || "";
+  const line5 = [footerZip, footerCity].filter((v) => v).join(" ").trim();
+
+  const lines = [line1, line2, line3, line4, line5].filter((v) => v);
+  return lines;
+}
+
 export const headerUtils = {
   el: _el,
   formatDateIso: _formatDateIso,
+  parseBool: _parseBool,
+  protocolTitle: _protocolTitle,
   projectLabel: _projectLabel,
   meetingLabel: _meetingLabel,
+  protocolLine: _protocolLine,
   meetingMeta: _meetingMeta,
+  footerLines: _footerLines,
 };
