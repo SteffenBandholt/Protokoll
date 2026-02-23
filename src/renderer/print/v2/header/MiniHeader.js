@@ -11,7 +11,7 @@ export function renderV2MiniHeader({ data, pageNo, totalPages, modeLabel } = {})
   const row2 = headerUtils.el(
     "div",
     "v2MiniRow v2MiniRow2",
-    headerUtils.protocolLine(data?.meeting, data?.settings)
+    headerUtils.protocolLine(data?.meeting, data?.settings, { withColon: false })
   );
   row2.setAttribute("data-v2", "miniText");
 

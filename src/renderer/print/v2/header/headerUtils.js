@@ -25,7 +25,7 @@ function _parseBool(value, fallback = false) {
 
 function _protocolTitle(settings) {
   const raw = String(settings?.["pdf.protocolTitle"] || "").trim();
-  return raw || "Besprechung";
+  return raw || "Protokoll";
 }
 
 function _projectLabel(project) {
@@ -38,34 +38,13 @@ function _projectLabel(project) {
   return "Projekt: -";
 }
 
-function _meetingLabel(meeting) {
-  if (!meeting) return "Besprechung: -";
-  const nr =
-    meeting.meeting_index ??
-    meeting.meetingIndex ??
-    meeting.index ??
-    meeting.number ??
-    "";
-  const dateRaw =
-    meeting.meeting_date ||
-    meeting.meetingDate ||
-    meeting.date ||
-    meeting.created_at ||
-    meeting.createdAt ||
-    meeting.updated_at ||
-    meeting.updatedAt ||
-    "";
-  const date = _formatDateIso(dateRaw);
-  const nrPart = nr ? "#" + nr : "";
-  const parts = ["Besprechung", nrPart, date ? "(" + date + ")" : ""]
-    .filter((p) => String(p || "").trim())
-    .join(" ");
-  return parts || "Besprechung: -";
+function _meetingLabel(meeting, settings) {
+  return _protocolLine(meeting, settings, { withColon: true });
 }
 
-function _protocolLine(meeting, settings) {
+function _protocolLine(meeting, settings, { withColon = true } = {}) {
   const title = _protocolTitle(settings);
-  if (!meeting) return title + ": -";
+  if (!meeting) return title + (withColon ? ":" : "") + " -";
   const nr =
     meeting.meeting_index ??
     meeting.meetingIndex ??
@@ -85,8 +64,9 @@ function _protocolLine(meeting, settings) {
   const parts = [];
   if (nr) parts.push("# " + nr);
   if (date) parts.push("vom " + date);
-  if (!parts.length) return title + ": -";
-  return title + ": " + parts.join(" ");
+  if (!parts.length) return title + (withColon ? ":" : "") + " -";
+  const prefix = title + (withColon ? ":" : "");
+  return prefix + " " + parts.join(" ");
 }
 
 function _meetingMeta(meeting) {
@@ -116,8 +96,8 @@ function _footerLines(settings) {
   const line4 = footerStreet || "";
   const line5 = [footerZip, footerCity].filter((v) => v).join(" ").trim();
 
-  const lines = [line1, line2, line3, line4, line5].filter((v) => v);
-  return lines;
+  const lines = [line2, line3, line4, line5, line1].filter((v) => v);
+  return lines.slice(0, 4);
 }
 
 export const headerUtils = {

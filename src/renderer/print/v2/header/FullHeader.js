@@ -6,7 +6,11 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const left = headerUtils.el("div", "v2HeaderLeft");
   left.appendChild(headerUtils.el("div", "v2Project", headerUtils.projectLabel(data?.project)));
   left.appendChild(
-    headerUtils.el("div", "v2Protocol", headerUtils.protocolLine(data?.meeting, data?.settings))
+    headerUtils.el(
+      "div",
+      "v2Protocol",
+      headerUtils.protocolLine(data?.meeting, data?.settings, { withColon: true })
+    )
   );
 
   const right = headerUtils.el("div", "v2HeaderRight");
