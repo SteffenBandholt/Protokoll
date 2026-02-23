@@ -2,8 +2,14 @@ import { headerUtils } from "./headerUtils.js";
 
 export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {}) {
   const header = headerUtils.el("div", "v2Header v2HeaderFull");
-  const protocolTitle = String(data?.protocolTitle || data?.settings?.["pdf.protocolTitle"] || "").trim();
-  const titlePrefix = protocolTitle || "Besprechung";
+  const settings = data?.settings || {};
+  const protocolTitle =
+    String(data?.protocolTitle || "").trim() || headerUtils.protocolTitleFromSettings(settings);
+  const protocolLine = headerUtils.protocolLine({
+    meeting: data?.meeting,
+    settings,
+    titlePrefix: protocolTitle,
+  });
 
   const left = headerUtils.el("div", "v2HeaderLeft");
   left.appendChild(headerUtils.el("div", "v2Project", headerUtils.projectLabel(data?.project)));
@@ -11,52 +17,61 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
     headerUtils.el(
       "div",
       "v2Protocol",
-      headerUtils.meetingLabel(data?.meeting, titlePrefix)
+      protocolLine
     )
   );
 
   const right = headerUtils.el("div", "v2HeaderRight");
-  const rightMeta = headerUtils.el("div", "v2HeaderRightMeta");
-  if (Number.isFinite(Number(pageNo)) && Number.isFinite(Number(totalPages))) {
-    rightMeta.appendChild(headerUtils.el("div", "v2Page", "Seite " + pageNo + " / " + totalPages));
-  }
-  const mode = String(modeLabel || "").trim();
-  if (mode) {
-    rightMeta.appendChild(headerUtils.el("div", "v2Mode", mode));
-  }
-
   const userBox = headerUtils.el("div", "v2UserBox");
-  const u = data?.userData || {};
-  const line1 = String(u.name1 || "").trim();
-  const line2 = String(u.name2 || "").trim();
-  const line3 = String(u.street || "").trim();
-  const zip = String(u.zip || "").trim();
-  const city = String(u.city || "").trim();
-  const line4 = [zip, city].filter((v) => v).join(" ").trim();
-  const lines = [line1, line2, line3, line4].filter((v) => String(v || "").trim());
-  if (lines.length) {
-    lines.forEach((line) => {
-      userBox.appendChild(headerUtils.el("div", "v2UserLine", line));
-    });
-  } else {
-    userBox.appendChild(
-      headerUtils.el("div", "v2UserPlaceholder", "Hier koennen Ihre Nutzerdaten stehen")
-    );
-  }
-  right.append(rightMeta, userBox);
+  const name1 = String(settings["pdf.footerName1"] || "").trim();
+  const name2 = String(settings["pdf.footerName2"] || "").trim();
+  const street = String(settings["pdf.footerStreet"] || "").trim();
+  const zip = String(settings["pdf.footerZip"] || "").trim();
+  const city = String(settings["pdf.footerCity"] || "").trim();
+
+  const lineName1 = headerUtils.el(
+    "div",
+    name1 ? "v2UserLine" : "v2UserLine v2UserPlaceholder",
+    name1 || "Name 1"
+  );
+  const lineName2 = headerUtils.el(
+    "div",
+    name2 ? "v2UserLine" : "v2UserLine v2UserPlaceholder",
+    name2 || "Name 2"
+  );
+  const lineStreet = headerUtils.el(
+    "div",
+    street ? "v2UserLine" : "v2UserLine v2UserPlaceholder",
+    street || "Straße / Hsnr"
+  );
+
+  const zipCity = headerUtils.el("div", "v2UserZipCity");
+  const zipEl = headerUtils.el(
+    "div",
+    zip ? "v2UserZip" : "v2UserZip v2UserPlaceholder",
+    zip || "PLZ"
+  );
+  const cityEl = headerUtils.el(
+    "div",
+    city ? "v2UserCity" : "v2UserCity v2UserPlaceholder",
+    city || "Ort"
+  );
+  zipCity.append(zipEl, cityEl);
+  userBox.append(lineName1, lineName2, lineStreet, zipCity);
+  right.append(userBox);
 
   const textBlock = headerUtils.el("div", "v2FullTextBlock");
   const row = headerUtils.el("div", "v2FullRow");
   row.append(left, right);
   textBlock.appendChild(row);
 
-  const line2 = headerUtils.el("div", "v2Divider v2FullDivider");
-  line2.setAttribute("data-v2", "line2");
+  const line2Divider = headerUtils.el("div", "v2Divider v2FullDivider");
+  line2Divider.setAttribute("data-v2", "line2");
 
   header.append(
     textBlock,
     headerUtils.el("div", "v2FullGapProjectLine"),
-    line2
+    line2Divider
   );
 
   return header;

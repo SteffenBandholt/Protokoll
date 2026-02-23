@@ -23,9 +23,9 @@ function _parseBool(value, fallback = false) {
   return fallback;
 }
 
-function _protocolTitle(settings) {
+function _protocolTitleFromSettings(settings) {
   const raw = String(settings?.["pdf.protocolTitle"] || "").trim();
-  return raw || "Besprechung";
+  return raw || "Protokoll";
 }
 
 function _projectLabel(project) {
@@ -39,32 +39,26 @@ function _projectLabel(project) {
 }
 
 function _meetingLabel(meeting, titlePrefix) {
-  const base = String(titlePrefix || "").trim() || "Besprechung";
-  if (!meeting) return base;
-  const nr =
-    meeting.meeting_index ??
-    meeting.meetingIndex ??
-    meeting.index ??
-    meeting.number ??
-    "";
-  const dateRaw =
-    meeting.meeting_date ||
-    meeting.meetingDate ||
-    meeting.date ||
-    meeting.created_at ||
-    meeting.createdAt ||
-    meeting.updated_at ||
-    meeting.updatedAt ||
-    "";
-  const date = _formatDateIso(dateRaw);
-  const nrPart = nr ? "#" + nr : "";
-  const datePart = date ? "vom " + date : "";
-  const parts = [base, nrPart, datePart].filter((p) => String(p || "").trim());
-  return parts.join(" ");
+  return _protocolLine({ meeting, titlePrefix });
 }
 
-function _protocolLine(meeting, settings, { withColon = true } = {}) {
-  const title = _protocolTitle(settings);
+function _protocolLine(meetingOrOpts, settingsMaybe, optionsMaybe = {}) {
+  let meeting = meetingOrOpts;
+  let settings = settingsMaybe;
+  let titlePrefix = optionsMaybe?.titlePrefix || "";
+  if (
+    meetingOrOpts &&
+    typeof meetingOrOpts === "object" &&
+    (Object.prototype.hasOwnProperty.call(meetingOrOpts, "meeting") ||
+      Object.prototype.hasOwnProperty.call(meetingOrOpts, "settings") ||
+      Object.prototype.hasOwnProperty.call(meetingOrOpts, "titlePrefix"))
+  ) {
+    meeting = meetingOrOpts.meeting;
+    settings = meetingOrOpts.settings;
+    titlePrefix = meetingOrOpts.titlePrefix || "";
+  }
+
+  const title = String(titlePrefix || "").trim() || _protocolTitleFromSettings(settings);
   if (!meeting) return title;
   const nr =
     meeting.meeting_index ??
@@ -86,8 +80,7 @@ function _protocolLine(meeting, settings, { withColon = true } = {}) {
   if (nr) parts.push("#" + nr);
   if (date) parts.push("vom " + date);
   if (!parts.length) return title;
-  const prefix = title + (withColon ? ":" : "");
-  return prefix + " " + parts.join(" ");
+  return title + " " + parts.join(" ");
 }
 
 function _meetingMeta(meeting) {
@@ -129,7 +122,8 @@ export const headerUtils = {
   el: _el,
   formatDateIso: _formatDateIso,
   parseBool: _parseBool,
-  protocolTitle: _protocolTitle,
+  protocolTitleFromSettings: _protocolTitleFromSettings,
+  protocolTitle: _protocolTitleFromSettings,
   projectLabel: _projectLabel,
   meetingLabel: _meetingLabel,
   protocolLine: _protocolLine,

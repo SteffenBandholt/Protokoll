@@ -1,7 +1,7 @@
 /* Print V2 – Header styles (Version A) */
 
 .printV2Root .page {
-  padding-top: var(--v2-pad-top, 10mm);
+  padding-top: var(--v2-pad-top, 5mm);
   padding-left: var(--v2-pad-x, 12mm);
   padding-right: var(--v2-pad-x, 12mm);
   padding-bottom: var(--v2-pad-bottom, 18mm);
@@ -98,7 +98,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  padding-top: 10mm;
+  padding-top: var(--v2-full-gap-line1-project, 10mm);
 }
 
 .printV2Root .v2FullRow {
@@ -124,14 +124,14 @@
 }
 
 .printV2Root .v2Project {
-  font-size: 16pt;
+  font-size: var(--v2-full-project-font, 16pt);
   font-weight: 700;
 }
 
 .printV2Root .v2Protocol {
-  font-size: 14pt;
+  font-size: var(--v2-full-protocol-font, 14pt);
   font-weight: 600;
-  margin-top: 5mm;
+  margin-top: var(--v2-full-gap-project-protocol, 5mm);
 }
 
 .printV2Root .v2Page {
@@ -157,9 +157,30 @@
   box-sizing: border-box;
   overflow: hidden;
   margin-top: 2mm;
+  text-align: left;
 }
 
 .printV2Root .v2UserLine {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.printV2Root .v2UserZipCity {
+  display: flex;
+  gap: 3mm;
+  width: 100%;
+}
+
+.printV2Root .v2UserZip {
+  flex: 0 0 auto;
+  min-width: 12mm;
+  white-space: nowrap;
+}
+
+.printV2Root .v2UserCity {
+  flex: 1 1 auto;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -207,7 +228,8 @@
 }
 
 .printV2Root .v2MiniProtocol {
-  font-size: 10pt;
+  font-size: var(--v2-mini-protocol-font, 10pt);
+  margin-top: 2mm;
 }
 
 .printV2Root .v2MiniGapTextLine {
