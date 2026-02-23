@@ -17,6 +17,7 @@
 .printV2Root .v2LogoRow {
   display: flex;
   justify-content: flex-end;
+  align-items: flex-end;
   gap: var(--v2-logo-gap, 4mm);
 }
 
@@ -24,17 +25,33 @@
   width: var(--v2-global-logo-box, 40mm);
   height: var(--v2-global-logo-box, 40mm);
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid #ccc;
-  padding: 1mm;
+  border: none;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .printV2Root .v2LogoBox img {
+  display: block;
+  width: auto;
+  height: auto;
   max-width: 100%;
-  max-height: 100%;
+  max-height: 30mm;
   object-fit: contain;
+}
+
+.printV2Root .v2LogoBox.v2LogoSizeSmall img {
+  max-height: 22mm;
+}
+
+.printV2Root .v2LogoBox.v2LogoSizeMedium img {
+  max-height: 30mm;
+}
+
+.printV2Root .v2LogoBox.v2LogoSizeLarge img {
+  max-height: 38mm;
 }
 
 .printV2Root .v2LogoPlaceholder {

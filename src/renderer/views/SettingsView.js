@@ -1616,7 +1616,7 @@ export default class SettingsView {
       previewFrame.style.borderRadius = "6px";
       previewFrame.style.background = "#f5f5f5";
       previewFrame.style.display = "flex";
-      previewFrame.style.alignItems = "center";
+      previewFrame.style.alignItems = "flex-end";
       previewFrame.style.justifyContent = "center";
       previewFrame.style.overflow = "hidden";
 
@@ -1634,8 +1634,9 @@ export default class SettingsView {
       this.printLogoPlaceholderEls[slotIndex] = placeholder;
 
       const img = document.createElement("img");
-      img.style.width = "100%";
-      img.style.height = "100%";
+      img.style.width = "auto";
+      img.style.height = "auto";
+      img.style.maxWidth = "100%";
       img.style.objectFit = "contain";
       img.style.display = "none";
       this.printLogoPreviewImgs[slotIndex] = img;
@@ -1686,6 +1687,9 @@ export default class SettingsView {
         sizeSelect.appendChild(option);
       }
       sizeSelect.value = "medium";
+      sizeSelect.addEventListener("change", () => {
+        this._applyPrintLogoSize(slotIndex, sizeSelect.value);
+      });
       this.printLogoSizeSelects[slotIndex] = sizeSelect;
 
       const fileRow = document.createElement("div");
@@ -3828,12 +3832,29 @@ export default class SettingsView {
     return "medium";
   }
 
+  _previewLogoMaxHeightPx(sizeValue) {
+    const size = this._normalizePrintLogoSize(sizeValue);
+    if (size === "small") return 44;
+    if (size === "large") return 72;
+    return 58;
+  }
+
+  _applyPrintLogoPreviewSize(slotIndex, sizeValue) {
+    const idx = Number(slotIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 2) return;
+    const img = this.printLogoPreviewImgs?.[idx];
+    if (!img) return;
+    img.style.maxHeight = String(this._previewLogoMaxHeightPx(sizeValue)) + "px";
+  }
+
   _applyPrintLogoSize(slotIndex, value) {
     const idx = Number(slotIndex);
     if (!Number.isInteger(idx) || idx < 0 || idx > 2) return;
+    const normalized = this._normalizePrintLogoSize(value);
     const sel = this.printLogoSizeSelects?.[idx];
     if (!sel) return;
-    sel.value = this._normalizePrintLogoSize(value);
+    sel.value = normalized;
+    this._applyPrintLogoPreviewSize(idx, normalized);
   }
 
   _setPrintLogoDataUrl(slotIndex, dataUrl) {

@@ -13,6 +13,12 @@ function _parseBool(v) {
   return false;
 }
 
+function _normalizeLogoSize(v) {
+  const s = String(v || "").trim().toLowerCase();
+  if (s === "small" || s === "medium" || s === "large") return s;
+  return "medium";
+}
+
 function _normalizeTopNumber(row) {
   const n =
     row?.frozen_display_number ??
@@ -221,6 +227,9 @@ function _loadSettings(db) {
     "print.logo1.pngDataUrl",
     "print.logo2.pngDataUrl",
     "print.logo3.pngDataUrl",
+    "print.logo1.size",
+    "print.logo2.size",
+    "print.logo3.size",
     "print.logoSizePreset",
     "print.nextMeeting.enabled",
     "print.nextMeeting.date",
@@ -245,21 +254,25 @@ function _loadSettings(db) {
 }
 
 function _buildLogos(settings) {
+  const legacyPreset = _normalizeLogoSize(settings?.["print.logoSizePreset"]);
   return [
     {
       key: "logo1",
       enabled: _parseBool(settings?.["print.logo1.enabled"]),
       dataUrl: String(settings?.["print.logo1.pngDataUrl"] || "").trim(),
+      size: _normalizeLogoSize(settings?.["print.logo1.size"] || legacyPreset),
     },
     {
       key: "logo2",
       enabled: _parseBool(settings?.["print.logo2.enabled"]),
       dataUrl: String(settings?.["print.logo2.pngDataUrl"] || "").trim(),
+      size: _normalizeLogoSize(settings?.["print.logo2.size"] || legacyPreset),
     },
     {
       key: "logo3",
       enabled: _parseBool(settings?.["print.logo3.enabled"]),
       dataUrl: String(settings?.["print.logo3.pngDataUrl"] || "").trim(),
+      size: _normalizeLogoSize(settings?.["print.logo3.size"] || legacyPreset),
     },
   ];
 }
