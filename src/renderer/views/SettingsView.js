@@ -4,6 +4,7 @@
 // Persistenz: ueber window.bbmDb.userProfileGet/userProfileUpsert + appSettingsGetMany/appSettingsSetMany.
 
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
+import { createPopupOverlay, registerPopupCloseHandlers } from "../ui/popupCommon.js";
 import {
   DEFAULT_THEME_SETTINGS,
   applyThemeForSettings,
@@ -189,6 +190,8 @@ export default class SettingsView {
     this._settingsModalSaveFn = null;
     this._settingsModalCloseOnly = false;
     this._settingsModalOpen = false;
+    this._bodyLockCount = 0;
+    this._bodyOverflowBackup = null;
     this.devUnlocked = false;
     this._devUnlockHandler = null;
     this._devUnlockMsgTimer = null;
@@ -1859,15 +1862,10 @@ export default class SettingsView {
 
     tiles.append(tileUser, tilePrint, tileDev);
 
-    const settingsOverlay = document.createElement("div");
-    settingsOverlay.style.position = "fixed";
-    settingsOverlay.style.inset = "0";
-    settingsOverlay.style.background = "rgba(0,0,0,0.35)";
-    settingsOverlay.style.display = "none";
+    // Overlay im Body, damit kein Header-Stacking-Context stört
+    const settingsOverlay = createPopupOverlay({ background: "rgba(0,0,0,0.35)" });
     settingsOverlay.style.alignItems = "center";
     settingsOverlay.style.justifyContent = "center";
-    settingsOverlay.style.zIndex = "9999";
-    settingsOverlay.tabIndex = -1;
     const closeSettingsOverlay = () => {
       if (this._settingsModalCloseOnly) {
         this._closeSettingsModal();
@@ -1875,15 +1873,7 @@ export default class SettingsView {
       }
       this._runSettingsModalSave({ closeOnSuccess: true });
     };
-    settingsOverlay.onclick = (e) => {
-      if (e.target !== settingsOverlay) return;
-      closeSettingsOverlay();
-    };
-    settingsOverlay.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      closeSettingsOverlay();
-    });
+    registerPopupCloseHandlers(settingsOverlay, closeSettingsOverlay);
 
     const settingsModal = document.createElement("div");
     settingsModal.style.width = "min(980px, calc(100vw - 24px))";
@@ -1897,6 +1887,7 @@ export default class SettingsView {
     settingsModal.style.padding = "0";
     settingsModal.style.fontFamily =
       'Calibri, Arial, sans-serif';
+    settingsModal.tabIndex = -1;
 
     const settingsHead = document.createElement("div");
     settingsHead.style.display = "flex";
@@ -1953,14 +1944,9 @@ export default class SettingsView {
     settingsModal.append(settingsHead, settingsBody, settingsFooter);
     settingsOverlay.appendChild(settingsModal);
 
-    const delOverlay = document.createElement("div");
-    delOverlay.style.position = "fixed";
-    delOverlay.style.inset = "0";
-    delOverlay.style.background = "rgba(0,0,0,0.35)";
-    delOverlay.style.display = "none";
+    const delOverlay = createPopupOverlay({ background: "rgba(0,0,0,0.35)" });
     delOverlay.style.alignItems = "center";
     delOverlay.style.justifyContent = "center";
-    delOverlay.style.zIndex = "9999";
 
     const delBox = document.createElement("div");
     delBox.style.width = "min(520px, calc(100vw - 24px))";
@@ -2005,15 +1991,9 @@ export default class SettingsView {
     delBox.append(delMsg, delActions);
     delOverlay.append(delBox);
 
-    const renameOverlay = document.createElement("div");
-    renameOverlay.style.position = "fixed";
-    renameOverlay.style.inset = "0";
-    renameOverlay.style.background = "rgba(0,0,0,0.35)";
-    renameOverlay.style.display = "none";
+    const renameOverlay = createPopupOverlay({ background: "rgba(0,0,0,0.35)" });
     renameOverlay.style.alignItems = "center";
     renameOverlay.style.justifyContent = "center";
-    renameOverlay.style.zIndex = "9999";
-    renameOverlay.tabIndex = -1;
     renameOverlay.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -2072,11 +2052,10 @@ export default class SettingsView {
     root.append(
       head,
       uiModeRow,
-      tiles,
-      settingsOverlay,
-      delOverlay,
-      renameOverlay
+      tiles
     );
+
+    document.body.append(settingsOverlay, delOverlay, renameOverlay);
 
     this.root = root;
     this.msgEl = msg;
@@ -2246,9 +2225,14 @@ export default class SettingsView {
     this._settingsModalSaveFn = typeof saveFn === "function" ? saveFn : null;
     this._settingsModalCloseOnly = !!closeOnly;
     this._settingsModalOpen = true;
+    this._lockBodyScroll();
     this.settingsModalOverlayEl.style.display = "flex";
     try {
-      this.settingsModalOverlayEl.focus();
+      if (this.settingsModalEl) {
+        this.settingsModalEl.focus();
+      } else {
+        this.settingsModalOverlayEl.focus();
+      }
     } catch (_e) {
       // ignore
     }
@@ -2291,6 +2275,25 @@ export default class SettingsView {
     this.settingsModalBodyEl.innerHTML = "";
     this._settingsModalSaveFn = null;
     this._settingsModalCloseOnly = false;
+    this._unlockBodyScroll();
+  }
+
+  _lockBodyScroll() {
+    if (this._bodyLockCount === 0) {
+      this._bodyOverflowBackup = document.body.style.overflow || "";
+      document.body.style.overflow = "hidden";
+    }
+    this._bodyLockCount += 1;
+  }
+
+  _unlockBodyScroll() {
+    if (this._bodyLockCount > 0) {
+      this._bodyLockCount -= 1;
+    }
+    if (this._bodyLockCount === 0) {
+      document.body.style.overflow = this._bodyOverflowBackup || "";
+      this._bodyOverflowBackup = null;
+    }
   }
 
   _setMsg(t) {
@@ -3780,6 +3783,7 @@ export default class SettingsView {
 
   _resolveDeleteConfirm(ok) {
     if (this.deleteConfirmOverlayEl) this.deleteConfirmOverlayEl.style.display = "none";
+    this._unlockBodyScroll();
     const fn = this._deleteConfirmResolve;
     this._deleteConfirmResolve = null;
     if (typeof fn === "function") fn(!!ok);
@@ -3787,6 +3791,7 @@ export default class SettingsView {
 
   _confirmDeleteCategory(message) {
     if (this.deleteConfirmOverlayEl) this.deleteConfirmOverlayEl.style.display = "flex";
+    this._lockBodyScroll();
     if (this.deleteConfirmMsgEl) this.deleteConfirmMsgEl.textContent = message || "";
     if (this.deleteConfirmOkBtn) this.deleteConfirmOkBtn.disabled = false;
     if (this.deleteConfirmCancelBtn) this.deleteConfirmCancelBtn.disabled = false;
@@ -3799,6 +3804,7 @@ export default class SettingsView {
 
   _resolveRename(ok) {
     if (this.renameOverlayEl) this.renameOverlayEl.style.display = "none";
+    this._unlockBodyScroll();
     const fn = this._renameResolve;
     this._renameResolve = null;
     if (typeof fn === "function") fn(!!ok);
@@ -3806,6 +3812,7 @@ export default class SettingsView {
 
   _promptRenameCategory(current) {
     if (this.renameOverlayEl) this.renameOverlayEl.style.display = "flex";
+    this._lockBodyScroll();
     if (this.renameInputEl) {
       this.renameInputEl.value = current || "";
       this.renameInputEl.focus();
