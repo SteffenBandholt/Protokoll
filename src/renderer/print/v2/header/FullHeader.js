@@ -15,7 +15,6 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
 
   const right = headerUtils.el("div", "v2HeaderRight");
   const userBox = headerUtils.el("div", "v2UserBox");
-  userBox.appendChild(headerUtils.el("div", "v2UserTitle", "Nutzerdaten"));
   const lines = headerUtils.footerLines(data?.settings);
   if (lines.length) {
     lines.forEach((line) => {

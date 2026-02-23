@@ -25,7 +25,7 @@ function _parseBool(value, fallback = false) {
 
 function _protocolTitle(settings) {
   const raw = String(settings?.["pdf.protocolTitle"] || "").trim();
-  return raw || "Protokoll";
+  return raw || "Besprechung";
 }
 
 function _projectLabel(project) {
@@ -44,7 +44,7 @@ function _meetingLabel(meeting, settings) {
 
 function _protocolLine(meeting, settings, { withColon = true } = {}) {
   const title = _protocolTitle(settings);
-  if (!meeting) return title + (withColon ? ":" : "") + " -";
+  if (!meeting) return title;
   const nr =
     meeting.meeting_index ??
     meeting.meetingIndex ??
@@ -62,9 +62,9 @@ function _protocolLine(meeting, settings, { withColon = true } = {}) {
     "";
   const date = _formatDateIso(dateRaw);
   const parts = [];
-  if (nr) parts.push("# " + nr);
+  if (nr) parts.push("#" + nr);
   if (date) parts.push("vom " + date);
-  if (!parts.length) return title + (withColon ? ":" : "") + " -";
+  if (!parts.length) return title;
   const prefix = title + (withColon ? ":" : "");
   return prefix + " " + parts.join(" ");
 }
@@ -90,13 +90,17 @@ function _footerLines(settings) {
   const footerZip = String(settings?.["pdf.footerZip"] || "").trim();
   const footerCity = String(settings?.["pdf.footerCity"] || "").trim();
 
-  const line1 = [footerPlace, footerDate].filter((v) => v).join(", ");
-  const line2 = [footerName1, footerName2].filter((v) => v).join(", ");
-  const line3 = footerRecorder || "";
-  const line4 = footerStreet || "";
-  const line5 = [footerZip, footerCity].filter((v) => v).join(" ").trim();
+  const linePlaceDate = [footerPlace, footerDate].filter((v) => v).join(", ");
+  const lineNames = [footerName1, footerName2].filter((v) => v).join(", ");
+  const lineZipCity = [footerZip, footerCity].filter((v) => v).join(" ").trim();
 
-  const lines = [line2, line3, line4, line5, line1].filter((v) => v);
+  const lines = [
+    lineNames,
+    footerStreet,
+    lineZipCity,
+    footerRecorder,
+    linePlaceDate,
+  ].filter((v) => v);
   return lines.slice(0, 4);
 }
 
