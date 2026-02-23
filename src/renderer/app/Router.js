@@ -501,7 +501,6 @@ export default class Router {
     const mod = await import("../views/SettingsView.js");
     const V = mod.default;
 
-    this.currentMeetingId = null;
     await this.show(new V({ router: this }), { section: "settings", isTopsView: false });
   }
 

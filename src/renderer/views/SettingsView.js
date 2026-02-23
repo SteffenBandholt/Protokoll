@@ -1939,6 +1939,63 @@ export default class SettingsView {
       subText: "PDF-Einstellungen & Kategorien",
       onClick: async () => {
         const tabWrap = document.createElement("div");
+        const activePrintContextBox = document.createElement("div");
+        applyPopupCardStyle(activePrintContextBox);
+        activePrintContextBox.style.padding = "10px";
+        activePrintContextBox.style.marginBottom = "10px";
+        activePrintContextBox.style.display = "grid";
+        activePrintContextBox.style.gap = "8px";
+
+        const activePrintContextHint = document.createElement("div");
+        activePrintContextHint.style.fontSize = "12px";
+        activePrintContextHint.style.opacity = "0.9";
+
+        const activePrintContextActions = document.createElement("div");
+        activePrintContextActions.style.display = "flex";
+        activePrintContextActions.style.justifyContent = "flex-start";
+
+        const btnPrintCurrent = document.createElement("button");
+        btnPrintCurrent.type = "button";
+        btnPrintCurrent.textContent = "Aktuelles Protokoll drucken";
+        applyPopupButtonStyle(btnPrintCurrent, { variant: "primary" });
+
+        const getActivePrintContext = () => ({
+          projectId: this.router?.currentProjectId || null,
+          meetingId: this.router?.currentMeetingId || null,
+        });
+
+        const updateActivePrintContextUi = () => {
+          const { projectId, meetingId } = getActivePrintContext();
+          const hasContext = !!projectId && !!meetingId;
+          btnPrintCurrent.disabled = !hasContext;
+          if (hasContext) {
+            activePrintContextHint.textContent =
+              `Aktiver Kontext: Projekt #${projectId}, Besprechung #${meetingId}`;
+            activePrintContextHint.style.color = "#1f2937";
+          } else {
+            activePrintContextHint.textContent = "Bitte zuerst Projekt/Besprechung oeffnen.";
+            activePrintContextHint.style.color = "#9a3412";
+          }
+        };
+
+        btnPrintCurrent.onclick = async () => {
+          const { projectId, meetingId } = getActivePrintContext();
+          if (!projectId || !meetingId) {
+            updateActivePrintContextUi();
+            return;
+          }
+          if (typeof this.router?.openMeetingPrintPreview !== "function") {
+            alert("Druckfunktion ist nicht verfuegbar.");
+            return;
+          }
+          this._closeSettingsModal();
+          await this.router.openMeetingPrintPreview({ projectId, meetingId });
+        };
+
+        activePrintContextActions.append(btnPrintCurrent);
+        activePrintContextBox.append(activePrintContextHint, activePrintContextActions);
+        updateActivePrintContextUi();
+
         const tabHead = document.createElement("div");
         tabHead.style.display = "flex";
         tabHead.style.gap = "8px";
@@ -2041,7 +2098,7 @@ export default class SettingsView {
         tabBtnRoles.onclick = () => showTab("roles");
 
         tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles);
-        tabWrap.append(tabHead, tabBody);
+        tabWrap.append(activePrintContextBox, tabHead, tabBody);
 
         showTab("pdf");
 
