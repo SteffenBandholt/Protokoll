@@ -10,7 +10,7 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   left.appendChild(headerUtils.el("div", "v2Project", headerUtils.projectLabel(data?.project)));
 
   const right = headerUtils.el("div", "v2HeaderRight");
-  right.appendChild(headerUtils.el("div", "v2Page", Seite  / ));
+  right.appendChild(headerUtils.el("div", "v2Page", "Seite " + pageNo + " / " + totalPages));
   right.appendChild(headerUtils.el("div", "v2Mode", String(modeLabel || "").trim() || "PDF"));
 
   const textBlock = headerUtils.el("div", "v2FullTextBlock");

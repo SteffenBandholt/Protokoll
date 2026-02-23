@@ -5,7 +5,10 @@ export function renderV2MiniHeader({ data, pageNo, totalPages, modeLabel } = {})
 
   const miniRow = headerUtils.el("div", "v2MiniTextRow");
   const left = headerUtils.el("div", "v2MiniLeft", headerUtils.meetingLabel(data?.meeting));
-  const rightText = ${headerUtils.projectLabel(data?.project)} | Seite  /  | ;
+  const rightText =
+    headerUtils.projectLabel(data?.project) +
+    " | Seite " + pageNo + " / " + totalPages +
+    " | " + String(modeLabel || "PDF").toUpperCase();
   const right = headerUtils.el("div", "v2MiniRight", rightText);
   miniRow.append(left, right);
   miniRow.setAttribute("data-v2", "miniText");

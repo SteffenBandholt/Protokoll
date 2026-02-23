@@ -7,7 +7,7 @@ function _buildLogoBox(logo, index) {
   if (dataUrl) {
     const img = document.createElement("img");
     img.src = dataUrl;
-    img.alt = Logo ;
+    img.alt = "Logo " + (index + 1);
     box.appendChild(img);
     return box;
   }

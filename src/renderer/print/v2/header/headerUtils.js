@@ -8,17 +8,20 @@ function _el(tag, className, text) {
 function _formatDateIso(value) {
   const s = String(value || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || "";
-  const [y, m, d] = s.split("-");
-  return ${d}..;
+  const parts = s.split("-");
+  const y = parts[0] || "";
+  const m = parts[1] || "";
+  const d = parts[2] || "";
+  return d + "." + m + "." + y;
 }
 
 function _projectLabel(project) {
   if (!project) return "Projekt: -";
   const nr = String(project.project_number || project.projectNumber || "").trim();
   const name = String(project.name || "").trim();
-  if (nr && name) return Projekt:  - ;
-  if (nr) return Projekt: ;
-  if (name) return Projekt: ;
+  if (nr && name) return "Projekt: " + nr + " - " + name;
+  if (nr) return "Projekt: " + nr;
+  if (name) return "Projekt: " + name;
   return "Projekt: -";
 }
 
@@ -40,8 +43,8 @@ function _meetingLabel(meeting) {
     meeting.updatedAt ||
     "";
   const date = _formatDateIso(dateRaw);
-  const nrPart = nr ? # : "";
-  const parts = ["Besprechung", nrPart, date ? () : ""]
+  const nrPart = nr ? "#" + nr : "";
+  const parts = ["Besprechung", nrPart, date ? "(" + date + ")" : ""]
     .filter((p) => String(p || "").trim())
     .join(" ");
   return parts || "Besprechung: -";
