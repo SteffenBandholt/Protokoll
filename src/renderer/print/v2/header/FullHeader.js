@@ -5,13 +5,15 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const settings = data?.settings || {};
   const meeting = data?.meeting || {};
   const useUserData = headerUtils.parseBool(settings["pdf.footerUseUserData"], false);
-  const protocolTitle =
-    String(data?.protocolTitle || "").trim() || headerUtils.protocolTitleFromSettings(settings);
-  const protocolLine = headerUtils.protocolLine({ meeting, settings, titlePrefix: protocolTitle });
+  const titleText = headerUtils.resolveHeaderTitle({ data, settings, meeting, modeLabel });
+  const brandingText = headerUtils.resolveBranding({ data });
 
   const left = headerUtils.el("div", "v2HeaderLeft v2FullLeftWrap");
   left.appendChild(headerUtils.el("div", "v2Project", headerUtils.projectLabel(data?.project)));
-  left.appendChild(headerUtils.el("div", "v2ProtocolTitle", protocolLine));
+  left.appendChild(headerUtils.el("div", "v2ProtocolTitle", titleText));
+  if (brandingText) {
+    left.appendChild(headerUtils.el("div", "v2DraftBadge", brandingText));
+  }
 
   const right = headerUtils.el("div", "v2HeaderRight");
   const name1 = String(settings["pdf.footerName1"] || "").trim();

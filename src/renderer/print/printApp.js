@@ -547,7 +547,7 @@ async function handleInit(payload) {
     }
 
     const pages = _buildPages(data);
-    const root = renderPrint({ pages });
+    const root = renderPrint({ pages, data });
     app.innerHTML = "";
     app.appendChild(root);
     window.bbmPrint.ready({ jobId: payload?.jobId || null, ok: true });

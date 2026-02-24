@@ -13,6 +13,88 @@ function _parseBool(v) {
   return false;
 }
 
+function _docLabelForMode(mode) {
+  const m = String(mode || "").trim();
+  if (m === "preview" || m === "vorabzug") return "Vorabzug";
+  if (m === "protocol") return "Protokoll";
+  if (m === "topsAll") return "Top-Liste (alle)";
+  if (m === "firms") return "Firmenliste";
+  if (m === "todo") return "ToDo";
+  if (m === "headerTest") return "Kopf-Test";
+  return "Dokument";
+}
+
+function _resolvePrintProfile(mode) {
+  const m = String(mode || "").trim();
+  const documentLabel = _docLabelForMode(m);
+
+  if (m === "preview" || m === "vorabzug") {
+    return {
+      key: "protocol_draft",
+      parent: "protocol",
+      family: "protocol",
+      documentLabel,
+      header: {
+        titleMode: "protocolLine",
+        showJourfix: true,
+      },
+      branding: {
+        enabled: true,
+        label: "Vorabzug",
+      },
+    };
+  }
+
+  if (m === "protocol" || m === "headerTest") {
+    return {
+      key: "protocol",
+      parent: "base",
+      family: "protocol",
+      documentLabel,
+      header: {
+        titleMode: "protocolLine",
+        showJourfix: true,
+      },
+      branding: {
+        enabled: false,
+        label: "",
+      },
+    };
+  }
+
+  if (m === "firms" || m === "todo" || m === "topsAll") {
+    return {
+      key: "list",
+      parent: "base",
+      family: "list",
+      documentLabel,
+      header: {
+        titleMode: "documentLabel",
+        showJourfix: false,
+      },
+      branding: {
+        enabled: false,
+        label: "",
+      },
+    };
+  }
+
+  return {
+    key: "base",
+    parent: null,
+    family: "base",
+    documentLabel,
+    header: {
+      titleMode: "baseTitle",
+      showJourfix: false,
+    },
+    branding: {
+      enabled: false,
+      label: "",
+    },
+  };
+}
+
 function _normalizeLogoSize(v) {
   const s = String(v || "").trim().toLowerCase();
   if (s === "small" || s === "medium" || s === "large") return s;
@@ -324,6 +406,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
   const meeting = meetingId ? meetingsRepo.getMeetingById(meetingId) : null;
   const settings = _loadSettings(db);
   const protocolTitle = String(settings?.["pdf.protocolTitle"] || "").trim();
+  const printProfile = _resolvePrintProfile(mode);
   const userData = _buildUserData(settings);
   const logos = _buildLogos(settings);
 
@@ -382,6 +465,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     meeting,
     settings,
     protocolTitle,
+    printProfile,
     userData,
     logos,
     interludeText,

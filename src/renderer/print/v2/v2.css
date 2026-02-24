@@ -161,6 +161,18 @@
   margin-top: 5mm;
 }
 
+.printV2Root .v2DraftBadge {
+  display: inline-block;
+  margin-top: 2mm;
+  padding: 0.3mm 1.2mm;
+  border: 1px solid #b91c1c;
+  color: #b91c1c;
+  font-size: 8pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .printV2Root .v2Page {
   font-size: 8pt;
   color: #333;
@@ -254,6 +266,12 @@
 .printV2Root .v2MiniProtocolTitle {
   font-size: 10pt;
   margin-top: 2mm;
+}
+
+.printV2Root .v2MiniDraftBadge {
+  margin-left: 2mm;
+  margin-top: 0;
+  vertical-align: middle;
 }
 
 .printV2Root .v2MiniGapTextLine {

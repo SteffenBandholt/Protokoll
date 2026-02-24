@@ -1,4 +1,9 @@
-﻿function _el(tag, className, text) {
+﻿import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
+import { renderV2FullHeader } from "../v2/header/FullHeader.js";
+import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
+import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
+
+function _el(tag, className, text) {
   const el = document.createElement(tag);
   if (className) el.className = className;
   if (text != null) el.textContent = text;
@@ -132,6 +137,36 @@ function _buildColGroup(type) {
   return colgroup;
 }
 
+
+function _applyV2Vars(root) {
+  root.style.setProperty("--v2-pad-top", String(V2_LAYOUT.page.padTopMm) + "mm");
+  root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-pad-bottom", String(V2_LAYOUT.page.padBottomMm) + "mm");
+  root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
+  root.style.setProperty(
+    "--v2-global-logo-box-w",
+    String(V2_LAYOUT.global.logoBoxWidthMm || V2_LAYOUT.global.logoBoxMm) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-global-logo-box-h",
+    String(V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm) + "mm"
+  );
+  root.style.setProperty("--v2-global-height", String(V2_LAYOUT.global.heightMm || 50) + "mm");
+  root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
+  root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
+  root.style.setProperty("--v2-full-height", String(V2_LAYOUT.full.heightMm) + "mm");
+  root.style.setProperty("--v2-full-gap-line1-project", String(V2_LAYOUT.full.gapLine1ToProjectMm) + "mm");
+  root.style.setProperty("--v2-full-gap-project-protocol", String(V2_LAYOUT.full.gapProjectToProtocolMm) + "mm");
+  root.style.setProperty("--v2-full-project-font", String(V2_LAYOUT.full.projectFontPt) + "pt");
+  root.style.setProperty("--v2-full-protocol-font", String(V2_LAYOUT.full.protocolFontPt) + "pt");
+  root.style.setProperty("--v2-full-gap-project-line", String(V2_LAYOUT.full.gapProjectToLineMm) + "mm");
+  root.style.setProperty("--v2-full-gap-line-body", String(V2_LAYOUT.full.gapLineToBodyMm) + "mm");
+  root.style.setProperty("--v2-mini-protocol-font", String(V2_LAYOUT.mini.protocolFontPt) + "pt");
+  root.style.setProperty("--v2-mini-gap-text-line", String(V2_LAYOUT.mini.gapTextToLineMm) + "mm");
+  root.style.setProperty("--v2-mini-gap-line-body", String(V2_LAYOUT.mini.gapLineToBodyMm) + "mm");
+  root.style.setProperty("--v2-line-thickness", String(V2_LAYOUT.global.lineThicknessPx) + "px");
+}
+
 function _buildTable(page) {
   const table = document.createElement("table");
   const type = page.table?.type || "tops";
@@ -161,19 +196,21 @@ function _buildTable(page) {
   return table;
 }
 
-export function renderPrint({ pages }) {
-  const root = _el("div", "printRoot");
+export function renderPrint({ pages, data } = {}) {
+  const root = _el("div", "printRoot printV2Root");
+  _applyV2Vars(root);
+  const totalPages = Array.isArray(pages) ? pages.length : 0;
+  const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || "Dokument";
+
   for (const page of pages || []) {
     const pageEl = _el("div", "page");
     const pageNo = Number(page?.header?.pageNo || 0);
     if (pageNo === 1) {
-      pageEl.appendChild(_el("div", "pageHeaderSpacer"));
-      pageEl.appendChild(_el("div", "pageHeaderLine isSpacer"));
+      pageEl.appendChild(renderV2GlobalHeader({ data }));
+      pageEl.appendChild(renderV2FullHeader({ data, pageNo, totalPages, modeLabel }));
+      pageEl.appendChild(_el("div", "v2FullGapLineBody"));
     } else {
-      const header = _buildPageHeader(page.header || {});
-      const line = _el("div", "pageHeaderLine");
-      pageEl.appendChild(header);
-      pageEl.appendChild(line);
+      pageEl.appendChild(renderV2MiniHeader({ data, pageNo, totalPages, modeLabel }));
     }
     pageEl.appendChild(_buildTable(page));
     root.appendChild(pageEl);

@@ -28,6 +28,17 @@ function _protocolTitleFromSettings(settings) {
   return raw || "Protokoll";
 }
 
+function _docLabelFromMode(mode) {
+  const m = String(mode || "").trim();
+  if (m === "preview" || m === "vorabzug") return "Vorabzug";
+  if (m === "protocol") return "Protokoll";
+  if (m === "topsAll") return "Top-Liste (alle)";
+  if (m === "firms") return "Firmenliste";
+  if (m === "todo") return "ToDo";
+  if (m === "headerTest") return "Kopf-Test";
+  return "Dokument";
+}
+
 function _projectLabel(project) {
   if (!project) return "Projekt: -";
   const nr = String(project.project_number || project.projectNumber || "").trim();
@@ -118,6 +129,27 @@ function _footerLines(settings) {
   return lines.slice(0, 4);
 }
 
+function _resolveHeaderTitle({ data, settings, meeting, modeLabel } = {}) {
+  const profile = data?.printProfile || {};
+  const titleMode = String(profile?.header?.titleMode || "").trim();
+  const protocolTitle = String(data?.protocolTitle || "").trim() || _protocolTitleFromSettings(settings);
+  if (titleMode === "documentLabel") {
+    const fromProfile = String(profile?.documentLabel || "").trim();
+    const fromMode = _docLabelFromMode(data?.mode);
+    return fromProfile || String(modeLabel || "").trim() || fromMode;
+  }
+  if (titleMode === "baseTitle") return protocolTitle;
+  return _protocolLine({ meeting, settings, titlePrefix: protocolTitle });
+}
+
+function _resolveBranding({ data } = {}) {
+  const profile = data?.printProfile || {};
+  const enabled = !!profile?.branding?.enabled;
+  const label = String(profile?.branding?.label || "").trim();
+  if (!enabled || !label) return "";
+  return label;
+}
+
 export const headerUtils = {
   el: _el,
   formatDateIso: _formatDateIso,
@@ -129,4 +161,6 @@ export const headerUtils = {
   protocolLine: _protocolLine,
   meetingMeta: _meetingMeta,
   footerLines: _footerLines,
+  resolveHeaderTitle: _resolveHeaderTitle,
+  resolveBranding: _resolveBranding,
 };
