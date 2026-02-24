@@ -411,7 +411,10 @@ export default class SettingsView {
     inpUserZip.type = "text";
     inpUserZip.inputMode = "numeric";
     inpUserZip.placeholder = "PLZ";
-    inpUserZip.style.width = "100%";
+    inpUserZip.maxLength = 5;
+    inpUserZip.style.width = "120px";
+    inpUserZip.style.maxWidth = "120px";
+    inpUserZip.style.justifySelf = "start";
 
     const inpUserCity = document.createElement("input");
     inpUserCity.type = "text";
@@ -2894,10 +2897,11 @@ export default class SettingsView {
     });
   }
 
-  _normalizeUserZip(value) {
+  _normalizeUserZip(value, maxLen = 10) {
     const v = String(value || "").trim().replace(/\D+/g, "");
     if (!v) return "";
-    return v.length > 10 ? v.slice(0, 10) : v;
+    const lim = Math.max(1, Number(maxLen) || 10);
+    return v.length > lim ? v.slice(0, lim) : v;
   }
 
   _clampLogoNumber(value, min, max, fallback) {
@@ -3870,7 +3874,7 @@ export default class SettingsView {
           if (this.inpUserName1) this.inpUserName1.value = (p.name1 ?? "").toString();
           if (this.inpUserName2) this.inpUserName2.value = (p.name2 ?? "").toString();
           if (this.inpUserStreet) this.inpUserStreet.value = (p.street ?? "").toString();
-          if (this.inpUserZip) this.inpUserZip.value = (p.zip ?? "").toString();
+          if (this.inpUserZip) this.inpUserZip.value = this._normalizeUserZip((p.zip ?? "").toString(), 5);
           if (this.inpUserCity) this.inpUserCity.value = (p.city ?? "").toString();
         }
       }
@@ -3920,7 +3924,7 @@ export default class SettingsView {
       name1: this._normalizeUserText(this.inpUserName1?.value, 80),
       name2: this._normalizeUserText(this.inpUserName2?.value, 80),
       street: this._normalizeUserText(this.inpUserStreet?.value, 80),
-      zip: this._normalizeUserZip(this.inpUserZip?.value),
+      zip: this._normalizeUserZip(this.inpUserZip?.value, 5),
       city: this._normalizeUserText(this.inpUserCity?.value, 80),
     };
   }
@@ -3933,7 +3937,7 @@ export default class SettingsView {
     return `${dd}.${mm}.${yyyy}`;
   }
 
-  _applyPdfFooterUserDefaultsFromUser(values) {
+  _applyPdfFooterUserDefaultsFromUser(values, { overwriteExisting = false } = {}) {
     const data = values || this._getNormalizedUserFooterDefaults();
     const pairs = [
       [this.inpPdfFooterName1, data.name1],
@@ -3946,7 +3950,7 @@ export default class SettingsView {
     for (const [input, value] of pairs) {
       if (!input) continue;
       const current = String(input.value || "").trim();
-      if (current) continue;
+      if (current && !overwriteExisting) continue;
       const next = String(value || "").trim();
       if (!next) continue;
       input.value = next;
@@ -3982,7 +3986,7 @@ export default class SettingsView {
     );
     const protocolsDir = (this.inpPdfProtocolsDir?.value ?? "").toString().trim();
     const footerUseUserData = this._parseBool(
-      this.inpPdfFooterUseUserData?.checked,
+      this.pdfFooterUseUserData,
       defaults.footerUseUserData
     );
     const footerPlace = this._normalizeUserText(this.inpPdfFooterPlace?.value, 80);
@@ -4053,7 +4057,7 @@ export default class SettingsView {
     const defaults = this._pdfSettingsDefaults();
     const useUserData = this._parseBool(this.pdfFooterUseUserData, defaults.footerUseUserData);
     if (useUserData) {
-      this._applyPdfFooterUserDefaultsFromUser();
+      this._applyPdfFooterUserDefaultsFromUser(undefined, { overwriteExisting: true });
     }
 
     const values = this._getPdfSettingsInputValues();
@@ -4996,7 +5000,7 @@ export default class SettingsView {
           if (this.inpUserName1) this.inpUserName1.value = (p.name1 ?? "").toString();
           if (this.inpUserName2) this.inpUserName2.value = (p.name2 ?? "").toString();
           if (this.inpUserStreet) this.inpUserStreet.value = (p.street ?? "").toString();
-          if (this.inpUserZip) this.inpUserZip.value = (p.zip ?? "").toString();
+          if (this.inpUserZip) this.inpUserZip.value = this._normalizeUserZip((p.zip ?? "").toString(), 5);
           if (this.inpUserCity) this.inpUserCity.value = (p.city ?? "").toString();
         }
       }
@@ -5135,14 +5139,14 @@ export default class SettingsView {
     let userName1 = (data.user_name1 ?? "").toString();
     let userName2 = (data.user_name2 ?? "").toString();
     let userStreet = (data.user_street ?? "").toString();
-    let userZip = (data.user_zip ?? "").toString();
+    let userZip = this._normalizeUserZip((data.user_zip ?? "").toString(), 5);
     let userCity = (data.user_city ?? "").toString();
 
     if (profile) {
       userName1 = (profile.name1 ?? "").toString();
       userName2 = (profile.name2 ?? "").toString();
       userStreet = (profile.street ?? "").toString();
-      userZip = (profile.zip ?? "").toString();
+      userZip = this._normalizeUserZip((profile.zip ?? "").toString(), 5);
       userCity = (profile.city ?? "").toString();
     } else if (typeof api.userProfileUpsert === "function") {
       const hasAny = [userName1, userName2, userStreet, userZip, userCity].some((v) => String(v || "").trim());
@@ -5163,7 +5167,7 @@ export default class SettingsView {
     if (this.inpUserName1) this.inpUserName1.value = userName1;
     if (this.inpUserName2) this.inpUserName2.value = userName2;
     if (this.inpUserStreet) this.inpUserStreet.value = userStreet;
-    if (this.inpUserZip) this.inpUserZip.value = userZip;
+    if (this.inpUserZip) this.inpUserZip.value = this._normalizeUserZip(userZip, 5);
     if (this.inpUserCity) this.inpUserCity.value = userCity;
     const defaults = this._logoDefaults();
     const size = this._clampLogoNumber(data["header.logoSizePx"], 12, 48, defaults.size);
@@ -5408,22 +5412,25 @@ export default class SettingsView {
     const user_name1 = this._normalizeUserText(this.inpUserName1?.value, 80);
     const user_name2 = this._normalizeUserText(this.inpUserName2?.value, 80);
     const user_street = this._normalizeUserText(this.inpUserStreet?.value, 80);
-    const user_zip = this._normalizeUserZip(this.inpUserZip?.value);
+    const user_zip = this._normalizeUserZip(this.inpUserZip?.value, 5);
     const user_city = this._normalizeUserText(this.inpUserCity?.value, 80);
-    const pdfDefaults = this._pdfSettingsDefaults();
-    const footerUseUserData = this._parseBool(this.pdfFooterUseUserData, pdfDefaults.footerUseUserData);
-
-    if (footerUseUserData) {
-      this._applyPdfFooterUserDefaultsFromUser({
-        name1: user_name1,
-        name2: user_name2,
-        street: user_street,
-        zip: user_zip,
-        city: user_city,
-      });
-    }
+    this._applyPdfFooterUserDefaultsFromUser({
+      name1: user_name1,
+      name2: user_name2,
+      street: user_street,
+      zip: user_zip,
+      city: user_city,
+    }, { overwriteExisting: true });
 
     const pdfValues = this._getPdfSettingsInputValues();
+    const pdfValuesForSave = {
+      ...pdfValues,
+      footerName1: user_name1,
+      footerName2: user_name2,
+      footerStreet: user_street,
+      footerZip: user_zip,
+      footerCity: user_city,
+    };
 
     this.userName = user_name;
     this.userCompany = user_company;
@@ -5432,7 +5439,7 @@ export default class SettingsView {
     if (this.inpUserStreet) this.inpUserStreet.value = user_street;
     if (this.inpUserZip) this.inpUserZip.value = user_zip;
     if (this.inpUserCity) this.inpUserCity.value = user_city;
-    this._applyPdfSettingsInputs(pdfValues);
+    this._applyPdfSettingsInputs(pdfValuesForSave);
 
     this.saving = true;
     this._setMsg("Speichere...");
@@ -5456,7 +5463,7 @@ export default class SettingsView {
           if (this.inpUserName1) this.inpUserName1.value = (p.name1 ?? "").toString();
           if (this.inpUserName2) this.inpUserName2.value = (p.name2 ?? "").toString();
           if (this.inpUserStreet) this.inpUserStreet.value = (p.street ?? "").toString();
-          if (this.inpUserZip) this.inpUserZip.value = (p.zip ?? "").toString();
+          if (this.inpUserZip) this.inpUserZip.value = this._normalizeUserZip((p.zip ?? "").toString(), 5);
           if (this.inpUserCity) this.inpUserCity.value = (p.city ?? "").toString();
         }
       }
@@ -5469,18 +5476,18 @@ export default class SettingsView {
         user_street,
         user_zip,
         user_city,
-        "pdf.protocolTitle": pdfValues.protocolTitle,
-        "pdf.trafficLightAllEnabled": pdfValues.trafficLightAllEnabled ? "true" : "false",
-        "pdf.preRemarks": pdfValues.preRemarks,
-        "pdf.footerPlace": pdfValues.footerPlace,
-        "pdf.footerDate": pdfValues.footerDate,
-        "pdf.footerName1": pdfValues.footerName1,
-        "pdf.footerName2": pdfValues.footerName2,
-        "pdf.footerRecorder": pdfValues.footerRecorder,
-        "pdf.footerStreet": pdfValues.footerStreet,
-        "pdf.footerZip": pdfValues.footerZip,
-        "pdf.footerCity": pdfValues.footerCity,
-        "pdf.footerUseUserData": pdfValues.footerUseUserData ? "true" : "false",
+        "pdf.protocolTitle": pdfValuesForSave.protocolTitle,
+        "pdf.trafficLightAllEnabled": pdfValuesForSave.trafficLightAllEnabled ? "true" : "false",
+        "pdf.preRemarks": pdfValuesForSave.preRemarks,
+        "pdf.footerPlace": pdfValuesForSave.footerPlace,
+        "pdf.footerDate": pdfValuesForSave.footerDate,
+        "pdf.footerName1": pdfValuesForSave.footerName1,
+        "pdf.footerName2": pdfValuesForSave.footerName2,
+        "pdf.footerRecorder": pdfValuesForSave.footerRecorder,
+        "pdf.footerStreet": pdfValuesForSave.footerStreet,
+        "pdf.footerZip": pdfValuesForSave.footerZip,
+        "pdf.footerCity": pdfValuesForSave.footerCity,
+        "pdf.footerUseUserData": pdfValuesForSave.footerUseUserData ? "true" : "false",
         });
         if (!res?.ok) {
           alert(res?.error || "Speichern fehlgeschlagen");
@@ -5497,18 +5504,18 @@ export default class SettingsView {
           user_street,
           user_zip,
           user_city,
-          "pdf.protocolTitle": pdfValues.protocolTitle,
-          "pdf.trafficLightAllEnabled": pdfValues.trafficLightAllEnabled ? "true" : "false",
-          "pdf.preRemarks": pdfValues.preRemarks,
-          "pdf.footerPlace": pdfValues.footerPlace,
-          "pdf.footerDate": pdfValues.footerDate,
-          "pdf.footerName1": pdfValues.footerName1,
-          "pdf.footerName2": pdfValues.footerName2,
-          "pdf.footerRecorder": pdfValues.footerRecorder,
-          "pdf.footerStreet": pdfValues.footerStreet,
-          "pdf.footerZip": pdfValues.footerZip,
-          "pdf.footerCity": pdfValues.footerCity,
-          "pdf.footerUseUserData": pdfValues.footerUseUserData ? "true" : "false",
+          "pdf.protocolTitle": pdfValuesForSave.protocolTitle,
+          "pdf.trafficLightAllEnabled": pdfValuesForSave.trafficLightAllEnabled ? "true" : "false",
+          "pdf.preRemarks": pdfValuesForSave.preRemarks,
+          "pdf.footerPlace": pdfValuesForSave.footerPlace,
+          "pdf.footerDate": pdfValuesForSave.footerDate,
+          "pdf.footerName1": pdfValuesForSave.footerName1,
+          "pdf.footerName2": pdfValuesForSave.footerName2,
+          "pdf.footerRecorder": pdfValuesForSave.footerRecorder,
+          "pdf.footerStreet": pdfValuesForSave.footerStreet,
+          "pdf.footerZip": pdfValuesForSave.footerZip,
+          "pdf.footerCity": pdfValuesForSave.footerCity,
+          "pdf.footerUseUserData": pdfValuesForSave.footerUseUserData ? "true" : "false",
         };
       }
       window.dispatchEvent(new Event("bbm:header-refresh"));
