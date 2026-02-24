@@ -165,6 +165,78 @@ function _buildTopRowElement(row) {
 }
 
 function _buildGenericRowElement(row) {
+  if (row?.kind === "firmGroup") {
+    const tr = document.createElement("tr");
+    tr.className = "firmGroupRow";
+    const td = _el("td", "firmGroupCell", row.title || "");
+    td.colSpan = 1;
+    tr.appendChild(td);
+    return tr;
+  }
+
+  if (row?.kind === "firmCard") {
+    const tr = document.createElement("tr");
+    tr.className = "firmCardRow";
+    const td = _el("td", "firmCardCell");
+    td.colSpan = 1;
+
+    const card = _el("div", "firmCard");
+    const top = _el("div", "firmTop");
+    const left = _el("div", "firmTopLeft");
+    const right = _el("div", "firmTopRight");
+    left.append(
+      _el("div", "firmName", row?.firm?.name || ""),
+      _el("div", "firmAddr", row?.firm?.street || ""),
+      _el("div", "firmAddr", row?.firm?.zipCity || "")
+    );
+    right.append(
+      _el("div", "firmContact", `Telefon: ${row?.firm?.phone || "-"}`),
+      _el("div", "firmContact", `Handy: ${row?.firm?.mobile || "-"}`),
+      _el("div", "firmContact", `E-Mail: ${row?.firm?.email || "-"}`)
+    );
+    top.append(left, right);
+
+    const people = _el("div", "firmPeople");
+    const head = _el("div", "firmPeopleHead");
+    head.append(
+      _el("div", "", "Vorname"),
+      _el("div", "", "Nachname"),
+      _el("div", "", "Funktion/Rolle"),
+      _el("div", "", "E-Mail"),
+      _el("div", "", "Telefon")
+    );
+    people.appendChild(head);
+
+    const list = Array.isArray(row?.firm?.persons) ? row.firm.persons : [];
+    if (!list.length) {
+      people.appendChild(_el("div", "firmPeopleEmpty", "Keine Mitarbeiter"));
+    } else {
+      const wrapByChars = (value, maxChars) => {
+        const s = String(value || "");
+        if (!maxChars || maxChars < 1 || s.length <= maxChars) return s;
+        const out = [];
+        for (let i = 0; i < s.length; i += maxChars) out.push(s.slice(i, i + maxChars));
+        return out.join("\n");
+      };
+      for (const p of list) {
+        const line = _el("div", "firmPeopleRow");
+        line.append(
+          _el("div", "", wrapByChars(p?.first_name || "", 10)),
+          _el("div", "", wrapByChars(p?.last_name || "", 12)),
+          _el("div", "", p?.role_text || ""),
+          _el("div", "", p?.email || ""),
+          _el("div", "", p?.phone || "")
+        );
+        people.appendChild(line);
+      }
+    }
+
+    card.append(top, people);
+    td.appendChild(card);
+    tr.appendChild(td);
+    return tr;
+  }
+
   const tr = document.createElement("tr");
   for (const cell of row.cells) {
     tr.appendChild(_el("td", "", cell));
@@ -187,6 +259,7 @@ function _buildPageHeaderForMeasure(projectLabel, docLabel) {
 }
 
 function _buildTableHeadForMeasure(type) {
+  if (type === "firmsCards") return null;
   const thead = document.createElement("thead");
   const tr = document.createElement("tr");
   if (type === "tops") {
@@ -230,10 +303,12 @@ function _createMeasureContext({ type, projectLabel, docLabel }) {
   page.appendChild(_el("div", "pageHeaderLine"));
 
   const table = document.createElement("table");
-  table.className = type === "tops" ? "topsTable" : type === "firms" ? "firmsTable" : "todoTable";
+  table.className =
+    type === "tops" ? "topsTable" : type === "firms" ? "firmsTable" : type === "firmsCards" ? "firmsCardsTable" : "todoTable";
   const colgroup = _buildColGroup(type);
   if (colgroup) table.appendChild(colgroup);
-  table.appendChild(_buildTableHeadForMeasure(type));
+  const head = _buildTableHeadForMeasure(type);
+  if (head) table.appendChild(head);
 
   const tbody = document.createElement("tbody");
   table.appendChild(tbody);
@@ -503,13 +578,28 @@ function _buildPages(data) {
   const docLabel = _docLabel(mode);
 
   if (mode === "firms") {
-    const rows = (data.firms || []).map((f) => {
-      const name = f.label || f.short || f.name || "";
-      const kind = f.kind === "global_firm" ? "Stamm" : "Projekt";
-      const active = String(f.is_active ?? "") === "0" ? "Nein" : "Ja";
-      return { cells: [name, kind, active] };
-    });
-    return _paginateGeneric({ rows, type: "firms", projectLabel, docLabel });
+    const rows = [];
+    let currentGroup = "";
+    for (const f of data.firms || []) {
+      const group = String(f?.categoryLabel || "Sonstige").trim() || "Sonstige";
+      if (group !== currentGroup) {
+        currentGroup = group;
+        rows.push({ kind: "firmGroup", title: currentGroup });
+      }
+      rows.push({
+        kind: "firmCard",
+        firm: {
+          name: String(f?.label || f?.short || f?.name || "").trim(),
+          street: String(f?.street || "").trim(),
+          zipCity: [String(f?.zip || "").trim(), String(f?.city || "").trim()].filter(Boolean).join(" "),
+          phone: String(f?.phone || "").trim(),
+          mobile: "",
+          email: String(f?.email || "").trim(),
+          persons: Array.isArray(f?.persons) ? f.persons : [],
+        },
+      });
+    }
+    return _paginateGeneric({ rows, type: "firmsCards", projectLabel, docLabel });
   }
 
   if (mode === "todo") {

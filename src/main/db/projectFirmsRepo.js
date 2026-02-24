@@ -69,7 +69,17 @@ function listFirmCandidatesByProject(projectId) {
   if (!projectId) throw new Error("projectId required");
 
   const locals = db.prepare(`
-    SELECT id, short, name, COALESCE(role_code, 60) AS role_code, COALESCE(is_active, 1) AS is_active
+    SELECT
+      id,
+      short,
+      name,
+      street,
+      zip,
+      city,
+      phone,
+      email,
+      COALESCE(role_code, 60) AS role_code,
+      COALESCE(is_active, 1) AS is_active
     FROM project_firms
     WHERE project_id = ?
       AND removed_at IS NULL
@@ -78,6 +88,11 @@ function listFirmCandidatesByProject(projectId) {
     id: r.id,
     short: r.short ?? null,
     name: r.name ?? null,
+    street: r.street ?? null,
+    zip: r.zip ?? null,
+    city: r.city ?? null,
+    phone: r.phone ?? null,
+    email: r.email ?? null,
     role_code: Number(r.role_code || 60) || 60,
     is_active: _normalizeActiveFlag(r.is_active),
     label: _label(r.short, r.name),
@@ -88,6 +103,11 @@ function listFirmCandidatesByProject(projectId) {
       f.id AS id,
       f.short AS short,
       f.name AS name,
+      f.street AS street,
+      f.zip AS zip,
+      f.city AS city,
+      f.phone AS phone,
+      f.email AS email,
       COALESCE(f.role_code, 60) AS role_code,
       COALESCE(pgf.is_active, 1) AS is_active
     FROM project_global_firms pgf
@@ -100,6 +120,11 @@ function listFirmCandidatesByProject(projectId) {
     id: r.id,
     short: r.short ?? null,
     name: r.name ?? null,
+    street: r.street ?? null,
+    zip: r.zip ?? null,
+    city: r.city ?? null,
+    phone: r.phone ?? null,
+    email: r.email ?? null,
     role_code: Number(r.role_code || 60) || 60,
     is_active: _normalizeActiveFlag(r.is_active),
     label: _label(r.short, r.name),

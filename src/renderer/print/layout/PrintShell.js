@@ -38,6 +38,7 @@ function _buildPageHeader({ projectLabel, docLabel, pageNo, totalPages }) {
 }
 
 function _buildTableHead(type) {
+  if (type === "firmsCards") return null;
   const thead = document.createElement("thead");
   const tr = document.createElement("tr");
   tr.className = "tableHeadRow";
@@ -119,6 +120,78 @@ function _buildTopRow(row) {
 }
 
 function _buildGenericRow(row) {
+  if (row?.kind === "firmGroup") {
+    const tr = document.createElement("tr");
+    tr.className = "firmGroupRow";
+    const td = _el("td", "firmGroupCell", row.title || "");
+    td.colSpan = 1;
+    tr.appendChild(td);
+    return tr;
+  }
+
+  if (row?.kind === "firmCard") {
+    const tr = document.createElement("tr");
+    tr.className = "firmCardRow";
+    const td = _el("td", "firmCardCell");
+    td.colSpan = 1;
+
+    const card = _el("div", "firmCard");
+    const top = _el("div", "firmTop");
+    const left = _el("div", "firmTopLeft");
+    const right = _el("div", "firmTopRight");
+    left.append(
+      _el("div", "firmName", row?.firm?.name || ""),
+      _el("div", "firmAddr", row?.firm?.street || ""),
+      _el("div", "firmAddr", row?.firm?.zipCity || "")
+    );
+    right.append(
+      _el("div", "firmContact", `Telefon: ${row?.firm?.phone || "-"}`),
+      _el("div", "firmContact", `Handy: ${row?.firm?.mobile || "-"}`),
+      _el("div", "firmContact", `E-Mail: ${row?.firm?.email || "-"}`)
+    );
+    top.append(left, right);
+
+    const people = _el("div", "firmPeople");
+    const head = _el("div", "firmPeopleHead");
+    head.append(
+      _el("div", "", "Vorname"),
+      _el("div", "", "Nachname"),
+      _el("div", "", "Funktion/Rolle"),
+      _el("div", "", "E-Mail"),
+      _el("div", "", "Telefon")
+    );
+    people.appendChild(head);
+
+    const list = Array.isArray(row?.firm?.persons) ? row.firm.persons : [];
+    if (!list.length) {
+      people.appendChild(_el("div", "firmPeopleEmpty", "Keine Mitarbeiter"));
+    } else {
+      const wrapByChars = (value, maxChars) => {
+        const s = String(value || "");
+        if (!maxChars || maxChars < 1 || s.length <= maxChars) return s;
+        const out = [];
+        for (let i = 0; i < s.length; i += maxChars) out.push(s.slice(i, i + maxChars));
+        return out.join("\n");
+      };
+      for (const p of list) {
+        const line = _el("div", "firmPeopleRow");
+        line.append(
+          _el("div", "", wrapByChars(p?.first_name || "", 10)),
+          _el("div", "", wrapByChars(p?.last_name || "", 12)),
+          _el("div", "", p?.role_text || ""),
+          _el("div", "", p?.email || ""),
+          _el("div", "", p?.phone || "")
+        );
+        people.appendChild(line);
+      }
+    }
+
+    card.append(top, people);
+    td.appendChild(card);
+    tr.appendChild(td);
+    return tr;
+  }
+
   const tr = document.createElement("tr");
   for (const cell of row.cells) {
     tr.appendChild(_el("td", "", cell));
@@ -188,12 +261,14 @@ function _buildTable(page) {
 
   if (type === "tops") table.className = "topsTable";
   else if (type === "firms") table.className = "firmsTable";
+  else if (type === "firmsCards") table.className = "firmsCardsTable";
   else if (type === "todo") table.className = "todoTable";
 
   const colgroup = _buildColGroup(type);
   if (colgroup) table.appendChild(colgroup);
 
-  table.appendChild(_buildTableHead(type));
+  const head = _buildTableHead(type);
+  if (head) table.appendChild(head);
 
   const tbody = document.createElement("tbody");
   for (const row of page.table?.rows || []) {
@@ -204,11 +279,13 @@ function _buildTable(page) {
     const tr = document.createElement("tr");
     const msg = type === "firms"
       ? "Keine Firmen vorhanden."
+      : type === "firmsCards"
+        ? "Keine Firmen vorhanden."
       : type === "todo"
         ? "Keine offenen ToDos vorhanden."
         : "Keine Einträge vorhanden.";
     const td = _el("td", "", msg);
-    td.colSpan = type === "todo" ? 4 : type === "firms" ? 3 : 3;
+    td.colSpan = type === "todo" ? 4 : type === "firms" ? 3 : 1;
     tr.appendChild(td);
     tbody.appendChild(tr);
   }

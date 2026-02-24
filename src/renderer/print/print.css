@@ -81,6 +81,7 @@ body {
 
 .topsTable,
 .firmsTable,
+.firmsCardsTable,
 .todoTable {
   width: 100%;
   margin: 0;
@@ -92,6 +93,8 @@ body {
 .topsTable td,
 .firmsTable th,
 .firmsTable td,
+.firmsCardsTable th,
+.firmsCardsTable td,
 .todoTable th,
 .todoTable td {
   border-bottom: 1px solid #ddd;
@@ -102,6 +105,7 @@ body {
 
 .topsTable th,
 .firmsTable th,
+.firmsCardsTable th,
 .todoTable th {
   background: #f3f3f3;
   font-weight: 700;
@@ -149,6 +153,95 @@ body {
 .todoTable td {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.firmsCardsTable {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.firmsCardsTable td {
+  border-bottom: 0;
+  padding: 0;
+}
+
+.firmGroupRow .firmGroupCell {
+  border-bottom: 1px solid #cfd8dc;
+  font-weight: 700;
+  font-size: 11.5pt;
+  background: transparent;
+  padding: 2.2mm 1.5mm;
+}
+
+.firmCardRow .firmCardCell {
+  padding: 1.8mm 0 2.4mm;
+}
+
+.firmCard {
+  border: 1px solid #b0bec5;
+  border-radius: 2mm;
+  overflow: hidden;
+}
+
+.firmTop {
+  display: grid;
+  grid-template-columns: 85mm 95mm;
+  border-bottom: 1px solid #b0bec5;
+}
+
+.firmTopLeft {
+  padding: 1.8mm 2.2mm;
+}
+
+.firmTopRight {
+  padding: 1.8mm 2.2mm;
+  border-left: 1px solid #b0bec5;
+}
+
+.firmName {
+  font-weight: 700;
+  margin-bottom: 0.8mm;
+}
+
+.firmAddr,
+.firmContact {
+  font-size: 10.2pt;
+  line-height: 1.3;
+}
+
+.firmPeople {
+  padding: 0 2.2mm 1.8mm;
+}
+
+.firmPeopleHead,
+.firmPeopleRow {
+  display: grid;
+  grid-template-columns: 17mm 20mm 58mm 55mm 40mm;
+  column-gap: 0;
+}
+
+.firmPeopleHead {
+  font-size: 9.4pt;
+  font-weight: 700;
+  padding: 1.2mm 0 1mm;
+}
+
+.firmPeopleRow {
+  font-size: 9.8pt;
+  padding: 0.8mm 0;
+  border-top: 1px solid #eceff1;
+}
+
+.firmPeopleRow > div:nth-child(1),
+.firmPeopleRow > div:nth-child(2) {
+  white-space: pre-line;
+}
+
+.firmPeopleEmpty {
+  font-size: 9.8pt;
+  color: #546e7a;
+  border-top: 1px solid #eceff1;
+  padding: 1.1mm 0 0.8mm;
 }
 
 .topsTable .colNr {

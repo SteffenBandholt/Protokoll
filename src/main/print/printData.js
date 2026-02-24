@@ -214,6 +214,17 @@ function _defaultFirmRoleOrder() {
   return [10, 20, 30, 40, 50, 60];
 }
 
+function _defaultFirmRoleLabels() {
+  return {
+    10: "Bauherr",
+    20: "Planer",
+    30: "Sachverstaendige",
+    40: "Ing.-Bueros",
+    50: "Gewerke",
+    60: "Sonstige",
+  };
+}
+
 function _normalizeFirmRoleOrder(raw) {
   let parsed = [];
   try {
@@ -262,6 +273,97 @@ function _sortFirmsByRoleOrderAndName(firms, roleOrderRaw) {
     return 0;
   });
   return list;
+}
+
+function _normalizeFirmRoleLabels(raw) {
+  const out = { ..._defaultFirmRoleLabels() };
+  let parsed = null;
+  try {
+    const obj = JSON.parse(raw || "{}");
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) parsed = obj;
+  } catch {
+    parsed = null;
+  }
+  if (parsed) {
+    for (const [k, v] of Object.entries(parsed)) {
+      const n = Number(k);
+      if (!Number.isFinite(n) || n <= 0) continue;
+      const label = String(v || "").trim();
+      if (!label) continue;
+      out[n] = label;
+    }
+  }
+  return out;
+}
+
+function _listFirmPersons(db, firm) {
+  if (!db || !firm?.id) return [];
+  const kind = String(firm.kind || "").trim();
+  const id = firm.id;
+  if (kind === "project_firm") {
+    return db
+      .prepare(
+        `
+        SELECT
+          first_name,
+          last_name,
+          rolle,
+          funktion,
+          email,
+          phone
+        FROM project_persons
+        WHERE project_firm_id = ?
+          AND removed_at IS NULL
+        ORDER BY COALESCE(LOWER(last_name), ''), COALESCE(LOWER(first_name), '')
+      `
+      )
+      .all(id);
+  }
+  if (kind === "global_firm") {
+    return db
+      .prepare(
+        `
+        SELECT
+          first_name,
+          last_name,
+          rolle,
+          funktion,
+          email,
+          phone
+        FROM persons
+        WHERE firm_id = ?
+          AND removed_at IS NULL
+        ORDER BY COALESCE(LOWER(last_name), ''), COALESCE(LOWER(first_name), '')
+      `
+      )
+      .all(id);
+  }
+  return [];
+}
+
+function _enrichFirmsForCards({ db, firms, settings }) {
+  const labels = _normalizeFirmRoleLabels(settings?.["firm_role_labels"]);
+  return (Array.isArray(firms) ? firms : []).map((f) => {
+    const roleCode = Number(f?.role_code || 60) || 60;
+    const persons = _listFirmPersons(db, f).map((p) => ({
+      first_name: String(p?.first_name || "").trim(),
+      last_name: String(p?.last_name || "").trim(),
+      role_text: String(p?.rolle || p?.funktion || "").trim(),
+      email: String(p?.email || "").trim(),
+      phone: String(p?.phone || "").trim(),
+    }));
+    return {
+      ...f,
+      categoryLabel: String(labels[roleCode] || labels[60] || "Sonstige"),
+      role_code: roleCode,
+      street: String(f?.street || "").trim(),
+      zip: String(f?.zip || "").trim(),
+      city: String(f?.city || "").trim(),
+      phone: String(f?.phone || "").trim(),
+      email: String(f?.email || "").trim(),
+      persons,
+    };
+  });
 }
 
 function _applyHierDisplayNumbers(tops, isOpen) {
@@ -422,6 +524,7 @@ function _loadSettings(db) {
     "tops.ampelEnabled",
     "pdf.trafficLightAllEnabled",
     "firm_role_order",
+    "firm_role_labels",
   ];
   return appSettingsGetManyWithDb(db, keys);
 }
@@ -534,6 +637,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
   } else if (mode === "firms") {
     firms = projectId ? projectFirmsRepo.listFirmCandidatesByProject(projectId) : [];
     firms = _sortFirmsByRoleOrderAndName(firms, settings?.["firm_role_order"]);
+    firms = _enrichFirmsForCards({ db, firms, settings });
   } else if (mode === "todo") {
     const rows = meetingId ? meetingTopsRepo.listJoinedByMeeting(meetingId) : [];
     todoRows = rows
