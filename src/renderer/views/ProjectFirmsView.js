@@ -588,7 +588,7 @@ const taFirmNotes = document.createElement("textarea");
     personsThead.innerHTML = `
       <tr>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
-        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rolle</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Funktion/Rolle</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">E-Mail</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Telefon</th>
       </tr>
@@ -620,7 +620,7 @@ const taFirmNotes = document.createElement("textarea");
 
     const inpFirstName = mkInp("Vorname…");
     const inpLastName = mkInp("Nachname…");
-    const inpFunktion = mkInp("Funk…");
+    const inpFunktionRolle = mkInp("Funktion/Rolle…");
 
     const inpEmail = document.createElement("input");
     inpEmail.type = "email";
@@ -628,7 +628,6 @@ const taFirmNotes = document.createElement("textarea");
     inpEmail.style.width = "100%";
 
     const inpPhone = mkInp("Telefon…");
-    const inpRolle = mkInp("Rolle…");
 
     const taPersonNotes = document.createElement("textarea");
     taPersonNotes.placeholder = "Notizen…";
@@ -640,14 +639,12 @@ const taFirmNotes = document.createElement("textarea");
       inpFirstName,
       mkLbl("Nachname"),
       inpLastName,
-      mkLbl("Funk"),
-      inpFunktion,
+      mkLbl("Funktion/Rolle"),
+      inpFunktionRolle,
       mkLbl("E-Mail"),
       inpEmail,
       mkLbl("Telefon"),
       inpPhone,
-      mkLbl("Rolle"),
-      inpRolle,
       mkLbl("Notizen"),
       taPersonNotes
     );
@@ -1080,7 +1077,7 @@ const taFirmNotes = document.createElement("textarea");
     localPersonLast.style.width = "100%";
     const localPersonFunktion = document.createElement("input");
     localPersonFunktion.type = "text";
-    localPersonFunktion.placeholder = "Funktion";
+    localPersonFunktion.placeholder = "Funktion/Rolle";
     localPersonFunktion.style.width = "100%";
     const localPersonPhone = document.createElement("input");
     localPersonPhone.type = "text";
@@ -1090,10 +1087,6 @@ const taFirmNotes = document.createElement("textarea");
     localPersonEmail.type = "email";
     localPersonEmail.placeholder = "E-Mail";
     localPersonEmail.style.width = "100%";
-    const localPersonRolle = document.createElement("input");
-    localPersonRolle.type = "text";
-    localPersonRolle.placeholder = "Rolle";
-    localPersonRolle.style.width = "100%";
     const localPersonNotes = document.createElement("textarea");
     localPersonNotes.rows = 3;
     localPersonNotes.placeholder = "Notizen";
@@ -1101,10 +1094,9 @@ const taFirmNotes = document.createElement("textarea");
     localPersonBody.append(
       mkModalRow("Vorname", localPersonFirst),
       mkModalRow("Nachname", localPersonLast),
-      mkModalRow("Funktion", localPersonFunktion),
+      mkModalRow("Funktion/Rolle", localPersonFunktion),
       mkModalRow("Telefon", localPersonPhone),
       mkModalRow("E-Mail", localPersonEmail),
-      mkModalRow("Rolle", localPersonRolle),
       mkModalRow("Notizen", localPersonNotes)
     );
 
@@ -1180,10 +1172,10 @@ const taFirmNotes = document.createElement("textarea");
 
     this.inpFirstName = inpFirstName;
     this.inpLastName = inpLastName;
-    this.inpFunktion = inpFunktion;
+    this.inpFunktion = inpFunktionRolle;
     this.inpEmail = inpEmail;
     this.inpPhone = inpPhone;
-    this.inpRolle = inpRolle;
+    this.inpRolle = inpFunktionRolle;
     this.taPersonNotes = taPersonNotes;
 
     this.btnSavePerson = btnSavePerson;
@@ -1231,7 +1223,7 @@ const taFirmNotes = document.createElement("textarea");
     this.localPersonInpFunktion = localPersonFunktion;
     this.localPersonInpPhone = localPersonPhone;
     this.localPersonInpEmail = localPersonEmail;
-    this.localPersonInpRolle = localPersonRolle;
+    this.localPersonInpRolle = localPersonFunktion;
     this.localPersonTaNotes = localPersonNotes;
     this.localPersonBtnSaveEl = localPersonBtnSave;
     this.localPersonBtnDeleteEl = localPersonBtnDelete;
@@ -1473,13 +1465,14 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   _getPersonFormData() {
+    const funktionRolle = (this.inpFunktion?.value || this.inpRolle?.value || "").trim();
     return {
       firstName: (this.inpFirstName?.value || "").trim(),
       lastName: (this.inpLastName?.value || "").trim(),
-      funktion: (this.inpFunktion?.value || "").trim(),
+      funktion: funktionRolle,
       email: (this.inpEmail?.value || "").trim(),
       phone: (this.inpPhone?.value || "").trim(),
-      rolle: (this.inpRolle?.value || "").trim(),
+      rolle: funktionRolle,
       notes: (this.taPersonNotes?.value || "").trim(),
     };
   }
@@ -1941,7 +1934,7 @@ const taFirmNotes = document.createElement("textarea");
       const tdRole = document.createElement("td");
       tdRole.style.padding = "6px";
       tdRole.style.borderBottom = "1px solid #eee";
-      tdRole.textContent = p.rolle || "";
+      tdRole.textContent = p.rolle || p.funktion || "";
 
       const tdEmail = document.createElement("td");
       tdEmail.style.padding = "6px";
@@ -2092,10 +2085,13 @@ const taFirmNotes = document.createElement("textarea");
 
     setVal(this.inpFirstName, editing ? editing.first_name || "" : "");
     setVal(this.inpLastName, editing ? editing.last_name || "" : "");
-    setVal(this.inpFunktion, editing ? editing.funktion || "" : "");
+    const funktionRolle = editing ? (editing.rolle || editing.funktion || "") : "";
+    setVal(this.inpFunktion, funktionRolle);
     setVal(this.inpEmail, editing ? editing.email || "" : "");
     setVal(this.inpPhone, editing ? editing.phone || "" : "");
-    setVal(this.inpRolle, editing ? editing.rolle || "" : "");
+    if (this.inpRolle && this.inpRolle !== this.inpFunktion) {
+      setVal(this.inpRolle, funktionRolle);
+    }
 
     if (this.taPersonNotes) {
       this.taPersonNotes.value = editing ? editing.notes || "" : "";
@@ -2432,10 +2428,13 @@ const taFirmNotes = document.createElement("textarea");
     this._setLocalPersonCreateError("");
     if (this.localPersonInpFirstName) this.localPersonInpFirstName.value = person.first_name || "";
     if (this.localPersonInpLastName) this.localPersonInpLastName.value = person.last_name || "";
-    if (this.localPersonInpFunktion) this.localPersonInpFunktion.value = person.funktion || "";
+    const localFunktionRolle = String(person.rolle || person.funktion || "");
+    if (this.localPersonInpFunktion) this.localPersonInpFunktion.value = localFunktionRolle;
     if (this.localPersonInpPhone) this.localPersonInpPhone.value = person.phone || "";
     if (this.localPersonInpEmail) this.localPersonInpEmail.value = person.email || "";
-    if (this.localPersonInpRolle) this.localPersonInpRolle.value = person.rolle || "";
+    if (this.localPersonInpRolle && this.localPersonInpRolle !== this.localPersonInpFunktion) {
+      this.localPersonInpRolle.value = localFunktionRolle;
+    }
     if (this.localPersonTaNotes) this.localPersonTaNotes.value = person.notes || "";
     this.localPersonOverlayEl.style.display = "flex";
     this._applyLocalCreateModalState();
@@ -2728,15 +2727,16 @@ const taFirmNotes = document.createElement("textarea");
     this._applyLocalCreateModalState();
     try {
       if (this.localPersonModalMode === "edit" && this.localPersonEditId) {
+        const funktionRolle = (this.localPersonInpFunktion?.value || this.localPersonInpRolle?.value || "").trim();
         const res = await window.bbmDb.projectPersonsUpdate({
           projectPersonId: this.localPersonEditId,
           patch: {
             first_name: firstName,
             last_name: lastName,
-            funktion: (this.localPersonInpFunktion?.value || "").trim(),
+            funktion: funktionRolle,
             phone: (this.localPersonInpPhone?.value || "").trim(),
             email: (this.localPersonInpEmail?.value || "").trim(),
-            rolle: (this.localPersonInpRolle?.value || "").trim(),
+            rolle: funktionRolle,
             notes: (this.localPersonTaNotes?.value || "").trim(),
           },
         });
@@ -2748,14 +2748,15 @@ const taFirmNotes = document.createElement("textarea");
         this._closeLocalPersonCreateModal();
         this._setMsg("Mitarbeiter wurde gespeichert.");
       } else {
+        const funktionRolle = (this.localPersonInpFunktion?.value || this.localPersonInpRolle?.value || "").trim();
         const res = await window.bbmDb.projectPersonsCreate({
           projectFirmId: this.selectedFirmId,
           firstName,
           lastName,
-          funktion: (this.localPersonInpFunktion?.value || "").trim(),
+          funktion: funktionRolle,
           phone: (this.localPersonInpPhone?.value || "").trim(),
           email: (this.localPersonInpEmail?.value || "").trim(),
-          rolle: (this.localPersonInpRolle?.value || "").trim(),
+          rolle: funktionRolle,
           notes: (this.localPersonTaNotes?.value || "").trim(),
         });
         if (!res?.ok) {

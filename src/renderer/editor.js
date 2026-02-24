@@ -106,10 +106,9 @@ async function init() {
     const fields = [
       ["firstName", "Vorname", "text", person.firstName],
       ["lastName", "Nachname", "text", person.lastName],
-      ["funktion", "Funktion", "text", person.funktion],
+      ["funktion", "Funktion/Rolle", "text", person.rolle || person.funktion],
       ["phone", "Telefon", "text", person.phone],
       ["email", "E-Mail", "email", person.email],
-      ["rolle", "Rolle", "text", person.rolle],
     ];
     fields.forEach(([key, label, type, value]) => {
       form.appendChild(mkEl("div", null, label));
@@ -117,6 +116,7 @@ async function init() {
       inputs[key] = inp;
       form.appendChild(inp);
     });
+    inputs.rolle = inputs.funktion;
 
     form.appendChild(mkEl("div", null, "Notizen"));
     const taNotes = mkTextarea(person.notes);

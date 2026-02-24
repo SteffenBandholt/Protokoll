@@ -147,7 +147,7 @@ export default class xEmployeeEditModal {
     body.append(
       mkRow("Vorname", inpFirstName),
       mkRow("Nachname", inpLastName),
-      mkRow("Rolle", inpRole),
+      mkRow("Funktion/Rolle", inpRole),
       mkRow("E-Mail", inpEmail),
       mkRow("Telefon", inpPhone),
       mkRow("Notizen", taNotes, true)

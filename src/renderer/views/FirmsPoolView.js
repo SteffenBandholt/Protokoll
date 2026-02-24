@@ -539,7 +539,7 @@ export default class FirmsPoolView {
       <tr>
         <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;">aktiv</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
-        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rolle</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Funktion/Rolle</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Telefon</th>
       </tr>
     `;
@@ -682,7 +682,7 @@ export default class FirmsPoolView {
       initial: {
         firstName: this._personFirstName(person),
         lastName: this._personLastName(person),
-        role: String(person.rolle || person.role || "").trim(),
+        role: String(person.rolle || person.funktion || person.role || "").trim(),
         email: String(person.email || "").trim(),
         phone: String(person.phone || person.funktion || "").trim(),
         notes: String(person.notes || "").trim(),
@@ -695,6 +695,7 @@ export default class FirmsPoolView {
             patch: {
               first_name: payload.firstName,
               last_name: payload.lastName,
+              funktion: payload.role,
               rolle: payload.role,
               email: payload.email,
               phone: payload.phone,
@@ -707,6 +708,7 @@ export default class FirmsPoolView {
             patch: {
               first_name: payload.firstName,
               last_name: payload.lastName,
+              funktion: payload.role,
               rolle: payload.role,
               email: payload.email,
               phone: payload.phone,
@@ -1104,7 +1106,7 @@ export default class FirmsPoolView {
       const tdRole = document.createElement("td");
       tdRole.style.padding = "6px";
       tdRole.style.borderBottom = "1px solid #eee";
-      tdRole.textContent = String(p.rolle || p.role || "").trim() || "—";
+      tdRole.textContent = String(p.rolle || p.funktion || p.role || "").trim() || "—";
 
       const tdPhone = document.createElement("td");
       tdPhone.style.padding = "6px";

@@ -479,7 +479,7 @@ const taFirmNotes = document.createElement("textarea");
     personsThead.innerHTML = `
       <tr>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
-        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Rolle</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Funktion/Rolle</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">E-Mail</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Telefon</th>
       </tr>
@@ -510,7 +510,7 @@ const taFirmNotes = document.createElement("textarea");
 
     const inpFirstName = mkInp("Vorname…");
     const inpLastName = mkInp("Nachname…");
-    const inpFunktion = mkInp("Funk…");
+    const inpFunktionRole = mkInp("Funktion/Rolle…");
 
     const inpEmail = document.createElement("input");
     inpEmail.type = "email";
@@ -518,7 +518,6 @@ const taFirmNotes = document.createElement("textarea");
     inpEmail.style.width = "100%";
 
     const inpPhone = mkInp("Telefon…");
-    const inpRolle = mkInp("Rolle…");
 
     const taPersonNotes = document.createElement("textarea");
     taPersonNotes.placeholder = "Notizen…";
@@ -528,10 +527,9 @@ const taFirmNotes = document.createElement("textarea");
     pGrid.append(
       mkLbl("Vorname"), inpFirstName,
       mkLbl("Nachname"), inpLastName,
-      mkLbl("Funk"), inpFunktion,
+      mkLbl("Funktion/Rolle"), inpFunktionRole,
       mkLbl("E-Mail"), inpEmail,
       mkLbl("Telefon"), inpPhone,
-      mkLbl("Rolle"), inpRolle,
       mkLbl("Notizen"), taPersonNotes
     );
 
@@ -600,10 +598,10 @@ const taFirmNotes = document.createElement("textarea");
 
     this.inpFirstName = inpFirstName;
     this.inpLastName = inpLastName;
-    this.inpFunktion = inpFunktion;
+    this.inpFunktion = inpFunktionRole;
     this.inpEmail = inpEmail;
     this.inpPhone = inpPhone;
-    this.inpRolle = inpRolle;
+    this.inpRolle = inpFunktionRole;
     this.taPersonNotes = taPersonNotes;
 
     this.btnSavePerson = btnSavePerson;
@@ -1355,13 +1353,14 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   _getPersonFormData() {
+    const funktionRolle = (this.inpFunktion?.value || this.inpRolle?.value || "").trim();
     return {
       firstName: (this.inpFirstName?.value || "").trim(),
       lastName: (this.inpLastName?.value || "").trim(),
-      funktion: (this.inpFunktion?.value || "").trim(),
+      funktion: funktionRolle,
       email: (this.inpEmail?.value || "").trim(),
       phone: (this.inpPhone?.value || "").trim(),
-      rolle: (this.inpRolle?.value || "").trim(),
+      rolle: funktionRolle,
       notes: (this.taPersonNotes?.value || "").trim(),
     };
   }
@@ -1527,7 +1526,7 @@ const taFirmNotes = document.createElement("textarea");
       const tdRole = document.createElement("td");
       tdRole.style.padding = "6px";
       tdRole.style.borderBottom = "1px solid #eee";
-      tdRole.textContent = p.rolle || "";
+      tdRole.textContent = p.rolle || p.funktion || "";
 
       const tdEmail = document.createElement("td");
       tdEmail.style.padding = "6px";
@@ -1644,10 +1643,13 @@ const taFirmNotes = document.createElement("textarea");
 
     setVal(this.inpFirstName, editing ? editing.first_name || "" : "");
     setVal(this.inpLastName, editing ? editing.last_name || "" : "");
-    setVal(this.inpFunktion, editing ? editing.funktion || "" : "");
+    const funktionRolle = editing ? (editing.rolle || editing.funktion || "") : "";
+    setVal(this.inpFunktion, funktionRolle);
     setVal(this.inpEmail, editing ? editing.email || "" : "");
     setVal(this.inpPhone, editing ? editing.phone || "" : "");
-    setVal(this.inpRolle, editing ? editing.rolle || "" : "");
+    if (this.inpRolle && this.inpRolle !== this.inpFunktion) {
+      setVal(this.inpRolle, funktionRolle);
+    }
 
     if (this.taPersonNotes) {
       this.taPersonNotes.value = editing ? editing.notes || "" : "";
