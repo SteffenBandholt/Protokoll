@@ -2093,7 +2093,7 @@ const taFirmNotes = document.createElement("textarea");
       this.btnDeletePerson.disabled = !canDelete;
       this.btnDeletePerson.style.opacity = canDelete ? "1" : "0.55";
       this.btnDeletePerson.style.display = show ? "inline-block" : "none";
-      this.btnDeletePerson.title = canDelete ? "In Papierkorb" : "";
+      this.btnDeletePerson.title = canDelete ? "In Papierkorb" : "Nur beim Bearbeiten möglich";
     }
   }
 
@@ -2188,9 +2188,8 @@ const taFirmNotes = document.createElement("textarea");
         !!this._hasFirmSelectedSaved();
       this.localPersonBtnDeleteEl.disabled = !canDelete;
       this._applyDangerDeleteButtonStyle(this.localPersonBtnDeleteEl, canDelete);
-      this.localPersonBtnDeleteEl.style.display =
-        this.localPersonModalMode === "edit" ? "inline-block" : "none";
-      this.localPersonBtnDeleteEl.title = canDelete ? "In Papierkorb" : "";
+      this.localPersonBtnDeleteEl.style.display = "inline-block";
+      this.localPersonBtnDeleteEl.title = canDelete ? "In Papierkorb" : "Nur beim Bearbeiten möglich";
     }
     setDisabled(this.localPersonBtnCancelEl, busy);
     setDisabled(this.localPersonBtnCloseEl, busy);
@@ -2240,12 +2239,14 @@ const taFirmNotes = document.createElement("textarea");
     this._applyLocalCreateModalState();
   }
 
-  async _openEditorWindow(payload, onSaved) {
+  async _openEditorWindow(payload, onSaved, onDeleted) {
     if (typeof window.bbmDb?.editorOpen !== "function") return false;
     try {
       const res = await window.bbmDb.editorOpen(payload);
       if (res?.status === "saved" && typeof onSaved === "function") {
         await onSaved(res?.data || {});
+      } else if (res?.status === "delete" && typeof onDeleted === "function") {
+        await onDeleted();
       }
       return true;
     } catch (err) {
@@ -2392,6 +2393,9 @@ const taFirmNotes = document.createElement("textarea");
       },
       async (data) => {
         await this._saveLocalPersonFromEditor(person.id, data);
+      },
+      async () => {
+        await this._deletePerson(person.id);
       }
     );
     if (usedEditor) return;

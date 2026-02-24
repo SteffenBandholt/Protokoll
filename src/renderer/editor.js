@@ -113,6 +113,16 @@ async function init() {
   }
 
   const actions = mkEl("div", "actions");
+  const btnDelete = mkEl("button", null, "Löschen");
+  btnDelete.style.background = "#c62828";
+  btnDelete.style.color = "#fff";
+  btnDelete.style.border = "1px solid rgba(0,0,0,0.25)";
+  btnDelete.style.display = initPayload.kind === "person" ? "" : "none";
+  btnDelete.onclick = async () => {
+    const ok = window.confirm("Mitarbeiter wirklich löschen?");
+    if (!ok) return;
+    await api.editorDone({ status: "delete" });
+  };
   const btnCancel = mkEl("button", null, "Abbrechen");
   btnCancel.onclick = async () => {
     await api.editorDone({ status: "cancel" });
@@ -123,7 +133,7 @@ async function init() {
     await api.editorDone({ status: "saved", data });
   };
 
-  actions.append(btnCancel, btnSave);
+  actions.append(btnDelete, btnCancel, btnSave);
   card.append(header, form, actions);
   root.appendChild(card);
 }

@@ -732,12 +732,14 @@ const taFirmNotes = document.createElement("textarea");
     this._updateVisibility();
   }
 
-  async _openEditorWindow(payload, onSaved) {
+  async _openEditorWindow(payload, onSaved, onDeleted) {
     if (typeof window.bbmDb?.editorOpen !== "function") return false;
     try {
       const res = await window.bbmDb.editorOpen(payload);
       if (res?.status === "saved" && typeof onSaved === "function") {
         await onSaved(res?.data || {});
+      } else if (res?.status === "delete" && typeof onDeleted === "function") {
+        await onDeleted();
       }
       return true;
     } catch (err) {
@@ -841,6 +843,9 @@ const taFirmNotes = document.createElement("textarea");
         },
         async (data) => {
           await this._savePersonFromEditor(targetId, data);
+        },
+        async () => {
+          await this._deletePerson(targetId);
         }
       );
       if (usedEditor) return;
@@ -1632,7 +1637,8 @@ const taFirmNotes = document.createElement("textarea");
       const canDelete = !isSaving && show && this.personMode === "edit" && !!this.editPersonId;
       this.btnDeletePerson.disabled = !canDelete;
       this.btnDeletePerson.style.opacity = canDelete ? "1" : "0.55";
-      this.btnDeletePerson.style.display = canDelete ? "inline-block" : "none";
+      this.btnDeletePerson.style.display = show ? "inline-block" : "none";
+      this.btnDeletePerson.title = canDelete ? "In Papierkorb" : "Nur beim Bearbeiten möglich";
     }
   }
 

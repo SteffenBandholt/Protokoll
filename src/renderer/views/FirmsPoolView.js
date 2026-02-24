@@ -666,6 +666,8 @@ export default class FirmsPoolView {
     const isGlobal = this.selectedFirm.kind === "global_firm";
     const canUpdateGlobal = typeof api.personsUpdate === "function";
     const canUpdateProject = typeof api.projectPersonsUpdate === "function";
+    const canDeleteGlobal = typeof api.personsDelete === "function";
+    const canDeleteProject = typeof api.projectPersonsDelete === "function";
     if ((isGlobal && !canUpdateGlobal) || (!isGlobal && !canUpdateProject)) {
       alert(
         isGlobal
@@ -715,6 +717,24 @@ export default class FirmsPoolView {
         if (!res?.ok) throw new Error(res?.error || "Bearbeiten fehlgeschlagen.");
         await this.reloadPersonsForSelectedFirm();
         this.selectedPersonId = id;
+        this._renderPersons();
+      },
+      onDelete: async () => {
+        const ok = window.confirm("Mitarbeiter wirklich löschen?");
+        if (!ok) return;
+
+        let res = null;
+        if (isGlobal) {
+          if (!canDeleteGlobal) throw new Error("Löschen nicht verfügbar (personsDelete fehlt).");
+          res = await api.personsDelete(id);
+        } else {
+          if (!canDeleteProject) throw new Error("Löschen nicht verfügbar (projectPersonsDelete fehlt).");
+          res = await api.projectPersonsDelete(id);
+        }
+        if (!res?.ok) throw new Error(res?.error || "Löschen fehlgeschlagen.");
+
+        await this.reloadPersonsForSelectedFirm();
+        this.selectedPersonId = null;
         this._renderPersons();
       },
     });

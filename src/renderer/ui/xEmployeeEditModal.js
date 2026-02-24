@@ -2,15 +2,17 @@
 import { applyPopupButtonStyle, applyPopupCardStyle } from "./popupButtonStyles.js";
 
 export default class xEmployeeEditModal {
-  constructor({ title, initial, onSave } = {}) {
+  constructor({ title, initial, onSave, onDelete } = {}) {
     this.title = String(title || "Mitarbeiter bearbeiten");
     this.initial = initial || {};
     this.onSave = typeof onSave === "function" ? onSave : null;
+    this.onDelete = typeof onDelete === "function" ? onDelete : null;
 
     this.overlayEl = null;
     this.cardEl = null;
     this.msgEl = null;
     this.btnSaveEl = null;
+    this.btnDeleteEl = null;
     this._onKeyDown = null;
     this._lastFocused = null;
 
@@ -41,6 +43,7 @@ export default class xEmployeeEditModal {
     this.cardEl = null;
     this.msgEl = null;
     this.btnSaveEl = null;
+    this.btnDeleteEl = null;
     this.inpFirstName = null;
     this.inpLastName = null;
     this.inpRole = null;
@@ -152,10 +155,42 @@ export default class xEmployeeEditModal {
 
     const foot = document.createElement("div");
     foot.style.display = "flex";
-    foot.style.justifyContent = "flex-end";
+    foot.style.justifyContent = "space-between";
     foot.style.gap = "8px";
     foot.style.padding = "10px 12px";
     foot.style.borderTop = "1px solid #e2e8f0";
+
+    const leftActions = document.createElement("div");
+    leftActions.style.display = "flex";
+    leftActions.style.gap = "8px";
+    leftActions.style.alignItems = "center";
+
+    const rightActions = document.createElement("div");
+    rightActions.style.display = "flex";
+    rightActions.style.gap = "8px";
+    rightActions.style.alignItems = "center";
+
+    const btnDelete = document.createElement("button");
+    btnDelete.type = "button";
+    btnDelete.textContent = "Löschen";
+    applyPopupButtonStyle(btnDelete);
+    btnDelete.style.background = "#c62828";
+    btnDelete.style.color = "#fff";
+    btnDelete.style.border = "1px solid rgba(0,0,0,0.25)";
+    btnDelete.style.opacity = this.onDelete ? "1" : "0.55";
+    btnDelete.disabled = !this.onDelete;
+    btnDelete.onclick = async () => {
+      if (!this.onDelete) return;
+      btnDelete.disabled = true;
+      try {
+        await this.onDelete();
+        this.close();
+      } catch (e) {
+        this._setMsg(e?.message || "Löschen fehlgeschlagen.");
+      } finally {
+        if (this.btnDeleteEl) this.btnDeleteEl.disabled = false;
+      }
+    };
 
     const btnCancel = document.createElement("button");
     btnCancel.type = "button";
@@ -170,6 +205,7 @@ export default class xEmployeeEditModal {
     btnSave.onclick = async () => {
       if (!this.onSave) return this.close();
       btnSave.disabled = true;
+      if (this.btnDeleteEl) this.btnDeleteEl.disabled = true;
       try {
         const payload = {
           firstName: String(inpFirstName.value || "").trim(),
@@ -185,10 +221,13 @@ export default class xEmployeeEditModal {
         this._setMsg(e?.message || "Speichern fehlgeschlagen.");
       } finally {
         if (this.btnSaveEl) this.btnSaveEl.disabled = false;
+        if (this.btnDeleteEl) this.btnDeleteEl.disabled = !this.onDelete;
       }
     };
 
-    foot.append(btnCancel, btnSave);
+    leftActions.append(btnDelete);
+    rightActions.append(btnCancel, btnSave);
+    foot.append(leftActions, rightActions);
     card.append(head, msg, body, foot);
     overlay.appendChild(card);
 
@@ -196,6 +235,7 @@ export default class xEmployeeEditModal {
     this.cardEl = card;
     this.msgEl = msg;
     this.btnSaveEl = btnSave;
+    this.btnDeleteEl = btnDelete;
     this.inpFirstName = inpFirstName;
     this.inpLastName = inpLastName;
     this.inpRole = inpRole;
