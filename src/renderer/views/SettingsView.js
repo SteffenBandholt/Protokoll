@@ -144,6 +144,7 @@ export default class SettingsView {
     this.printLogoSizeSelects = [null, null, null];
     this.printLogoAlignChecks = [null, null, null];
     this.printLogoVAlignChecks = [null, null, null];
+    this.inpPrintHeaderAdaptive = null;
     this._printLogoDataUrls = ["", "", ""];
     this._printLogoSaving = false;
 
@@ -550,6 +551,10 @@ export default class SettingsView {
     const TOPS_LONG_KEY = "tops.longMax";
     const TOPS_FONT_LIST_KEY = "tops.fontscale.list";
     const TOPS_FONT_EDIT_KEY = "tops.fontscale.editbox";
+    const PRINT_V2_PAD_LEFT_KEY = "print.v2.pagePadLeftMm";
+    const PRINT_V2_PAD_RIGHT_KEY = "print.v2.pagePadRightMm";
+    const PRINT_V2_PAD_TOP_KEY = "print.v2.pagePadTopMm";
+    const PRINT_V2_PAD_BOTTOM_KEY = "print.v2.pagePadBottomMm";
 
     const topsLimitBox = document.createElement("div");
     applyPopupCardStyle(topsLimitBox);
@@ -662,6 +667,130 @@ export default class SettingsView {
     topsRowLong.style.marginBottom = "4px";
 
     topsLimitBox.append(topsLimitTitle, topsRowShort, topsRowLong, topsLimitMsg);
+
+    const printV2LayoutBox = document.createElement("div");
+    applyPopupCardStyle(printV2LayoutBox);
+    printV2LayoutBox.style.padding = "8px 10px";
+    printV2LayoutBox.style.maxWidth = "720px";
+    printV2LayoutBox.style.marginTop = "0";
+    printV2LayoutBox.style.boxSizing = "border-box";
+
+    const printV2LayoutTitle = document.createElement("div");
+    printV2LayoutTitle.textContent = "Druck-Layout (V2)";
+    printV2LayoutTitle.style.fontWeight = "bold";
+    printV2LayoutTitle.style.marginBottom = "6px";
+
+    const printV2LayoutHint = document.createElement("div");
+    printV2LayoutHint.textContent = "Seitenraender in mm (links/rechts/oben/unten).";
+    printV2LayoutHint.style.fontSize = "12px";
+    printV2LayoutHint.style.opacity = "0.75";
+    printV2LayoutHint.style.marginBottom = "6px";
+
+    const inpPrintV2PadLeft = document.createElement("input");
+    inpPrintV2PadLeft.type = "number";
+    inpPrintV2PadLeft.min = "0";
+    inpPrintV2PadLeft.max = "30";
+    inpPrintV2PadLeft.step = "0.5";
+    inpPrintV2PadLeft.style.width = "100%";
+
+    const inpPrintV2PadRight = document.createElement("input");
+    inpPrintV2PadRight.type = "number";
+    inpPrintV2PadRight.min = "0";
+    inpPrintV2PadRight.max = "30";
+    inpPrintV2PadRight.step = "0.5";
+    inpPrintV2PadRight.style.width = "100%";
+
+    const inpPrintV2PadTop = document.createElement("input");
+    inpPrintV2PadTop.type = "number";
+    inpPrintV2PadTop.min = "0";
+    inpPrintV2PadTop.max = "40";
+    inpPrintV2PadTop.step = "0.5";
+    inpPrintV2PadTop.style.width = "100%";
+
+    const inpPrintV2PadBottom = document.createElement("input");
+    inpPrintV2PadBottom.type = "number";
+    inpPrintV2PadBottom.min = "0";
+    inpPrintV2PadBottom.max = "40";
+    inpPrintV2PadBottom.step = "0.5";
+    inpPrintV2PadBottom.style.width = "100%";
+
+    const printV2LayoutMsg = document.createElement("div");
+    printV2LayoutMsg.style.fontSize = "12px";
+    printV2LayoutMsg.style.opacity = "0.75";
+    printV2LayoutMsg.style.marginTop = "4px";
+
+    const clampMm = (val, min, max, fallback) => {
+      const n = Number(val);
+      if (!Number.isFinite(n)) return fallback;
+      return Math.max(min, Math.min(max, Math.round(n * 10) / 10));
+    };
+
+    const loadPrintV2LayoutSettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsGetMany !== "function") {
+        printV2LayoutMsg.textContent = "Settings-API fehlt (IPC noch nicht aktiv).";
+        return;
+      }
+      const res = await api.appSettingsGetMany([
+        PRINT_V2_PAD_LEFT_KEY,
+        PRINT_V2_PAD_RIGHT_KEY,
+        PRINT_V2_PAD_TOP_KEY,
+        PRINT_V2_PAD_BOTTOM_KEY,
+      ]);
+      if (!res?.ok) {
+        printV2LayoutMsg.textContent = res?.error || "Fehler beim Laden der Druck-Raender";
+        return;
+      }
+      const data = res.data || {};
+      inpPrintV2PadLeft.value = String(clampMm(data[PRINT_V2_PAD_LEFT_KEY], 0, 30, 12));
+      inpPrintV2PadRight.value = String(clampMm(data[PRINT_V2_PAD_RIGHT_KEY], 0, 30, 12));
+      inpPrintV2PadTop.value = String(clampMm(data[PRINT_V2_PAD_TOP_KEY], 0, 40, 2));
+      inpPrintV2PadBottom.value = String(clampMm(data[PRINT_V2_PAD_BOTTOM_KEY], 0, 40, 18));
+      printV2LayoutMsg.textContent = "";
+    };
+
+    const savePrintV2LayoutSettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsSetMany !== "function") {
+        printV2LayoutMsg.textContent = "Settings-API fehlt (IPC noch nicht aktiv).";
+        return false;
+      }
+      const padLeft = clampMm(inpPrintV2PadLeft.value, 0, 30, 12);
+      const padRight = clampMm(inpPrintV2PadRight.value, 0, 30, 12);
+      const padTop = clampMm(inpPrintV2PadTop.value, 0, 40, 2);
+      const padBottom = clampMm(inpPrintV2PadBottom.value, 0, 40, 18);
+      inpPrintV2PadLeft.value = String(padLeft);
+      inpPrintV2PadRight.value = String(padRight);
+      inpPrintV2PadTop.value = String(padTop);
+      inpPrintV2PadBottom.value = String(padBottom);
+      const res = await api.appSettingsSetMany({
+        [PRINT_V2_PAD_LEFT_KEY]: String(padLeft),
+        [PRINT_V2_PAD_RIGHT_KEY]: String(padRight),
+        [PRINT_V2_PAD_TOP_KEY]: String(padTop),
+        [PRINT_V2_PAD_BOTTOM_KEY]: String(padBottom),
+      });
+      if (!res?.ok) {
+        printV2LayoutMsg.textContent = res?.error || "Speichern fehlgeschlagen";
+        return false;
+      }
+      printV2LayoutMsg.textContent = "Gespeichert";
+      return true;
+    };
+
+    inpPrintV2PadLeft.addEventListener("change", () => savePrintV2LayoutSettings());
+    inpPrintV2PadRight.addEventListener("change", () => savePrintV2LayoutSettings());
+    inpPrintV2PadTop.addEventListener("change", () => savePrintV2LayoutSettings());
+    inpPrintV2PadBottom.addEventListener("change", () => savePrintV2LayoutSettings());
+
+    printV2LayoutBox.append(
+      printV2LayoutTitle,
+      printV2LayoutHint,
+      mkRow("Rand links (mm)", inpPrintV2PadLeft),
+      mkRow("Rand rechts (mm)", inpPrintV2PadRight),
+      mkRow("Rand oben (mm)", inpPrintV2PadTop),
+      mkRow("Rand unten (mm)", inpPrintV2PadBottom),
+      printV2LayoutMsg
+    );
 
     const fontScaleBox = document.createElement("div");
     applyPopupCardStyle(fontScaleBox);
@@ -858,7 +987,47 @@ export default class SettingsView {
     devRightCol.style.gridTemplateColumns = "1fr";
     devRightCol.style.gap = "10px";
     devRightCol.style.alignContent = "start";
-    devRightCol.append(topsLimitBox);
+    const devPlaygroundBox = document.createElement("div");
+    applyPopupCardStyle(devPlaygroundBox);
+    devPlaygroundBox.style.padding = "8px 10px";
+    devPlaygroundBox.style.maxWidth = "720px";
+    devPlaygroundBox.style.marginTop = "0";
+
+    const devPlaygroundTitle = document.createElement("div");
+    devPlaygroundTitle.textContent = "Druck-Playground";
+    devPlaygroundTitle.style.fontWeight = "bold";
+    devPlaygroundTitle.style.marginBottom = "6px";
+
+    const devPlaygroundHint = document.createElement("div");
+    devPlaygroundHint.textContent = "Schnellzugriff auf Popups (nur Entwicklermodus).";
+    devPlaygroundHint.style.fontSize = "12px";
+    devPlaygroundHint.style.opacity = "0.75";
+    devPlaygroundHint.style.marginBottom = "8px";
+
+    const devPlaygroundButtons = document.createElement("div");
+    devPlaygroundButtons.style.display = "flex";
+    devPlaygroundButtons.style.flexWrap = "wrap";
+    devPlaygroundButtons.style.gap = "8px";
+
+    const btnDevOpenUser = document.createElement("button");
+    btnDevOpenUser.type = "button";
+    btnDevOpenUser.textContent = "Popup Nutzerdaten";
+    applyPopupButtonStyle(btnDevOpenUser);
+
+    const btnDevOpenPrint = document.createElement("button");
+    btnDevOpenPrint.type = "button";
+    btnDevOpenPrint.textContent = "Popup Druckeinstellungen";
+    applyPopupButtonStyle(btnDevOpenPrint);
+
+    const btnDevOpenPreRemarks = document.createElement("button");
+    btnDevOpenPreRemarks.type = "button";
+    btnDevOpenPreRemarks.textContent = "Popup Vorbemerkung";
+    applyPopupButtonStyle(btnDevOpenPreRemarks);
+
+    devPlaygroundButtons.append(btnDevOpenUser, btnDevOpenPrint, btnDevOpenPreRemarks);
+    devPlaygroundBox.append(devPlaygroundTitle, devPlaygroundHint, devPlaygroundButtons);
+
+    devRightCol.append(devPlaygroundBox, printV2LayoutBox, topsLimitBox);
     devTopCardsRow.append(logoBox, devRightCol);
 
     const themeBox = document.createElement("div");
@@ -1583,10 +1752,33 @@ export default class SettingsView {
     logosBox.style.width = "fit-content";
     logosBox.style.maxWidth = "100%";
 
+    const logosHead = document.createElement("div");
+    logosHead.style.display = "flex";
+    logosHead.style.alignItems = "center";
+    logosHead.style.justifyContent = "space-between";
+    logosHead.style.gap = "10px";
+    logosHead.style.marginBottom = "6px";
+
     const logosTitle = document.createElement("div");
     logosTitle.textContent = "Logos";
     logosTitle.style.fontWeight = "bold";
-    logosTitle.style.marginBottom = "6px";
+
+    const headerAdaptiveWrap = document.createElement("label");
+    headerAdaptiveWrap.style.display = "inline-flex";
+    headerAdaptiveWrap.style.alignItems = "center";
+    headerAdaptiveWrap.style.gap = "6px";
+    headerAdaptiveWrap.style.fontSize = "12px";
+    const inpPrintHeaderAdaptive = document.createElement("input");
+    inpPrintHeaderAdaptive.type = "checkbox";
+    inpPrintHeaderAdaptive.checked = false;
+    inpPrintHeaderAdaptive.addEventListener("change", () => {
+      this._savePrintLogoSettings();
+    });
+    this.inpPrintHeaderAdaptive = inpPrintHeaderAdaptive;
+    const headerAdaptiveLabel = document.createElement("span");
+    headerAdaptiveLabel.textContent = "Kopfzeile anpassen";
+    headerAdaptiveWrap.append(inpPrintHeaderAdaptive, headerAdaptiveLabel);
+    logosHead.append(logosTitle, headerAdaptiveWrap);
 
     const logosScroller = document.createElement("div");
     logosScroller.style.width = "100%";
@@ -1853,7 +2045,7 @@ export default class SettingsView {
       buildPrintLogoSlot(0)
     );
     logosScroller.appendChild(logosGrid);
-    logosBox.append(logosTitle, logosScroller);
+    logosBox.append(logosHead, logosScroller);
     const actions = document.createElement("div");
     actions.style.display = "flex";
     actions.style.gap = "8px";
@@ -2236,10 +2428,32 @@ export default class SettingsView {
       },
     });
 
+    btnDevOpenUser.onclick = () => {
+      this._closeSettingsModal();
+      tileUser.click();
+    };
+    btnDevOpenPrint.onclick = () => {
+      this._closeSettingsModal();
+      tilePrint.click();
+    };
+    btnDevOpenPreRemarks.onclick = async () => {
+      this._closeSettingsModal();
+      const ok = await this._openPdfPreRemarksPopup();
+      if (ok === true) this._setMsg("Vorbemerkung gespeichert");
+    };
+
     const tileDev = mkTile({
       titleText: "Entwicklung",
       subText: "Header-Logo, Farben einstellen, DB-Diagnose",
       onClick: async () => {
+        const api = window.bbmDb || {};
+        if (typeof api.appIsPackaged === "function") {
+          const packagedRes = await api.appIsPackaged();
+          if (packagedRes?.ok && packagedRes.isPackaged) {
+            alert("Entwicklung ist nur in der Entwicklerversion verfuegbar.");
+            return;
+          }
+        }
         if (!this.devUnlocked) {
           alert("Entwicklung ist gesperrt");
           return;
@@ -2248,6 +2462,7 @@ export default class SettingsView {
         this._devPopupOpen = true;
         await loadDbDiagnostics();
         await loadTopLimitSettings();
+        await loadPrintV2LayoutSettings();
         this._openSettingsModal({
           title: "Entwicklung",
           content: [devTopCardsRow, dbDiagBox],
@@ -2255,7 +2470,8 @@ export default class SettingsView {
           saveFn: async () => {
             const okTops = (await saveTopLimitSettings()) !== false;
             const okLogo = (await this._saveLogoSettings()) !== false;
-            return okTops && okLogo;
+            const okPrintLayout = (await savePrintV2LayoutSettings()) !== false;
+            return okTops && okLogo && okPrintLayout;
           },
         });
       },
@@ -2792,6 +3008,7 @@ export default class SettingsView {
     for (const sel of this.printLogoSizeSelects || []) {
       if (sel) sel.disabled = printLogosBusy;
     }
+    if (this.inpPrintHeaderAdaptive) this.inpPrintHeaderAdaptive.disabled = printLogosBusy;
     for (const checks of this.printLogoAlignChecks || []) {
       if (!checks) continue;
       if (checks.left) checks.left.disabled = printLogosBusy;
@@ -4336,6 +4553,9 @@ export default class SettingsView {
 
   _applyPrintLogoInputsFromSettings(data) {
     const legacyPreset = this._normalizePrintLogoSize(data["print.logoSizePreset"]);
+    if (this.inpPrintHeaderAdaptive) {
+      this.inpPrintHeaderAdaptive.checked = this._parseBool(data["print.v2.globalHeaderAdaptive"], false);
+    }
     for (let i = 0; i < 3; i++) {
       const keyNo = String(i + 1);
       const enabled = this._parseBool(data["print.logo" + keyNo + ".enabled"], false);
@@ -4357,6 +4577,7 @@ export default class SettingsView {
 
   _getPrintLogoValues() {
     const values = {
+      headerAdaptive: !!this.inpPrintHeaderAdaptive?.checked,
       slots: [
         { enabled: false, size: "medium", align: "center", vAlign: "bottom", dataUrl: "" },
         { enabled: false, size: "medium", align: "center", vAlign: "bottom", dataUrl: "" },
@@ -4398,6 +4619,7 @@ export default class SettingsView {
     this._applyState();
     try {
       const payload = {};
+      payload["print.v2.globalHeaderAdaptive"] = values.headerAdaptive ? "true" : "false";
       for (let i = 0; i < 3; i++) {
         const keyNo = String(i + 1);
         payload["print.logo" + keyNo + ".enabled"] = values.slots[i].enabled ? "true" : "false";
@@ -5286,6 +5508,7 @@ export default class SettingsView {
       "print.logo3.vAlign",
       "print.logo3.pngDataUrl",
       "print.logoSizePreset",
+      "print.v2.globalHeaderAdaptive",
       "pdf.protocolTitle",
       "pdf.trafficLightAllEnabled",
       "pdf.protocolsDir",

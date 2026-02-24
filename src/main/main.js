@@ -214,6 +214,14 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle("app:isPackaged", () => {
+    try {
+      return { ok: true, isPackaged: !!app.isPackaged };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err), isPackaged: true };
+    }
+  });
+
   ipcMain.handle("app:openQuickAssist", async () => {
     if (process.platform !== "win32") {
       return { ok: false, error: "Schnellhilfe ist nur unter Windows verfügbar." };

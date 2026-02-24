@@ -123,6 +123,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
   appQuit: () => ipcRenderer.invoke("app:quit"),
   appGetBundledIconPath: () => ipcRenderer.invoke("app:getBundledIconPath"),
   appIsWindows: () => ipcRenderer.invoke("app:isWindows"),
+  appIsPackaged: () => ipcRenderer.invoke("app:isPackaged"),
   openQuickAssist: () => ipcRenderer.invoke("app:openQuickAssist"),
 
   // ============================================================

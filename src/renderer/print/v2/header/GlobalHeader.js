@@ -37,17 +37,53 @@ function _logoClassByVAlign(vAlign) {
   return "v2LogoVAlignBottom";
 }
 
-function _buildLogoBox(logo, labelNo) {
+function _logoSizeMm(size) {
+  const s = _normalizeLogoSize(size);
+  if (s === "small") return 22;
+  if (s === "large") return 45;
+  return 30;
+}
+
+function _logoTopOffsetMm(size, vAlign) {
+  const boxMm = 45;
+  const logoMm = _logoSizeMm(size);
+  const align = _normalizeLogoVAlign(vAlign);
+  if (align === "top") return 0;
+  if (align === "middle") return Math.max(0, (boxMm - logoMm) / 2);
+  return Math.max(0, boxMm - logoMm);
+}
+
+function _logoMetrics(logo) {
+  const enabled = !!logo?.enabled;
+  const dataUrl = String(logo?.dataUrl || "").trim();
+  if (!enabled || !dataUrl) return { active: false, sizeMm: 0, topOffsetMm: 0, bottomMm: 0 };
+  const sizeMm = _logoSizeMm(logo?.size);
+  const topOffsetMm = _logoTopOffsetMm(logo?.size, logo?.vAlign);
+  return {
+    active: true,
+    sizeMm,
+    topOffsetMm,
+    bottomMm: topOffsetMm + sizeMm,
+  };
+}
+
+function _buildLogoBox(logo, labelNo, { adaptive = false, maxBottomMm = 45, metric = null } = {}) {
   const box = headerUtils.el("div", "v2LogoBox");
   box.classList.add(_logoClassBySize(_normalizeLogoSize(logo?.size)));
   box.classList.add(_logoClassByAlign(_normalizeLogoAlign(logo?.align)));
   box.classList.add(_logoClassByVAlign(_normalizeLogoVAlign(logo?.vAlign)));
+  if (adaptive) box.style.height = String(maxBottomMm) + "mm";
   const enabled = !!logo?.enabled;
   const dataUrl = String(logo?.dataUrl || "").trim();
   if (enabled && dataUrl) {
     const img = document.createElement("img");
     img.src = dataUrl;
     img.alt = "Logo " + String(labelNo || "");
+    if (adaptive && metric?.active) {
+      box.style.alignItems = "flex-start";
+      box.style.paddingTop = String(metric.topOffsetMm) + "mm";
+      img.style.maxHeight = String(metric.sizeMm) + "mm";
+    }
     box.appendChild(img);
     return box;
   }
@@ -61,6 +97,7 @@ export function renderV2GlobalHeader({ data } = {}) {
   const wrap = headerUtils.el("div", "v2GlobalHeaderBlock");
   const header = headerUtils.el("div", "v2GlobalHeader");
   const logoRow = headerUtils.el("div", "v2LogoRow");
+  const adaptive = !!data?.v2Layout?.globalHeaderAdaptive;
   const logos = Array.isArray(data?.logos) ? data.logos : [];
   const maxLogos = Number(V2_LAYOUT?.global?.maxLogos || 3);
   const byKey = new Map();
@@ -74,9 +111,25 @@ export function renderV2GlobalHeader({ data } = {}) {
     byKey.get("logo1") || logos[0] || null,
   ];
   const labelByPos = [3, 2, 1];
+  const metrics = ordered.map((logo) => _logoMetrics(logo));
+  const hasActive = metrics.some((m) => !!m?.active);
+  const maxBottomMm = hasActive
+    ? metrics.reduce((max, m) => Math.max(max, Number(m?.bottomMm || 0)), 0)
+    : 45;
+  if (adaptive && hasActive) {
+    const gapLogoToLineMm = Number(V2_LAYOUT?.global?.gapLogoToLineMm || 3);
+    const lineReserveMm = Number(V2_LAYOUT?.global?.lineThicknessPx || 1) / 3.78;
+    header.style.height = String(maxBottomMm + gapLogoToLineMm + Math.max(0.2, lineReserveMm)) + "mm";
+  }
 
   for (let i = 0; i < maxLogos; i++) {
-    logoRow.appendChild(_buildLogoBox(ordered[i], labelByPos[i]));
+    logoRow.appendChild(
+      _buildLogoBox(ordered[i], labelByPos[i], {
+        adaptive: adaptive && hasActive,
+        maxBottomMm,
+        metric: metrics[i],
+      })
+    );
   }
 
   const line1 = headerUtils.el("div", "v2Divider v2GlobalLine");

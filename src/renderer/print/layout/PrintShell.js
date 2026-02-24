@@ -138,10 +138,18 @@ function _buildColGroup(type) {
 }
 
 
-function _applyV2Vars(root) {
-  root.style.setProperty("--v2-pad-top", String(V2_LAYOUT.page.padTopMm) + "mm");
+function _applyV2Vars(root, data) {
+  const pagePadTopMm = Number(data?.v2Layout?.pagePadTopMm);
+  const pagePadBottomMm = Number(data?.v2Layout?.pagePadBottomMm);
+  const pagePadLeftMm = Number(data?.v2Layout?.pagePadLeftMm);
+  const pagePadRightMm = Number(data?.v2Layout?.pagePadRightMm);
+  const globalLogoBoxHeightMm = Number(data?.v2Layout?.globalLogoBoxHeightMm);
+  const globalHeaderHeightMm = Number(data?.v2Layout?.globalHeaderHeightMm);
+  root.style.setProperty("--v2-pad-top", String(Number.isFinite(pagePadTopMm) ? pagePadTopMm : V2_LAYOUT.page.padTopMm) + "mm");
+  root.style.setProperty("--v2-pad-bottom", String(Number.isFinite(pagePadBottomMm) ? pagePadBottomMm : V2_LAYOUT.page.padBottomMm) + "mm");
+  root.style.setProperty("--v2-pad-left", String(Number.isFinite(pagePadLeftMm) ? pagePadLeftMm : V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-pad-right", String(Number.isFinite(pagePadRightMm) ? pagePadRightMm : V2_LAYOUT.page.padXmm) + "mm");
   root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
-  root.style.setProperty("--v2-pad-bottom", String(V2_LAYOUT.page.padBottomMm) + "mm");
   root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
   root.style.setProperty(
     "--v2-global-logo-box-w",
@@ -149,9 +157,16 @@ function _applyV2Vars(root) {
   );
   root.style.setProperty(
     "--v2-global-logo-box-h",
-    String(V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm) + "mm"
+    String(
+      Number.isFinite(globalLogoBoxHeightMm)
+        ? globalLogoBoxHeightMm
+        : (V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm)
+    ) + "mm"
   );
-  root.style.setProperty("--v2-global-height", String(V2_LAYOUT.global.heightMm || 50) + "mm");
+  root.style.setProperty(
+    "--v2-global-height",
+    String(Number.isFinite(globalHeaderHeightMm) ? globalHeaderHeightMm : (V2_LAYOUT.global.heightMm || 50)) + "mm"
+  );
   root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
   root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
   root.style.setProperty("--v2-full-height", String(V2_LAYOUT.full.heightMm) + "mm");
@@ -198,7 +213,7 @@ function _buildTable(page) {
 
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
-  _applyV2Vars(root);
+  _applyV2Vars(root, data);
   const totalPages = Array.isArray(pages) ? pages.length : 0;
   const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || "Dokument";
 

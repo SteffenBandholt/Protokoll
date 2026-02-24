@@ -13,6 +13,19 @@ function _parseBool(v) {
   return false;
 }
 
+function _clampNumber(v, min, max, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function _logoSizeToHeightMm(size) {
+  const s = String(size || "").trim().toLowerCase();
+  if (s === "small") return 22;
+  if (s === "large") return 45;
+  return 30;
+}
+
 function _docLabelForMode(mode) {
   const m = String(mode || "").trim();
   if (m === "preview" || m === "vorabzug") return "Vorabzug";
@@ -331,6 +344,11 @@ function _loadSettings(db) {
     "print.logo2.size",
     "print.logo3.size",
     "print.logoSizePreset",
+    "print.v2.globalHeaderAdaptive",
+    "print.v2.pagePadLeftMm",
+    "print.v2.pagePadRightMm",
+    "print.v2.pagePadTopMm",
+    "print.v2.pagePadBottomMm",
     "print.nextMeeting.enabled",
     "print.nextMeeting.date",
     "print.nextMeeting.time",
@@ -351,6 +369,19 @@ function _loadSettings(db) {
     "pdf.trafficLightAllEnabled",
   ];
   return appSettingsGetManyWithDb(db, keys);
+}
+
+function _buildV2Layout(settings, logos) {
+  const adaptive = _parseBool(settings?.["print.v2.globalHeaderAdaptive"]);
+  return {
+    globalHeaderAdaptive: adaptive,
+    globalLogoBoxHeightMm: 45,
+    globalHeaderHeightMm: 50,
+    pagePadLeftMm: _clampNumber(settings?.["print.v2.pagePadLeftMm"], 0, 30, 12),
+    pagePadRightMm: _clampNumber(settings?.["print.v2.pagePadRightMm"], 0, 30, 12),
+    pagePadTopMm: _clampNumber(settings?.["print.v2.pagePadTopMm"], 0, 40, 2),
+    pagePadBottomMm: _clampNumber(settings?.["print.v2.pagePadBottomMm"], 0, 40, 18),
+  };
 }
 
 function _buildLogos(settings) {
@@ -409,6 +440,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
   const printProfile = _resolvePrintProfile(mode);
   const userData = _buildUserData(settings);
   const logos = _buildLogos(settings);
+  const v2Layout = _buildV2Layout(settings, logos);
 
   const interludeText = String(settings?.["print.interludeText"] || "").trim();
   const nextMeeting = {
@@ -466,6 +498,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     settings,
     protocolTitle,
     printProfile,
+    v2Layout,
     userData,
     logos,
     interludeText,

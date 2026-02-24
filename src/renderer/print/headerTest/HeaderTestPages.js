@@ -82,11 +82,19 @@ function _buildRowElement(row) {
 
 export function renderHeaderTestPages({ data, debug } = {}) {
   const root = _el("div", "printRoot headerTestRoot printV2Root");
+  const pagePadTopMm = Number(data?.v2Layout?.pagePadTopMm);
+  const pagePadBottomMm = Number(data?.v2Layout?.pagePadBottomMm);
+  const pagePadLeftMm = Number(data?.v2Layout?.pagePadLeftMm);
+  const pagePadRightMm = Number(data?.v2Layout?.pagePadRightMm);
+  const globalLogoBoxHeightMm = Number(data?.v2Layout?.globalLogoBoxHeightMm);
+  const globalHeaderHeightMm = Number(data?.v2Layout?.globalHeaderHeightMm);
 
   // V2 CSS vars (scoped via .printV2Root)
-  root.style.setProperty("--v2-pad-top", String(V2_LAYOUT.page.padTopMm) + "mm");
+  root.style.setProperty("--v2-pad-top", String(Number.isFinite(pagePadTopMm) ? pagePadTopMm : V2_LAYOUT.page.padTopMm) + "mm");
   root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
-  root.style.setProperty("--v2-pad-bottom", String(V2_LAYOUT.page.padBottomMm) + "mm");
+  root.style.setProperty("--v2-pad-left", String(Number.isFinite(pagePadLeftMm) ? pagePadLeftMm : V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-pad-right", String(Number.isFinite(pagePadRightMm) ? pagePadRightMm : V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-pad-bottom", String(Number.isFinite(pagePadBottomMm) ? pagePadBottomMm : V2_LAYOUT.page.padBottomMm) + "mm");
   root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
   root.style.setProperty(
     "--v2-global-logo-box-w",
@@ -94,9 +102,16 @@ export function renderHeaderTestPages({ data, debug } = {}) {
   );
   root.style.setProperty(
     "--v2-global-logo-box-h",
-    String(V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm) + "mm"
+    String(
+      Number.isFinite(globalLogoBoxHeightMm)
+        ? globalLogoBoxHeightMm
+        : (V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm)
+    ) + "mm"
   );
-  root.style.setProperty("--v2-global-height", String(V2_LAYOUT.global.heightMm || 50) + "mm");
+  root.style.setProperty(
+    "--v2-global-height",
+    String(Number.isFinite(globalHeaderHeightMm) ? globalHeaderHeightMm : (V2_LAYOUT.global.heightMm || 50)) + "mm"
+  );
   root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
   root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
   root.style.setProperty("--v2-full-height", String(V2_LAYOUT.full.heightMm) + "mm");
