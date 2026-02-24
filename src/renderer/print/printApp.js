@@ -61,6 +61,8 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   );
   const isNewTop =
     top.isNewTop ?? (Number(top.is_carried_over ?? top.isCarriedOver ?? 0) !== 1);
+  const isHiddenTop = Number(top?.isHiddenTop ?? top?.is_hidden ?? top?.isHidden ?? 0) === 1
+    || Number(top?.frozen_is_hidden ?? top?.frozenIsHidden ?? 0) === 1;
   const title = String(top.title || "").trim() || "(ohne Bezeichnung)";
   const longtext =
     longtextOverride != null ? String(longtextOverride) : String(top.longtext || "").trim();
@@ -74,6 +76,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     numText,
     createdDate,
     isNewTop,
+    isHiddenTop,
     title,
     longtext,
     status,
@@ -103,6 +106,7 @@ function _buildTopRowElement(row) {
     const wrap = _el("div", "lvl1Wrap");
     const numBox = _el("div", "nrBox");
     numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+    if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
     if (row.isNewTop) {
       const star = _el("div", "newStar");
       star.innerHTML = `
@@ -131,6 +135,7 @@ function _buildTopRowElement(row) {
   const tdNr = _el("td", "colNr");
   const numBox = _el("div", "nrBox");
   numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+  if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
   if (row.isNewTop) {
     const star = _el("div", "newStar");
     star.innerHTML = `

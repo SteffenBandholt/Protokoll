@@ -322,6 +322,12 @@ body {
   line-height: 1.1;
 }
 
+.nrHint {
+  font-size: 8.6pt;
+  line-height: 1.1;
+  color: #555;
+}
+
 .newStar {
   width: 3mm;
   height: 3mm;

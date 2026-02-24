@@ -78,6 +78,7 @@ function _buildTopRow(row) {
     const wrap = _el("div", "lvl1Wrap");
     const numBox = _el("div", "nrBox");
     numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+    if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
     if (row.isNewTop) numBox.appendChild(_buildStarIcon());
 
     wrap.append(numBox, _el("div", "lvl1Text", row.title));
@@ -93,6 +94,7 @@ function _buildTopRow(row) {
   const tdNr = _el("td", "colNr");
   const numBox = _el("div", "nrBox");
   numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+  if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
   if (row.isNewTop) numBox.appendChild(_buildStarIcon());
   tdNr.appendChild(numBox);
 

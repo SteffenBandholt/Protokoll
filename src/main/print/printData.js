@@ -146,16 +146,23 @@ function _isHierString(v) {
 function _isHiddenForPrint(t) {
   const hidden = Number(t?.is_hidden ?? t?.isHidden ?? 0) === 1;
   const frozenHidden = Number(t?.frozen_is_hidden ?? t?.frozenIsHidden ?? 0) === 1;
-  const trashed = Number(t?.is_trashed ?? t?.isTrashed ?? 0) === 1;
-  const removed = !!(t?.removed_at ?? t?.removedAt);
-  return hidden || frozenHidden || trashed || removed;
+  return hidden || frozenHidden;
 }
 
-function _applyPrintFlagsAndFilter(tops) {
+function _isRemovedFromPrint(t) {
+  const trashed = Number(t?.is_trashed ?? t?.isTrashed ?? 0) === 1;
+  const removed = !!(t?.removed_at ?? t?.removedAt);
+  return trashed || removed;
+}
+
+function _applyPrintFlagsAndFilter(tops, { includeHidden = false } = {}) {
   const list = Array.isArray(tops) ? tops : [];
   return list.filter((t) => {
     t.isNewTop = Number(t?.is_carried_over ?? t?.isCarriedOver ?? 0) !== 1;
-    return !_isHiddenForPrint(t);
+    t.isHiddenTop = _isHiddenForPrint(t);
+    if (_isRemovedFromPrint(t)) return false;
+    if (!includeHidden && t.isHiddenTop) return false;
+    return true;
   });
 }
 
@@ -731,7 +738,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     tops = projectId ? meetingTopsRepo.listLatestByProject(projectId) : [];
     tops = (tops || []).map(_mapTopRow);
     _applyHierDisplayNumbers(tops, false);
-    tops = _applyPrintFlagsAndFilter(tops);
+    tops = _applyPrintFlagsAndFilter(tops, { includeHidden: true });
     _sortTopsByNumber(tops);
   } else if (mode === "firms") {
     firms = projectId ? projectFirmsRepo.listFirmCandidatesByProject(projectId) : [];
