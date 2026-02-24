@@ -1,6 +1,9 @@
 ﻿import { renderPrint } from "./layout/PrintShell.js";
 import { computeAmpelMapForTops } from "../../shared/ampel/pdfAmpelRule.js";
 import { renderHeaderTestPages } from "./headerTest/HeaderTestPages.js";
+import { renderV2GlobalHeader } from "./v2/header/GlobalHeader.js";
+import { renderV2FullHeader } from "./v2/header/FullHeader.js";
+import { renderV2MiniHeader } from "./v2/header/MiniHeader.js";
 
 const app = document.getElementById("app");
 
@@ -294,13 +297,23 @@ function _buildColGroup(type) {
   return colgroup;
 }
 
-function _createMeasureContext({ type, projectLabel, docLabel }) {
+function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind = "legacy" }) {
   const root = _buildMeasureRoot();
   const page = _el("div", "page");
   root.appendChild(page);
 
-  page.appendChild(_buildPageHeaderForMeasure(projectLabel, docLabel));
-  page.appendChild(_el("div", "pageHeaderLine"));
+  if (headerKind === "full") {
+    const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || docLabel || "Dokument";
+    page.appendChild(renderV2GlobalHeader({ data }));
+    page.appendChild(renderV2FullHeader({ data, pageNo: 1, totalPages: 2, modeLabel }));
+    page.appendChild(_el("div", "v2FullGapLineBody"));
+  } else if (headerKind === "mini") {
+    const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || docLabel || "Dokument";
+    page.appendChild(renderV2MiniHeader({ data, pageNo: 2, totalPages: 2, modeLabel }));
+  } else {
+    page.appendChild(_buildPageHeaderForMeasure(projectLabel, docLabel));
+    page.appendChild(_el("div", "pageHeaderLine"));
+  }
 
   const table = document.createElement("table");
   table.className =
@@ -534,21 +547,49 @@ function _paginateTops(data) {
   return pages;
 }
 
-function _paginateGeneric({ rows, type, projectLabel, docLabel }) {
-  const ctx = _createMeasureContext({ type, projectLabel, docLabel });
+function _paginateGeneric({ rows, type, projectLabel, docLabel, data }) {
+  const useV2FirmCards = type === "firmsCards";
+  const ctx = useV2FirmCards
+    ? _createMeasureContext({ type, projectLabel, docLabel, data, headerKind: "full" })
+    : _createMeasureContext({ type, projectLabel, docLabel });
+  const ctxNext = useV2FirmCards
+    ? _createMeasureContext({ type, projectLabel, docLabel, data, headerKind: "mini" })
+    : null;
   const pages = [];
   let currentPage = { header: { projectLabel, docLabel }, table: { type, rows: [] } };
   let remaining = ctx.maxBodyHeight;
+  const heightCache = new Map();
+  let pageNo = 1;
 
   const pushPage = () => {
     pages.push(currentPage);
     currentPage = { header: { projectLabel, docLabel }, table: { type, rows: [] } };
-    remaining = ctx.maxBodyHeight;
+    pageNo += 1;
+    remaining = pageNo === 1 ? ctx.maxBodyHeight : (ctxNext?.maxBodyHeight || ctx.maxBodyHeight);
   };
 
-  for (const row of rows) {
-    const rowEl = _buildGenericRowElement(row);
-    const h = ctx.measureRow(rowEl).height;
+  const rowHeightAt = (idx) => {
+    if (heightCache.has(idx)) return heightCache.get(idx);
+    const rowEl = _buildGenericRowElement(rows[idx]);
+    const h = (ctxNext || ctx).measureRow(rowEl).height;
+    heightCache.set(idx, h);
+    return h;
+  };
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const row = rows[i];
+    const h = rowHeightAt(i);
+
+    // Kategorie-Zeile nie alleine: zusammen mit erster Firmenkachel auf die nächste Seite schieben.
+    if (type === "firmsCards" && row?.kind === "firmGroup") {
+      const next = rows[i + 1] || null;
+      const nextH = next ? rowHeightAt(i + 1) : 0;
+      const minBlockHeight = h + (next?.kind === "firmCard" ? nextH : 0);
+      if (minBlockHeight > remaining && currentPage.table.rows.length) {
+        pushPage();
+      }
+    }
+
     if (h > remaining && currentPage.table.rows.length) {
       pushPage();
     }
@@ -568,6 +609,7 @@ function _paginateGeneric({ rows, type, projectLabel, docLabel }) {
   });
 
   ctx.cleanup();
+  if (ctxNext) ctxNext.cleanup();
   console.log(`[PAGINATION] pages=${pages.length} firstPageRows=${pages[0]?.table?.rows?.length || 0}`);
   return pages;
 }
@@ -599,14 +641,14 @@ function _buildPages(data) {
         },
       });
     }
-    return _paginateGeneric({ rows, type: "firmsCards", projectLabel, docLabel });
+    return _paginateGeneric({ rows, type: "firmsCards", projectLabel, docLabel, data });
   }
 
   if (mode === "todo") {
     const rows = (data.todoRows || []).map((r) => ({
       cells: [r.position || "", r.title || "", r.responsible || "", _formatDateIso(r.due_date)],
     }));
-    return _paginateGeneric({ rows, type: "todo", projectLabel, docLabel });
+    return _paginateGeneric({ rows, type: "todo", projectLabel, docLabel, data });
   }
 
   return _paginateTops(data);
