@@ -1,5 +1,5 @@
 ﻿import { renderPrint } from "./layout/PrintShell.js";
-import { computeAmpelMapForTops } from "../../shared/ampel/pdfAmpelRule.js";
+import { computeAmpelColorForTop, computeAmpelMapForTops } from "../../shared/ampel/pdfAmpelRule.js";
 import { renderHeaderTestPages } from "./headerTest/HeaderTestPages.js";
 import { renderV2GlobalHeader } from "./v2/header/GlobalHeader.js";
 import { renderV2FullHeader } from "./v2/header/FullHeader.js";
@@ -168,6 +168,30 @@ function _buildTopRowElement(row) {
 }
 
 function _buildGenericRowElement(row) {
+  if (row?.kind === "todoGroup") {
+    const tr = document.createElement("tr");
+    tr.className = "firmGroupRow todoGroupRow";
+    const td = _el("td", "firmGroupCell todoGroupCell", row.title || "");
+    td.colSpan = 5;
+    tr.appendChild(td);
+    return tr;
+  }
+
+  if (row?.kind === "todoItem") {
+    const tr = document.createElement("tr");
+    tr.className = "todoItemRow";
+    tr.append(
+      _el("td", "", row.position || ""),
+      _el("td", "", row.title || ""),
+      _el("td", "", row.status || ""),
+      _el("td", "", row.due || "")
+    );
+    const tdAmpel = _el("td", "todoAmpelCell");
+    if (row.ampelColor) tdAmpel.appendChild(_el("span", `ampelDot ${row.ampelColor}`));
+    tr.appendChild(tdAmpel);
+    return tr;
+  }
+
   if (row?.kind === "firmGroup") {
     const tr = document.createElement("tr");
     tr.className = "firmGroupRow";
@@ -280,7 +304,7 @@ function _buildTableHeadForMeasure(type) {
   } else if (type === "firms") {
     tr.innerHTML = `<th>Firma</th><th>Typ</th><th>Aktiv</th>`;
   } else if (type === "todo") {
-    tr.innerHTML = `<th>TOP</th><th>Text</th><th>Verantwortlich</th><th>Fällig</th>`;
+    tr.innerHTML = `<th>TOP</th><th>Kurztext</th><th>Status</th><th>Fertig bis</th><th>Ampel</th>`;
   }
   thead.appendChild(tr);
   return thead;
@@ -548,11 +572,11 @@ function _paginateTops(data) {
 }
 
 function _paginateGeneric({ rows, type, projectLabel, docLabel, data }) {
-  const useV2FirmCards = type === "firmsCards";
-  const ctx = useV2FirmCards
+  const useV2HeaderPaging = type === "firmsCards" || type === "todo";
+  const ctx = useV2HeaderPaging
     ? _createMeasureContext({ type, projectLabel, docLabel, data, headerKind: "full" })
     : _createMeasureContext({ type, projectLabel, docLabel });
-  const ctxNext = useV2FirmCards
+  const ctxNext = useV2HeaderPaging
     ? _createMeasureContext({ type, projectLabel, docLabel, data, headerKind: "mini" })
     : null;
   const pages = [];
@@ -585,6 +609,15 @@ function _paginateGeneric({ rows, type, projectLabel, docLabel, data }) {
       const next = rows[i + 1] || null;
       const nextH = next ? rowHeightAt(i + 1) : 0;
       const minBlockHeight = h + (next?.kind === "firmCard" ? nextH : 0);
+      if (minBlockHeight > remaining && currentPage.table.rows.length) {
+        pushPage();
+      }
+    }
+    // Verantwortlich-Gruppenkopf in ToDo nie alleine am Seitenende.
+    if (type === "todo" && row?.kind === "todoGroup") {
+      const next = rows[i + 1] || null;
+      const nextH = next ? rowHeightAt(i + 1) : 0;
+      const minBlockHeight = h + (next ? nextH : 0);
       if (minBlockHeight > remaining && currentPage.table.rows.length) {
         pushPage();
       }
@@ -645,9 +678,23 @@ function _buildPages(data) {
   }
 
   if (mode === "todo") {
-    const rows = (data.todoRows || []).map((r) => ({
-      cells: [r.position || "", r.title || "", r.responsible || "", _formatDateIso(r.due_date)],
-    }));
+    const rows = [];
+    let currentGroup = "";
+    for (const r of data.todoRows || []) {
+      const group = String(r?.responsible_group || "").trim() || "Ohne Verantwortlich";
+      if (group !== currentGroup) {
+        currentGroup = group;
+        rows.push({ kind: "todoGroup", title: currentGroup });
+      }
+      rows.push({
+        kind: "todoItem",
+        position: r.position || "",
+        title: r.title || "",
+        status: r.status || "",
+        due: _formatDateIso(r.due_date),
+        ampelColor: computeAmpelColorForTop({ top: { status: r.status || "", due_date: r.due_date || "" } }),
+      });
+    }
     return _paginateGeneric({ rows, type: "todo", projectLabel, docLabel, data });
   }
 

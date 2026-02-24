@@ -210,6 +210,105 @@ function _sortTopsByNumber(tops) {
   tops.sort(_compareTopNumbers);
 }
 
+function _resolveTodoResponsibleNames(db, rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const byKey = new Map();
+  const projectFirmIds = new Set();
+  const globalFirmIds = new Set();
+
+  for (const t of list) {
+    const kind = String(t?.responsible_kind || "").trim().toLowerCase();
+    const id = String(t?.responsible_id ?? "").trim();
+    if (!id) continue;
+    if (kind === "project_firm" || kind === "company") projectFirmIds.add(id);
+    else if (kind === "global_firm" || kind === "firm") globalFirmIds.add(id);
+  }
+
+  const loadNameMap = (table, ids) => {
+    const arr = Array.from(ids);
+    if (!arr.length) return new Map();
+    const placeholders = arr.map(() => "?").join(",");
+    const sql = `SELECT id, COALESCE(name, '') AS name FROM ${table} WHERE id IN (${placeholders})`;
+    const rowsDb = db.prepare(sql).all(...arr);
+    const m = new Map();
+    for (const r of rowsDb || []) {
+      const id = String(r?.id ?? "").trim();
+      const name = String(r?.name || "").trim();
+      if (id && name) m.set(id, name);
+    }
+    return m;
+  };
+
+  const projectNames = loadNameMap("project_firms", projectFirmIds);
+  const globalNames = loadNameMap("firms", globalFirmIds);
+
+  for (const t of list) {
+    const kind = String(t?.responsible_kind || "").trim().toLowerCase();
+    const id = String(t?.responsible_id ?? "").trim();
+    if (!id) continue;
+    if (kind === "project_firm" || kind === "company") {
+      const name = projectNames.get(id) || "";
+      if (name) {
+        byKey.set(`project_firm::${id}`, name);
+        byKey.set(`company::${id}`, name);
+      }
+      continue;
+    }
+    if (kind === "global_firm" || kind === "firm") {
+      const name = globalNames.get(id) || "";
+      if (name) {
+        byKey.set(`global_firm::${id}`, name);
+        byKey.set(`firm::${id}`, name);
+      }
+    }
+  }
+
+  return byKey;
+}
+
+function _buildTodoRows(db, rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const responsibleNames = _resolveTodoResponsibleNames(db, list);
+  return list
+    .filter((t) => !_isDoneStatus(t?.status))
+    .filter((t) => {
+      const lvl = Number(t?.level ?? t?.top_level ?? 0) || 0;
+      return lvl >= 2 && lvl <= 4;
+    })
+    .map((t) => {
+      const kind = String(t?.responsible_kind || "").trim().toLowerCase();
+      const id = String(t?.responsible_id ?? "").trim();
+      const resolved = id ? String(responsibleNames.get(`${kind}::${id}`) || "").trim() : "";
+      const fallback = String(t?.responsible_label || t?.responsibleLabel || "").trim();
+      let responsible = resolved || fallback;
+      if (responsible.localeCompare("alle", "de-DE", { sensitivity: "base" }) === 0) {
+        responsible = "";
+      }
+      return {
+        id: String(t?.id ?? "").trim(),
+        level: Number(t?.level ?? t?.top_level ?? 0) || 0,
+        position: _normalizeTopNumber(t),
+        title: String(t?.title || "").trim(),
+        responsible,
+        responsible_group: responsible || "Ohne Verantwortlich",
+        due_date: String(t?.due_date || t?.dueDate || "").slice(0, 10),
+        status: String(t?.status || "").trim(),
+        _rawTop: t,
+      };
+    })
+    .sort((a, b) => {
+      const aHas = !!a.responsible;
+      const bHas = !!b.responsible;
+      if (aHas !== bHas) return aHas ? -1 : 1;
+      if (aHas && bHas) {
+        const byResp = a.responsible.localeCompare(b.responsible, "de-DE", { sensitivity: "base" });
+        if (byResp !== 0) return byResp;
+      }
+      return _compareTopNumbers(a._rawTop, b._rawTop);
+    })
+    .map(({ _rawTop, ...row }) => row);
+}
+
 function _defaultFirmRoleOrder() {
   return [10, 20, 30, 40, 50, 60];
 }
@@ -639,16 +738,10 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     firms = _sortFirmsByRoleOrderAndName(firms, settings?.["firm_role_order"]);
     firms = _enrichFirmsForCards({ db, firms, settings });
   } else if (mode === "todo") {
-    const rows = meetingId ? meetingTopsRepo.listJoinedByMeeting(meetingId) : [];
-    todoRows = rows
-      .filter((t) => !_isDoneStatus(t?.status))
-      .map((t) => ({
-        position: _normalizeTopNumber(t),
-        title: String(t?.title || "").trim(),
-        responsible: String(t?.responsible_label || t?.responsibleLabel || "").trim(),
-        due_date: String(t?.due_date || t?.dueDate || "").slice(0, 10),
-        status: String(t?.status || "").trim(),
-      }));
+    const rowsRaw = meetingId ? meetingTopsRepo.listJoinedByMeeting(meetingId) : [];
+    const rows = (rowsRaw || []).map(_mapTopRow);
+    _applyHierDisplayNumbers(rows, Number(meeting?.is_closed) !== 1);
+    todoRows = _buildTodoRows(db, rows);
   }
 
   return {

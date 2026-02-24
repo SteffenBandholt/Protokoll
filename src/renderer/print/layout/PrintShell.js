@@ -58,7 +58,7 @@ function _buildTableHead(type) {
   } else if (type === "firms") {
     tr.innerHTML = `<th>Firma</th><th>Typ</th><th>Aktiv</th>`;
   } else if (type === "todo") {
-    tr.innerHTML = `<th>TOP</th><th>Text</th><th>Verantwortlich</th><th>Fällig</th>`;
+    tr.innerHTML = `<th>TOP</th><th>Kurztext</th><th>Status</th><th>Fertig bis</th><th>Ampel</th>`;
   }
 
   thead.appendChild(tr);
@@ -120,6 +120,30 @@ function _buildTopRow(row) {
 }
 
 function _buildGenericRow(row) {
+  if (row?.kind === "todoGroup") {
+    const tr = document.createElement("tr");
+    tr.className = "firmGroupRow todoGroupRow";
+    const td = _el("td", "firmGroupCell todoGroupCell", row.title || "");
+    td.colSpan = 5;
+    tr.appendChild(td);
+    return tr;
+  }
+
+  if (row?.kind === "todoItem") {
+    const tr = document.createElement("tr");
+    tr.className = "todoItemRow";
+    tr.append(
+      _el("td", "", row.position || ""),
+      _el("td", "", row.title || ""),
+      _el("td", "", row.status || ""),
+      _el("td", "", row.due || "")
+    );
+    const tdAmpel = _el("td", "todoAmpelCell");
+    if (row.ampelColor) tdAmpel.appendChild(_el("span", `ampelDot ${row.ampelColor}`));
+    tr.appendChild(tdAmpel);
+    return tr;
+  }
+
   if (row?.kind === "firmGroup") {
     const tr = document.createElement("tr");
     tr.className = "firmGroupRow";
@@ -285,7 +309,7 @@ function _buildTable(page) {
         ? "Keine offenen ToDos vorhanden."
         : "Keine Einträge vorhanden.";
     const td = _el("td", "", msg);
-    td.colSpan = type === "todo" ? 4 : type === "firms" ? 3 : 1;
+    td.colSpan = type === "todo" ? 5 : type === "firms" ? 3 : 1;
     tr.appendChild(td);
     tbody.appendChild(tr);
   }
