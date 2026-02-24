@@ -49,6 +49,16 @@ function _projectLabel(project) {
   return "Projekt: -";
 }
 
+function _projectNameLine(project) {
+  if (!project) return "-";
+  const nr = String(project.project_number || project.projectNumber || "").trim();
+  const name = String(project.name || "").trim();
+  if (nr && name) return nr + " - " + name;
+  if (nr) return nr;
+  if (name) return name;
+  return "-";
+}
+
 function _meetingLabel(meeting, titlePrefix) {
   return _protocolLine({ meeting, titlePrefix });
 }
@@ -87,11 +97,10 @@ function _protocolLine(meetingOrOpts, settingsMaybe, optionsMaybe = {}) {
     meeting.updatedAt ||
     "";
   const date = _formatDateIso(dateRaw);
-  const parts = [];
-  if (nr) parts.push("#" + nr);
-  if (date) parts.push("vom " + date);
-  if (!parts.length) return title;
-  return title + " " + parts.join(" ");
+  if (nr && date) return title + " : " + String(nr) + " vom " + date;
+  if (nr) return title + " : " + String(nr);
+  if (date) return title + " : vom " + date;
+  return title;
 }
 
 function _meetingMeta(meeting) {
@@ -157,6 +166,7 @@ export const headerUtils = {
   protocolTitleFromSettings: _protocolTitleFromSettings,
   protocolTitle: _protocolTitleFromSettings,
   projectLabel: _projectLabel,
+  projectNameLine: _projectNameLine,
   meetingLabel: _meetingLabel,
   protocolLine: _protocolLine,
   meetingMeta: _meetingMeta,

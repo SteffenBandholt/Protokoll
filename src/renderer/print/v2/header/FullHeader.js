@@ -9,7 +9,8 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const brandingText = headerUtils.resolveBranding({ data });
 
   const left = headerUtils.el("div", "v2HeaderLeft v2FullLeftWrap");
-  left.appendChild(headerUtils.el("div", "v2Project", headerUtils.projectLabel(data?.project)));
+  left.appendChild(headerUtils.el("div", "v2Project", "Projekt:"));
+  left.appendChild(headerUtils.el("div", "v2ProjectName", headerUtils.projectNameLine(data?.project)));
   left.appendChild(headerUtils.el("div", "v2ProtocolTitle", titleText));
   if (brandingText) {
     left.appendChild(headerUtils.el("div", "v2DraftBadge", brandingText));

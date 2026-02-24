@@ -131,7 +131,7 @@
 }
 
 .printV2Root .v2FullLeftWrap {
-  padding-top: 10mm;
+  padding-top: 1.5mm;
 }
 
 .printV2Root .v2HeaderRight {
@@ -151,14 +151,22 @@
 }
 
 .printV2Root .v2Project {
-  font-size: 16pt;
+  font-size: 10pt;
+  font-weight: 400;
+}
+
+.printV2Root .v2ProjectName {
+  font-size: 15pt;
   font-weight: 700;
+  margin-top: 2mm;
+  margin-left: 13mm;
 }
 
 .printV2Root .v2ProtocolTitle {
-  font-size: 14pt;
+  font-size: 12pt;
   font-weight: 600;
-  margin-top: 5mm;
+  margin-top: 3mm;
+  margin-left: 13mm;
 }
 
 .printV2Root .v2DraftBadge {
