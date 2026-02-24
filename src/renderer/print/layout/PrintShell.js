@@ -202,7 +202,12 @@ function _buildTable(page) {
   }
   if (!(page.table?.rows || []).length) {
     const tr = document.createElement("tr");
-    const td = _el("td", "", "Keine Einträge vorhanden.");
+    const msg = type === "firms"
+      ? "Keine Firmen vorhanden."
+      : type === "todo"
+        ? "Keine offenen ToDos vorhanden."
+        : "Keine Einträge vorhanden.";
+    const td = _el("td", "", msg);
     td.colSpan = type === "todo" ? 4 : type === "firms" ? 3 : 3;
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -213,6 +218,8 @@ function _buildTable(page) {
 
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
+  const profileKey = String(data?.printProfile?.key || "").trim();
+  if (profileKey) root.classList.add("v2Profile" + profileKey.charAt(0).toUpperCase() + profileKey.slice(1));
   _applyV2Vars(root, data);
   const totalPages = Array.isArray(pages) ? pages.length : 0;
   const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || "Dokument";

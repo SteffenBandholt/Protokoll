@@ -107,6 +107,50 @@ body {
   font-weight: 700;
 }
 
+.firmsTable th:nth-child(1),
+.firmsTable td:nth-child(1) {
+  width: 62%;
+}
+
+.firmsTable th:nth-child(2),
+.firmsTable td:nth-child(2) {
+  width: 24%;
+}
+
+.firmsTable th:nth-child(3),
+.firmsTable td:nth-child(3) {
+  width: 14%;
+  white-space: nowrap;
+}
+
+.todoTable th:nth-child(1),
+.todoTable td:nth-child(1) {
+  width: 12%;
+  white-space: nowrap;
+}
+
+.todoTable th:nth-child(2),
+.todoTable td:nth-child(2) {
+  width: 50%;
+}
+
+.todoTable th:nth-child(3),
+.todoTable td:nth-child(3) {
+  width: 22%;
+}
+
+.todoTable th:nth-child(4),
+.todoTable td:nth-child(4) {
+  width: 16%;
+  white-space: nowrap;
+}
+
+.firmsTable td,
+.todoTable td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .topsTable .colNr {
   width: 23mm;
   min-width: 23mm;

@@ -32,9 +32,9 @@ function _docLabelFromMode(mode) {
   const m = String(mode || "").trim();
   if (m === "preview" || m === "vorabzug") return "Vorabzug";
   if (m === "protocol") return "Protokoll";
-  if (m === "topsAll") return "Top-Liste (alle)";
+  if (m === "topsAll") return "Liste aller Top´s im Projekt";
   if (m === "firms") return "Firmenliste";
-  if (m === "todo") return "ToDo";
+  if (m === "todo") return "ToDo-Liste";
   if (m === "headerTest") return "Kopf-Test";
   return "Dokument";
 }
@@ -151,6 +151,22 @@ function _resolveHeaderTitle({ data, settings, meeting, modeLabel } = {}) {
   return _protocolLine({ meeting, settings, titlePrefix: protocolTitle });
 }
 
+function _listStandLine({ data, meeting } = {}) {
+  const mode = String(data?.mode || "").trim();
+  if (!(mode === "firms" || mode === "todo" || mode === "topsAll")) return "";
+  const project = data?.project || {};
+  const projNr = String(project.project_number || project.projectNumber || "").trim();
+  const dateRaw =
+    meeting?.meeting_date ||
+    meeting?.meetingDate ||
+    meeting?.date ||
+    "";
+  const date = _formatDateIso(dateRaw);
+  const left = projNr || "-";
+  if (date) return "Stand: " + left + " (" + date + ")";
+  return "Stand: " + left;
+}
+
 function _resolveBranding({ data } = {}) {
   const profile = data?.printProfile || {};
   const enabled = !!profile?.branding?.enabled;
@@ -172,5 +188,6 @@ export const headerUtils = {
   meetingMeta: _meetingMeta,
   footerLines: _footerLines,
   resolveHeaderTitle: _resolveHeaderTitle,
+  listStandLine: _listStandLine,
   resolveBranding: _resolveBranding,
 };

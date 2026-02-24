@@ -6,12 +6,16 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const meeting = data?.meeting || {};
   const useUserData = headerUtils.parseBool(settings["pdf.footerUseUserData"], false);
   const titleText = headerUtils.resolveHeaderTitle({ data, settings, meeting, modeLabel });
+  const listStandLine = headerUtils.listStandLine({ data, meeting });
   const brandingText = headerUtils.resolveBranding({ data });
 
   const left = headerUtils.el("div", "v2HeaderLeft v2FullLeftWrap");
   left.appendChild(headerUtils.el("div", "v2Project", "Projekt:"));
   left.appendChild(headerUtils.el("div", "v2ProjectName", headerUtils.projectNameLine(data?.project)));
   left.appendChild(headerUtils.el("div", "v2ProtocolTitle", titleText));
+  if (listStandLine) {
+    left.appendChild(headerUtils.el("div", "v2ListStand", listStandLine));
+  }
   if (brandingText) {
     left.appendChild(headerUtils.el("div", "v2DraftBadge", brandingText));
   }

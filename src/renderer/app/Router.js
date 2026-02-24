@@ -100,6 +100,8 @@ export default class Router {
       for (const el of nodes) {
         if (!el || !el.style) continue;
         if (el === document.body || el === document.documentElement) continue;
+        const overlayKind = String(el?.getAttribute?.("data-bbm-print-overlay") || "").toLowerCase();
+        if (overlayKind === "preview") continue;
 
         const cs = window.getComputedStyle ? window.getComputedStyle(el) : null;
         const position = (cs?.position || el.style.position || "").toLowerCase();

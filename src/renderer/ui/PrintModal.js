@@ -33,6 +33,7 @@ import {
 } from "../../shared/ampel/pdfAmpelRule.js";
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
+import { OVERLAY_TOP } from "./zIndex.js";
 
 export default class PrintModal {
   constructor({ router } = {}) {
@@ -282,7 +283,7 @@ export default class PrintModal {
   }
 
   _renderPreview() {
-    const overlay = createPopupOverlay({ zIndex: 10000 });
+    const overlay = createPopupOverlay({ zIndex: OVERLAY_TOP + 100 });
     overlay.classList.add("bbm-print-overlay");
     overlay.setAttribute("data-bbm-print-overlay", "preview");
     registerPopupCloseHandlers(overlay, () => this._closePreview());
@@ -922,8 +923,8 @@ export default class PrintModal {
   }
 
   // Firmenliste: Vorschau mit PDF (keine Save-UX)
-  async openFirmsPrintPreview({ projectId } = {}) {
-    await this._printFirmsPdf({ projectId, preview: true });
+  async openFirmsPrintPreview({ projectId, meetingId } = {}) {
+    await this._printFirmsPdf({ projectId, meetingId, preview: true });
   }
 
   // ToDo-Liste: Vorschau mit PDF (gleiches Preview-Modal)
@@ -936,7 +937,7 @@ export default class PrintModal {
     await this._printTopListAllPdf({ projectId, meetingId, preview: true });
   }
 
-  async _printFirmsPdf({ projectId, preview = true } = {}) {
+  async _printFirmsPdf({ projectId, meetingId, preview = true } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
     if (!pid) {
       alert("Bitte zuerst ein Projekt auswählen.");
@@ -1115,11 +1116,16 @@ export default class PrintModal {
       const out = await window.bbmPrint.printPdf({
         mode: "firms",
         projectId: pid,
+        meetingId: meetingId || null,
         fileName: fn,
         ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
+        return;
+      }
+      if (!out?.filePath) {
+        alert("PDF konnte nicht geoeffnet werden (Dateipfad fehlt).");
         return;
       }
 
@@ -1596,6 +1602,10 @@ export default class PrintModal {
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
+        return;
+      }
+      if (!out?.filePath) {
+        alert("PDF konnte nicht geoeffnet werden (Dateipfad fehlt).");
         return;
       }
 

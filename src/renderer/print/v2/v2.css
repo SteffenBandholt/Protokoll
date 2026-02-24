@@ -176,6 +176,16 @@
   word-break: break-word;
 }
 
+.printV2Root .v2ListStand {
+  font-size: 10pt;
+  margin-top: 2mm;
+  margin-left: 13mm;
+  color: #222;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .printV2Root .v2DraftBadge {
   display: inline-block;
   margin-top: 2mm;
