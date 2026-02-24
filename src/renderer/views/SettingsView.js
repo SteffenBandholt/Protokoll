@@ -2234,62 +2234,6 @@ export default class SettingsView {
       subText: "PDF-Einstellungen & Kategorien",
       onClick: async () => {
         const tabWrap = document.createElement("div");
-        const activePrintContextBox = document.createElement("div");
-        applyPopupCardStyle(activePrintContextBox);
-        activePrintContextBox.style.padding = "10px";
-        activePrintContextBox.style.marginBottom = "10px";
-        activePrintContextBox.style.display = "grid";
-        activePrintContextBox.style.gap = "8px";
-
-        const activePrintContextHint = document.createElement("div");
-        activePrintContextHint.style.fontSize = "12px";
-        activePrintContextHint.style.opacity = "0.9";
-
-        const activePrintContextActions = document.createElement("div");
-        activePrintContextActions.style.display = "flex";
-        activePrintContextActions.style.justifyContent = "flex-start";
-
-        const btnPrintCurrent = document.createElement("button");
-        btnPrintCurrent.type = "button";
-        btnPrintCurrent.textContent = "Aktuelles Protokoll drucken";
-        applyPopupButtonStyle(btnPrintCurrent, { variant: "primary" });
-
-        const getActivePrintContext = () => ({
-          projectId: this.router?.currentProjectId || null,
-          meetingId: this.router?.currentMeetingId || null,
-        });
-
-        const updateActivePrintContextUi = () => {
-          const { projectId, meetingId } = getActivePrintContext();
-          const hasContext = !!projectId && !!meetingId;
-          btnPrintCurrent.disabled = !hasContext;
-          if (hasContext) {
-            activePrintContextHint.textContent =
-              `Aktiver Kontext: Projekt #${projectId}, Besprechung #${meetingId}`;
-            activePrintContextHint.style.color = "#1f2937";
-          } else {
-            activePrintContextHint.textContent = "Bitte zuerst Projekt/Besprechung oeffnen.";
-            activePrintContextHint.style.color = "#9a3412";
-          }
-        };
-
-        btnPrintCurrent.onclick = async () => {
-          const { projectId, meetingId } = getActivePrintContext();
-          if (!projectId || !meetingId) {
-            updateActivePrintContextUi();
-            return;
-          }
-          if (typeof this.router?.openMeetingPrintPreview !== "function") {
-            alert("Druckfunktion ist nicht verfuegbar.");
-            return;
-          }
-          this._closeSettingsModal();
-          await this.router.openMeetingPrintPreview({ projectId, meetingId });
-        };
-
-        activePrintContextActions.append(btnPrintCurrent);
-        activePrintContextBox.append(activePrintContextHint, activePrintContextActions);
-        updateActivePrintContextUi();
 
         const tabHead = document.createElement("div");
         tabHead.style.display = "flex";
@@ -2407,7 +2351,7 @@ export default class SettingsView {
         };
 
         tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks);
-        tabWrap.append(activePrintContextBox, tabHead, tabBody);
+        tabWrap.append(tabHead, tabBody);
 
         showTab("pdf");
 
@@ -5392,28 +5336,6 @@ export default class SettingsView {
     this._applyState();
 
     try {
-      if (typeof api.userProfileUpsert === "function") {
-        const resProfile = await api.userProfileUpsert({
-          name1: user_name1,
-          name2: user_name2,
-          street: user_street,
-          zip: user_zip,
-          city: user_city,
-        });
-        if (!resProfile?.ok) {
-          alert(resProfile?.error || "Speichern der Nutzerdaten fehlgeschlagen");
-          return false;
-        }
-        if (resProfile?.profile) {
-          const p = resProfile.profile;
-          if (this.inpUserName1) this.inpUserName1.value = (p.name1 ?? "").toString();
-          if (this.inpUserName2) this.inpUserName2.value = (p.name2 ?? "").toString();
-          if (this.inpUserStreet) this.inpUserStreet.value = (p.street ?? "").toString();
-          if (this.inpUserZip) this.inpUserZip.value = this._normalizeUserZip((p.zip ?? "").toString(), 5);
-          if (this.inpUserCity) this.inpUserCity.value = (p.city ?? "").toString();
-        }
-      }
-
       const res = await api.appSettingsSetMany({
         firm_role_order: JSON.stringify(this.roleOrder || []),
         firm_role_labels: JSON.stringify(this.roleLabels || {}),
