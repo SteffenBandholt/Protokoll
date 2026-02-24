@@ -79,17 +79,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  const normalizeUiMode = (value) => {
-    const s = String(value == null ? "" : value).trim().toLowerCase();
-    return s === "new" ? "new" : "old";
-  };
-
   const readUiMode = () => {
     try {
-      return normalizeUiMode(window.localStorage?.getItem?.(UI_MODE_KEY));
+      window.localStorage?.setItem?.(UI_MODE_KEY, "new");
     } catch (_e) {
-      return "old";
+      // ignore
     }
+    return "new";
   };
 
   // Manueller Test:

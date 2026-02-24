@@ -364,27 +364,6 @@ export default class SettingsView {
       return { tile, body };
     };
 
-    const UI_MODE_KEY = "bbm.uiMode";
-    const normalizeUiMode = (value) => {
-      const s = String(value == null ? "" : value).trim().toLowerCase();
-      return s === "new" ? "new" : "old";
-    };
-    const readUiMode = () => {
-      try {
-        return normalizeUiMode(window.localStorage?.getItem?.(UI_MODE_KEY));
-      } catch (_e) {
-        return "old";
-      }
-    };
-    const writeUiMode = (value) => {
-      try {
-        window.localStorage?.setItem?.(UI_MODE_KEY, normalizeUiMode(value));
-      } catch (_e) {
-        // ignore
-      }
-    };
-
-
     const userBox = document.createElement("div");
     applyPopupCardStyle(userBox);
     userBox.style.padding = "10px";
@@ -440,43 +419,6 @@ export default class SettingsView {
     const userRowCity = mkRow("Ort", inpUserCity);
     userRowCity.style.gridTemplateColumns = "120px minmax(0, 1fr)";
     userRowCity.style.gap = "8px";
-
-    const uiModeRow = document.createElement("div");
-    uiModeRow.style.display = "flex";
-    uiModeRow.style.alignItems = "center";
-    uiModeRow.style.gap = "10px";
-    uiModeRow.style.marginBottom = "12px";
-
-    const uiModeLabel = document.createElement("div");
-    uiModeLabel.textContent = "UI: alt/neu";
-    uiModeLabel.style.fontWeight = "700";
-    uiModeLabel.style.minWidth = "96px";
-
-    const btnUiMode = document.createElement("button");
-    btnUiMode.type = "button";
-    applyPopupButtonStyle(btnUiMode);
-
-    const uiModeHint = document.createElement("div");
-    uiModeHint.textContent = "Reload/Neustart erforderlich.";
-    uiModeHint.style.fontSize = "12px";
-    uiModeHint.style.opacity = "0.75";
-
-    const applyUiModeUi = () => {
-      const mode = readUiMode();
-      btnUiMode.textContent = mode === "new" ? "neu" : "alt";
-      applyPopupButtonStyle(btnUiMode, { variant: mode === "new" ? "primary" : "neutral" });
-    };
-
-    btnUiMode.onclick = () => {
-      if (this.saving) return;
-      const next = readUiMode() === "new" ? "old" : "new";
-      writeUiMode(next);
-      applyUiModeUi();
-      this._setMsg("UI-Modus gespeichert. Reload/Neustart erforderlich.");
-    };
-
-    applyUiModeUi();
-    uiModeRow.append(uiModeLabel, btnUiMode, uiModeHint);
 
     userBox.append(userTitle, userRowName1, userRowName2, userRowStreet, userRowZip, userRowCity);
 
@@ -2618,7 +2560,6 @@ export default class SettingsView {
 
     root.append(
       head,
-      uiModeRow,
       tiles
     );
 
