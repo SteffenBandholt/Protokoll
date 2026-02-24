@@ -210,6 +210,60 @@ function _sortTopsByNumber(tops) {
   tops.sort(_compareTopNumbers);
 }
 
+function _defaultFirmRoleOrder() {
+  return [10, 20, 30, 40, 50, 60];
+}
+
+function _normalizeFirmRoleOrder(raw) {
+  let parsed = [];
+  try {
+    const arr = JSON.parse(raw || "[]");
+    if (Array.isArray(arr)) parsed = arr;
+  } catch {
+    parsed = [];
+  }
+
+  const out = [];
+  const seen = new Set();
+  for (const v of parsed) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    if (seen.has(n)) continue;
+    out.push(n);
+    seen.add(n);
+  }
+
+  for (const n of _defaultFirmRoleOrder()) {
+    if (seen.has(n)) continue;
+    out.push(n);
+    seen.add(n);
+  }
+
+  return out;
+}
+
+function _sortFirmsByRoleOrderAndName(firms, roleOrderRaw) {
+  if (!Array.isArray(firms)) return [];
+  const order = _normalizeFirmRoleOrder(roleOrderRaw);
+  const pos = new Map(order.map((code, idx) => [Number(code), idx]));
+
+  const list = [...firms];
+  list.sort((a, b) => {
+    const ra = Number(a?.role_code);
+    const rb = Number(b?.role_code);
+    const ai = pos.has(ra) ? pos.get(ra) : order.length;
+    const bi = pos.has(rb) ? pos.get(rb) : order.length;
+    if (ai !== bi) return ai - bi;
+
+    const as = String(a?.label || a?.short || a?.name || "").trim().toLowerCase();
+    const bs = String(b?.label || b?.short || b?.name || "").trim().toLowerCase();
+    if (as < bs) return -1;
+    if (as > bs) return 1;
+    return 0;
+  });
+  return list;
+}
+
 function _applyHierDisplayNumbers(tops, isOpen) {
   const list = Array.isArray(tops) ? tops : [];
   const baseById = new Map();
@@ -367,6 +421,7 @@ function _loadSettings(db) {
     "pdf.footerUseUserData",
     "tops.ampelEnabled",
     "pdf.trafficLightAllEnabled",
+    "firm_role_order",
   ];
   return appSettingsGetManyWithDb(db, keys);
 }
@@ -478,6 +533,7 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     _sortTopsByNumber(tops);
   } else if (mode === "firms") {
     firms = projectId ? projectFirmsRepo.listFirmCandidatesByProject(projectId) : [];
+    firms = _sortFirmsByRoleOrderAndName(firms, settings?.["firm_role_order"]);
   } else if (mode === "todo") {
     const rows = meetingId ? meetingTopsRepo.listJoinedByMeeting(meetingId) : [];
     todoRows = rows

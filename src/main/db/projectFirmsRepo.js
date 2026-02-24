@@ -69,7 +69,7 @@ function listFirmCandidatesByProject(projectId) {
   if (!projectId) throw new Error("projectId required");
 
   const locals = db.prepare(`
-    SELECT id, short, name, COALESCE(is_active, 1) AS is_active
+    SELECT id, short, name, COALESCE(role_code, 60) AS role_code, COALESCE(is_active, 1) AS is_active
     FROM project_firms
     WHERE project_id = ?
       AND removed_at IS NULL
@@ -78,6 +78,7 @@ function listFirmCandidatesByProject(projectId) {
     id: r.id,
     short: r.short ?? null,
     name: r.name ?? null,
+    role_code: Number(r.role_code || 60) || 60,
     is_active: _normalizeActiveFlag(r.is_active),
     label: _label(r.short, r.name),
   }));
@@ -87,6 +88,7 @@ function listFirmCandidatesByProject(projectId) {
       f.id AS id,
       f.short AS short,
       f.name AS name,
+      COALESCE(f.role_code, 60) AS role_code,
       COALESCE(pgf.is_active, 1) AS is_active
     FROM project_global_firms pgf
     JOIN firms f ON f.id = pgf.firm_id
@@ -98,6 +100,7 @@ function listFirmCandidatesByProject(projectId) {
     id: r.id,
     short: r.short ?? null,
     name: r.name ?? null,
+    role_code: Number(r.role_code || 60) || 60,
     is_active: _normalizeActiveFlag(r.is_active),
     label: _label(r.short, r.name),
   }));
