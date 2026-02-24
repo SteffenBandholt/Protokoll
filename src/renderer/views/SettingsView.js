@@ -249,12 +249,34 @@ export default class SettingsView {
     title.textContent = "Einstellungen";
     title.style.margin = "0";
 
+    const hasActiveProject = !!this.router?.currentProjectId;
+    let btnBackToProject = null;
+    if (hasActiveProject) {
+      btnBackToProject = document.createElement("button");
+      btnBackToProject.type = "button";
+      btnBackToProject.textContent = "Zurück zum Protokoll";
+      applyPopupButtonStyle(btnBackToProject, { variant: "neutral" });
+      btnBackToProject.onclick = async () => {
+        const projectId = this.router?.currentProjectId || null;
+        const meetingId = this.router?.currentMeetingId || null;
+        if (!projectId) return;
+        if (meetingId && typeof this.router?.showTops === "function") {
+          await this.router.showTops(meetingId, projectId);
+          return;
+        }
+        if (typeof this.router?.showMeetings === "function") {
+          await this.router.showMeetings(projectId);
+        }
+      };
+    }
+
     const msg = document.createElement("div");
     msg.style.marginLeft = "auto";
     msg.style.fontSize = "12px";
     msg.style.opacity = "0.85";
 
-    head.append(title, msg);
+    if (btnBackToProject) head.append(title, btnBackToProject, msg);
+    else head.append(title, msg);
 
     const tiles = document.createElement("div");
     tiles.style.display = "grid";
