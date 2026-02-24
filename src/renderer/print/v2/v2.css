@@ -2,8 +2,8 @@
 
 .printV2Root .page {
   padding-top: var(--v2-pad-top, 2mm);
-  padding-left: var(--v2-pad-x, 12mm);
-  padding-right: var(--v2-pad-x, 12mm);
+  padding-left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
+  padding-right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
   padding-bottom: var(--v2-pad-bottom, 18mm);
 }
 
@@ -188,7 +188,7 @@
 }
 
 .printV2Root .v2UserBox {
-  width: var(--v2-userbox-w, 45mm);
+  width: var(--v2-userbox-w, 55mm);
   border: none;
   padding: 1mm;
   font-size: 8.5pt;
