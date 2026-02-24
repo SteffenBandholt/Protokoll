@@ -537,7 +537,9 @@ export default class FirmsPoolView {
     const personsHead = document.createElement("thead");
     personsHead.innerHTML = `
       <tr>
-        <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;">aktiv</th>
+        <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;line-height:1;">
+          <span style="display:inline-block;font-size:10px;line-height:1.05;">im<br>Pool</span>
+        </th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Funktion/Rolle</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Telefon</th>
