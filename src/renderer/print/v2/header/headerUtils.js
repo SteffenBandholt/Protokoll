@@ -97,8 +97,9 @@ function _protocolLine(meetingOrOpts, settingsMaybe, optionsMaybe = {}) {
     meeting.updatedAt ||
     "";
   const date = _formatDateIso(dateRaw);
-  if (nr && date) return title + " : " + String(nr) + " vom " + date;
-  if (nr) return title + " : " + String(nr);
+  const nrText = nr ? "#" + String(nr) : "";
+  if (nrText && date) return title + " : " + nrText + " vom " + date;
+  if (nrText) return title + " : " + nrText;
   if (date) return title + " : vom " + date;
   return title;
 }
