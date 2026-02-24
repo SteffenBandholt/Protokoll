@@ -1926,7 +1926,7 @@ export default class SettingsView {
         openSettingsModal({
           title: "Nutzereinstellungen",
           content: [userTopRow, userLogoRedirectBox],
-          closeOnly: true,
+          closeOnly: false,
           saveFn: async () => (await this._save()) !== false,
         });
         setTimeout(() => {
@@ -2208,7 +2208,13 @@ export default class SettingsView {
     const settingsClose = document.createElement("button");
     settingsClose.textContent = "X";
     applyPopupButtonStyle(settingsClose);
-    settingsClose.onclick = () => this._closeSettingsModal();
+    settingsClose.onclick = async () => {
+      if (this._settingsModalCloseOnly) {
+        this._closeSettingsModal();
+        return;
+      }
+      await this._runSettingsModalSave({ closeOnSuccess: true });
+    };
 
     settingsHead.append(settingsTitle, settingsClose);
 
