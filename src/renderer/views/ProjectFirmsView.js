@@ -56,8 +56,6 @@ export default class ProjectFirmsView {
     this.globalAssignSelectedIds = new Set(); // rechter Zustand im Modal
     this.globalAssignInitialIds = new Set(); // Initialzustand (für Diff)
     this.globalAssignErr = "";
-    this.globalAssignSearchLeft = "";
-    this.globalAssignSearchRight = "";
     this.savingGlobalAssign = false;
 
     // ui refs
@@ -167,8 +165,6 @@ export default class ProjectFirmsView {
     this.globalAssignErrEl = null;
     this.globalAssignLeftListEl = null;
     this.globalAssignRightListEl = null;
-    this.globalAssignInpLeftEl = null;
-    this.globalAssignInpRightEl = null;
     this.globalAssignBtnSaveEl = null;
     this.globalAssignBtnCancelEl = null;
     this.globalAssignBtnCloseEl = null;
@@ -738,7 +734,7 @@ const taFirmNotes = document.createElement("textarea");
     modalHead.style.borderBottom = "1px solid #e2e8f0";
 
     const modalTitle = document.createElement("div");
-    modalTitle.textContent = "Globale Firmen zuordnen";
+    modalTitle.textContent = "Firmen(extern) zuordnen";
     modalTitle.style.fontWeight = "bold";
 
     const btnClose = document.createElement("button");
@@ -771,23 +767,9 @@ const taFirmNotes = document.createElement("textarea");
       col.style.flexDirection = "column";
       col.style.gap = "8px";
 
-      const top = document.createElement("div");
-      top.style.display = "flex";
-      top.style.alignItems = "center";
-      top.style.justifyContent = "space-between";
-      top.style.gap = "8px";
-
       const t = document.createElement("div");
       t.textContent = titleText;
       t.style.fontWeight = "bold";
-
-      const inp = document.createElement("input");
-      inp.type = "text";
-      inp.placeholder = "Suchen…";
-      inp.style.width = "220px";
-      inp.style.maxWidth = "45vw";
-
-      top.append(t, inp);
 
       const list = document.createElement("div");
       list.style.border = "1px solid #ddd";
@@ -797,12 +779,12 @@ const taFirmNotes = document.createElement("textarea");
       list.style.overflow = "auto";
       list.style.background = "#fafafa";
 
-      col.append(top, list);
-      return { col, inp, list };
+      col.append(t, list);
+      return { col, list };
     };
 
-    const leftCol = mkListCol("Alle globalen Firmen");
-    const rightCol = mkListCol("Zugeordnet zu diesem Projekt");
+    const leftCol = mkListCol("Firmenliste (extern)");
+    const rightCol = mkListCol(`Zugeordnet zu ${this._projectScopeText()}`);
 
     modalGrid.append(leftCol.col, rightCol.col);
 
@@ -1190,8 +1172,6 @@ const taFirmNotes = document.createElement("textarea");
     this.globalAssignErrEl = modalErr;
     this.globalAssignLeftListEl = leftCol.list;
     this.globalAssignRightListEl = rightCol.list;
-    this.globalAssignInpLeftEl = leftCol.inp;
-    this.globalAssignInpRightEl = rightCol.inp;
     this.globalAssignBtnSaveEl = btnSave;
     this.globalAssignBtnCancelEl = btnCancel;
     this.globalAssignBtnCloseEl = btnClose;
@@ -1229,16 +1209,6 @@ const taFirmNotes = document.createElement("textarea");
     this.localPersonBtnDeleteEl = localPersonBtnDelete;
     this.localPersonBtnCancelEl = localPersonBtnCancel;
     this.localPersonBtnCloseEl = localPersonBtnClose;
-
-    // modal input handlers
-    this.globalAssignInpLeftEl.oninput = () => {
-      this.globalAssignSearchLeft = (this.globalAssignInpLeftEl?.value || "").trim();
-      this._renderGlobalAssignLists();
-    };
-    this.globalAssignInpRightEl.oninput = () => {
-      this.globalAssignSearchRight = (this.globalAssignInpRightEl?.value || "").trim();
-      this._renderGlobalAssignLists();
-    };
 
     return root;
   }
@@ -3451,8 +3421,6 @@ const taFirmNotes = document.createElement("textarea");
     if (modalOpen) {
       const canInteract = !isSaving && !ro;
 
-      if (this.globalAssignInpLeftEl) this.globalAssignInpLeftEl.disabled = !canInteract;
-      if (this.globalAssignInpRightEl) this.globalAssignInpRightEl.disabled = !canInteract;
 
       if (this.globalAssignBtnSaveEl) {
         this.globalAssignBtnSaveEl.disabled = !canInteract;
@@ -3481,8 +3449,6 @@ const taFirmNotes = document.createElement("textarea");
 
     this.globalAssignOpen = true;
     this.globalAssignErr = "";
-    this.globalAssignSearchLeft = "";
-    this.globalAssignSearchRight = "";
 
     if (this.globalAssignOverlayEl) {
       this.globalAssignOverlayEl.style.display = "flex";
@@ -3492,8 +3458,6 @@ const taFirmNotes = document.createElement("textarea");
         // ignore
       }
     }
-    if (this.globalAssignInpLeftEl) this.globalAssignInpLeftEl.value = "";
-    if (this.globalAssignInpRightEl) this.globalAssignInpRightEl.value = "";
 
     await this._loadGlobalAssignData();
     this._applyGlobalAssignState();
@@ -3503,8 +3467,6 @@ const taFirmNotes = document.createElement("textarea");
     // absichtlich OHNE "wenn saving -> return", damit "Speichern" den Dialog sicher schließen kann
     this.globalAssignOpen = false;
     this.globalAssignErr = "";
-    this.globalAssignSearchLeft = "";
-    this.globalAssignSearchRight = "";
     this.globalAssignAll = [];
     this.globalAssignSelectedIds = new Set();
     this.globalAssignInitialIds = new Set();
@@ -3575,9 +3537,6 @@ const taFirmNotes = document.createElement("textarea");
   _renderGlobalAssignLists() {
     if (!this.globalAssignLeftListEl || !this.globalAssignRightListEl) return;
 
-    const qL = (this.globalAssignSearchLeft || "").toLowerCase();
-    const qR = (this.globalAssignSearchRight || "").toLowerCase();
-
     const selectedIds = this.globalAssignSelectedIds || new Set();
     const all = this.globalAssignAll || [];
 
@@ -3585,13 +3544,12 @@ const taFirmNotes = document.createElement("textarea");
     const right = [];
 
     for (const f of all) {
-      const text = `${this._firmShortText(f)} ${this._firmGewerkText(f)}`.toLowerCase();
       const isSel = selectedIds.has(f.id);
 
       if (isSel) {
-        if (!qR || text.includes(qR)) right.push(f);
+        right.push(f);
       } else {
-        if (!qL || text.includes(qL)) left.push(f);
+        left.push(f);
       }
     }
 
@@ -3678,6 +3636,7 @@ const taFirmNotes = document.createElement("textarea");
     this._closeGlobalAssignModal();
 
     this.savingGlobalAssign = true;
+    let hasSaveError = false;
     let setupChanged = false;
     this._setMsg("Speichere Zuordnung…");
     this._applyFirmFormState();
@@ -3738,6 +3697,7 @@ const taFirmNotes = document.createElement("textarea");
         alert("In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
       }
     } catch (e) {
+      hasSaveError = true;
       alert(e?.message || "Fehler beim Speichern der Zuordnung");
     } finally {
       this.savingGlobalAssign = false;
@@ -3748,6 +3708,9 @@ const taFirmNotes = document.createElement("textarea");
       await this.reloadFirms();
       await this.reloadGlobalAssignments();
       if (setupChanged) this._notifyPoolDataChanged("global-assignments-saved");
+      if (!hasSaveError && typeof this.router?.showFirmsPool === "function") {
+        await this.router.showFirmsPool(projectId);
+      }
     }
   }
 }
