@@ -1063,8 +1063,12 @@ const taFirmNotes = document.createElement("textarea");
     localPersonLast.style.width = "100%";
     const localPersonFunktion = document.createElement("input");
     localPersonFunktion.type = "text";
-    localPersonFunktion.placeholder = "Handy";
+    localPersonFunktion.placeholder = "Funktion";
     localPersonFunktion.style.width = "100%";
+    const localPersonPhone = document.createElement("input");
+    localPersonPhone.type = "text";
+    localPersonPhone.placeholder = "Telefon";
+    localPersonPhone.style.width = "100%";
     const localPersonEmail = document.createElement("input");
     localPersonEmail.type = "email";
     localPersonEmail.placeholder = "E-Mail";
@@ -1080,7 +1084,8 @@ const taFirmNotes = document.createElement("textarea");
     localPersonBody.append(
       mkModalRow("Vorname", localPersonFirst),
       mkModalRow("Nachname", localPersonLast),
-      mkModalRow("Handy", localPersonFunktion),
+      mkModalRow("Funktion", localPersonFunktion),
+      mkModalRow("Telefon", localPersonPhone),
       mkModalRow("E-Mail", localPersonEmail),
       mkModalRow("Rolle", localPersonRolle),
       mkModalRow("Notizen", localPersonNotes)
@@ -1207,7 +1212,7 @@ const taFirmNotes = document.createElement("textarea");
     this.localPersonInpFirstName = localPersonFirst;
     this.localPersonInpLastName = localPersonLast;
     this.localPersonInpFunktion = localPersonFunktion;
-    this.localPersonInpPhone = null;
+    this.localPersonInpPhone = localPersonPhone;
     this.localPersonInpEmail = localPersonEmail;
     this.localPersonInpRolle = localPersonRolle;
     this.localPersonTaNotes = localPersonNotes;
@@ -2169,6 +2174,7 @@ const taFirmNotes = document.createElement("textarea");
     setDisabled(this.localPersonInpFirstName, lockPerson);
     setDisabled(this.localPersonInpLastName, lockPerson);
     setDisabled(this.localPersonInpFunktion, lockPerson);
+    setDisabled(this.localPersonInpPhone, lockPerson);
     setDisabled(this.localPersonInpEmail, lockPerson);
     setDisabled(this.localPersonInpRolle, lockPerson);
     setDisabled(this.localPersonTaNotes, lockPerson);
@@ -2333,6 +2339,7 @@ const taFirmNotes = document.createElement("textarea");
     if (this.localPersonInpFirstName) this.localPersonInpFirstName.value = "";
     if (this.localPersonInpLastName) this.localPersonInpLastName.value = "";
     if (this.localPersonInpFunktion) this.localPersonInpFunktion.value = "";
+    if (this.localPersonInpPhone) this.localPersonInpPhone.value = "";
     if (this.localPersonInpEmail) this.localPersonInpEmail.value = "";
     if (this.localPersonInpRolle) this.localPersonInpRolle.value = "";
     if (this.localPersonTaNotes) this.localPersonTaNotes.value = "";
@@ -2375,7 +2382,7 @@ const taFirmNotes = document.createElement("textarea");
           id: person.id,
           firstName: person.first_name || "",
           lastName: person.last_name || "",
-          funktion: person.phone || "",
+          funktion: person.funktion || "",
           phone: person.phone || "",
           email: person.email || "",
           rolle: person.rolle || "",
@@ -2396,7 +2403,8 @@ const taFirmNotes = document.createElement("textarea");
     this._setLocalPersonCreateError("");
     if (this.localPersonInpFirstName) this.localPersonInpFirstName.value = person.first_name || "";
     if (this.localPersonInpLastName) this.localPersonInpLastName.value = person.last_name || "";
-    if (this.localPersonInpFunktion) this.localPersonInpFunktion.value = person.phone || "";
+    if (this.localPersonInpFunktion) this.localPersonInpFunktion.value = person.funktion || "";
+    if (this.localPersonInpPhone) this.localPersonInpPhone.value = person.phone || "";
     if (this.localPersonInpEmail) this.localPersonInpEmail.value = person.email || "";
     if (this.localPersonInpRolle) this.localPersonInpRolle.value = person.rolle || "";
     if (this.localPersonTaNotes) this.localPersonTaNotes.value = person.notes || "";
@@ -2693,7 +2701,8 @@ const taFirmNotes = document.createElement("textarea");
           patch: {
             first_name: firstName,
             last_name: lastName,
-            phone: (this.localPersonInpFunktion?.value || "").trim(),
+            funktion: (this.localPersonInpFunktion?.value || "").trim(),
+            phone: (this.localPersonInpPhone?.value || "").trim(),
             email: (this.localPersonInpEmail?.value || "").trim(),
             rolle: (this.localPersonInpRolle?.value || "").trim(),
             notes: (this.localPersonTaNotes?.value || "").trim(),
@@ -2711,7 +2720,8 @@ const taFirmNotes = document.createElement("textarea");
           projectFirmId: this.selectedFirmId,
           firstName,
           lastName,
-          phone: (this.localPersonInpFunktion?.value || "").trim(),
+          funktion: (this.localPersonInpFunktion?.value || "").trim(),
+          phone: (this.localPersonInpPhone?.value || "").trim(),
           email: (this.localPersonInpEmail?.value || "").trim(),
           rolle: (this.localPersonInpRolle?.value || "").trim(),
           notes: (this.localPersonTaNotes?.value || "").trim(),
@@ -2784,7 +2794,8 @@ const taFirmNotes = document.createElement("textarea");
         patch: {
           first_name: firstName,
           last_name: lastName,
-          phone: String(data?.phone || data?.funktion || "").trim(),
+          funktion: String(data?.funktion || "").trim(),
+          phone: String(data?.phone || "").trim(),
           email: String(data?.email || "").trim(),
           rolle: String(data?.rolle || "").trim(),
           notes: String(data?.notes || "").trim(),
