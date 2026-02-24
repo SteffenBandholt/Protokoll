@@ -179,6 +179,7 @@ function registerSettingsIpc() {
         "pdf.userLogoTopMm",
         "pdf.userLogoRightMm",
         "pdf.protocolTitle",
+        "pdf.preRemarks",
         "pdf.userLogoFilePath",
         "pdf.trafficLightAllEnabled",
         "pdf.protocolsDir",

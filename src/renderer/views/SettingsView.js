@@ -5,6 +5,7 @@
 
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { createPopupOverlay, registerPopupCloseHandlers } from "../ui/popupCommon.js";
+import { OVERLAY_TOP } from "../ui/zIndex.js";
 import {
   DEFAULT_THEME_SETTINGS,
   applyThemeForSettings,
@@ -125,9 +126,11 @@ export default class SettingsView {
     this.inpPdfFooterZip = null;
     this.inpPdfFooterCity = null;
     this.inpPdfProtocolsDir = null;
+    this.inpPdfPreRemarks = null;
     this.btnPdfProtocolsBrowse = null;
     this.inpPdfFooterUseUserData = null;
     this.pdfFooterUseUserData = false;
+    this.pdfPreRemarks = "";
     this.btnPdfSettingsSave = null;
     this.btnPdfFooterUseUserData = null;
     this._pdfLogoDataUrl = "";
@@ -2010,6 +2013,9 @@ export default class SettingsView {
         const tabBtnRoles = document.createElement("button");
         tabBtnRoles.textContent = "Firmenliste";
 
+        const tabBtnPreRemarks = document.createElement("button");
+        tabBtnPreRemarks.textContent = "Vorbemerkung";
+
         const applyTabButtonBase = (btn) => {
           btn.style.padding = "6px 10px";
           btn.style.borderRadius = "8px";
@@ -2037,9 +2043,11 @@ export default class SettingsView {
         applyTabButtonBase(tabBtnPdf);
         applyTabButtonBase(tabBtnLogos);
         applyTabButtonBase(tabBtnRoles);
+        applyTabButtonBase(tabBtnPreRemarks);
         applyHover(tabBtnPdf);
         applyHover(tabBtnLogos);
         applyHover(tabBtnRoles);
+        applyHover(tabBtnPreRemarks);
 
         const tabBody = document.createElement("div");
         tabBody.style.display = "grid";
@@ -2066,6 +2074,11 @@ export default class SettingsView {
           tabBtnRoles.style.color = isRoles ? "white" : "#1565c0";
           tabBtnRoles.style.borderColor = isRoles ? "rgba(25,118,210,0.65)" : "rgba(0,0,0,0.18)";
           tabBtnRoles.style.boxShadow = isRoles ? "0 1px 0 rgba(0,0,0,0.12)" : "none";
+
+          tabBtnPreRemarks.style.background = "#fff";
+          tabBtnPreRemarks.style.color = "#1565c0";
+          tabBtnPreRemarks.style.borderColor = "rgba(0,0,0,0.18)";
+          tabBtnPreRemarks.style.boxShadow = "none";
         };
 
         const showTab = (next) => {
@@ -2096,8 +2109,12 @@ export default class SettingsView {
         tabBtnPdf.onclick = () => showTab("pdf");
         tabBtnLogos.onclick = () => showTab("logos");
         tabBtnRoles.onclick = () => showTab("roles");
+        tabBtnPreRemarks.onclick = async () => {
+          const ok = await this._openPdfPreRemarksPopup();
+          if (ok === true) this._setMsg("Vorbemerkung gespeichert");
+        };
 
-        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles);
+        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks);
         tabWrap.append(activePrintContextBox, tabHead, tabBody);
 
         showTab("pdf");
@@ -2448,6 +2465,7 @@ export default class SettingsView {
     this.inpPdfFooterStreet = inpPdfFooterStreet;
     this.inpPdfFooterZip = inpPdfFooterZip;
     this.inpPdfFooterCity = inpPdfFooterCity;
+    this.inpPdfPreRemarks = null;
     this.inpPdfFooterUseUserData = null;
     this.btnPdfFooterUseUserData = btnPdfFooterUseUserData;
     this.btnPdfProtocolsBrowse = btnPdfProtocolsBrowse;
@@ -2680,6 +2698,200 @@ export default class SettingsView {
     const v = String(value || "").trim();
     if (!v) return "";
     return v.length > maxLen ? v.slice(0, maxLen) : v;
+  }
+
+  _normalizePdfPreRemarks(value) {
+    const raw = String(value || "").replace(/\r\n?/g, "\n");
+    const lines = raw.split("\n").slice(0, 5);
+    const normalized = lines
+      .map((line) => line.replace(/[ \t]+$/g, ""))
+      .join("\n")
+      .trim();
+    if (!normalized) return "";
+    return normalized.length > 300 ? normalized.slice(0, 300) : normalized;
+  }
+
+  async _openPdfPreRemarksPopup() {
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsSetMany !== "function") {
+      alert("Settings-API fehlt (IPC noch nicht aktiv).");
+      return false;
+    }
+
+    const overlay = createPopupOverlay({ background: "rgba(0,0,0,0.35)", zIndex: OVERLAY_TOP });
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+
+    const modal = document.createElement("div");
+    applyPopupCardStyle(modal);
+    modal.style.width = "min(740px, calc(100vw - 24px))";
+    modal.style.maxHeight = "calc(100vh - 24px)";
+    modal.style.display = "flex";
+    modal.style.flexDirection = "column";
+    modal.style.overflow = "hidden";
+    modal.style.background = "#fff";
+    modal.style.boxShadow = "0 10px 30px rgba(0,0,0,0.25)";
+    modal.style.padding = "0";
+
+    const head = document.createElement("div");
+    head.style.display = "flex";
+    head.style.alignItems = "center";
+    head.style.justifyContent = "space-between";
+    head.style.gap = "10px";
+    head.style.padding = "12px 14px";
+    head.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Vorbemerkung";
+    title.style.fontWeight = "800";
+    title.style.fontSize = "16px";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "Schliessen";
+    applyPopupButtonStyle(btnClose);
+
+    head.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.padding = "14px";
+    body.style.overflow = "auto";
+    body.style.display = "grid";
+    body.style.gap = "8px";
+
+    const label = document.createElement("div");
+    label.textContent = "Vorbemerkung zum Protokoll";
+    label.style.fontWeight = "700";
+
+    const infoRow = document.createElement("div");
+    infoRow.style.display = "flex";
+    infoRow.style.justifyContent = "space-between";
+    infoRow.style.alignItems = "center";
+    infoRow.style.gap = "10px";
+
+    const help = document.createElement("div");
+    help.textContent = "(max 300 Zeichen in 5 Zeilen)";
+    help.style.fontSize = "12px";
+    help.style.opacity = "0.75";
+
+    const badge = document.createElement("span");
+    badge.style.fontSize = "12px";
+    badge.style.opacity = "0.9";
+    badge.title = "Restliche Zeichen";
+    badge.style.padding = "1px 7px";
+    badge.style.border = "1px solid #ddd";
+    badge.style.borderRadius = "999px";
+    badge.style.background = "#fff";
+    badge.style.minWidth = "44px";
+    badge.style.textAlign = "right";
+    badge.style.fontVariantNumeric = "tabular-nums";
+
+    infoRow.append(help, badge);
+
+    const ta = document.createElement("textarea");
+    ta.rows = 5;
+    ta.maxLength = 300;
+    ta.style.width = "100%";
+    ta.style.resize = "vertical";
+    ta.value = String(this.pdfPreRemarks || "");
+
+    const normalizeLocal = () => {
+      let v = String(ta.value || "").replace(/\r\n?/g, "\n");
+      const lines = v.split("\n");
+      if (lines.length > 5) v = lines.slice(0, 5).join("\n");
+      if (v.length > 300) v = v.slice(0, 300);
+      if (v !== ta.value) ta.value = v;
+      badge.textContent = String(Math.max(0, 300 - ta.value.length));
+    };
+    normalizeLocal();
+    ta.addEventListener("input", normalizeLocal);
+
+    body.append(label, infoRow, ta);
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.gap = "8px";
+    footer.style.padding = "10px 14px";
+    footer.style.borderTop = "1px solid #e2e8f0";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.type = "button";
+    btnCancel.textContent = "Abbrechen";
+    applyPopupButtonStyle(btnCancel);
+
+    const btnSave = document.createElement("button");
+    btnSave.type = "button";
+    btnSave.textContent = "Speichern";
+    applyPopupButtonStyle(btnSave, { variant: "primary" });
+
+    footer.append(btnCancel, btnSave);
+    modal.append(head, body, footer);
+    overlay.appendChild(modal);
+
+    return new Promise((resolve) => {
+      const close = (result) => {
+        overlay.removeEventListener("mousedown", onOverlayDown);
+        overlay.removeEventListener("keydown", onOverlayKeyDown);
+        btnClose.removeEventListener("click", onCancel);
+        btnCancel.removeEventListener("click", onCancel);
+        btnSave.removeEventListener("click", onSave);
+        try {
+          overlay.remove();
+        } catch {
+          // ignore
+        }
+        resolve(result);
+      };
+
+      const onCancel = () => close(false);
+      const onOverlayDown = (e) => {
+        if (e.target !== overlay) return;
+        onCancel();
+      };
+      const onOverlayKeyDown = (e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        onCancel();
+      };
+      const onSave = async () => {
+        normalizeLocal();
+        const normalized = this._normalizePdfPreRemarks(ta.value);
+        const res = await api.appSettingsSetMany({
+          "pdf.preRemarks": normalized,
+        });
+        if (!res?.ok) {
+          alert(res?.error || "Speichern fehlgeschlagen");
+          return;
+        }
+        this.pdfPreRemarks = normalized;
+        if (this.router?.context) {
+          this.router.context.settings = {
+            ...(this.router.context.settings || {}),
+            "pdf.preRemarks": normalized,
+          };
+        }
+        close(true);
+      };
+
+      overlay.addEventListener("mousedown", onOverlayDown);
+      overlay.addEventListener("keydown", onOverlayKeyDown);
+      btnClose.addEventListener("click", onCancel);
+      btnCancel.addEventListener("click", onCancel);
+      btnSave.addEventListener("click", onSave);
+
+      document.body.appendChild(overlay);
+      setTimeout(() => {
+        try {
+          ta.focus();
+          ta.selectionStart = ta.value.length;
+          ta.selectionEnd = ta.value.length;
+        } catch {
+          // ignore
+        }
+      }, 0);
+    });
   }
 
   _normalizeUserZip(value) {
@@ -3699,6 +3911,7 @@ export default class SettingsView {
       trafficLightAllEnabled: true,
       footerUseUserData: false,
       protocolsDir: "C:\\Downloads",
+      preRemarks: "",
     };
   }
 
@@ -3780,11 +3993,13 @@ export default class SettingsView {
     const footerStreet = this._normalizeUserText(this.inpPdfFooterStreet?.value, 80);
     const footerZip = this._normalizeUserZip(this.inpPdfFooterZip?.value);
     const footerCity = this._normalizeUserText(this.inpPdfFooterCity?.value, 80);
+    const preRemarks = this._normalizePdfPreRemarks(this.pdfPreRemarks ?? defaults.preRemarks);
 
     return {
       protocolTitle,
       trafficLightAllEnabled,
       protocolsDir,
+      preRemarks,
       footerUseUserData,
       footerPlace,
       footerDate,
@@ -3811,6 +4026,7 @@ export default class SettingsView {
     if (this.inpPdfFooterStreet) this.inpPdfFooterStreet.value = values.footerStreet || "";
     if (this.inpPdfFooterZip) this.inpPdfFooterZip.value = values.footerZip || "";
     if (this.inpPdfFooterCity) this.inpPdfFooterCity.value = values.footerCity || "";
+    this.pdfPreRemarks = this._normalizePdfPreRemarks(values.preRemarks || "");
   }
 
   _schedulePdfSettingsSave() {
@@ -3850,6 +4066,7 @@ export default class SettingsView {
         "pdf.protocolTitle": values.protocolTitle,
         "pdf.trafficLightAllEnabled": values.trafficLightAllEnabled ? "true" : "false",
         "pdf.protocolsDir": values.protocolsDir,
+        "pdf.preRemarks": values.preRemarks,
         "pdf.footerPlace": values.footerPlace,
         "pdf.footerDate": values.footerDate,
         "pdf.footerName1": values.footerName1,
@@ -3871,6 +4088,7 @@ export default class SettingsView {
           "pdf.protocolTitle": values.protocolTitle,
           "pdf.trafficLightAllEnabled": values.trafficLightAllEnabled ? "true" : "false",
           "pdf.protocolsDir": values.protocolsDir,
+          "pdf.preRemarks": values.preRemarks,
           "pdf.footerPlace": values.footerPlace,
           "pdf.footerDate": values.footerDate,
           "pdf.footerName1": values.footerName1,
@@ -4874,6 +5092,7 @@ export default class SettingsView {
       "pdf.protocolTitle",
       "pdf.trafficLightAllEnabled",
       "pdf.protocolsDir",
+      "pdf.preRemarks",
       "pdf.footerPlace",
       "pdf.footerDate",
       "pdf.footerName1",
@@ -5121,6 +5340,9 @@ export default class SettingsView {
     const protocolsDirRaw = data["pdf.protocolsDir"];
     const protocolsDir =
       protocolsDirRaw == null ? pdfSettingsDefaults.protocolsDir : String(protocolsDirRaw);
+    const preRemarksRaw = data["pdf.preRemarks"];
+    const preRemarks =
+      preRemarksRaw == null ? pdfSettingsDefaults.preRemarks : String(preRemarksRaw);
     const footerUseUserData = this._parseBool(
       data["pdf.footerUseUserData"],
       pdfSettingsDefaults.footerUseUserData
@@ -5138,6 +5360,7 @@ export default class SettingsView {
       protocolTitle,
       trafficLightAllEnabled,
       protocolsDir,
+      preRemarks,
       footerUseUserData,
       footerPlace,
       footerDate,
@@ -5248,6 +5471,7 @@ export default class SettingsView {
         user_city,
         "pdf.protocolTitle": pdfValues.protocolTitle,
         "pdf.trafficLightAllEnabled": pdfValues.trafficLightAllEnabled ? "true" : "false",
+        "pdf.preRemarks": pdfValues.preRemarks,
         "pdf.footerPlace": pdfValues.footerPlace,
         "pdf.footerDate": pdfValues.footerDate,
         "pdf.footerName1": pdfValues.footerName1,
@@ -5275,6 +5499,7 @@ export default class SettingsView {
           user_city,
           "pdf.protocolTitle": pdfValues.protocolTitle,
           "pdf.trafficLightAllEnabled": pdfValues.trafficLightAllEnabled ? "true" : "false",
+          "pdf.preRemarks": pdfValues.preRemarks,
           "pdf.footerPlace": pdfValues.footerPlace,
           "pdf.footerDate": pdfValues.footerDate,
           "pdf.footerName1": pdfValues.footerName1,
