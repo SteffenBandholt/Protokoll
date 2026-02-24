@@ -13,9 +13,35 @@ function _logoClassBySize(size) {
   return "v2LogoSizeMedium";
 }
 
+function _normalizeLogoAlign(v) {
+  const s = String(v || "").trim().toLowerCase();
+  if (s === "left" || s === "center" || s === "right") return s;
+  return "center";
+}
+
+function _logoClassByAlign(align) {
+  if (align === "left") return "v2LogoAlignLeft";
+  if (align === "right") return "v2LogoAlignRight";
+  return "v2LogoAlignCenter";
+}
+
+function _normalizeLogoVAlign(v) {
+  const s = String(v || "").trim().toLowerCase();
+  if (s === "top" || s === "middle" || s === "bottom") return s;
+  return "bottom";
+}
+
+function _logoClassByVAlign(vAlign) {
+  if (vAlign === "top") return "v2LogoVAlignTop";
+  if (vAlign === "middle") return "v2LogoVAlignMiddle";
+  return "v2LogoVAlignBottom";
+}
+
 function _buildLogoBox(logo, labelNo) {
   const box = headerUtils.el("div", "v2LogoBox");
   box.classList.add(_logoClassBySize(_normalizeLogoSize(logo?.size)));
+  box.classList.add(_logoClassByAlign(_normalizeLogoAlign(logo?.align)));
+  box.classList.add(_logoClassByVAlign(_normalizeLogoVAlign(logo?.vAlign)));
   const enabled = !!logo?.enabled;
   const dataUrl = String(logo?.dataUrl || "").trim();
   if (enabled && dataUrl) {
@@ -26,7 +52,7 @@ function _buildLogoBox(logo, labelNo) {
     return box;
   }
 
-  const placeholder = headerUtils.el("div", "v2LogoPlaceholder", "Hier koennte Ihr Logo sein");
+  const placeholder = headerUtils.el("div", "v2LogoPlaceholder", "");
   box.appendChild(placeholder);
   return box;
 }

@@ -138,9 +138,12 @@ export default class SettingsView {
     this.printLogoEnabledInputs = [null, null, null];
     this.printLogoFileInputs = [null, null, null];
     this.printLogoPreviewImgs = [null, null, null];
+    this.printLogoPreviewFrames = [null, null, null];
     this.printLogoPlaceholderEls = [null, null, null];
     this.printLogoRemoveBtns = [null, null, null];
     this.printLogoSizeSelects = [null, null, null];
+    this.printLogoAlignChecks = [null, null, null];
+    this.printLogoVAlignChecks = [null, null, null];
     this._printLogoDataUrls = ["", "", ""];
     this._printLogoSaving = false;
 
@@ -1606,11 +1609,12 @@ export default class SettingsView {
       slotWrap.style.borderRadius = "8px";
       slotWrap.style.padding = "10px";
       slotWrap.style.display = "grid";
-      slotWrap.style.gridTemplateColumns = "132px minmax(0, 1fr)";
+      // Platz fuer Vorschau + vertikale Ausrichtung rechts daneben, damit nichts in die zweite Spalte ueberlappt.
+      slotWrap.style.gridTemplateColumns = "172px minmax(0, 1fr)";
       slotWrap.style.gap = "10px";
       slotWrap.style.alignItems = "start";
       slotWrap.style.boxSizing = "border-box";
-      slotWrap.style.minWidth = "280px";
+      slotWrap.style.minWidth = "320px";
 
       const previewCol = document.createElement("div");
       previewCol.style.display = "grid";
@@ -1630,6 +1634,8 @@ export default class SettingsView {
       previewFrame.style.alignItems = "flex-end";
       previewFrame.style.justifyContent = "center";
       previewFrame.style.overflow = "hidden";
+      previewFrame.style.cursor = "pointer";
+      this.printLogoPreviewFrames[slotIndex] = previewFrame;
 
       const placeholder = document.createElement("div");
       placeholder.style.width = "100%";
@@ -1641,7 +1647,7 @@ export default class SettingsView {
       placeholder.style.color = "#666";
       placeholder.style.textAlign = "center";
       placeholder.style.padding = "4px";
-      placeholder.textContent = "Kein Logo";
+      placeholder.textContent = "Logo waehlen";
       this.printLogoPlaceholderEls[slotIndex] = placeholder;
 
       const img = document.createElement("img");
@@ -1653,7 +1659,85 @@ export default class SettingsView {
       this.printLogoPreviewImgs[slotIndex] = img;
 
       previewFrame.append(placeholder, img);
-      previewCol.append(slotTitle, previewFrame);
+      const previewTopRow = document.createElement("div");
+      previewTopRow.style.display = "flex";
+      previewTopRow.style.alignItems = "center";
+      previewTopRow.style.gap = "8px";
+
+      const alignWrap = document.createElement("div");
+      alignWrap.style.display = "grid";
+      alignWrap.style.gap = "4px";
+      alignWrap.style.justifyItems = "center";
+
+      const alignTitle = document.createElement("div");
+      alignTitle.textContent = "Orientierung";
+      alignTitle.style.fontSize = "12px";
+      alignTitle.style.opacity = "0.85";
+
+      const alignChecks = document.createElement("div");
+      alignChecks.style.display = "flex";
+      alignChecks.style.gap = "10px";
+      alignChecks.style.alignItems = "center";
+      alignChecks.style.justifyContent = "center";
+
+      const mkAlignCheck = (alignValue) => {
+        const chk = document.createElement("input");
+        chk.type = "checkbox";
+        chk.checked = alignValue === "center";
+        chk.addEventListener("change", () => {
+          if (!chk.checked) {
+            chk.checked = true;
+            return;
+          }
+          this._applyPrintLogoAlign(slotIndex, alignValue);
+          this._savePrintLogoSettings();
+        });
+        return chk;
+      };
+
+      const alignLeft = mkAlignCheck("left");
+      const alignCenter = mkAlignCheck("center");
+      const alignRight = mkAlignCheck("right");
+      this.printLogoAlignChecks[slotIndex] = {
+        left: alignLeft,
+        center: alignCenter,
+        right: alignRight,
+      };
+      alignChecks.append(alignLeft, alignCenter, alignRight);
+      alignWrap.append(alignTitle, alignChecks);
+
+      const vAlignChecks = document.createElement("div");
+      vAlignChecks.style.display = "grid";
+      vAlignChecks.style.gap = "8px";
+      vAlignChecks.style.alignItems = "center";
+      vAlignChecks.style.justifyItems = "center";
+
+      const mkVAlignCheck = (alignValue) => {
+        const chk = document.createElement("input");
+        chk.type = "checkbox";
+        chk.checked = alignValue === "middle";
+        chk.addEventListener("change", () => {
+          if (!chk.checked) {
+            chk.checked = true;
+            return;
+          }
+          this._applyPrintLogoVAlign(slotIndex, alignValue);
+          this._savePrintLogoSettings();
+        });
+        return chk;
+      };
+      const vAlignTop = mkVAlignCheck("top");
+      const vAlignMiddle = mkVAlignCheck("middle");
+      const vAlignBottom = mkVAlignCheck("bottom");
+      this.printLogoVAlignChecks[slotIndex] = {
+        top: vAlignTop,
+        middle: vAlignMiddle,
+        bottom: vAlignBottom,
+      };
+      vAlignChecks.append(vAlignTop, vAlignMiddle, vAlignBottom);
+
+      previewTopRow.append(previewFrame, vAlignChecks);
+      previewCol.append(slotTitle, previewTopRow, alignWrap);
 
       const controlsCol = document.createElement("div");
       controlsCol.style.display = "grid";
@@ -1680,13 +1764,9 @@ export default class SettingsView {
       inpEnabled.type = "checkbox";
       this.printLogoEnabledInputs[slotIndex] = inpEnabled;
 
-      const enabledWrap = document.createElement("div");
-      enabledWrap.style.display = "flex";
-      enabledWrap.style.alignItems = "center";
-      enabledWrap.append(inpEnabled);
-
       const sizeSelect = document.createElement("select");
-      sizeSelect.style.minWidth = "120px";
+      sizeSelect.style.minWidth = "82px";
+      sizeSelect.style.width = "82px";
       for (const opt of [
         { value: "small", label: "Klein" },
         { value: "medium", label: "Mittel" },
@@ -1717,11 +1797,7 @@ export default class SettingsView {
         await this._handlePrintLogoFileInput(slotIndex);
       });
       this.printLogoFileInputs[slotIndex] = inpFile;
-
-      const btnSelect = document.createElement("button");
-      btnSelect.textContent = "Bild auswaehlen";
-      applyPopupButtonStyle(btnSelect);
-      btnSelect.onclick = () => {
+      previewFrame.onclick = () => {
         if (inpFile.disabled) return;
         inpFile.click();
       };
@@ -1729,6 +1805,10 @@ export default class SettingsView {
       const btnRemove = document.createElement("button");
       btnRemove.textContent = "Entfernen";
       applyPopupButtonStyle(btnRemove);
+      btnRemove.style.fontSize = "11px";
+      btnRemove.style.padding = "3px 6px";
+      btnRemove.style.minHeight = "16px";
+      btnRemove.style.alignSelf = "flex-start";
       btnRemove.onclick = () => {
         this._setPrintLogoDataUrl(slotIndex, "");
         if (this.printLogoEnabledInputs[slotIndex]) {
@@ -1736,13 +1816,30 @@ export default class SettingsView {
         }
       };
       this.printLogoRemoveBtns[slotIndex] = btnRemove;
+      fileRow.append(inpFile);
 
-      fileRow.append(inpFile, btnSelect, btnRemove);
+      const enabledRow = document.createElement("div");
+      enabledRow.style.display = "inline-flex";
+      enabledRow.style.alignItems = "center";
+      enabledRow.style.gap = "8px";
+      enabledRow.style.marginLeft = "10mm";
+      const enabledLabel = document.createElement("span");
+      enabledLabel.textContent = "Anzeigen";
+      enabledLabel.style.fontSize = "12px";
+      enabledRow.append(inpEnabled, enabledLabel);
+
+      const sizeGroup = document.createElement("div");
+      sizeGroup.style.display = "grid";
+      sizeGroup.style.gap = "6px";
+      sizeGroup.style.justifyItems = "start";
+      sizeGroup.style.alignSelf = "end";
+      sizeGroup.style.marginLeft = "10mm";
+      sizeGroup.append(sizeSelect, btnRemove);
 
       controlsCol.append(
-        mkControlRow("Aktiv", enabledWrap),
-        mkControlRow("Groesse", sizeSelect),
-        mkControlRow("Bild", fileRow)
+        enabledRow,
+        fileRow,
+        sizeGroup
       );
 
       slotWrap.append(previewCol, controlsCol);
@@ -2694,6 +2791,18 @@ export default class SettingsView {
     }
     for (const sel of this.printLogoSizeSelects || []) {
       if (sel) sel.disabled = printLogosBusy;
+    }
+    for (const checks of this.printLogoAlignChecks || []) {
+      if (!checks) continue;
+      if (checks.left) checks.left.disabled = printLogosBusy;
+      if (checks.center) checks.center.disabled = printLogosBusy;
+      if (checks.right) checks.right.disabled = printLogosBusy;
+    }
+    for (const checks of this.printLogoVAlignChecks || []) {
+      if (!checks) continue;
+      if (checks.top) checks.top.disabled = printLogosBusy;
+      if (checks.middle) checks.middle.disabled = printLogosBusy;
+      if (checks.bottom) checks.bottom.disabled = printLogosBusy;
     }
     this._updateRoleActionsState();
     if (this.btnSave) this.btnSave.disabled = busy;
@@ -4122,6 +4231,18 @@ export default class SettingsView {
     return "medium";
   }
 
+  _normalizePrintLogoAlign(value) {
+    const s = String(value || "").trim().toLowerCase();
+    if (s === "left" || s === "center" || s === "right") return s;
+    return "center";
+  }
+
+  _normalizePrintLogoVAlign(value) {
+    const s = String(value || "").trim().toLowerCase();
+    if (s === "top" || s === "middle" || s === "bottom") return s;
+    return "bottom";
+  }
+
   _previewLogoMaxHeightPx(sizeValue) {
     const size = this._normalizePrintLogoSize(sizeValue);
     if (size === "small") return 44;
@@ -4145,6 +4266,46 @@ export default class SettingsView {
     if (!sel) return;
     sel.value = normalized;
     this._applyPrintLogoPreviewSize(idx, normalized);
+  }
+
+  _applyPrintLogoAlign(slotIndex, value) {
+    const idx = Number(slotIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 2) return;
+    const normalized = this._normalizePrintLogoAlign(value);
+    const checks = this.printLogoAlignChecks?.[idx];
+    if (checks) {
+      if (checks.left) checks.left.checked = normalized === "left";
+      if (checks.center) checks.center.checked = normalized === "center";
+      if (checks.right) checks.right.checked = normalized === "right";
+    }
+    const frame = this.printLogoPreviewFrames?.[idx];
+    if (frame) {
+      frame.style.justifyContent = normalized === "left"
+        ? "flex-start"
+        : normalized === "right"
+          ? "flex-end"
+          : "center";
+    }
+  }
+
+  _applyPrintLogoVAlign(slotIndex, value) {
+    const idx = Number(slotIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx > 2) return;
+    const normalized = this._normalizePrintLogoVAlign(value);
+    const checks = this.printLogoVAlignChecks?.[idx];
+    if (checks) {
+      if (checks.top) checks.top.checked = normalized === "top";
+      if (checks.middle) checks.middle.checked = normalized === "middle";
+      if (checks.bottom) checks.bottom.checked = normalized === "bottom";
+    }
+    const frame = this.printLogoPreviewFrames?.[idx];
+    if (frame) {
+      frame.style.alignItems = normalized === "top"
+        ? "flex-start"
+        : normalized === "middle"
+          ? "center"
+          : "flex-end";
+    }
   }
 
   _setPrintLogoDataUrl(slotIndex, dataUrl) {
@@ -4183,9 +4344,13 @@ export default class SettingsView {
       const size = sizeRaw == null || String(sizeRaw).trim() === ""
         ? legacyPreset
         : this._normalizePrintLogoSize(sizeRaw);
+      const align = this._normalizePrintLogoAlign(data["print.logo" + keyNo + ".align"]);
+      const vAlign = this._normalizePrintLogoVAlign(data["print.logo" + keyNo + ".vAlign"]);
       const inp = this.printLogoEnabledInputs?.[i];
       if (inp) inp.checked = !!enabled;
       this._applyPrintLogoSize(i, size);
+      this._applyPrintLogoAlign(i, align);
+      this._applyPrintLogoVAlign(i, vAlign);
       this._setPrintLogoDataUrl(i, dataUrl);
     }
   }
@@ -4193,14 +4358,28 @@ export default class SettingsView {
   _getPrintLogoValues() {
     const values = {
       slots: [
-        { enabled: false, size: "medium", dataUrl: "" },
-        { enabled: false, size: "medium", dataUrl: "" },
-        { enabled: false, size: "medium", dataUrl: "" },
+        { enabled: false, size: "medium", align: "center", vAlign: "bottom", dataUrl: "" },
+        { enabled: false, size: "medium", align: "center", vAlign: "bottom", dataUrl: "" },
+        { enabled: false, size: "medium", align: "center", vAlign: "bottom", dataUrl: "" },
       ],
     };
     for (let i = 0; i < 3; i++) {
       values.slots[i].enabled = !!this.printLogoEnabledInputs?.[i]?.checked;
       values.slots[i].size = this._normalizePrintLogoSize(this.printLogoSizeSelects?.[i]?.value);
+      values.slots[i].align = this._normalizePrintLogoAlign(
+        this.printLogoAlignChecks?.[i]?.left?.checked
+          ? "left"
+          : this.printLogoAlignChecks?.[i]?.right?.checked
+            ? "right"
+            : "center"
+      );
+      values.slots[i].vAlign = this._normalizePrintLogoVAlign(
+        this.printLogoVAlignChecks?.[i]?.top?.checked
+          ? "top"
+          : this.printLogoVAlignChecks?.[i]?.middle?.checked
+            ? "middle"
+            : "bottom"
+      );
       values.slots[i].dataUrl = String(this._printLogoDataUrls?.[i] || "").trim();
     }
     return values;
@@ -4223,6 +4402,8 @@ export default class SettingsView {
         const keyNo = String(i + 1);
         payload["print.logo" + keyNo + ".enabled"] = values.slots[i].enabled ? "true" : "false";
         payload["print.logo" + keyNo + ".size"] = values.slots[i].size;
+        payload["print.logo" + keyNo + ".align"] = values.slots[i].align;
+        payload["print.logo" + keyNo + ".vAlign"] = values.slots[i].vAlign;
         payload["print.logo" + keyNo + ".pngDataUrl"] = values.slots[i].dataUrl;
       }
       // Legacy fallback fuer bestehende Renderer-Pfade mit globalem Preset.
@@ -5091,12 +5272,18 @@ export default class SettingsView {
       "pdf.userLogoFilePath",
       "print.logo1.enabled",
       "print.logo1.size",
+      "print.logo1.align",
+      "print.logo1.vAlign",
       "print.logo1.pngDataUrl",
       "print.logo2.enabled",
       "print.logo2.size",
+      "print.logo2.align",
+      "print.logo2.vAlign",
       "print.logo2.pngDataUrl",
       "print.logo3.enabled",
       "print.logo3.size",
+      "print.logo3.align",
+      "print.logo3.vAlign",
       "print.logo3.pngDataUrl",
       "print.logoSizePreset",
       "pdf.protocolTitle",

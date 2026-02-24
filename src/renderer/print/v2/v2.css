@@ -1,7 +1,7 @@
 /* Print V2 – Header styles (Version A) */
 
 .printV2Root .page {
-  padding-top: var(--v2-pad-top, 5mm);
+  padding-top: var(--v2-pad-top, 2mm);
   padding-left: var(--v2-pad-x, 12mm);
   padding-right: var(--v2-pad-x, 12mm);
   padding-bottom: var(--v2-pad-bottom, 18mm);
@@ -9,6 +9,8 @@
 
 /* GlobalHeader (page 1 only) */
 .printV2Root .v2GlobalHeader {
+  height: var(--v2-global-height, 50mm);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -18,13 +20,13 @@
   display: flex;
   justify-content: flex-end;
   align-items: flex-end;
-  gap: var(--v2-logo-gap, 4mm);
+  gap: var(--v2-logo-gap, 3mm);
 }
 
 .printV2Root .v2LogoBox {
-  width: var(--v2-global-logo-box, 40mm);
-  max-width: 55mm;
-  height: var(--v2-global-logo-box, 40mm);
+  width: var(--v2-global-logo-box-w, var(--v2-global-logo-box, 60mm));
+  max-width: none;
+  height: var(--v2-global-logo-box-h, var(--v2-global-logo-box, 45mm));
   flex: 0 0 auto;
   display: flex;
   align-items: flex-end;
@@ -33,6 +35,30 @@
   border: none;
   padding: 0;
   box-sizing: border-box;
+}
+
+.printV2Root .v2LogoBox.v2LogoAlignLeft {
+  justify-content: flex-start;
+}
+
+.printV2Root .v2LogoBox.v2LogoAlignCenter {
+  justify-content: center;
+}
+
+.printV2Root .v2LogoBox.v2LogoAlignRight {
+  justify-content: flex-end;
+}
+
+.printV2Root .v2LogoBox.v2LogoVAlignTop {
+  align-items: flex-start;
+}
+
+.printV2Root .v2LogoBox.v2LogoVAlignMiddle {
+  align-items: center;
+}
+
+.printV2Root .v2LogoBox.v2LogoVAlignBottom {
+  align-items: flex-end;
 }
 
 .printV2Root .v2LogoBox img {
@@ -52,10 +78,6 @@
 
 .printV2Root .v2LogoBox.v2LogoSizeLarge img {
   max-height: 100%;
-}
-
-.printV2Root .v2LogoBox.v2LogoSizeLarge {
-  width: 55mm;
 }
 
 .printV2Root .v2LogoPlaceholder {
@@ -117,7 +139,8 @@
   flex-direction: column;
   align-items: flex-end;
   justify-content: flex-end;
-  min-width: var(--v2-global-logo-box, 40mm);
+  margin-left: auto;
+  min-width: var(--v2-global-logo-box-w, var(--v2-global-logo-box, 60mm));
 }
 
 .printV2Root .v2HeaderRightMeta {
@@ -153,8 +176,8 @@
 }
 
 .printV2Root .v2UserBox {
-  width: var(--v2-userbox-w, var(--v2-global-logo-box, 40mm));
-  border: 1px solid #ccc;
+  width: var(--v2-userbox-w, 45mm);
+  border: none;
   padding: 1mm;
   font-size: 8.5pt;
   line-height: 1.25;
@@ -171,8 +194,8 @@
 
 .printV2Root .v2UserRowZipCity {
   display: flex;
-  justify-content: space-between;
-  gap: 2mm;
+  justify-content: flex-start;
+  gap: 1mm;
 }
 
 .printV2Root .v2UserZip {
@@ -181,7 +204,7 @@
 
 .printV2Root .v2UserCity {
   flex: 1 1 auto;
-  text-align: right;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

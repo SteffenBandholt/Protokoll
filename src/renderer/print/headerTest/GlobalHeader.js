@@ -18,7 +18,7 @@ function _buildLogoBox(logo, index) {
     return box;
   }
 
-  const placeholder = _el("div", "logoPlaceholder", "Hier koennte Ihr Logo sein");
+  const placeholder = _el("div", "logoPlaceholder", "");
   box.appendChild(placeholder);
   return box;
 }

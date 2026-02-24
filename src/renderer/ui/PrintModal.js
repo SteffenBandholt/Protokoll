@@ -2332,7 +2332,7 @@ export default class PrintModal {
       ? ""
       : pdfLogoDataUrl
         ? `<img class="pdfLogo" src="${pdfLogoDataUrl}" style="${pdfLogoPos} height:auto;" />`
-        : `<div class="pdfLogo pdfLogoDummy" style="${pdfLogoPos} height:${pdfLogoDummyHeightMm}mm;">Hier koennte Ihr Logo sein</div>`;
+        : `<div class="pdfLogo pdfLogoDummy" style="${pdfLogoPos} height:${pdfLogoDummyHeightMm}mm;"></div>`;
 
     return {
       projectLine,
@@ -3817,7 +3817,7 @@ export default class PrintModal {
       ? ""
       : pdfLogoDataUrl
         ? `<img class="pdfLogo" src="${pdfLogoDataUrl}" style="${pdfLogoPos} height:auto;" />`
-        : `<div class="pdfLogo pdfLogoDummy" style="${pdfLogoPos} height:${pdfLogoDummyHeightMm}mm;">Hier koennte Ihr Logo sein</div>`;
+        : `<div class="pdfLogo pdfLogoDummy" style="${pdfLogoPos} height:${pdfLogoDummyHeightMm}mm;"></div>`;
 
     const rightLine1 = this._escapeHtml(userName || "?");
     const rightLine2 = this._escapeHtml(userCompany || "?");
@@ -4325,6 +4325,7 @@ export default class PrintModal {
     }
   }
 }
+
 
 
 

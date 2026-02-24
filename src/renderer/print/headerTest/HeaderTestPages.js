@@ -88,6 +88,15 @@ export function renderHeaderTestPages({ data, debug } = {}) {
   root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
   root.style.setProperty("--v2-pad-bottom", String(V2_LAYOUT.page.padBottomMm) + "mm");
   root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
+  root.style.setProperty(
+    "--v2-global-logo-box-w",
+    String(V2_LAYOUT.global.logoBoxWidthMm || V2_LAYOUT.global.logoBoxMm) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-global-logo-box-h",
+    String(V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm) + "mm"
+  );
+  root.style.setProperty("--v2-global-height", String(V2_LAYOUT.global.heightMm || 50) + "mm");
   root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
   root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
   root.style.setProperty("--v2-full-height", String(V2_LAYOUT.full.heightMm) + "mm");

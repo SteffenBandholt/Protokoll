@@ -19,6 +19,18 @@ function _normalizeLogoSize(v) {
   return "medium";
 }
 
+function _normalizeLogoAlign(v) {
+  const s = String(v || "").trim().toLowerCase();
+  if (s === "left" || s === "center" || s === "right") return s;
+  return "center";
+}
+
+function _normalizeLogoVAlign(v) {
+  const s = String(v || "").trim().toLowerCase();
+  if (s === "top" || s === "middle" || s === "bottom") return s;
+  return "bottom";
+}
+
 function _normalizeTopNumber(row) {
   const n =
     row?.frozen_display_number ??
@@ -224,6 +236,12 @@ function _loadSettings(db) {
     "print.logo1.enabled",
     "print.logo2.enabled",
     "print.logo3.enabled",
+    "print.logo1.align",
+    "print.logo1.vAlign",
+    "print.logo2.align",
+    "print.logo2.vAlign",
+    "print.logo3.align",
+    "print.logo3.vAlign",
     "print.logo1.pngDataUrl",
     "print.logo2.pngDataUrl",
     "print.logo3.pngDataUrl",
@@ -261,18 +279,24 @@ function _buildLogos(settings) {
       enabled: _parseBool(settings?.["print.logo1.enabled"]),
       dataUrl: String(settings?.["print.logo1.pngDataUrl"] || "").trim(),
       size: _normalizeLogoSize(settings?.["print.logo1.size"] || legacyPreset),
+      align: _normalizeLogoAlign(settings?.["print.logo1.align"]),
+      vAlign: _normalizeLogoVAlign(settings?.["print.logo1.vAlign"]),
     },
     {
       key: "logo2",
       enabled: _parseBool(settings?.["print.logo2.enabled"]),
       dataUrl: String(settings?.["print.logo2.pngDataUrl"] || "").trim(),
       size: _normalizeLogoSize(settings?.["print.logo2.size"] || legacyPreset),
+      align: _normalizeLogoAlign(settings?.["print.logo2.align"]),
+      vAlign: _normalizeLogoVAlign(settings?.["print.logo2.vAlign"]),
     },
     {
       key: "logo3",
       enabled: _parseBool(settings?.["print.logo3.enabled"]),
       dataUrl: String(settings?.["print.logo3.pngDataUrl"] || "").trim(),
       size: _normalizeLogoSize(settings?.["print.logo3.size"] || legacyPreset),
+      align: _normalizeLogoAlign(settings?.["print.logo3.align"]),
+      vAlign: _normalizeLogoVAlign(settings?.["print.logo3.vAlign"]),
     },
   ];
 }

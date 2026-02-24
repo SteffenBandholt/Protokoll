@@ -1,13 +1,16 @@
 export const V2_LAYOUT = {
   page: {
-    padTopMm: 5,
+    padTopMm: 2,
     padXmm: 12,
     padBottomMm: 18,
   },
   global: {
-    logoBoxMm: 40,
-    logoGapMm: 4,
+    logoBoxMm: 60,
+    logoBoxWidthMm: 60,
+    logoBoxHeightMm: 45,
+    logoGapMm: 3,
     maxLogos: 3,
+    heightMm: 50,
     gapLogoToLineMm: 3,
     lineThicknessPx: 1,
   },
