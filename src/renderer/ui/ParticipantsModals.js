@@ -111,7 +111,6 @@ export default class ParticipantsModals {
     }
 
     if (this.mode === "participants") {
-      this.readOnly = await this._isMeetingClosed();
       await this._loadParticipantsData();
       this._renderParticipantsModal();
     }
@@ -179,7 +178,8 @@ export default class ParticipantsModals {
     }
     this.titleEl.textContent = "Teilnehmer";
 
-    this.readOnly = await this._isMeetingClosed();
+    await this._ensureOpenMeetingContext();
+    this.readOnly = false;
     await this._loadParticipantsData();
     this._renderParticipantsModal();
   }
@@ -407,18 +407,36 @@ export default class ParticipantsModals {
     const left = document.createElement("div");
     left.style.flex = "1";
 
-    const { name, sub } = this._labelRow(person);
+    const { name, rolle, firm } = this._labelRow(person);
+
+    const line1 = document.createElement("div");
+    line1.style.display = "flex";
+    line1.style.alignItems = "center";
+    line1.style.justifyContent = "space-between";
+    line1.style.gap = "8px";
+    line1.style.width = "100%";
 
     const t1 = document.createElement("div");
     t1.textContent = name;
     t1.style.fontWeight = "bold";
+    t1.style.minWidth = "0";
+    t1.style.flex = "1 1 auto";
+
+    const tFirm = document.createElement("div");
+    tFirm.textContent = firm || "";
+    tFirm.style.fontWeight = "bold";
+    tFirm.style.textAlign = "right";
+    tFirm.style.whiteSpace = "nowrap";
+    tFirm.style.marginLeft = "auto";
+
+    line1.append(t1, tFirm);
 
     const t2 = document.createElement("div");
-    t2.textContent = sub || "";
+    t2.textContent = rolle || "";
     t2.style.fontSize = "12px";
     t2.style.opacity = "0.8";
 
-    left.append(t1, t2);
+    left.append(line1, t2);
     head.append(left);
 
     if (badgeText || extraRight) {
@@ -500,10 +518,38 @@ export default class ParticipantsModals {
       if (!res?.ok) return false;
 
       const meetings = this._pickArray(res);
-      const m = (meetings || []).find((x) => x.id === this.meetingId);
+      const m = (meetings || []).find((x) => String(x?.id ?? "") === String(this.meetingId ?? ""));
       return Number(m?.is_closed || 0) === 1;
     } catch (_e) {
       return false;
+    }
+  }
+
+  async _ensureOpenMeetingContext() {
+    try {
+      const api = window.bbmDb || {};
+      if (!this.projectId) return;
+      if (typeof api.meetingsListByProject !== "function") return;
+
+      const res = await this._invokeCompatAny(
+        api.meetingsListByProject,
+        { projectId: this.projectId },
+        this.projectId
+      );
+      if (!res?.ok) return;
+
+      const meetings = this._pickArray(res) || [];
+      const current = meetings.find((x) => String(x?.id ?? "") === String(this.meetingId ?? ""));
+      const open = meetings
+        .filter((x) => Number(x?.is_closed || 0) !== 1)
+        .sort((a, b) => Number(b?.meeting_index || 0) - Number(a?.meeting_index || 0));
+
+      if (current && Number(current?.is_closed || 0) !== 1) return;
+      if (open.length > 0) {
+        this.meetingId = open[0]?.id || this.meetingId;
+      }
+    } catch (_e) {
+      // ignore
     }
   }
 
@@ -584,6 +630,7 @@ export default class ParticipantsModals {
     const left = [];
 
     for (const it of items) {
+      if (this._parseActiveFlag(it?.is_active) !== 1) continue;
       const k = this._key(it.kind, it.personId);
       const p = poolMap.get(k);
       if (p) {
@@ -753,6 +800,7 @@ export default class ParticipantsModals {
       this.participants = [];
       return;
     }
+    this.readOnly = Number(resP?.isClosed ?? 0) === 1;
 
     const plist = this._pickArray(resP);
     const items = (plist || [])
@@ -821,7 +869,7 @@ export default class ParticipantsModals {
     this.footerEl.style.justifyContent = "space-between";
     this.footerEl.style.alignItems = "center";
     const hint = document.createElement("div");
-    hint.textContent = "Auswahl mit Doppelklick";
+    hint.textContent = "Auswahl nur per Doppelklick";
     hint.style.fontSize = "12px";
     hint.style.opacity = "0.75";
     const actions = document.createElement("div");
@@ -869,41 +917,10 @@ export default class ParticipantsModals {
         p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
       );
       const badgeText = firmIsActive === 1 ? "" : "Firma im Projekt nicht aktiv";
-      let extraRight = null;
-      if (this.isNewUi) {
-        const wrap = document.createElement("label");
-        wrap.style.display = "flex";
-        wrap.style.alignItems = "center";
-        wrap.style.gap = "6px";
-        wrap.style.fontSize = "12px";
-        wrap.style.userSelect = "none";
-
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = this._parseActiveFlag(p?.is_active) === 1;
-        cb.disabled = this.isSaving;
-        cb.onclick = (e) => e.stopPropagation();
-        cb.onchange = async (e) => {
-          e.stopPropagation();
-          const ok = await this._setCandidateActive(p, cb.checked);
-          if (!ok) {
-            cb.checked = !cb.checked;
-            return;
-          }
-          p.is_active = this._parseActiveFlag(cb.checked);
-          this._renderCandidatesLists(leftListEl, rightListEl);
-        };
-
-        const sp = document.createElement("span");
-        sp.textContent = "Aktiv";
-        wrap.append(cb, sp);
-        extraRight = wrap;
-      }
 
       this._renderRow({
         container: leftListEl,
         person: p,
-        extraRight,
         badgeText,
         onDblClick: () => {
           const key = this._key(p.kind, p.personId);
@@ -929,11 +946,8 @@ export default class ParticipantsModals {
     if (!leftSorted.length) this._renderEmpty(leftListEl);
 
     for (const p of rightSorted) {
-      const firmIsActive = this._parseActiveFlag(
-        p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
-      );
-      const isDisabled = firmIsActive !== 1;
-      const badgeText = isDisabled ? "Firma im Projekt nicht aktiv" : "";
+      const isDisabled = false;
+      const badgeText = "";
       this._renderRow({
         container: rightListEl,
         person: p,
@@ -969,7 +983,7 @@ export default class ParticipantsModals {
       const items = (this.candidates || []).map((p) => ({
         kind: p.kind,
         personId: p.personId,
-        isActive: this._parseActiveFlag(p?.is_active) === 1,
+        isActive: true,
       }));
 
       const res = await api.projectCandidatesSet({ projectId: this.projectId, items });
