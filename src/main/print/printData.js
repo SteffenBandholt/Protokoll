@@ -32,7 +32,7 @@ function _docLabelForMode(mode) {
   if (m === "protocol") return "Protokoll";
   if (m === "topsAll") return "Top-Liste (alle)";
   if (m === "firms") return "Firmenliste";
-  if (m === "todo") return "ToDo";
+  if (m === "todo") return "ToDo-Liste";
   if (m === "headerTest") return "Kopf-Test";
   return "Dokument";
 }

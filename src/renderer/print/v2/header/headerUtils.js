@@ -156,15 +156,35 @@ function _listStandLine({ data, meeting } = {}) {
   if (!(mode === "firms" || mode === "todo" || mode === "topsAll")) return "";
   const project = data?.project || {};
   const projNr = String(project.project_number || project.projectNumber || "").trim();
+  const isClosedMeeting = Number(meeting?.is_closed) === 1;
+  const meetingIndex =
+    meeting?.meeting_index ??
+    meeting?.meetingIndex ??
+    meeting?.index ??
+    meeting?.number ??
+    "";
+  const meetingTitleRaw = String(meeting?.title || "").trim();
   const dateRaw =
     meeting?.meeting_date ||
     meeting?.meetingDate ||
     meeting?.date ||
+    meeting?.created_at ||
+    meeting?.createdAt ||
+    meeting?.updated_at ||
+    meeting?.updatedAt ||
     "";
-  const date = _formatDateIso(dateRaw);
-  const left = projNr || "-";
-  if (date) return "Stand: " + left + " (" + date + ")";
-  return "Stand: " + left;
+  const meetingDate = _formatDateIso(dateRaw);
+  const printDate = _formatDateIso(new Date().toISOString().slice(0, 10));
+
+  if (isClosedMeeting) {
+    // Geschlossen: bevorzugt den Besprechungsnamen wie in der Meetings-Liste.
+    if (meetingTitleRaw) return "Stand: " + meetingTitleRaw;
+    const idxPart = meetingIndex ? "#" + String(meetingIndex) : "-";
+    if (meetingDate) return "Stand: " + idxPart + " - " + meetingDate;
+    return "Stand: " + idxPart;
+  }
+
+  return "Stand: " + (printDate || "-");
 }
 
 function _resolveBranding({ data } = {}) {
