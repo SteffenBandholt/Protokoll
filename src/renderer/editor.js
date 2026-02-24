@@ -67,7 +67,6 @@ async function init() {
       ["city", "Ort", "text", firm.city],
       ["phone", "Telefon", "text", firm.phone],
       ["email", "E-Mail", "email", firm.email],
-      ["gewerk", "Gewerk", "text", firm.gewerk],
       ["role_code", "Rolle Code", "text", firm.role_code],
     ];
     fields.forEach(([key, label, type, value]) => {
@@ -76,6 +75,22 @@ async function init() {
       inputs[key] = inp;
       form.appendChild(inp);
     });
+
+    form.appendChild(mkEl("div", null, "Gewerk"));
+    const gewerkInput = mkInput("text", firm.gewerk);
+    gewerkInput.setAttribute("list", "editor-gewerk-options");
+    inputs.gewerk = gewerkInput;
+    form.appendChild(gewerkInput);
+    const gewerkOptions = document.createElement("datalist");
+    gewerkOptions.id = "editor-gewerk-options";
+    ["Rohbau", "HLS", "Elektro", "Trockenbau", "Gala-Bau", "Erdarbeiten", "Abbruch"].forEach(
+      (label) => {
+        const opt = document.createElement("option");
+        opt.value = label;
+        gewerkOptions.appendChild(opt);
+      }
+    );
+    form.appendChild(gewerkOptions);
 
     form.appendChild(mkEl("div", null, "Notizen"));
     const taNotes = mkTextarea(firm.notes);

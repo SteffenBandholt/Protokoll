@@ -455,6 +455,18 @@ export default class ProjectFirmsView {
       i.style.width = "100%";
       return i;
     };
+    const mkGewerkDatalist = (id) => {
+      const dl = document.createElement("datalist");
+      dl.id = id;
+      ["Rohbau", "HLS", "Elektro", "Trockenbau", "Gala-Bau", "Erdarbeiten", "Abbruch"].forEach(
+        (label) => {
+          const opt = document.createElement("option");
+          opt.value = label;
+          dl.appendChild(opt);
+        }
+      );
+      return dl;
+    };
 
     const firmGrid = document.createElement("div");
     firmGrid.style.display = "grid";
@@ -477,6 +489,8 @@ export default class ProjectFirmsView {
     inpFirmEmail.style.width = "100%";
 
     const inpFirmGewerk = mkInp("Funktion / Gewerk?");
+    inpFirmGewerk.setAttribute("list", "firm-gewerk-options-project");
+    const firmGewerkList = mkGewerkDatalist("firm-gewerk-options-project");
 
     const selFirmRole = document.createElement("select");
     selFirmRole.style.width = "100%";
@@ -673,7 +687,7 @@ const taFirmNotes = document.createElement("textarea");
     pButtons.append(btnSavePerson, btnCancelPerson, btnDeletePerson);
     personForm.append(pGrid, pButtons);
 
-    editWrap.append(detailHead, detailBody, detailActions, firmGrid, firmButtons);
+    editWrap.append(detailHead, detailBody, detailActions, firmGrid, firmButtons, firmGewerkList);
     personsWrap.append(personsTitle, personsHead, personsTableWrap, personForm);
 
     localCol.append(listWrap);
@@ -941,6 +955,8 @@ const taFirmNotes = document.createElement("textarea");
     localFirmGewerk.type = "text";
     localFirmGewerk.placeholder = "Funktion/Gewerk";
     localFirmGewerk.style.width = "100%";
+    localFirmGewerk.setAttribute("list", "firm-gewerk-options-project-modal");
+    const localFirmGewerkList = mkGewerkDatalist("firm-gewerk-options-project-modal");
     const localFirmRole = document.createElement("select");
     localFirmRole.style.width = "100%";
     this._renderRoleOptions(localFirmRole);
@@ -962,6 +978,7 @@ const taFirmNotes = document.createElement("textarea");
       mkModalRow("Kategorie", localFirmRole),
       mkModalRow("Notizen", localFirmNotes)
     );
+    localFirmBody.appendChild(localFirmGewerkList);
 
     const localFirmFoot = document.createElement("div");
     localFirmFoot.style.display = "flex";
@@ -2241,19 +2258,27 @@ const taFirmNotes = document.createElement("textarea");
 
   async _openEditorWindow(payload, onSaved, onDeleted) {
     if (typeof window.bbmDb?.editorOpen !== "function") return false;
+    let res = null;
     try {
-      const res = await window.bbmDb.editorOpen(payload);
+      res = await window.bbmDb.editorOpen(payload);
+    } catch (err) {
+      console.error("[ProjectFirmsView] editorOpen failed:", err);
+      alert("Editor-Fenster konnte nicht geoeffnet werden.");
+      return true;
+    }
+
+    try {
       if (res?.status === "saved" && typeof onSaved === "function") {
         await onSaved(res?.data || {});
       } else if (res?.status === "delete" && typeof onDeleted === "function") {
         await onDeleted();
       }
-      return true;
     } catch (err) {
-      console.error("[ProjectFirmsView] editorOpen failed:", err);
-      alert("Editor-Fenster konnte nicht geöffnet werden.");
-      return true;
+      console.error("[ProjectFirmsView] editor callback failed:", err);
+      const msg = String(err?.message || "").trim();
+      alert(msg ? `Speichern aus dem Editor fehlgeschlagen:\n${msg}` : "Speichern aus dem Editor fehlgeschlagen.");
     }
+    return true;
   }
 
   async _openLocalFirmEditModal(firm) {
@@ -2644,10 +2669,13 @@ const taFirmNotes = document.createElement("textarea");
       setupChanged = true;
       success = true;
       this._renderFirmsOnly();
-      this._renderFirmDetails();
+      this._renderSelectedFirmDetails();
       this._applyFirmFormState();
       this._applyPersonFormState();
       this._updateVisibility();
+    } catch (err) {
+      console.error("[ProjectFirmsView] _saveLocalFirmFromEditor failed:", err);
+      alert(err?.message || "Fehler beim Speichern.");
     } finally {
       this.savingFirm = false;
       if (!success) this._setMsg("");

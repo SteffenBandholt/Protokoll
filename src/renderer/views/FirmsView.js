@@ -354,6 +354,20 @@ export default class FirmsView {
       field.style.boxSizing = "border-box";
       return field;
     };
+    const mkGewerkInput = (listId) => {
+      const field = mkFirmInp("Funktion / Gewerk?");
+      field.setAttribute("list", listId);
+      const datalist = document.createElement("datalist");
+      datalist.id = listId;
+      ["Rohbau", "HLS", "Elektro", "Trockenbau", "Gala-Bau", "Erdarbeiten", "Abbruch"].forEach(
+        (label) => {
+          const opt = document.createElement("option");
+          opt.value = label;
+          datalist.appendChild(opt);
+        }
+      );
+      return { field, datalist };
+    };
 
     // Firm grid (this closes when person edit opens)
     const firmGrid = document.createElement("div");
@@ -379,7 +393,8 @@ export default class FirmsView {
     inpFirmEmail.style.minWidth = "420px";
     inpFirmEmail.style.boxSizing = "border-box";
 
-    const inpFirmGewerk = mkFirmInp("Funktion / Gewerk?");
+    const gewerkInput = mkGewerkInput("firm-gewerk-options-global");
+    const inpFirmGewerk = gewerkInput.field;
 
     const selFirmRole = document.createElement("select");
     selFirmRole.style.width = "100%";
@@ -546,7 +561,7 @@ const taFirmNotes = document.createElement("textarea");
 
     personsContainer.append(personsWrap);
 
-    editWrap.append(firmGrid);
+    editWrap.append(firmGrid, gewerkInput.datalist);
 
     root.append(head, buttonBar, main);
 
@@ -734,19 +749,27 @@ const taFirmNotes = document.createElement("textarea");
 
   async _openEditorWindow(payload, onSaved, onDeleted) {
     if (typeof window.bbmDb?.editorOpen !== "function") return false;
+    let res = null;
     try {
-      const res = await window.bbmDb.editorOpen(payload);
+      res = await window.bbmDb.editorOpen(payload);
+    } catch (err) {
+      console.error("[FirmsView] editorOpen failed:", err);
+      alert("Editor-Fenster konnte nicht geoeffnet werden.");
+      return true;
+    }
+
+    try {
       if (res?.status === "saved" && typeof onSaved === "function") {
         await onSaved(res?.data || {});
       } else if (res?.status === "delete" && typeof onDeleted === "function") {
         await onDeleted();
       }
-      return true;
     } catch (err) {
-      console.error("[FirmsView] editorOpen failed:", err);
-      alert("Editor-Fenster konnte nicht geöffnet werden.");
-      return true;
+      console.error("[FirmsView] editor callback failed:", err);
+      const msg = String(err?.message || "").trim();
+      alert(msg ? `Speichern aus dem Editor fehlgeschlagen:\n${msg}` : "Speichern aus dem Editor fehlgeschlagen.");
     }
+    return true;
   }
 
   async _openFirmEditor({ mode = "edit", firmId = null } = {}) {
@@ -4395,6 +4418,9 @@ const taFirmNotes = document.createElement("textarea");
       this.selectedFirm = (this.firms || []).find((f) => f.id === firmId) || null;
       this._renderFirmsOnly();
       this._renderFirmDetails();
+    } catch (err) {
+      console.error("[FirmsView] _saveFirmFromEditor failed:", err);
+      alert(err?.message || "Fehler beim Speichern");
     } finally {
       this.savingFirm = false;
       this._setMsg("");
