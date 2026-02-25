@@ -22,6 +22,32 @@ function normalizeActive(value, fallback = 1) {
   return Number(fallback) ? 1 : 0;
 }
 
+function _participantsInitKey(meetingId) {
+  return `meetingParticipants.initialized.${String(meetingId || "").trim()}`;
+}
+
+function _isParticipantsInitialized(dbConn, meetingId) {
+  const key = _participantsInitKey(meetingId);
+  const row = dbConn.prepare(`SELECT value FROM app_settings WHERE key = ?`).get(key);
+  if (!row) return false;
+  const s = String(row.value ?? "").trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes" || s === "on";
+}
+
+function _markParticipantsInitialized(dbConn, meetingId) {
+  const key = _participantsInitKey(meetingId);
+  const now = new Date().toISOString();
+  dbConn
+    .prepare(
+      `
+      INSERT INTO app_settings (key, value, created_at, updated_at)
+      VALUES (?, '1', ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value='1', updated_at=excluded.updated_at
+    `
+    )
+    .run(key, now, now);
+}
+
 /**
  * Default-Übernahme aus letzter geschlossener Besprechung:
  * - Wird absichtlich serverseitig „lazy“ beim ersten meetingParticipants:list gemacht,
@@ -46,6 +72,10 @@ function ensureMeetingParticipantsDefaults(dbConn, meetingId) {
     .get(meetingId)?.cnt;
 
   if (Number(cnt) > 0) {
+    return { ok: true, meeting };
+  }
+
+  if (_isParticipantsInitialized(dbConn, meetingId)) {
     return { ok: true, meeting };
   }
 
@@ -89,6 +119,7 @@ function ensureMeetingParticipantsDefaults(dbConn, meetingId) {
   });
 
   tx();
+  _markParticipantsInitialized(dbConn, meetingId);
 
   return { ok: true, meeting };
 }
@@ -412,6 +443,7 @@ function registerParticipantsIpc() {
       });
 
       tx();
+      _markParticipantsInitialized(db, meetingId);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
