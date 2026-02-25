@@ -790,12 +790,13 @@ export default class FirmsPoolView {
 
     const map = new Map(this.candidatesByKey);
     let changed = false;
+    const defaultIsActive = String(kind || "").trim() === "global_person" ? 0 : 1;
 
     for (const p of persons || []) {
       const personId = this._personId(p);
       const key = this._candidateKey(kind, personId);
       if (!key || map.has(key)) continue;
-      map.set(key, { kind, personId, is_active: 1 });
+      map.set(key, { kind, personId, is_active: defaultIsActive });
       changed = true;
     }
 
