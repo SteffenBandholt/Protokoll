@@ -410,9 +410,6 @@ export function renderPrint({ pages, data } = {}) {
   _applyV2Vars(root, data);
   const totalPages = Array.isArray(pages) ? pages.length : 0;
   const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || "Dokument";
-  const footerReserveMm = Number.isFinite(Number(data?.v2Layout?.footerReserveMm))
-    ? Number(data?.v2Layout?.footerReserveMm)
-    : 12;
 
   for (const page of pages || []) {
     const pageEl = _el("div", "page");
@@ -434,7 +431,6 @@ export function renderPrint({ pages, data } = {}) {
     const renderTable = !(isTops && !hasRows);
     if (renderTable) pageEl.appendChild(_buildTable(page));
     pageEl.appendChild(_el("div", "v2FooterReserveSpacer"));
-    pageEl.appendChild(_el("div", "v2FooterReserveMarker", `Footer-Reserve ${footerReserveMm} mm`));
     root.appendChild(pageEl);
   }
   return root;
