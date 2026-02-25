@@ -414,7 +414,7 @@
 }
 
 .printV2Root .v2PreRemarksBlock {
-  margin: 0 0 3mm 0;
+  margin: 5mm 0 5mm 0;
   break-inside: avoid;
   page-break-inside: avoid;
 }
