@@ -349,9 +349,16 @@ export default class ParticipantsModals {
   _labelRow(p) {
     const name = (p.name || "").toString().trim() || "?";
     const rolle = (p.rolle || "").toString().trim();
-    const firm = (p.firm || p.firm_name || p.firmName || "").toString().trim();
-    const sub = [rolle, firm].filter(Boolean).join(" €¢ ");
-    return { name, sub };
+    const firm = (
+      p.firm ??
+      p.firm_raw ??
+      p.firm_name ??
+      p.firmName ??
+      p.company ??
+      p.company_name ??
+      ""
+    ).toString().trim();
+    return { name, rolle, firm };
   }
 
   _sortPersons(list) {
@@ -447,7 +454,7 @@ export default class ParticipantsModals {
     rightWrap.style.minWidth = "0";
 
     const firmEl = document.createElement("div");
-    firmEl.textContent = firm || "-";
+    firmEl.textContent = firm || "";
     firmEl.style.fontWeight = "bold";
     firmEl.style.textAlign = "right";
     firmEl.style.whiteSpace = "nowrap";
@@ -640,9 +647,11 @@ export default class ParticipantsModals {
     const poolMap = new Map(pool.map((p) => [this._key(p.kind, p.personId), p]));
     const left = [];
 
+    const activeKeys = new Set();
     for (const it of items) {
       if (this._parseActiveFlag(it?.is_active) !== 1) continue;
       const k = this._key(it.kind, it.personId);
+      if (k) activeKeys.add(k);
       const p = poolMap.get(k);
       if (p) {
         left.push({
@@ -666,7 +675,9 @@ export default class ParticipantsModals {
       }
     }
 
-    this.pool = this._sortPersons(pool);
+    this.pool = this._sortPersons(
+      (pool || []).filter((p) => activeKeys.has(this._key(p.kind, p.personId)))
+    );
     this.candidates = this._sortPersons(left);
 
     await this._buildOpenParticipantRefs();
@@ -774,31 +785,26 @@ export default class ParticipantsModals {
     if (resC?.ok) {
       const candRaw = this._pickArray(resC);
       const items = (candRaw || [])
-        .map((x) => ({ kind: this._normKind(x), personId: this._normPersonId(x) }))
+        .map((x) => ({
+          kind: this._normKind(x),
+          personId: this._normPersonId(x),
+          is_active: this._parseActiveFlag(x?.is_active ?? x?.isActive),
+        }))
         .filter((x) => x.kind && x.personId);
 
       const right = [];
       for (const it of items) {
+        if (this._parseActiveFlag(it?.is_active) !== 1) continue;
         const k = this._key(it.kind, it.personId);
         const p = poolMap.get(k);
-        if (p) {
-          right.push({
-            ...p,
-            firmIsActive: this._parseActiveFlag(
-              p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
-            ),
-          });
-        } else {
-          right.push({
-            kind: it.kind,
-            personId: it.personId,
-            name: "?",
-            rolle: "",
-            firm: "",
-            firmId: null,
-            firmIsActive: 0,
-          });
-        }
+        if (!p) continue; // keine "Leichen" rechts anzeigen
+        right.push({
+          ...p,
+          is_active: 1,
+          firmIsActive: this._parseActiveFlag(
+            p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
+          ),
+        });
       }
       this.projectCandidates = this._sortPersons(right);
     } else {
@@ -858,8 +864,8 @@ export default class ParticipantsModals {
     grid.style.gridTemplateColumns = "1fr 1fr";
     grid.style.gap = "12px";
 
-    const leftCol = this._mkListCol("Personen im Projekt");
-    const rightCol = this._mkListCol("Alle Mitarbeiter (Pool)");
+    const leftCol = this._mkListCol("Mitarbeiter im Personalpool");
+    const rightCol = this._mkListCol("Alle Mitarbeiter (Projekt)");
 
     grid.append(leftCol.col, rightCol.col);
     this.bodyEl.appendChild(grid);
