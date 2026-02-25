@@ -3076,6 +3076,11 @@ export default class SettingsView {
     };
     normalizeLocal();
     ta.addEventListener("input", normalizeLocal);
+    ta.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      // Enter soll im Textfeld nur einen Zeilenumbruch erzeugen und nicht in übergeordnete Handler laufen.
+      e.stopPropagation();
+    });
 
     body.append(label, enabledWrap, infoRow, ta);
 
