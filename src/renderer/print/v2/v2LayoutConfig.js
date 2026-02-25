@@ -2,7 +2,7 @@ export const V2_LAYOUT = {
   page: {
     padTopMm: 2,
     padXmm: 12,
-    padBottomMm: 18,
+    padBottomMm: 0,
   },
   global: {
     logoBoxMm: 60,

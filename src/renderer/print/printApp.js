@@ -4,6 +4,7 @@ import { renderHeaderTestPages } from "./headerTest/HeaderTestPages.js";
 import { renderV2GlobalHeader } from "./v2/header/GlobalHeader.js";
 import { renderV2FullHeader } from "./v2/header/FullHeader.js";
 import { renderV2MiniHeader } from "./v2/header/MiniHeader.js";
+import { V2_LAYOUT } from "./v2/v2LayoutConfig.js";
 
 const app = document.getElementById("app");
 
@@ -278,9 +279,55 @@ function _buildGenericRowElement(row) {
 
 function _buildMeasureRoot() {
   const root = document.createElement("div");
-  root.className = "measureRoot";
+  root.className = "measureRoot printRoot printV2Root";
   document.body.appendChild(root);
   return root;
+}
+
+function _applyV2VarsForMeasure(root, data) {
+  const pagePadTopMm = Number(data?.v2Layout?.pagePadTopMm);
+  const pagePadBottomMm = Number(data?.v2Layout?.pagePadBottomMm);
+  const footerReserveMm = Number(data?.v2Layout?.footerReserveMm);
+  const pagePadLeftMm = Number(data?.v2Layout?.pagePadLeftMm);
+  const pagePadRightMm = Number(data?.v2Layout?.pagePadRightMm);
+  const globalLogoBoxHeightMm = Number(data?.v2Layout?.globalLogoBoxHeightMm);
+  const globalHeaderHeightMm = Number(data?.v2Layout?.globalHeaderHeightMm);
+  root.style.setProperty("--v2-pad-top", String(Number.isFinite(pagePadTopMm) ? pagePadTopMm : V2_LAYOUT.page.padTopMm) + "mm");
+  root.style.setProperty("--v2-pad-bottom", String(Number.isFinite(pagePadBottomMm) ? pagePadBottomMm : V2_LAYOUT.page.padBottomMm) + "mm");
+  root.style.setProperty("--v2-footer-reserve", String(Number.isFinite(footerReserveMm) ? footerReserveMm : 12) + "mm");
+  root.style.setProperty("--v2-pad-left", String(Number.isFinite(pagePadLeftMm) ? pagePadLeftMm : V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-pad-right", String(Number.isFinite(pagePadRightMm) ? pagePadRightMm : V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
+  root.style.setProperty(
+    "--v2-global-logo-box-w",
+    String(V2_LAYOUT.global.logoBoxWidthMm || V2_LAYOUT.global.logoBoxMm) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-global-logo-box-h",
+    String(
+      Number.isFinite(globalLogoBoxHeightMm)
+        ? globalLogoBoxHeightMm
+        : (V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm)
+    ) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-global-height",
+    String(Number.isFinite(globalHeaderHeightMm) ? globalHeaderHeightMm : (V2_LAYOUT.global.heightMm || 50)) + "mm"
+  );
+  root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
+  root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
+  root.style.setProperty("--v2-full-height", String(V2_LAYOUT.full.heightMm) + "mm");
+  root.style.setProperty("--v2-full-gap-line1-project", String(V2_LAYOUT.full.gapLine1ToProjectMm) + "mm");
+  root.style.setProperty("--v2-full-gap-project-protocol", String(V2_LAYOUT.full.gapProjectToProtocolMm) + "mm");
+  root.style.setProperty("--v2-full-project-font", String(V2_LAYOUT.full.projectFontPt) + "pt");
+  root.style.setProperty("--v2-full-protocol-font", String(V2_LAYOUT.full.protocolFontPt) + "pt");
+  root.style.setProperty("--v2-full-gap-project-line", String(V2_LAYOUT.full.gapProjectToLineMm) + "mm");
+  root.style.setProperty("--v2-full-gap-line-body", String(V2_LAYOUT.full.gapLineToBodyMm) + "mm");
+  root.style.setProperty("--v2-mini-protocol-font", String(V2_LAYOUT.mini.protocolFontPt) + "pt");
+  root.style.setProperty("--v2-mini-gap-text-line", String(V2_LAYOUT.mini.gapTextToLineMm) + "mm");
+  root.style.setProperty("--v2-mini-gap-line-body", String(V2_LAYOUT.mini.gapLineToBodyMm) + "mm");
+  root.style.setProperty("--v2-line-thickness", String(V2_LAYOUT.global.lineThicknessPx) + "px");
 }
 
 function _mmToPx(mm) {
@@ -599,6 +646,7 @@ function _buildParticipantsIntroPlan({ intro, ctxFirst, ctxNext, firstCap, nextC
 
 function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind = "legacy" }) {
   const root = _buildMeasureRoot();
+  _applyV2VarsForMeasure(root, data);
   const page = _el("div", "page");
   root.appendChild(page);
 
@@ -805,59 +853,26 @@ function _paginateTops(data) {
     }
   };
 
-  const findNextLevel2Index = (startIdx) => {
-    for (let j = startIdx + 1; j < items.length; j++) {
-      const lvl = Number(items[j]?.fullRow?.level || 0);
-      if (lvl === 2) return j;
-      if (lvl === 1) break;
-    }
-    return -1;
-  };
+  const MIN_LINES_PAGE_END = 3;
+  const MIN_LINES_NEXT_PAGE = 3;
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const level = item.fullRow.level;
     ensurePreRemarksPlaced();
 
-    // Harte Start-Regel pro Seite:
-    // Tabelle darf auf einer neuen Seite erst starten, wenn dort
-    // mindestens ein kompletter Level-2-Eintrag mitpasst.
-    if (!currentPage.table.rows.length) {
-      let startNeed = item.fullHeight;
-      if (level === 1) {
-        const next2Idx = findNextLevel2Index(i);
-        if (next2Idx !== -1) startNeed += items[next2Idx].fullHeight;
-      }
-      if (remaining < startNeed && currentPage?.intro) {
-        pushPage();
-        i -= 1;
-        continue;
-      }
-    }
-
-    if (level === 1) {
-      const nextIdx = findNextLevel2Index(i);
-      if (nextIdx !== -1) {
-        // Harte Regel: Level 1 nie allein; nächster Level 2 muss vollständig mitpassen.
-        const groupHeight = item.fullHeight + items[nextIdx].fullHeight;
-        if (remaining < groupHeight) {
-          if (currentPage.table.rows.length) pushPage();
-        }
-      }
-    }
-
     if (item.fullHeight <= remaining) {
       addRow(item.fullRow, item.fullHeight);
       continue;
     }
 
-    if (item.longLines < 6 || level === 1) {
+    if (level === 1) {
       if (currentPage.table.rows.length) pushPage();
       addRow(item.fullRow, item.fullHeight);
       continue;
     }
 
-    const minSplitHeight = item.baseHeight + 3 * item.lineHeight;
+    const minSplitHeight = item.baseHeight + MIN_LINES_PAGE_END * item.lineHeight;
     if (remaining < minSplitHeight) {
       if (currentPage.table.rows.length) pushPage();
     }
@@ -874,8 +889,8 @@ function _paginateTops(data) {
         break;
       }
 
-      const minHeight = item.baseHeight + 3 * item.lineHeight;
-      if (remaining < minHeight || longLines < 6) {
+      const minHeight = item.baseHeight + MIN_LINES_PAGE_END * item.lineHeight;
+      if (remaining < minHeight) {
         if (!currentPage.table.rows.length) {
           addRow(rowData, rowHeight);
           break;
@@ -884,7 +899,10 @@ function _paginateTops(data) {
         continue;
       }
 
-      const allowedLines = Math.max(3, Math.floor((remaining - item.baseHeight) / item.lineHeight));
+      const allowedLines = Math.max(
+        MIN_LINES_PAGE_END,
+        Math.floor((remaining - item.baseHeight) / item.lineHeight)
+      );
       const part1 = _findSplitText(rowMeasureCtx, rowData, allowedLines);
       if (!part1) {
         if (currentPage.table.rows.length) pushPage();
@@ -892,10 +910,25 @@ function _paginateTops(data) {
       }
 
       const part1Data = _buildTopRowData(item.top, part1, item.ampelColor);
-      const part1Height = rowMeasureCtx.measureRow(_buildTopRowElement(part1Data)).height;
+      const part1Measure = rowMeasureCtx.measureRow(_buildTopRowElement(part1Data));
+      const part2Text = text.slice(part1.length).trimStart();
+      const part2Data = _buildTopRowData(item.top, part2Text, item.ampelColor);
+      const part2Measure = rowMeasureCtx.measureRow(_buildTopRowElement(part2Data));
+      if (
+        part1Measure.longLines < MIN_LINES_PAGE_END ||
+        part2Measure.longLines < MIN_LINES_NEXT_PAGE
+      ) {
+        if (!currentPage.table.rows.length) {
+          addRow(rowData, rowHeight);
+          break;
+        }
+        pushPage();
+        continue;
+      }
+      const part1Height = part1Measure.height;
       addRow(part1Data, part1Height);
       pushPage();
-      text = text.slice(part1.length).trimStart();
+      text = part2Text;
     }
   }
 

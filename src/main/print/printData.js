@@ -657,7 +657,8 @@ function _buildV2Layout(settings, logos) {
     pagePadLeftMm: _clampNumber(settings?.["print.v2.pagePadLeftMm"], 0, 30, 12),
     pagePadRightMm: _clampNumber(settings?.["print.v2.pagePadRightMm"], 0, 30, 12),
     pagePadTopMm: _clampNumber(settings?.["print.v2.pagePadTopMm"], 0, 40, 2),
-    pagePadBottomMm: _clampNumber(settings?.["print.v2.pagePadBottomMm"], 0, 40, 18),
+    // Keep bottom page padding at 0mm; only footer reserve should limit the printable area.
+    pagePadBottomMm: 0,
     footerReserveMm: _clampNumber(settings?.["print.v2.footerReserveMm"], 0, 30, 12),
   };
 }
