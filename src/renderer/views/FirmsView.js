@@ -241,8 +241,8 @@ export default class FirmsView {
     const thead = document.createElement("thead");
     thead.innerHTML = `
       <tr>
-        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:140px;">Kurz</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:140px;">Kurz</th>
       </tr>
     `;
 
@@ -1462,7 +1462,7 @@ const taFirmNotes = document.createElement("textarea");
       tdName.style.borderBottom = "1px solid #eee";
       tdName.textContent = f.name || "";
 
-      tr.append(tdShort, tdName);
+      tr.append(tdName, tdShort);
 
       const handleRowClick = async (event) => {
         if (event?.detail > 1) return;
