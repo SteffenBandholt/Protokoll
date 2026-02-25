@@ -412,7 +412,12 @@ export function renderPrint({ pages, data } = {}) {
     }
     const intro = _buildIntro(page);
     if (intro) pageEl.appendChild(intro);
-    pageEl.appendChild(_buildTable(page));
+    const isTops = String(page?.table?.type || "") === "tops";
+    const hasRows = (page?.table?.rows || []).length > 0;
+    const hasIntro = !!page?.intro;
+    // Wenn Seite 1 nur Intro enthält, darf die TOP-Tabelle nicht mit Kopf/Leerzeile starten.
+    const renderTable = !(isTops && hasIntro && !hasRows);
+    if (renderTable) pageEl.appendChild(_buildTable(page));
     root.appendChild(pageEl);
   }
   return root;

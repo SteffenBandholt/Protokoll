@@ -599,21 +599,39 @@ function _paginateTops(data) {
     remaining -= rowHeight;
   };
 
+  const findNextLevel2Index = (startIdx) => {
+    for (let j = startIdx + 1; j < items.length; j++) {
+      const lvl = Number(items[j]?.fullRow?.level || 0);
+      if (lvl === 2) return j;
+      if (lvl === 1) break;
+    }
+    return -1;
+  };
+
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const level = item.fullRow.level;
 
-    if (level === 1) {
-      let nextIdx = -1;
-      for (let j = i + 1; j < items.length; j++) {
-        const lvl = items[j].fullRow.level;
-        if (lvl === 2) {
-          nextIdx = j;
-          break;
-        }
-        if (lvl === 1) break;
+    // Harte Start-Regel pro Seite:
+    // Tabelle darf auf einer neuen Seite erst starten, wenn dort
+    // mindestens ein kompletter Level-2-Eintrag mitpasst.
+    if (!currentPage.table.rows.length) {
+      let startNeed = item.fullHeight;
+      if (level === 1) {
+        const next2Idx = findNextLevel2Index(i);
+        if (next2Idx !== -1) startNeed += items[next2Idx].fullHeight;
       }
+      if (remaining < startNeed && currentPage?.intro) {
+        pushPage();
+        i -= 1;
+        continue;
+      }
+    }
+
+    if (level === 1) {
+      const nextIdx = findNextLevel2Index(i);
       if (nextIdx !== -1) {
+        // Harte Regel: Level 1 nie allein; nächster Level 2 muss vollständig mitpassen.
         const groupHeight = item.fullHeight + items[nextIdx].fullHeight;
         if (remaining < groupHeight) {
           if (currentPage.table.rows.length) pushPage();

@@ -5,6 +5,7 @@
   padding-left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
   padding-right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
   padding-bottom: var(--v2-pad-bottom, 18mm);
+  overflow: hidden;
 }
 
 /* GlobalHeader (page 1 only) */
