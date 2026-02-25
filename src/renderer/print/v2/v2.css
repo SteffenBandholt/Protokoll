@@ -415,8 +415,8 @@
 
 /* Sichtbarer Footer-Schutzbereich (Debug/Abnahme) */
 .printV2Root .v2FooterReserveSpacer {
-  height: 12mm;
-  min-height: 12mm;
+  height: var(--v2-footer-reserve, 12mm);
+  min-height: var(--v2-footer-reserve, 12mm);
   flex: 0 0 auto;
 }
 
@@ -425,7 +425,7 @@
   left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
   right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
   bottom: var(--v2-pad-bottom, 18mm);
-  height: 12mm;
+  height: var(--v2-footer-reserve, 12mm);
   border-top: 0.3mm dashed #b71c1c;
   background: rgba(183, 28, 28, 0.06);
   color: #7f1d1d;

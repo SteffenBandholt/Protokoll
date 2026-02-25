@@ -213,6 +213,7 @@ function registerSettingsIpc() {
         "print.v2.pagePadRightMm",
         "print.v2.pagePadTopMm",
         "print.v2.pagePadBottomMm",
+        "print.v2.footerReserveMm",
         "dbMigrationPromptDismissed",
         "tops.titleMax",
         "tops.longMax",

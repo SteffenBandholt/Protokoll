@@ -240,12 +240,14 @@ function _buildColGroup(type) {
 function _applyV2Vars(root, data) {
   const pagePadTopMm = Number(data?.v2Layout?.pagePadTopMm);
   const pagePadBottomMm = Number(data?.v2Layout?.pagePadBottomMm);
+  const footerReserveMm = Number(data?.v2Layout?.footerReserveMm);
   const pagePadLeftMm = Number(data?.v2Layout?.pagePadLeftMm);
   const pagePadRightMm = Number(data?.v2Layout?.pagePadRightMm);
   const globalLogoBoxHeightMm = Number(data?.v2Layout?.globalLogoBoxHeightMm);
   const globalHeaderHeightMm = Number(data?.v2Layout?.globalHeaderHeightMm);
   root.style.setProperty("--v2-pad-top", String(Number.isFinite(pagePadTopMm) ? pagePadTopMm : V2_LAYOUT.page.padTopMm) + "mm");
   root.style.setProperty("--v2-pad-bottom", String(Number.isFinite(pagePadBottomMm) ? pagePadBottomMm : V2_LAYOUT.page.padBottomMm) + "mm");
+  root.style.setProperty("--v2-footer-reserve", String(Number.isFinite(footerReserveMm) ? footerReserveMm : 12) + "mm");
   root.style.setProperty("--v2-pad-left", String(Number.isFinite(pagePadLeftMm) ? pagePadLeftMm : V2_LAYOUT.page.padXmm) + "mm");
   root.style.setProperty("--v2-pad-right", String(Number.isFinite(pagePadRightMm) ? pagePadRightMm : V2_LAYOUT.page.padXmm) + "mm");
   root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
@@ -399,6 +401,9 @@ export function renderPrint({ pages, data } = {}) {
   _applyV2Vars(root, data);
   const totalPages = Array.isArray(pages) ? pages.length : 0;
   const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || "Dokument";
+  const footerReserveMm = Number.isFinite(Number(data?.v2Layout?.footerReserveMm))
+    ? Number(data?.v2Layout?.footerReserveMm)
+    : 12;
 
   for (const page of pages || []) {
     const pageEl = _el("div", "page");
@@ -419,7 +424,7 @@ export function renderPrint({ pages, data } = {}) {
     const renderTable = !(isTops && hasIntro && !hasRows);
     if (renderTable) pageEl.appendChild(_buildTable(page));
     pageEl.appendChild(_el("div", "v2FooterReserveSpacer"));
-    pageEl.appendChild(_el("div", "v2FooterReserveMarker", "Footer-Reserve 12 mm"));
+    pageEl.appendChild(_el("div", "v2FooterReserveMarker", `Footer-Reserve ${footerReserveMm} mm`));
     root.appendChild(pageEl);
   }
   return root;

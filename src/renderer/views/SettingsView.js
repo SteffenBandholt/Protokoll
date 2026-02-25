@@ -532,6 +532,7 @@ export default class SettingsView {
     const PRINT_V2_PAD_RIGHT_KEY = "print.v2.pagePadRightMm";
     const PRINT_V2_PAD_TOP_KEY = "print.v2.pagePadTopMm";
     const PRINT_V2_PAD_BOTTOM_KEY = "print.v2.pagePadBottomMm";
+    const PRINT_V2_FOOTER_RESERVE_KEY = "print.v2.footerReserveMm";
 
     const topsLimitBox = document.createElement("div");
     applyPopupCardStyle(topsLimitBox);
@@ -658,7 +659,7 @@ export default class SettingsView {
     printV2LayoutTitle.style.marginBottom = "6px";
 
     const printV2LayoutHint = document.createElement("div");
-    printV2LayoutHint.textContent = "Seitenraender in mm (links/rechts/oben/unten).";
+    printV2LayoutHint.textContent = "Seitenraender + Footer-Reserve in mm.";
     printV2LayoutHint.style.fontSize = "12px";
     printV2LayoutHint.style.opacity = "0.75";
     printV2LayoutHint.style.marginBottom = "6px";
@@ -691,6 +692,13 @@ export default class SettingsView {
     inpPrintV2PadBottom.step = "0.5";
     inpPrintV2PadBottom.style.width = "100%";
 
+    const inpPrintV2FooterReserve = document.createElement("input");
+    inpPrintV2FooterReserve.type = "number";
+    inpPrintV2FooterReserve.min = "0";
+    inpPrintV2FooterReserve.max = "30";
+    inpPrintV2FooterReserve.step = "0.5";
+    inpPrintV2FooterReserve.style.width = "100%";
+
     const printV2LayoutMsg = document.createElement("div");
     printV2LayoutMsg.style.fontSize = "12px";
     printV2LayoutMsg.style.opacity = "0.75";
@@ -713,6 +721,7 @@ export default class SettingsView {
         PRINT_V2_PAD_RIGHT_KEY,
         PRINT_V2_PAD_TOP_KEY,
         PRINT_V2_PAD_BOTTOM_KEY,
+        PRINT_V2_FOOTER_RESERVE_KEY,
       ]);
       if (!res?.ok) {
         printV2LayoutMsg.textContent = res?.error || "Fehler beim Laden der Druck-Raender";
@@ -723,6 +732,7 @@ export default class SettingsView {
       inpPrintV2PadRight.value = String(clampMm(data[PRINT_V2_PAD_RIGHT_KEY], 0, 30, 12));
       inpPrintV2PadTop.value = String(clampMm(data[PRINT_V2_PAD_TOP_KEY], 0, 40, 2));
       inpPrintV2PadBottom.value = String(clampMm(data[PRINT_V2_PAD_BOTTOM_KEY], 0, 40, 18));
+      inpPrintV2FooterReserve.value = String(clampMm(data[PRINT_V2_FOOTER_RESERVE_KEY], 0, 30, 12));
       printV2LayoutMsg.textContent = "";
     };
 
@@ -736,15 +746,18 @@ export default class SettingsView {
       const padRight = clampMm(inpPrintV2PadRight.value, 0, 30, 12);
       const padTop = clampMm(inpPrintV2PadTop.value, 0, 40, 2);
       const padBottom = clampMm(inpPrintV2PadBottom.value, 0, 40, 18);
+      const footerReserve = clampMm(inpPrintV2FooterReserve.value, 0, 30, 12);
       inpPrintV2PadLeft.value = String(padLeft);
       inpPrintV2PadRight.value = String(padRight);
       inpPrintV2PadTop.value = String(padTop);
       inpPrintV2PadBottom.value = String(padBottom);
+      inpPrintV2FooterReserve.value = String(footerReserve);
       const res = await api.appSettingsSetMany({
         [PRINT_V2_PAD_LEFT_KEY]: String(padLeft),
         [PRINT_V2_PAD_RIGHT_KEY]: String(padRight),
         [PRINT_V2_PAD_TOP_KEY]: String(padTop),
         [PRINT_V2_PAD_BOTTOM_KEY]: String(padBottom),
+        [PRINT_V2_FOOTER_RESERVE_KEY]: String(footerReserve),
       });
       if (!res?.ok) {
         printV2LayoutMsg.textContent = res?.error || "Speichern fehlgeschlagen";
@@ -758,6 +771,7 @@ export default class SettingsView {
     inpPrintV2PadRight.addEventListener("change", () => savePrintV2LayoutSettings());
     inpPrintV2PadTop.addEventListener("change", () => savePrintV2LayoutSettings());
     inpPrintV2PadBottom.addEventListener("change", () => savePrintV2LayoutSettings());
+    inpPrintV2FooterReserve.addEventListener("change", () => savePrintV2LayoutSettings());
 
     printV2LayoutBox.append(
       printV2LayoutTitle,
@@ -766,6 +780,7 @@ export default class SettingsView {
       mkRow("Rand rechts (mm)", inpPrintV2PadRight),
       mkRow("Rand oben (mm)", inpPrintV2PadTop),
       mkRow("Rand unten (mm)", inpPrintV2PadBottom),
+      mkRow("Footer-Reserve (mm)", inpPrintV2FooterReserve),
       printV2LayoutMsg
     );
 

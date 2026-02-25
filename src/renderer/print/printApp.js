@@ -533,7 +533,8 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const tbodyRect = tbody.getBoundingClientRect();
   const contentTop = pageRect.top + padTop;
   const offset = tbodyRect.top - contentTop;
-  const footerReservePx = _mmToPx(12);
+  const footerReserveMm = Number(data?.v2Layout?.footerReserveMm);
+  const footerReservePx = _mmToPx(Number.isFinite(footerReserveMm) ? footerReserveMm : 12);
   const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx);
 
   const measureRow = (rowEl) => {
