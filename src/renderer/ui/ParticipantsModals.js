@@ -397,6 +397,8 @@ export default class ParticipantsModals {
     roleInline = false,
     firmBelowName = false,
     hideFirmRight = false,
+    rightWidth = null,
+    dividerOffsetMm = 0,
   }) {
     const row = document.createElement("div");
     row.style.padding = "8px";
@@ -417,7 +419,9 @@ export default class ParticipantsModals {
 
     const head = document.createElement("div");
     head.style.display = "grid";
-    head.style.gridTemplateColumns = "minmax(0, 1fr) minmax(210px, 42%)";
+    head.style.gridTemplateColumns = rightWidth
+      ? `minmax(0, 1fr) ${rightWidth}`
+      : "minmax(0, 1fr) minmax(210px, 42%)";
     head.style.alignItems = "stretch";
     head.style.columnGap = "0";
 
@@ -470,8 +474,21 @@ export default class ParticipantsModals {
     rightWrap.style.justifyContent = "flex-end";
     rightWrap.style.gap = "6px";
     rightWrap.style.flexShrink = "0";
-    rightWrap.style.borderLeft = "1px solid #8fa1b3";
-    rightWrap.style.paddingLeft = "8px";
+    rightWrap.style.position = "relative";
+    if (Number(dividerOffsetMm) > 0) {
+      const divider = document.createElement("div");
+      divider.style.position = "absolute";
+      divider.style.left = `${Number(dividerOffsetMm)}mm`;
+      divider.style.top = "0";
+      divider.style.bottom = "0";
+      divider.style.width = "1px";
+      divider.style.background = "#8fa1b3";
+      rightWrap.append(divider);
+      rightWrap.style.paddingLeft = `calc(8px + ${Number(dividerOffsetMm)}mm)`;
+    } else {
+      rightWrap.style.borderLeft = "1px solid #8fa1b3";
+      rightWrap.style.paddingLeft = "8px";
+    }
     rightWrap.style.minWidth = "0";
 
     if (!hideFirmRight) {
@@ -1144,27 +1161,6 @@ export default class ParticipantsModals {
       left.push(p);
     }
 
-    const mkToggle = (label, checked, onChange) => {
-      const wrap = document.createElement("label");
-      wrap.style.display = "flex";
-      wrap.style.alignItems = "center";
-      wrap.style.gap = "6px";
-      wrap.style.fontSize = "12px";
-      wrap.style.userSelect = "none";
-
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.checked = !!checked;
-      cb.disabled = this.readOnly || this.isSaving;
-      cb.onchange = () => onChange(cb.checked);
-
-      const sp = document.createElement("span");
-      sp.textContent = label;
-
-      wrap.append(cb, sp);
-      return wrap;
-    };
-
     const leftSorted = this._sortPersons(left);
     for (const p of leftSorted) {
       const firmIsActive = this._parseActiveFlag(
@@ -1177,25 +1173,63 @@ export default class ParticipantsModals {
           : "Firma im Projekt nicht aktiv";
 
       const controls = document.createElement("div");
-      controls.style.display = "flex";
-      controls.style.gap = "10px";
-      controls.style.alignItems = "center";
+      controls.style.display = "grid";
+      controls.style.gridTemplateRows = "auto auto";
+      controls.style.rowGap = "2px";
+      controls.style.width = "140px";
       controls.style.flexShrink = "0";
+      controls.style.justifyItems = "end";
 
-      const isPresent = Number(p.isPresent) === 1;
-      controls.append(
-        mkToggle("Anwesend", isPresent, (v) => {
-          const wasPresent = Number(p.isPresent) === 1;
-          p.isPresent = v ? 1 : 0;
-          if (this.isNewUi && !wasPresent && p.isPresent === 1) {
-            p.isInDistribution = 1;
-            this._renderParticipantsLists(leftListEl, rightListEl);
-          }
-        }),
-        mkToggle("Im Verteiler", Number(p.isInDistribution) === 1, (v) => {
-          p.isInDistribution = v ? 1 : 0;
-        })
-      );
+      const labelsRow = document.createElement("div");
+      labelsRow.style.display = "grid";
+      labelsRow.style.gridTemplateColumns = "1fr 1fr";
+      labelsRow.style.columnGap = "10px";
+      labelsRow.style.width = "100%";
+      labelsRow.style.justifyItems = "end";
+
+      const lblPresent = document.createElement("div");
+      lblPresent.textContent = "Anwesend";
+      lblPresent.style.fontSize = "12px";
+      lblPresent.style.textAlign = "right";
+      lblPresent.style.transform = "translateX(2.5mm)";
+
+      const lblDistribution = document.createElement("div");
+      lblDistribution.textContent = "Verteiler";
+      lblDistribution.style.fontSize = "12px";
+      lblDistribution.style.textAlign = "right";
+
+      labelsRow.append(lblPresent, lblDistribution);
+
+      const checksRow = document.createElement("div");
+      checksRow.style.display = "grid";
+      checksRow.style.gridTemplateColumns = "1fr 1fr";
+      checksRow.style.columnGap = "10px";
+      checksRow.style.width = "100%";
+      checksRow.style.justifyItems = "center";
+
+      const cbPresent = document.createElement("input");
+      cbPresent.type = "checkbox";
+      cbPresent.checked = Number(p.isPresent) === 1;
+      cbPresent.disabled = this.readOnly || this.isSaving;
+      cbPresent.onchange = () => {
+        const wasPresent = Number(p.isPresent) === 1;
+        p.isPresent = cbPresent.checked ? 1 : 0;
+        if (this.isNewUi && !wasPresent && p.isPresent === 1) {
+          p.isInDistribution = 1;
+          this._renderParticipantsLists(leftListEl, rightListEl);
+        }
+      };
+
+      const cbDistribution = document.createElement("input");
+      cbDistribution.type = "checkbox";
+      cbDistribution.checked = Number(p.isInDistribution) === 1;
+      cbDistribution.disabled = this.readOnly || this.isSaving;
+      cbDistribution.onchange = () => {
+        p.isInDistribution = cbDistribution.checked ? 1 : 0;
+      };
+
+      checksRow.append(cbPresent, cbDistribution);
+      controls.append(labelsRow, checksRow);
 
       this._renderRow({
         container: leftListEl,
@@ -1204,6 +1238,8 @@ export default class ParticipantsModals {
         roleInline: true,
         firmBelowName: true,
         hideFirmRight: true,
+        rightWidth: "172px",
+        dividerOffsetMm: 14,
         badgeText: invalidReason ? invalidReason : "",
         onDblClick: () => {
           if (this.readOnly) return;
