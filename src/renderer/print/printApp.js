@@ -396,6 +396,17 @@ function _buildTopsTailElement(data) {
   return wrap;
 }
 
+function _measureTopsTailHeight(data) {
+  const root = _buildMeasureRoot();
+  const page = _el("div", "page");
+  const tail = _buildTopsTailElement(data);
+  page.appendChild(tail);
+  root.appendChild(page);
+  const h = Math.ceil(tail.getBoundingClientRect().height || 0);
+  root.remove();
+  return h;
+}
+
 function _buildParticipantsIntroData(data) {
   const mode = String(data?.mode || "").trim().toLowerCase();
   if (!["protocol", "preview", "vorabzug"].includes(mode)) return null;
@@ -615,9 +626,6 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const tbody = document.createElement("tbody");
   table.appendChild(tbody);
   page.appendChild(table);
-  const topsTailEl = type === "tops" ? _buildTopsTailElement(data) : null;
-  if (topsTailEl) page.appendChild(topsTailEl);
-
   const pageRect = page.getBoundingClientRect();
   const style = getComputedStyle(page);
   const padTop = parseFloat(style.paddingTop) || 0;
@@ -628,8 +636,7 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const offset = tbodyRect.top - contentTop;
   const footerReserveMm = Number(data?.v2Layout?.footerReserveMm);
   const footerReservePx = _mmToPx(Number.isFinite(footerReserveMm) ? footerReserveMm : 12);
-  const topsTailHeight = topsTailEl ? Math.ceil(topsTailEl.getBoundingClientRect().height) : 0;
-  const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx - topsTailHeight);
+  const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx);
 
   const measureRow = (rowEl) => {
     tbody.innerHTML = "";
@@ -902,6 +909,62 @@ function _paginateTops(data) {
       preRemarks: preRemarksPending ? preRemarks : null,
       table: { type: "tops", rows: [] },
     });
+  }
+
+  const tailHeight = _measureTopsTailHeight(data);
+  const pageCapAt = (idx) => (idx === 0 ? firstCap : nextCap);
+  const introHeightAt = (idx, page) => {
+    if (!page?.intro) return 0;
+    const cached = introHeights[idx];
+    if (Number.isFinite(cached) && cached > 0) return cached;
+    const measureCtx = idx === 0 ? ctxFirst : (ctxNext || ctxFirst);
+    return _measureIntroHeight(measureCtx, page.intro);
+  };
+  const rowsHeightAt = (page) => {
+    const rows = page?.table?.rows || [];
+    if (!rows.length) return 0;
+    return rows.reduce((sum, row) => {
+      const h = rowMeasureCtx.measureRow(_buildTopRowElement(row)).height;
+      return sum + h;
+    }, 0);
+  };
+  const findLastTopsIdx = () => {
+    for (let i = pages.length - 1; i >= 0; i -= 1) {
+      if (String(pages[i]?.table?.type || "") === "tops") return i;
+    }
+    return -1;
+  };
+  const makeEmptyTopsPage = () => ({
+    header: { projectLabel, docLabel },
+    intro: null,
+    preRemarks: null,
+    table: { type: "tops", rows: [] },
+  });
+
+  let lastTopsIdx = findLastTopsIdx();
+  while (lastTopsIdx >= 0) {
+    const page = pages[lastTopsIdx];
+    const cap = pageCapAt(lastTopsIdx);
+    const introH = introHeightAt(lastTopsIdx, page);
+    const preRemarksH = page?.preRemarks ? preRemarksHeight : 0;
+    const usedWithTail = rowsHeightAt(page) + tailHeight;
+    const allowed = Math.max(0, cap - introH - preRemarksH);
+    if (usedWithTail <= allowed) break;
+
+    if ((page?.table?.rows || []).length === 0) {
+      pages.splice(lastTopsIdx + 1, 0, makeEmptyTopsPage());
+      break;
+    }
+
+    const movedRow = page.table.rows.pop();
+    const insertIdx = lastTopsIdx + 1;
+    let nextPage = pages[insertIdx];
+    if (String(nextPage?.table?.type || "") !== "tops") {
+      nextPage = makeEmptyTopsPage();
+      pages.splice(insertIdx, 0, nextPage);
+    }
+    nextPage.table.rows.unshift(movedRow);
+    lastTopsIdx = findLastTopsIdx();
   }
 
   const total = pages.length || 1;
