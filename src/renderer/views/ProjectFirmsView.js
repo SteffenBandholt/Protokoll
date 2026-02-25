@@ -300,7 +300,7 @@ export default class ProjectFirmsView {
     localTitle.style.fontWeight = "bold";
 
     const btnNewFirm = document.createElement("button");
-    btnNewFirm.textContent = "Firma hinzufuegen";
+    btnNewFirm.textContent = "Firma neu";
     applyPopupButtonStyle(btnNewFirm);
     btnNewFirm.onclick = async () => {
       if (this._isReadOnly()) return;
