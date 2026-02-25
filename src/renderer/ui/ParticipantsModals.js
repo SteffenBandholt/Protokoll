@@ -387,7 +387,17 @@ export default class ParticipantsModals {
     container.appendChild(empty);
   }
 
-  _renderRow({ container, person, onDblClick, extraRight, isDisabled, badgeText }) {
+  _renderRow({
+    container,
+    person,
+    onDblClick,
+    extraRight,
+    isDisabled,
+    badgeText,
+    roleInline = false,
+    firmBelowName = false,
+    hideFirmRight = false,
+  }) {
     const row = document.createElement("div");
     row.style.padding = "8px";
     row.style.borderRadius = "8px";
@@ -434,9 +444,20 @@ export default class ParticipantsModals {
     t1.style.textOverflow = "ellipsis";
 
     line1.append(t1);
+    if (roleInline && rolle) {
+      const roleInlineEl = document.createElement("div");
+      roleInlineEl.textContent = rolle;
+      roleInlineEl.style.fontSize = "12px";
+      roleInlineEl.style.opacity = "0.8";
+      roleInlineEl.style.whiteSpace = "nowrap";
+      roleInlineEl.style.overflow = "hidden";
+      roleInlineEl.style.textOverflow = "ellipsis";
+      roleInlineEl.style.maxWidth = "45%";
+      line1.append(roleInlineEl);
+    }
 
     const t2 = document.createElement("div");
-    t2.textContent = rolle || "";
+    t2.textContent = firmBelowName ? (firm || "") : (rolle || "");
     t2.style.fontSize = "12px";
     t2.style.opacity = "0.8";
 
@@ -453,15 +474,17 @@ export default class ParticipantsModals {
     rightWrap.style.paddingLeft = "8px";
     rightWrap.style.minWidth = "0";
 
-    const firmEl = document.createElement("div");
-    firmEl.textContent = firm || "";
-    firmEl.style.fontWeight = "bold";
-    firmEl.style.textAlign = "right";
-    firmEl.style.whiteSpace = "nowrap";
-    firmEl.style.maxWidth = "160px";
-    firmEl.style.overflow = "hidden";
-    firmEl.style.textOverflow = "ellipsis";
-    rightWrap.append(firmEl);
+    if (!hideFirmRight) {
+      const firmEl = document.createElement("div");
+      firmEl.textContent = firm || "";
+      firmEl.style.fontWeight = "bold";
+      firmEl.style.textAlign = "right";
+      firmEl.style.whiteSpace = "nowrap";
+      firmEl.style.maxWidth = "160px";
+      firmEl.style.overflow = "hidden";
+      firmEl.style.textOverflow = "ellipsis";
+      rightWrap.append(firmEl);
+    }
 
     if (extraRight) rightWrap.append(extraRight);
     if (badgeText) {
@@ -1178,6 +1201,9 @@ export default class ParticipantsModals {
         container: leftListEl,
         person: p,
         extraRight: controls,
+        roleInline: true,
+        firmBelowName: true,
+        hideFirmRight: true,
         badgeText: invalidReason ? invalidReason : "",
         onDblClick: () => {
           if (this.readOnly) return;
