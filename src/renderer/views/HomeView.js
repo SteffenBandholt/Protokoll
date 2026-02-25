@@ -283,16 +283,28 @@ export default class HomeView {
       grid.append(tileProjects.tile, tileFirms.tile, tileSettings.tile, tileArchive.tile);
     }
 
+    const footerWrap = document.createElement("div");
+    footerWrap.style.marginTop = "auto";
+    footerWrap.style.alignSelf = "flex-start";
+    footerWrap.style.paddingTop = "10px";
+
+    const creditLine = document.createElement("div");
+    creditLine.style.fontSize = "11px";
+    creditLine.style.opacity = "0.8";
+    creditLine.textContent = "Entwickelt von Steffen Bandholt - ";
+    const creditMail = document.createElement("a");
+    creditMail.href = "mailto:info@bandholt.de";
+    creditMail.textContent = "info@bandholt.de";
+    creditLine.appendChild(creditMail);
+
     const footer = document.createElement("div");
     footer.textContent = "© 2026 BBM alle Rechte vorbehalten";
-    footer.style.marginTop = "auto";
-    footer.style.alignSelf = "flex-start";
     footer.style.fontSize = "11px";
     footer.style.color = "#000";
-    footer.style.paddingTop = "10px";
     footer.style.userSelect = "none";
 
-    root.append(head, grid, footer);
+    footerWrap.append(creditLine, footer);
+    root.append(head, grid, footerWrap);
 
     this.root = root;
     return root;

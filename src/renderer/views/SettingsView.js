@@ -345,6 +345,19 @@ export default class SettingsView {
 
     tiles.append(tileArchive);
 
+    const creditLine = document.createElement("div");
+    creditLine.style.marginTop = "4px";
+    creditLine.style.fontSize = "12px";
+    creditLine.style.opacity = "0.75";
+    creditLine.style.maxWidth = "720px";
+    creditLine.style.textAlign = "left";
+    creditLine.style.justifySelf = "start";
+    creditLine.textContent = "Entwickelt von Steffen Bandholt - ";
+    const creditMail = document.createElement("a");
+    creditMail.href = "mailto:info@bandholt.de";
+    creditMail.textContent = "info@bandholt.de";
+    creditLine.appendChild(creditMail);
+
 
     const mkRow = (labelContent, inputEl) => {
       const row = document.createElement("div");
@@ -2577,7 +2590,8 @@ export default class SettingsView {
 
     root.append(
       head,
-      tiles
+      tiles,
+      creditLine
     );
 
     document.body.append(settingsOverlay, delOverlay, renameOverlay);

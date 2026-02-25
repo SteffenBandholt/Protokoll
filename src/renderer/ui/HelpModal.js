@@ -3,6 +3,7 @@
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 import { quickStart, glossary } from "../help/helpTexts.de.js";
+import { OVERLAY_TOP } from "./zIndex.js";
 
 const QUICK_ASSIST_ICON_URL = new URL("../assets/icons/quick-assist.svg", import.meta.url).href;
 
@@ -14,9 +15,11 @@ export default class HelpModal {
     this.btnQuickStart = null;
     this.btnGlossary = null;
     this.btnQuickAssist = null;
+    this.btnInfo = null;
     this.quickAssistHint = null;
     this._isWindows = false;
     this.activeTab = "quickStart";
+    this.infoOverlay = null;
   }
 
   _ensureDom() {
@@ -102,7 +105,13 @@ export default class HelpModal {
     quickAssistHint.style.fontSize = "12px";
     quickAssistHint.style.opacity = "0.8";
 
-    helpActions.append(btnQuickAssist, quickAssistHint);
+    const btnInfo = document.createElement("button");
+    btnInfo.type = "button";
+    btnInfo.textContent = "Info";
+    applyPopupButtonStyle(btnInfo);
+    btnInfo.onclick = () => this._openInfoPopup();
+
+    helpActions.append(btnQuickAssist, quickAssistHint, btnInfo);
 
     const body = document.createElement("div");
     body.style.padding = "12px";
@@ -136,7 +145,81 @@ export default class HelpModal {
     this.btnQuickStart = btnQuickStart;
     this.btnGlossary = btnGlossary;
     this.btnQuickAssist = btnQuickAssist;
+    this.btnInfo = btnInfo;
     this.quickAssistHint = quickAssistHint;
+  }
+
+  _openInfoPopup() {
+    if (this.infoOverlay) {
+      this.infoOverlay.style.display = "flex";
+      return;
+    }
+
+    const overlay = createPopupOverlay();
+    registerPopupCloseHandlers(overlay, () => this._closeInfoPopup());
+    overlay.style.zIndex = String(OVERLAY_TOP + 1);
+
+    const card = document.createElement("div");
+    stylePopupCard(card, { width: "min(560px, calc(100vw - 24px))" });
+
+    const head = document.createElement("div");
+    head.style.display = "flex";
+    head.style.alignItems = "center";
+    head.style.gap = "10px";
+    head.style.padding = "12px";
+    head.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Info";
+    title.style.fontWeight = "800";
+    title.style.fontSize = "16px";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.style.marginLeft = "auto";
+    btnClose.onclick = () => this._closeInfoPopup();
+
+    head.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.padding = "12px";
+    body.style.display = "grid";
+    body.style.gap = "6px";
+    body.style.lineHeight = "1.45";
+
+    const p1 = document.createElement("div");
+    p1.textContent = "Entwickelt von Steffen Bandholt";
+
+    const mail = document.createElement("a");
+    mail.href = "mailto:info@bandholt.de";
+    mail.textContent = "mailto: info@bandholt.de";
+
+    body.append(p1, mail);
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.gap = "8px";
+    footer.style.padding = "10px 12px";
+    footer.style.borderTop = "1px solid #e2e8f0";
+
+    const btnOk = document.createElement("button");
+    btnOk.type = "button";
+    btnOk.textContent = "Schliessen";
+    applyPopupButtonStyle(btnOk, { variant: "neutral" });
+    btnOk.onclick = () => this._closeInfoPopup();
+
+    footer.appendChild(btnOk);
+    card.append(head, body, footer);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    this.infoOverlay = overlay;
+  }
+
+  _closeInfoPopup() {
+    if (this.infoOverlay) this.infoOverlay.style.display = "none";
   }
 
   async _syncQuickAssistUi() {
@@ -319,5 +402,6 @@ export default class HelpModal {
 
   close() {
     if (this.root) this.root.style.display = "none";
+    this._closeInfoPopup();
   }
 }
