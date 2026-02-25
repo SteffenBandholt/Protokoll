@@ -321,6 +321,16 @@ function _buildTable(page) {
   return table;
 }
 
+function _buildTopsLegend() {
+  const wrap = _el("div", "v2TopsLegend");
+  wrap.append(
+    _el("span", "v2TopsLegendBlue", "neuer TOP"),
+    _el("span", "v2TopsLegendBlack", "im Soll / fertig"),
+    _el("span", "v2TopsLegendRed", "im Verzug / wichtig")
+  );
+  return wrap;
+}
+
 function _buildIntro(page) {
   const intro = page?.intro || null;
   if (!intro || intro.type !== "participants") return null;
@@ -410,8 +420,13 @@ export function renderPrint({ pages, data } = {}) {
   _applyV2Vars(root, data);
   const totalPages = Array.isArray(pages) ? pages.length : 0;
   const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || "Dokument";
+  const lastTopsPageIdx = (pages || []).reduce((last, p, idx) => {
+    const isTops = String(p?.table?.type || "") === "tops";
+    const hasRows = (p?.table?.rows || []).length > 0;
+    return isTops && hasRows ? idx : last;
+  }, -1);
 
-  for (const page of pages || []) {
+  (pages || []).forEach((page, idx) => {
     const pageEl = _el("div", "page");
     const pageNo = Number(page?.header?.pageNo || 0);
     if (pageNo === 1) {
@@ -429,9 +444,12 @@ export function renderPrint({ pages, data } = {}) {
     const hasRows = (page?.table?.rows || []).length > 0;
     // Tops-Tabelle ohne Zeilen nicht rendern (sonst Tabellenkopf allein).
     const renderTable = !(isTops && !hasRows);
-    if (renderTable) pageEl.appendChild(_buildTable(page));
+    if (renderTable) {
+      pageEl.appendChild(_buildTable(page));
+      if (isTops && idx === lastTopsPageIdx) pageEl.appendChild(_buildTopsLegend());
+    }
     pageEl.appendChild(_el("div", "v2FooterReserveSpacer"));
     root.appendChild(pageEl);
-  }
+  });
   return root;
 }

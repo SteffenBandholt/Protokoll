@@ -341,6 +341,16 @@ function _buildColGroup(type) {
   return colgroup;
 }
 
+function _buildTopsLegendElement() {
+  const wrap = _el("div", "v2TopsLegend");
+  wrap.append(
+    _el("span", "v2TopsLegendBlue", "neuer TOP"),
+    _el("span", "v2TopsLegendBlack", "im Soll / fertig"),
+    _el("span", "v2TopsLegendRed", "im Verzug / wichtig")
+  );
+  return wrap;
+}
+
 function _buildParticipantsIntroData(data) {
   const mode = String(data?.mode || "").trim().toLowerCase();
   if (!["protocol", "preview", "vorabzug"].includes(mode)) return null;
@@ -560,6 +570,8 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const tbody = document.createElement("tbody");
   table.appendChild(tbody);
   page.appendChild(table);
+  const topsLegendEl = type === "tops" ? _buildTopsLegendElement() : null;
+  if (topsLegendEl) page.appendChild(topsLegendEl);
 
   const pageRect = page.getBoundingClientRect();
   const style = getComputedStyle(page);
@@ -571,7 +583,8 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const offset = tbodyRect.top - contentTop;
   const footerReserveMm = Number(data?.v2Layout?.footerReserveMm);
   const footerReservePx = _mmToPx(Number.isFinite(footerReserveMm) ? footerReserveMm : 12);
-  const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx);
+  const topsLegendHeight = topsLegendEl ? Math.ceil(topsLegendEl.getBoundingClientRect().height) : 0;
+  const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx - topsLegendHeight);
 
   const measureRow = (rowEl) => {
     tbody.innerHTML = "";
