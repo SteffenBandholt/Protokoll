@@ -104,7 +104,7 @@ export default class MainHeader {
     root.style.zIndex = String(HEADER);
     if (this._isNewUi) {
       root.style.setProperty("--header-action-underline", "2.5px");
-      root.style.setProperty("--header-action-baseline-offset", "10px");
+      root.style.setProperty("--header-action-baseline-offset", "-3mm");
       root.style.setProperty("--header-action-offset-x", "120px");
     }
 
