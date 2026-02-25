@@ -1379,10 +1379,18 @@ export default class TopsView {
         defaultDateIso: defDate,
       });
       if (promptRes?.cancelled) return;
+      const nextMeetingInput = promptRes?.data || {};
 
       const closePayload = {
         meetingId: this.meetingId,
         pdf_show_ampel: this.showAmpelInList ? 1 : 0,
+        nextMeeting: {
+          enabled: String(nextMeetingInput["print.nextMeeting.enabled"] ?? "").trim(),
+          date: String(nextMeetingInput["print.nextMeeting.date"] || "").trim(),
+          time: String(nextMeetingInput["print.nextMeeting.time"] || "").trim(),
+          place: String(nextMeetingInput["print.nextMeeting.place"] || "").trim(),
+          extra: String(nextMeetingInput["print.nextMeeting.extra"] || "").trim(),
+        },
       };
 
       const attemptClose = async () => {

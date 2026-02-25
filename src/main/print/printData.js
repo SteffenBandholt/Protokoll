@@ -709,11 +709,12 @@ function _buildUserData(settings) {
   };
 }
 
-async function getPrintData({ mode, projectId, meetingId } = {}) {
+async function getPrintData({ mode, projectId, meetingId, settingsOverride } = {}) {
   const db = initDatabase();
   const project = projectId ? projectsRepo.getById(projectId) : null;
   const meeting = meetingId ? meetingsRepo.getMeetingById(meetingId) : null;
-  const settings = _loadSettings(db);
+  const settingsBase = _loadSettings(db);
+  const settings = { ...(settingsBase || {}), ...(settingsOverride || {}) };
   const protocolTitle = String(settings?.["pdf.protocolTitle"] || "").trim();
   const printProfile = _resolvePrintProfile(mode);
   const userData = _buildUserData(settings);
@@ -721,7 +722,22 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
   const v2Layout = _buildV2Layout(settings, logos);
 
   const interludeText = String(settings?.["print.interludeText"] || "").trim();
-  const nextMeeting = {
+  const meetingNextMeeting = {
+    enabled: _parseBool(meeting?.next_meeting_enabled),
+    date: String(meeting?.next_meeting_date || "").trim(),
+    time: String(meeting?.next_meeting_time || "").trim(),
+    place: String(meeting?.next_meeting_place || "").trim(),
+    extra: String(meeting?.next_meeting_extra || "").trim(),
+  };
+  const hasMeetingNextMeeting =
+    meetingNextMeeting.enabled ||
+    !!(
+      meetingNextMeeting.date ||
+      meetingNextMeeting.time ||
+      meetingNextMeeting.place ||
+      meetingNextMeeting.extra
+    );
+  const settingsNextMeeting = {
     enabled:
       _parseBool(settings?.["print.nextMeeting.enabled"]) ||
       !!(
@@ -735,6 +751,10 @@ async function getPrintData({ mode, projectId, meetingId } = {}) {
     place: String(settings?.["print.nextMeeting.place"] || "").trim(),
     extra: String(settings?.["print.nextMeeting.extra"] || "").trim(),
   };
+  const nextMeeting =
+    String(mode || "").trim().toLowerCase() === "protocol"
+      ? (hasMeetingNextMeeting ? meetingNextMeeting : { enabled: false, date: "", time: "", place: "", extra: "" })
+      : (hasMeetingNextMeeting ? meetingNextMeeting : settingsNextMeeting);
 
   let participants = [];
   let tops = [];

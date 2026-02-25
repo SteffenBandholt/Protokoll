@@ -331,6 +331,16 @@ function _buildTopsLegend() {
   return wrap;
 }
 
+function _buildTopsTail(page) {
+  const tail = page?.topsTail || null;
+  if (!tail?.showLegend) return null;
+  const wrap = _el("div", "v2TopsTail");
+  wrap.appendChild(_buildTopsLegend());
+  const interludeText = String(tail?.interludeText || "").trim();
+  if (interludeText) wrap.appendChild(_el("div", "v2TopsInterlude", interludeText));
+  return wrap;
+}
+
 function _buildIntro(page) {
   const intro = page?.intro || null;
   if (!intro || intro.type !== "participants") return null;
@@ -422,9 +432,14 @@ export function renderPrint({ pages, data } = {}) {
   const modeLabel = String(data?.printProfile?.documentLabel || "").trim() || "Dokument";
   const lastTopsPageIdx = (pages || []).reduce((last, p, idx) => {
     const isTops = String(p?.table?.type || "") === "tops";
+    return isTops ? idx : last;
+  }, -1);
+  const lastTopsWithRowsIdx = (pages || []).reduce((last, p, idx) => {
+    const isTops = String(p?.table?.type || "") === "tops";
     const hasRows = (p?.table?.rows || []).length > 0;
     return isTops && hasRows ? idx : last;
   }, -1);
+  const tailPageIdx = lastTopsWithRowsIdx >= 0 ? lastTopsWithRowsIdx : lastTopsPageIdx;
 
   (pages || []).forEach((page, idx) => {
     const pageEl = _el("div", "page");
@@ -446,7 +461,10 @@ export function renderPrint({ pages, data } = {}) {
     const renderTable = !(isTops && !hasRows);
     if (renderTable) {
       pageEl.appendChild(_buildTable(page));
-      if (isTops && idx === lastTopsPageIdx) pageEl.appendChild(_buildTopsLegend());
+    }
+    if (isTops && idx === tailPageIdx) {
+      const tail = _buildTopsTail(page);
+      if (tail) pageEl.appendChild(tail);
     }
     pageEl.appendChild(_el("div", "v2FooterReserveSpacer"));
     root.appendChild(pageEl);

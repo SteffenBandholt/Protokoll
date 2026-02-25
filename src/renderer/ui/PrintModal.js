@@ -536,7 +536,7 @@ export default class PrintModal {
 
     const isIsoDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || "");
     const loadedDate = isIsoDate(loaded.date) ? loaded.date : "";
-    const defaultDate = loadedDate || (isIsoDate(defaultDateIso) ? defaultDateIso : "");
+    const defaultDate = isIsoDate(defaultDateIso) ? defaultDateIso : loadedDate;
 
     return new Promise((resolve) => {
       const overlay = createPopupOverlay({ background: "rgba(0,0,0,0.35)", zIndex: 10001 });
@@ -4280,12 +4280,21 @@ export default class PrintModal {
             `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`
           ) + ".pdf";
 
+      const nextMeetingSettingsForPrint = {
+        "print.nextMeeting.enabled": String(settings?.["print.nextMeeting.enabled"] ?? "").trim(),
+        "print.nextMeeting.date": String(settings?.["print.nextMeeting.date"] || "").trim(),
+        "print.nextMeeting.time": String(settings?.["print.nextMeeting.time"] || "").trim(),
+        "print.nextMeeting.place": String(settings?.["print.nextMeeting.place"] || "").trim(),
+        "print.nextMeeting.extra": String(settings?.["print.nextMeeting.extra"] || "").trim(),
+      };
+
       const out = await window.bbmPrint.printPdf({
         mode: isVorabzug ? "preview" : "protocol",
         projectId: pid,
         meetingId,
         fileName: fn,
         bbmVersion: "1.0",
+        settingsOverride: nextMeetingSettingsForPrint,
         ...(isVorabzug && doPreview ? { targetDir: "temp" } : {}),
         ...(isVorabzug
           ? {}

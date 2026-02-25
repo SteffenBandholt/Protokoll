@@ -266,6 +266,20 @@ function ensureMeetingsTodoSnapshotColumn(dbConn) {
   }
 }
 
+function ensureMeetingsNextMeetingColumns(dbConn) {
+  if (!tableExists(dbConn, "meetings")) return;
+  const addCol = (name, sqlType) => {
+    if (!columnExists(dbConn, "meetings", name)) {
+      dbConn.exec(`ALTER TABLE meetings ADD COLUMN ${name} ${sqlType};`);
+    }
+  };
+  addCol("next_meeting_enabled", "INTEGER");
+  addCol("next_meeting_date", "TEXT");
+  addCol("next_meeting_time", "TEXT");
+  addCol("next_meeting_place", "TEXT");
+  addCol("next_meeting_extra", "TEXT");
+}
+
 function ensureFirmsAndPersonsSchema(dbConn) {
   // ------------------------------------------------------------
   // firms (GLOBAL)
@@ -982,6 +996,7 @@ function ensureSchema(dbConn) {
     dbConn.exec(`ALTER TABLE meetings ADD COLUMN pdf_show_ampel INTEGER;`);
   }
   ensureMeetingsTodoSnapshotColumn(dbConn);
+  ensureMeetingsNextMeetingColumns(dbConn);
   ensureSingleOpenMeetingPerProject(dbConn);
 
   migrateLegacyTopsToMeetingTops(dbConn);
@@ -1110,6 +1125,11 @@ function initDatabase() {
       is_closed INTEGER NOT NULL DEFAULT 0,
       pdf_show_ampel INTEGER,
       todo_snapshot_json TEXT,
+      next_meeting_enabled INTEGER,
+      next_meeting_date TEXT,
+      next_meeting_time TEXT,
+      next_meeting_place TEXT,
+      next_meeting_extra TEXT,
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
       FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE

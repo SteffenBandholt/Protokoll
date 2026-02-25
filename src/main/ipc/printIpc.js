@@ -105,7 +105,12 @@ async function printToPdf(payload = {}) {
 
   console.log(`[print:${jobId}] start mode=${mode} projectId=${projectId} meetingId=${meetingId}`);
 
-  const data = await getPrintData({ mode, projectId, meetingId });
+  const data = await getPrintData({
+    mode,
+    projectId,
+    meetingId,
+    settingsOverride: payload.settingsOverride || null,
+  });
   const projectNumber = data?.project?.project_number || data?.project?.projectNumber || null;
 
   const outPath = await _buildOutputPath({
@@ -199,6 +204,7 @@ async function printToPdf(payload = {}) {
         mode,
         projectId,
         meetingId,
+        settingsOverride: payload.settingsOverride || null,
         debug,
       });
     });
@@ -221,6 +227,7 @@ function registerPrintIpc() {
         mode: p.mode,
         projectId: p.projectId,
         meetingId: p.meetingId,
+        settingsOverride: p.settingsOverride || null,
       });
       return { ok: true, data };
     } catch (err) {

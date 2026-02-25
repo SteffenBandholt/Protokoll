@@ -351,6 +351,51 @@ function _buildTopsLegendElement() {
   return wrap;
 }
 
+function _resolveInterludeText(data) {
+  const settings = data?.settings || {};
+
+  const nextMeeting = data?.nextMeeting || {};
+  const enabledRaw = _parseBoolSetting(
+    nextMeeting.enabled != null ? nextMeeting.enabled : settings["print.nextMeeting.enabled"],
+    false
+  );
+  const dateRaw = String(nextMeeting.date != null ? nextMeeting.date : settings["print.nextMeeting.date"] || "").trim();
+  const timeRaw = String(nextMeeting.time != null ? nextMeeting.time : settings["print.nextMeeting.time"] || "").trim();
+  const placeRaw = String(nextMeeting.place != null ? nextMeeting.place : settings["print.nextMeeting.place"] || "").trim();
+  const extraRaw = String(nextMeeting.extra != null ? nextMeeting.extra : settings["print.nextMeeting.extra"] || "").trim();
+  const hasAny = enabledRaw || !!(dateRaw || timeRaw || placeRaw || extraRaw);
+  if (!hasAny) {
+    const fallback = String(data?.interludeText || settings["print.interludeText"] || "").trim();
+    return fallback || "";
+  }
+
+  let weekday = "";
+  let dateOut = dateRaw || "-";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
+    const d = new Date(`${dateRaw}T00:00:00`);
+    if (!Number.isNaN(d.getTime())) {
+      weekday = d.toLocaleDateString("de-DE", { weekday: "long" });
+      dateOut = d.toLocaleDateString("de-DE");
+    }
+  }
+  const timeOut = timeRaw || "-";
+  let text = "Die nächste Besprechung findet am ";
+  if (weekday) text += `${weekday}, den ${dateOut} um ${timeOut} Uhr`;
+  else text += `${dateOut} um ${timeOut} Uhr`;
+  if (extraRaw) text += ` ${extraRaw}`;
+  if (placeRaw) text += ` ${placeRaw}`;
+  text += " statt.";
+  return text.trim();
+}
+
+function _buildTopsTailElement(data) {
+  const wrap = _el("div", "v2TopsTail");
+  wrap.appendChild(_buildTopsLegendElement());
+  const interlude = _resolveInterludeText(data);
+  if (interlude) wrap.appendChild(_el("div", "v2TopsInterlude", interlude));
+  return wrap;
+}
+
 function _buildParticipantsIntroData(data) {
   const mode = String(data?.mode || "").trim().toLowerCase();
   if (!["protocol", "preview", "vorabzug"].includes(mode)) return null;
@@ -570,8 +615,8 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const tbody = document.createElement("tbody");
   table.appendChild(tbody);
   page.appendChild(table);
-  const topsLegendEl = type === "tops" ? _buildTopsLegendElement() : null;
-  if (topsLegendEl) page.appendChild(topsLegendEl);
+  const topsTailEl = type === "tops" ? _buildTopsTailElement(data) : null;
+  if (topsTailEl) page.appendChild(topsTailEl);
 
   const pageRect = page.getBoundingClientRect();
   const style = getComputedStyle(page);
@@ -583,8 +628,8 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const offset = tbodyRect.top - contentTop;
   const footerReserveMm = Number(data?.v2Layout?.footerReserveMm);
   const footerReservePx = _mmToPx(Number.isFinite(footerReserveMm) ? footerReserveMm : 12);
-  const topsLegendHeight = topsLegendEl ? Math.ceil(topsLegendEl.getBoundingClientRect().height) : 0;
-  const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx - topsLegendHeight);
+  const topsTailHeight = topsTailEl ? Math.ceil(topsTailEl.getBoundingClientRect().height) : 0;
+  const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx - topsTailHeight);
 
   const measureRow = (rowEl) => {
     tbody.innerHTML = "";
@@ -860,6 +905,16 @@ function _paginateTops(data) {
   }
 
   const total = pages.length || 1;
+  const interludeText = _resolveInterludeText(data);
+  for (let i = pages.length - 1; i >= 0; i -= 1) {
+    const p = pages[i];
+    if (String(p?.table?.type || "") !== "tops") continue;
+    p.topsTail = {
+      showLegend: true,
+      interludeText,
+    };
+    break;
+  }
   pages.forEach((p, idx) => {
     p.header.pageNo = idx + 1;
     p.header.totalPages = total;

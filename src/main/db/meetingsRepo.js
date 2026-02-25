@@ -13,6 +13,11 @@ function getMeetingById(meetingId) {
       is_closed,
       pdf_show_ampel,
       todo_snapshot_json,
+      next_meeting_enabled,
+      next_meeting_date,
+      next_meeting_time,
+      next_meeting_place,
+      next_meeting_extra,
       created_at,
       updated_at
     FROM meetings
@@ -31,6 +36,11 @@ function listByProject(projectId) {
       is_closed,
       pdf_show_ampel,
       todo_snapshot_json,
+      next_meeting_enabled,
+      next_meeting_date,
+      next_meeting_time,
+      next_meeting_place,
+      next_meeting_extra,
       created_at,
       updated_at
     FROM meetings
@@ -50,6 +60,11 @@ function getOpenMeetingByProject(projectId) {
       is_closed,
       pdf_show_ampel,
       todo_snapshot_json,
+      next_meeting_enabled,
+      next_meeting_date,
+      next_meeting_time,
+      next_meeting_place,
+      next_meeting_extra,
       created_at,
       updated_at
     FROM meetings
@@ -71,6 +86,11 @@ function getLastClosedMeetingByProject(projectId) {
       is_closed,
       pdf_show_ampel,
       todo_snapshot_json,
+      next_meeting_enabled,
+      next_meeting_date,
+      next_meeting_time,
+      next_meeting_place,
+      next_meeting_extra,
       created_at,
       updated_at
     FROM meetings
@@ -112,6 +132,11 @@ function createMeeting({ projectId, title }) {
         is_closed,
         pdf_show_ampel,
         todo_snapshot_json,
+        next_meeting_enabled,
+        next_meeting_date,
+        next_meeting_time,
+        next_meeting_place,
+        next_meeting_extra,
         created_at,
         updated_at
       )
@@ -121,6 +146,11 @@ function createMeeting({ projectId, title }) {
         @meetingIndex,
         @title,
         0,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
+        NULL,
         NULL,
         NULL,
         @now,
@@ -145,7 +175,7 @@ function createMeeting({ projectId, title }) {
   return getMeetingById(id);
 }
 
-function closeMeeting(meetingId, { pdfShowAmpel, todoSnapshotJson } = {}) {
+function closeMeeting(meetingId, { pdfShowAmpel, todoSnapshotJson, nextMeeting } = {}) {
   const db = initDatabase();
   if (!meetingId) throw new Error("meetingId required");
 
@@ -155,12 +185,50 @@ function closeMeeting(meetingId, { pdfShowAmpel, todoSnapshotJson } = {}) {
     todoSnapshotJson === undefined || todoSnapshotJson === null
       ? null
       : String(todoSnapshotJson);
+  const nextMeetingEnabledRaw = nextMeeting?.enabled;
+  const nextMeetingEnabled =
+    nextMeetingEnabledRaw === undefined || nextMeetingEnabledRaw === null
+      ? null
+      : (String(nextMeetingEnabledRaw).trim().toLowerCase() === "1" ||
+          String(nextMeetingEnabledRaw).trim().toLowerCase() === "true" ||
+          String(nextMeetingEnabledRaw).trim().toLowerCase() === "yes" ||
+          String(nextMeetingEnabledRaw).trim().toLowerCase() === "ja" ||
+          String(nextMeetingEnabledRaw).trim().toLowerCase() === "on")
+        ? 1
+        : 0;
+  const nextMeetingDate =
+    nextMeeting?.date === undefined || nextMeeting?.date === null ? null : String(nextMeeting.date).trim();
+  const nextMeetingTime =
+    nextMeeting?.time === undefined || nextMeeting?.time === null ? null : String(nextMeeting.time).trim();
+  const nextMeetingPlace =
+    nextMeeting?.place === undefined || nextMeeting?.place === null ? null : String(nextMeeting.place).trim();
+  const nextMeetingExtra =
+    nextMeeting?.extra === undefined || nextMeeting?.extra === null ? null : String(nextMeeting.extra).trim();
 
   const info = db.prepare(`
     UPDATE meetings
-    SET is_closed = 1, updated_at = @now, pdf_show_ampel = @pdfShowAmpel, todo_snapshot_json = @todoSnapshotJson
+    SET
+      is_closed = 1,
+      updated_at = @now,
+      pdf_show_ampel = @pdfShowAmpel,
+      todo_snapshot_json = @todoSnapshotJson,
+      next_meeting_enabled = @nextMeetingEnabled,
+      next_meeting_date = @nextMeetingDate,
+      next_meeting_time = @nextMeetingTime,
+      next_meeting_place = @nextMeetingPlace,
+      next_meeting_extra = @nextMeetingExtra
     WHERE id = @id AND is_closed = 0
-  `).run({ id: meetingId, now, pdfShowAmpel: frozenAmpel, todoSnapshotJson: snapshotRaw });
+  `).run({
+    id: meetingId,
+    now,
+    pdfShowAmpel: frozenAmpel,
+    todoSnapshotJson: snapshotRaw,
+    nextMeetingEnabled,
+    nextMeetingDate,
+    nextMeetingTime,
+    nextMeetingPlace,
+    nextMeetingExtra,
+  });
 
   return { changed: info.changes, meeting: getMeetingById(meetingId) };
 }

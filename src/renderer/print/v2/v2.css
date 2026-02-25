@@ -424,6 +424,11 @@
   text-align: center;
 }
 
+.printV2Root .v2TopsTail {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 .printV2Root .v2TopsLegendBlue {
   color: #1565c0;
 }
@@ -434,6 +439,17 @@
 
 .printV2Root .v2TopsLegendRed {
   color: #c62828;
+}
+
+.printV2Root .v2TopsInterlude {
+  margin-top: 10mm;
+  text-align: center;
+  font-size: 10pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: #111;
 }
 
 .printV2Root .v2PreRemarksBlock {

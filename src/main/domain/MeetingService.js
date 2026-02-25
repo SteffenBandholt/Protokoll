@@ -31,6 +31,19 @@ function _extractPdfShowAmpel(arg) {
   return undefined;
 }
 
+function _extractNextMeeting(arg) {
+  if (!arg || typeof arg !== "object") return null;
+  const src = arg.nextMeeting || null;
+  if (!src || typeof src !== "object") return null;
+  return {
+    enabled: src.enabled,
+    date: src.date,
+    time: src.time,
+    place: src.place,
+    extra: src.extra,
+  };
+}
+
 function _isDoneStatus(status) {
   return String(status || "").trim().toLowerCase() === "erledigt";
 }
@@ -307,6 +320,7 @@ class MeetingService {
 
     const meeting = this.meetingsRepo.getMeetingById(meetingId);
     const pdfShowAmpel = _extractPdfShowAmpel(meetingIdOrObj);
+    const nextMeeting = _extractNextMeeting(meetingIdOrObj);
     if (!meeting) throw new Error("Besprechung nicht gefunden");
 
     if (Number(meeting.is_closed) === 1) {
@@ -348,7 +362,11 @@ class MeetingService {
     }
 
     // Meeting schließen
-    const res = this.meetingsRepo.closeMeeting(meetingId, { pdfShowAmpel, todoSnapshotJson });
+    const res = this.meetingsRepo.closeMeeting(meetingId, {
+      pdfShowAmpel,
+      todoSnapshotJson,
+      nextMeeting,
+    });
     if (warnings.length) return { ...res, warnings };
     return res;
   }
