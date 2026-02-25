@@ -443,7 +443,6 @@ function registerParticipantsIpc() {
       });
 
       tx();
-      _markParticipantsInitialized(db, meetingId);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };

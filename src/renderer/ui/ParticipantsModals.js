@@ -399,20 +399,21 @@ export default class ParticipantsModals {
     };
 
     const head = document.createElement("div");
-    head.style.display = "flex";
-    head.style.alignItems = "center";
-    head.style.justifyContent = "space-between";
-    head.style.gap = "8px";
+    head.style.display = "grid";
+    head.style.gridTemplateColumns = "minmax(0, 1fr) minmax(210px, 42%)";
+    head.style.alignItems = "stretch";
+    head.style.columnGap = "0";
 
     const left = document.createElement("div");
     left.style.flex = "1";
+    left.style.minWidth = "0";
+    left.style.paddingRight = "8px";
 
     const { name, rolle, firm } = this._labelRow(person);
 
     const line1 = document.createElement("div");
     line1.style.display = "flex";
     line1.style.alignItems = "center";
-    line1.style.justifyContent = "space-between";
     line1.style.gap = "8px";
     line1.style.width = "100%";
 
@@ -421,15 +422,11 @@ export default class ParticipantsModals {
     t1.style.fontWeight = "bold";
     t1.style.minWidth = "0";
     t1.style.flex = "1 1 auto";
+    t1.style.whiteSpace = "nowrap";
+    t1.style.overflow = "hidden";
+    t1.style.textOverflow = "ellipsis";
 
-    const tFirm = document.createElement("div");
-    tFirm.textContent = firm || "";
-    tFirm.style.fontWeight = "bold";
-    tFirm.style.textAlign = "right";
-    tFirm.style.whiteSpace = "nowrap";
-    tFirm.style.marginLeft = "auto";
-
-    line1.append(t1, tFirm);
+    line1.append(t1);
 
     const t2 = document.createElement("div");
     t2.textContent = rolle || "";
@@ -439,25 +436,39 @@ export default class ParticipantsModals {
     left.append(line1, t2);
     head.append(left);
 
-    if (badgeText || extraRight) {
-      const rightWrap = document.createElement("div");
-      rightWrap.style.display = "flex";
-      rightWrap.style.alignItems = "center";
-      rightWrap.style.gap = "6px";
-      if (extraRight) rightWrap.append(extraRight);
-      if (badgeText) {
-        const badge = document.createElement("span");
-        badge.textContent = badgeText;
-        badge.style.fontSize = "11px";
-        badge.style.padding = "2px 6px";
-        badge.style.borderRadius = "999px";
-        badge.style.background = "#ffe3b3";
-        badge.style.color = "#7a4a00";
-        rightWrap.append(badge);
-        row.title = badgeText;
-      }
-      head.append(rightWrap);
+    const rightWrap = document.createElement("div");
+    rightWrap.style.display = "flex";
+    rightWrap.style.alignItems = "center";
+    rightWrap.style.justifyContent = "flex-end";
+    rightWrap.style.gap = "6px";
+    rightWrap.style.flexShrink = "0";
+    rightWrap.style.borderLeft = "1px solid #8fa1b3";
+    rightWrap.style.paddingLeft = "8px";
+    rightWrap.style.minWidth = "0";
+
+    const firmEl = document.createElement("div");
+    firmEl.textContent = firm || "-";
+    firmEl.style.fontWeight = "bold";
+    firmEl.style.textAlign = "right";
+    firmEl.style.whiteSpace = "nowrap";
+    firmEl.style.maxWidth = "160px";
+    firmEl.style.overflow = "hidden";
+    firmEl.style.textOverflow = "ellipsis";
+    rightWrap.append(firmEl);
+
+    if (extraRight) rightWrap.append(extraRight);
+    if (badgeText) {
+      const badge = document.createElement("span");
+      badge.textContent = badgeText;
+      badge.style.fontSize = "11px";
+      badge.style.padding = "2px 6px";
+      badge.style.borderRadius = "999px";
+      badge.style.background = "#ffe3b3";
+      badge.style.color = "#7a4a00";
+      rightWrap.append(badge);
+      row.title = badgeText;
     }
+    head.append(rightWrap);
 
     row.append(head);
     container.appendChild(row);
