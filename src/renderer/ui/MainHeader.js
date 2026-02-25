@@ -626,29 +626,6 @@ export default class MainHeader {
       }
     };
 
-    const btnCandidates = document.createElement("button");
-    btnCandidates.type = "button";
-    btnCandidates.textContent = "Personalpool";
-    applyActionTextButtonStyle(btnCandidates);
-    btnCandidates.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (btnCandidates.disabled) return;
-      this._setPrintOpen(false);
-      try {
-        await runProjectAction(async (projectId) => {
-          if (typeof this.router?.openCandidatesModal !== "function") {
-            alert("Personalpool ist nicht verfÃ¼gbar.");
-            return;
-          }
-          await this.router.openCandidatesModal({ projectId });
-        });
-      } catch (err) {
-        console.error("[header] action Personalpool failed:", err);
-        alert("Personalpool konnte nicht geÃ¶ffnet werden.");
-      }
-    };
-
     const btnParticipants = document.createElement("button");
     btnParticipants.type = "button";
     btnParticipants.textContent = "Teilnehmer";
@@ -669,7 +646,7 @@ export default class MainHeader {
     };
 
     if (this._isNewUi) {
-      actionWrap.append(btnProjectFirms, btnFirmsPool, btnCandidates, btnParticipants, printWrap);
+      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, printWrap);
     } else {
       actionWrap.append(setupWrap, printWrap);
     }
@@ -762,7 +739,7 @@ export default class MainHeader {
     this.elPrintItemMeetings = itemMeetings;
     this.elActionProjectFirmsBtn = btnProjectFirms;
     this.elActionFirmsPoolBtn = btnFirmsPool;
-    this.elActionCandidatesBtn = btnCandidates;
+    this.elActionCandidatesBtn = null;
     this.elActionParticipantsBtn = btnParticipants;
     this.elSetupWrap = setupWrap;
     this.elSetupBtn = setupBtn;
