@@ -22,6 +22,26 @@ function normalizeActive(value, fallback = 1) {
   return Number(fallback) ? 1 : 0;
 }
 
+function removePersonFromOpenMeetings(dbConn, { projectId, kind, personId }) {
+  if (!projectId || !kind || !personId) return 0;
+  const info = dbConn
+    .prepare(
+      `
+      DELETE FROM meeting_participants
+      WHERE kind = ?
+        AND person_id = ?
+        AND meeting_id IN (
+          SELECT id
+          FROM meetings
+          WHERE project_id = ?
+            AND is_closed = 0
+        )
+    `
+    )
+    .run(kind, String(personId), projectId);
+  return Number(info?.changes || 0);
+}
+
 function _participantsInitKey(meetingId) {
   return `meetingParticipants.initialized.${String(meetingId || "").trim()}`;
 }
@@ -387,12 +407,12 @@ function registerParticipantsIpc() {
           WHERE project_id = ?
         `)
         .all(projectId);
-
-      const newKeys = new Set(normalized.map((x) => keyOf(x.kind, x.personId)));
-      const removed = existing.filter((x) => !newKeys.has(keyOf(x.kind, x.personId)));
       const existingActiveByKey = new Map(
         existing.map((x) => [keyOf(x.kind, x.personId), normalizeActive(x?.is_active, 1)])
       );
+
+      const newKeys = new Set(normalized.map((x) => keyOf(x.kind, x.personId)));
+      const removed = existing.filter((x) => !newKeys.has(keyOf(x.kind, x.personId)));
 
       // KRITISCHE REGEL: Entfernen blockiert, wenn Person Teilnehmer in irgendeiner offenen Besprechung ist.
       const checkOpen = db.prepare(
@@ -434,15 +454,26 @@ function registerParticipantsIpc() {
       const tx = db.transaction(() => {
         delAll.run(projectId);
         for (const it of normalized) {
-          const key = keyOf(it.kind, it.personId);
-          const nextIsActive = existingActiveByKey.has(key)
-            ? existingActiveByKey.get(key)
-            : normalizeActive(it?.isActive, 1);
+          const nextIsActive = normalizeActive(it?.isActive, 1);
           ins.run(projectId, it.kind, it.personId, nextIsActive);
         }
       });
 
       tx();
+
+      // Bei Deaktivierung: aus allen offenen Besprechungen dieses Projekts entfernen.
+      for (const it of normalized) {
+        const key = keyOf(it.kind, it.personId);
+        const prev = existingActiveByKey.has(key) ? existingActiveByKey.get(key) : 1;
+        const next = normalizeActive(it?.isActive, 1);
+        if (prev === 1 && next === 0) {
+          removePersonFromOpenMeetings(db, {
+            projectId,
+            kind: it.kind,
+            personId: it.personId,
+          });
+        }
+      }
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
@@ -461,17 +492,48 @@ function registerParticipantsIpc() {
       if (!personId) return { ok: false, error: "personId fehlt." };
 
       const db = initDatabase();
-      const info = db
-        .prepare(
+      const now = new Date().toISOString();
+      const pid = String(personId);
+      let info = null;
+
+      const tx = db.transaction(() => {
+        info = db
+          .prepare(
+            `
+            UPDATE project_candidates
+            SET is_active = ?, updated_at = ?
+            WHERE project_id = ?
+              AND kind = ?
+              AND person_id = ?
           `
-          UPDATE project_candidates
-          SET is_active = ?, updated_at = (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-          WHERE project_id = ?
-            AND kind = ?
-            AND person_id = ?
-        `
-        )
-        .run(isActive, projectId, kind, String(personId));
+          )
+          .run(isActive, now, projectId, kind, pid);
+
+        if (Number(info?.changes || 0) > 0) return;
+
+        db
+          .prepare(
+            `
+            INSERT INTO project_candidates (
+              project_id, kind, person_id, is_active, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+          `
+          )
+          .run(projectId, kind, pid, isActive, now, now);
+
+        info = { changes: 1 };
+      });
+
+      tx();
+
+      if (isActive === 0) {
+        removePersonFromOpenMeetings(db, {
+          projectId,
+          kind,
+          personId: pid,
+        });
+      }
 
       return {
         ok: true,
@@ -479,7 +541,7 @@ function registerParticipantsIpc() {
           changed: Number(info?.changes || 0),
           projectId,
           kind,
-          personId: String(personId),
+          personId: pid,
           is_active: isActive,
         },
       };

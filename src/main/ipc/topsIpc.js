@@ -14,6 +14,7 @@ const personsRepo = require("../db/personsRepo");
 const projectFirmsRepo = require("../db/projectFirmsRepo");
 const projectPersonsRepo = require("../db/projectPersonsRepo");
 const { appSettingsGetMany } = require("../db/appSettingsRepo");
+const { initDatabase } = require("../db/database");
 
 const { createTopService } = require("../domain/TopService");
 const { createFirmService } = require("../domain/FirmService");
@@ -89,6 +90,41 @@ function _sortFirmsByRoleOrder(list, roleOrder) {
 function _normStr(v) {
   if (v === undefined || v === null) return "";
   return String(v).trim();
+}
+
+function _cleanupGlobalPersonLinks(personId) {
+  if (!personId) return { openMeetingsRemoved: 0, poolRemoved: 0 };
+  const db = initDatabase();
+
+  const delOpen = db
+    .prepare(
+      `
+      DELETE FROM meeting_participants
+      WHERE kind = 'global_person'
+        AND person_id = ?
+        AND meeting_id IN (
+          SELECT id
+          FROM meetings
+          WHERE is_closed = 0
+        )
+    `
+    )
+    .run(String(personId));
+
+  const delPool = db
+    .prepare(
+      `
+      DELETE FROM project_candidates
+      WHERE kind = 'global_person'
+        AND person_id = ?
+    `
+    )
+    .run(String(personId));
+
+  return {
+    openMeetingsRemoved: Number(delOpen?.changes || 0),
+    poolRemoved: Number(delPool?.changes || 0),
+  };
 }
 
 function _resolveImportTarget(payload) {
@@ -1332,8 +1368,9 @@ function registerTopsIpc() {
 
   ipcMain.handle("persons:delete", (_e, personId) => {
     try {
+      const cleanup = _cleanupGlobalPersonLinks(personId);
       const info = personsRepo.markTrashed(personId);
-      return { ok: true, info };
+      return { ok: true, info, cleanup };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
     }

@@ -177,6 +177,9 @@ class MeetingService {
   createMeeting({ projectId, title }) {
     if (!projectId) throw new Error("projectId required");
 
+    const openMeeting = this.meetingsRepo.getOpenMeetingByProject(projectId);
+    if (openMeeting?.id) return openMeeting;
+
     // 1) Meeting anlegen
     const meeting = this.meetingsRepo.createMeeting({ projectId, title: title || null });
 

@@ -95,40 +95,52 @@ function createMeeting({ projectId, title }) {
   const db = initDatabase();
   if (!projectId) throw new Error("projectId required");
 
+  const existingOpen = getOpenMeetingByProject(projectId);
+  if (existingOpen?.id) return existingOpen;
+
   const id = randomUUID();
   const meetingIndex = getNextMeetingIndex(projectId);
   const now = new Date().toISOString();
 
-  db.prepare(`
-    INSERT INTO meetings (
+  try {
+    db.prepare(`
+      INSERT INTO meetings (
+        id,
+        project_id,
+        meeting_index,
+        title,
+        is_closed,
+        pdf_show_ampel,
+        todo_snapshot_json,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        @id,
+        @projectId,
+        @meetingIndex,
+        @title,
+        0,
+        NULL,
+        NULL,
+        @now,
+        @now
+      )
+    `).run({
       id,
-      project_id,
-      meeting_index,
-      title,
-      is_closed,
-      pdf_show_ampel,
-      todo_snapshot_json,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      @id,
-      @projectId,
-      @meetingIndex,
-      @title,
-      0,
-      NULL,
-      NULL,
-      @now,
-      @now
-    )
-  `).run({
-    id,
-    projectId,
-    meetingIndex,
-    title: title || null,
-    now,
-  });
+      projectId,
+      meetingIndex,
+      title: title || null,
+      now,
+    });
+  } catch (err) {
+    const msg = String(err?.message || "");
+    if (msg.toLowerCase().includes("idx_meetings_one_open_per_project")) {
+      const openAfterRace = getOpenMeetingByProject(projectId);
+      if (openAfterRace?.id) return openAfterRace;
+    }
+    throw err;
+  }
 
   return getMeetingById(id);
 }

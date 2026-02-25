@@ -6,6 +6,7 @@ const { ipcMain } = require("electron");
 const projectFirmsRepo = require("../db/projectFirmsRepo");
 const projectPersonsRepo = require("../db/projectPersonsRepo");
 const { appSettingsGetMany } = require("../db/appSettingsRepo");
+const { initDatabase } = require("../db/database");
 
 function _err(e) {
   return e?.message || String(e);
@@ -76,6 +77,57 @@ function _sortFirmsByRoleOrder(list, roleOrder) {
   });
 
   return out;
+}
+
+function _cleanupProjectPersonLinks(projectPersonId) {
+  if (!projectPersonId) return { openMeetingsRemoved: 0, poolRemoved: 0 };
+  const db = initDatabase();
+  const row = db
+    .prepare(
+      `
+      SELECT
+        pp.id AS person_id,
+        pf.project_id AS project_id
+      FROM project_persons pp
+      INNER JOIN project_firms pf ON pf.id = pp.project_firm_id
+      WHERE pp.id = ?
+      LIMIT 1
+    `
+    )
+    .get(projectPersonId);
+  if (!row?.project_id) return { openMeetingsRemoved: 0, poolRemoved: 0 };
+
+  const delOpen = db
+    .prepare(
+      `
+      DELETE FROM meeting_participants
+      WHERE kind = 'project_person'
+        AND person_id = ?
+        AND meeting_id IN (
+          SELECT id
+          FROM meetings
+          WHERE project_id = ?
+            AND is_closed = 0
+        )
+    `
+    )
+    .run(String(projectPersonId), row.project_id);
+
+  const delPool = db
+    .prepare(
+      `
+      DELETE FROM project_candidates
+      WHERE project_id = ?
+        AND kind = 'project_person'
+        AND person_id = ?
+    `
+    )
+    .run(row.project_id, String(projectPersonId));
+
+  return {
+    openMeetingsRemoved: Number(delOpen?.changes || 0),
+    poolRemoved: Number(delPool?.changes || 0),
+  };
 }
 
 function registerProjectFirmsIpc() {
@@ -223,8 +275,9 @@ function registerProjectFirmsIpc() {
 
   ipcMain.handle("projectPersons:delete", (_evt, projectPersonId) => {
     try {
+      const cleanup = _cleanupProjectPersonLinks(projectPersonId);
       const res = projectPersonsRepo.softDeleteProjectPerson(projectPersonId);
-      return { ok: true, result: res };
+      return { ok: true, result: res, cleanup };
     } catch (e) {
       return { ok: false, error: _err(e) };
     }
