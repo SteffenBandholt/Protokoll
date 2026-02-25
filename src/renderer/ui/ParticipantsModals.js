@@ -88,6 +88,20 @@ export default class ParticipantsModals {
     router?.refreshHeader?.();
   }
 
+  _syncRouterMeetingContext() {
+    const router = this.router || null;
+    if (!router) return;
+    const meetingId = this.meetingId || null;
+    if (String(router.currentMeetingId || "") === String(meetingId || "")) return;
+    router.currentMeetingId = meetingId;
+    if (typeof router._emitContextChange === "function") router._emitContextChange();
+    if (typeof router._refreshHeaderSafe === "function") {
+      router._refreshHeaderSafe();
+      return;
+    }
+    router?.refreshHeader?.();
+  }
+
   _rerenderCurrentModal() {
     if (!this.isOpen) return;
     if (this.mode === "candidates") {
@@ -179,6 +193,7 @@ export default class ParticipantsModals {
     this.titleEl.textContent = "Teilnehmer";
 
     await this._ensureOpenMeetingContext();
+    this._syncRouterMeetingContext();
     this.readOnly = false;
     await this._loadParticipantsData();
     this._renderParticipantsModal();
