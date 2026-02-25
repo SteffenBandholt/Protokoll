@@ -399,6 +399,7 @@ export default class ParticipantsModals {
     hideFirmRight = false,
     rightWidth = null,
     dividerOffsetMm = 0,
+    flushLeftToDivider = false,
   }) {
     const row = document.createElement("div");
     row.style.padding = "8px";
@@ -428,7 +429,7 @@ export default class ParticipantsModals {
     const left = document.createElement("div");
     left.style.flex = "1";
     left.style.minWidth = "0";
-    left.style.paddingRight = "8px";
+    left.style.paddingRight = flushLeftToDivider ? "0" : "8px";
 
     const { name, rolle, firm } = this._labelRow(person);
 
@@ -1240,6 +1241,7 @@ export default class ParticipantsModals {
         hideFirmRight: true,
         rightWidth: "172px",
         dividerOffsetMm: 14,
+        flushLeftToDivider: true,
         badgeText: invalidReason ? invalidReason : "",
         onDblClick: () => {
           if (this.readOnly) return;
