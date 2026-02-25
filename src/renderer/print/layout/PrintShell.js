@@ -394,6 +394,15 @@ function _buildIntro(page) {
   return wrap;
 }
 
+function _buildPreRemarks(page) {
+  const preRemarks = page?.preRemarks || null;
+  if (!preRemarks || preRemarks.type !== "preRemarks") return null;
+  const wrap = _el("section", "v2PreRemarksBlock");
+  wrap.appendChild(_el("div", "v2PreRemarksTitle", preRemarks.title || "Vorbemerkung zum Protokoll"));
+  wrap.appendChild(_el("div", "v2PreRemarksText", preRemarks.text || ""));
+  return wrap;
+}
+
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
   const profileKey = String(data?.printProfile?.key || "").trim();
@@ -417,11 +426,12 @@ export function renderPrint({ pages, data } = {}) {
     }
     const intro = _buildIntro(page);
     if (intro) pageEl.appendChild(intro);
+    const preRemarks = _buildPreRemarks(page);
+    if (preRemarks) pageEl.appendChild(preRemarks);
     const isTops = String(page?.table?.type || "") === "tops";
     const hasRows = (page?.table?.rows || []).length > 0;
-    const hasIntro = !!page?.intro;
-    // Wenn Seite 1 nur Intro enthält, darf die TOP-Tabelle nicht mit Kopf/Leerzeile starten.
-    const renderTable = !(isTops && hasIntro && !hasRows);
+    // Tops-Tabelle ohne Zeilen nicht rendern (sonst Tabellenkopf allein).
+    const renderTable = !(isTops && !hasRows);
     if (renderTable) pageEl.appendChild(_buildTable(page));
     pageEl.appendChild(_el("div", "v2FooterReserveSpacer"));
     pageEl.appendChild(_el("div", "v2FooterReserveMarker", `Footer-Reserve ${footerReserveMm} mm`));

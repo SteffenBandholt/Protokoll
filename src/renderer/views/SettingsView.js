@@ -131,6 +131,7 @@ export default class SettingsView {
     this.inpPdfFooterUseUserData = null;
     this.pdfFooterUseUserData = false;
     this.pdfPreRemarks = "";
+    this.pdfPreRemarksEnabled = false;
     this.btnPdfSettingsSave = null;
     this.btnPdfFooterUseUserData = null;
     this._pdfLogoDataUrl = "";
@@ -3019,6 +3020,20 @@ export default class SettingsView {
     label.textContent = "Vorbemerkung zum Protokoll";
     label.style.fontWeight = "700";
 
+    const enabledWrap = document.createElement("label");
+    enabledWrap.style.display = "inline-flex";
+    enabledWrap.style.alignItems = "center";
+    enabledWrap.style.gap = "8px";
+    enabledWrap.style.fontSize = "13px";
+    enabledWrap.style.userSelect = "none";
+
+    const chkEnabled = document.createElement("input");
+    chkEnabled.type = "checkbox";
+    chkEnabled.checked = !!this.pdfPreRemarksEnabled;
+    const enabledText = document.createElement("span");
+    enabledText.textContent = "Vorbemerkung drucken";
+    enabledWrap.append(chkEnabled, enabledText);
+
     const infoRow = document.createElement("div");
     infoRow.style.display = "flex";
     infoRow.style.justifyContent = "space-between";
@@ -3062,7 +3077,7 @@ export default class SettingsView {
     normalizeLocal();
     ta.addEventListener("input", normalizeLocal);
 
-    body.append(label, infoRow, ta);
+    body.append(label, enabledWrap, infoRow, ta);
 
     const footer = document.createElement("div");
     footer.style.display = "flex";
@@ -3115,16 +3130,19 @@ export default class SettingsView {
         const normalized = this._normalizePdfPreRemarks(ta.value);
         const res = await api.appSettingsSetMany({
           "pdf.preRemarks": normalized,
+          "print.preRemarks.enabled": chkEnabled.checked ? "true" : "false",
         });
         if (!res?.ok) {
           alert(res?.error || "Speichern fehlgeschlagen");
           return;
         }
         this.pdfPreRemarks = normalized;
+        this.pdfPreRemarksEnabled = !!chkEnabled.checked;
         if (this.router?.context) {
           this.router.context.settings = {
             ...(this.router.context.settings || {}),
             "pdf.preRemarks": normalized,
+            "print.preRemarks.enabled": chkEnabled.checked ? "true" : "false",
           };
         }
         close(true);
@@ -4168,6 +4186,7 @@ export default class SettingsView {
       footerUseUserData: false,
       protocolsDir: "C:\\Downloads",
       preRemarks: "",
+      preRemarksEnabled: false,
     };
   }
 
@@ -4250,12 +4269,14 @@ export default class SettingsView {
     const footerZip = this._normalizeUserZip(this.inpPdfFooterZip?.value);
     const footerCity = this._normalizeUserText(this.inpPdfFooterCity?.value, 80);
     const preRemarks = this._normalizePdfPreRemarks(this.pdfPreRemarks ?? defaults.preRemarks);
+    const preRemarksEnabled = this._parseBool(this.pdfPreRemarksEnabled, defaults.preRemarksEnabled);
 
     return {
       protocolTitle,
       trafficLightAllEnabled,
       protocolsDir,
       preRemarks,
+      preRemarksEnabled,
       footerUseUserData,
       footerPlace,
       footerDate,
@@ -4283,6 +4304,7 @@ export default class SettingsView {
     if (this.inpPdfFooterZip) this.inpPdfFooterZip.value = values.footerZip || "";
     if (this.inpPdfFooterCity) this.inpPdfFooterCity.value = values.footerCity || "";
     this.pdfPreRemarks = this._normalizePdfPreRemarks(values.preRemarks || "");
+    this.pdfPreRemarksEnabled = this._parseBool(values.preRemarksEnabled, false);
   }
 
   _schedulePdfSettingsSave() {
@@ -4323,6 +4345,7 @@ export default class SettingsView {
         "pdf.trafficLightAllEnabled": values.trafficLightAllEnabled ? "true" : "false",
         "pdf.protocolsDir": values.protocolsDir,
         "pdf.preRemarks": values.preRemarks,
+        "print.preRemarks.enabled": values.preRemarksEnabled ? "true" : "false",
         "pdf.footerPlace": values.footerPlace,
         "pdf.footerDate": values.footerDate,
         "pdf.footerName1": values.footerName1,
@@ -4345,6 +4368,7 @@ export default class SettingsView {
           "pdf.trafficLightAllEnabled": values.trafficLightAllEnabled ? "true" : "false",
           "pdf.protocolsDir": values.protocolsDir,
           "pdf.preRemarks": values.preRemarks,
+          "print.preRemarks.enabled": values.preRemarksEnabled ? "true" : "false",
           "pdf.footerPlace": values.footerPlace,
           "pdf.footerDate": values.footerDate,
           "pdf.footerName1": values.footerName1,
@@ -5411,6 +5435,7 @@ export default class SettingsView {
       "pdf.trafficLightAllEnabled",
       "pdf.protocolsDir",
       "pdf.preRemarks",
+      "print.preRemarks.enabled",
       "pdf.footerPlace",
       "pdf.footerDate",
       "pdf.footerName1",
@@ -5661,6 +5686,10 @@ export default class SettingsView {
     const preRemarksRaw = data["pdf.preRemarks"];
     const preRemarks =
       preRemarksRaw == null ? pdfSettingsDefaults.preRemarks : String(preRemarksRaw);
+    const preRemarksEnabled = this._parseBool(
+      data["print.preRemarks.enabled"],
+      pdfSettingsDefaults.preRemarksEnabled
+    );
     const footerUseUserData = this._parseBool(
       data["pdf.footerUseUserData"],
       pdfSettingsDefaults.footerUseUserData
@@ -5679,6 +5708,7 @@ export default class SettingsView {
       trafficLightAllEnabled,
       protocolsDir,
       preRemarks,
+      preRemarksEnabled,
       footerUseUserData,
       footerPlace,
       footerDate,
@@ -5793,6 +5823,7 @@ export default class SettingsView {
         "pdf.protocolTitle": pdfValuesForSave.protocolTitle,
         "pdf.trafficLightAllEnabled": pdfValuesForSave.trafficLightAllEnabled ? "true" : "false",
         "pdf.preRemarks": pdfValuesForSave.preRemarks,
+        "print.preRemarks.enabled": pdfValuesForSave.preRemarksEnabled ? "true" : "false",
         "pdf.footerPlace": pdfValuesForSave.footerPlace,
         "pdf.footerDate": pdfValuesForSave.footerDate,
         "pdf.footerName1": pdfValuesForSave.footerName1,
@@ -5821,6 +5852,7 @@ export default class SettingsView {
           "pdf.protocolTitle": pdfValuesForSave.protocolTitle,
           "pdf.trafficLightAllEnabled": pdfValuesForSave.trafficLightAllEnabled ? "true" : "false",
           "pdf.preRemarks": pdfValuesForSave.preRemarks,
+          "print.preRemarks.enabled": pdfValuesForSave.preRemarksEnabled ? "true" : "false",
           "pdf.footerPlace": pdfValuesForSave.footerPlace,
           "pdf.footerDate": pdfValuesForSave.footerDate,
           "pdf.footerName1": pdfValuesForSave.footerName1,

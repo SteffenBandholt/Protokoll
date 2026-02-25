@@ -413,6 +413,26 @@
   opacity: 0.7;
 }
 
+.printV2Root .v2PreRemarksBlock {
+  margin: 0 0 3mm 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.printV2Root .v2PreRemarksTitle {
+  font-size: 10pt;
+  font-weight: 700;
+  margin: 0 0 1.2mm 0;
+}
+
+.printV2Root .v2PreRemarksText {
+  font-size: 10pt;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 /* Sichtbarer Footer-Schutzbereich (Debug/Abnahme) */
 .printV2Root .v2FooterReserveSpacer {
   height: var(--v2-footer-reserve, 12mm);

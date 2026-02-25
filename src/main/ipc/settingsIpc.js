@@ -192,6 +192,7 @@ function registerSettingsIpc() {
         "pdf.footerZip",
         "pdf.footerCity",
         "pdf.footerUseUserData",
+        "print.preRemarks.enabled",
         "print.logo1.enabled",
         "print.logo1.size",
         "print.logo1.align",

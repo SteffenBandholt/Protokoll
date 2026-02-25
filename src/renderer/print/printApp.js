@@ -440,6 +440,42 @@ function _buildParticipantsIntroElement(intro) {
   return wrap;
 }
 
+function _parseBoolSetting(v, fallback = false) {
+  const s = String(v ?? "").trim().toLowerCase();
+  if (!s) return !!fallback;
+  return ["1", "true", "yes", "ja", "on"].includes(s);
+}
+
+function _buildPreRemarksData(data) {
+  const mode = String(data?.mode || "").trim().toLowerCase();
+  if (!["protocol", "preview", "vorabzug"].includes(mode)) return null;
+  const settings = data?.settings || {};
+  const enabled = _parseBoolSetting(settings["print.preRemarks.enabled"], false);
+  if (!enabled) return null;
+  const text = String(settings["pdf.preRemarks"] || "").replace(/\r\n?/g, "\n").trim();
+  if (!text) return null;
+  return { type: "preRemarks", title: "Vorbemerkung zum Protokoll", text };
+}
+
+function _buildPreRemarksElement(preRemarks) {
+  if (!preRemarks || preRemarks.type !== "preRemarks") return null;
+  const wrap = _el("section", "v2PreRemarksBlock");
+  wrap.appendChild(_el("div", "v2PreRemarksTitle", preRemarks.title || "Vorbemerkung zum Protokoll"));
+  const body = _el("div", "v2PreRemarksText", preRemarks.text || "");
+  wrap.appendChild(body);
+  return wrap;
+}
+
+function _measurePreRemarksHeight(ctx, preRemarks) {
+  if (!ctx || !preRemarks) return 0;
+  const el = _buildPreRemarksElement(preRemarks);
+  if (!el) return 0;
+  ctx.root.querySelector(".page")?.appendChild(el);
+  const h = Math.ceil(el.getBoundingClientRect().height);
+  el.remove();
+  return Math.max(0, h);
+}
+
 function _measureIntroHeight(ctx, intro) {
   if (!ctx || !intro) return 0;
   const introEl = _buildParticipantsIntroElement(intro);
@@ -606,6 +642,9 @@ function _paginateTops(data) {
     firstCap,
     nextCap,
   });
+  const preRemarks = _buildPreRemarksData(data);
+  const preRemarksHeight = _measurePreRemarksHeight(ctxNext || ctxFirst, preRemarks);
+  let preRemarksPending = !!preRemarks;
   const introChunks = introPlan.chunks;
   const introHeights = introPlan.heights;
   let pageIndex = 0;
@@ -655,6 +694,7 @@ function _paginateTops(data) {
   let currentPage = {
     header: { projectLabel, docLabel },
     intro: introChunks[0] || null,
+    preRemarks: null,
     table: { type: "tops", rows: [] },
   };
   let remaining = firstPageBodyHeight;
@@ -668,6 +708,7 @@ function _paginateTops(data) {
     currentPage = {
       header: { projectLabel, docLabel },
       intro: introForPage,
+      preRemarks: null,
       table: { type: "tops", rows: [] },
     };
     remaining = Math.max(0, cap - introHeight);
@@ -676,6 +717,27 @@ function _paginateTops(data) {
   const addRow = (rowData, rowHeight) => {
     currentPage.table.rows.push(rowData);
     remaining -= rowHeight;
+  };
+
+  const ensurePreRemarksPlaced = () => {
+    if (!preRemarksPending) return;
+    while (preRemarksPending) {
+      if (currentPage.table.rows.length) return;
+      const pageCap = pageIndex === 0 ? firstCap : nextCap;
+      if (preRemarksHeight > pageCap) {
+        currentPage.preRemarks = preRemarks;
+        remaining = Math.max(0, remaining - preRemarksHeight);
+        preRemarksPending = false;
+        return;
+      }
+      if (remaining >= preRemarksHeight) {
+        currentPage.preRemarks = preRemarks;
+        remaining -= preRemarksHeight;
+        preRemarksPending = false;
+        return;
+      }
+      pushPage();
+    }
   };
 
   const findNextLevel2Index = (startIdx) => {
@@ -690,6 +752,7 @@ function _paginateTops(data) {
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const level = item.fullRow.level;
+    ensurePreRemarksPlaced();
 
     // Harte Start-Regel pro Seite:
     // Tabelle darf auf einer neuen Seite erst starten, wenn dort
@@ -771,9 +834,16 @@ function _paginateTops(data) {
     }
   }
 
-  if (currentPage.table.rows.length || currentPage.intro) pages.push(currentPage);
+  ensurePreRemarksPlaced();
+
+  if (currentPage.table.rows.length || currentPage.intro || currentPage.preRemarks) pages.push(currentPage);
   if (!pages.length) {
-    pages.push({ header: { projectLabel, docLabel }, intro: introChunks[0] || null, table: { type: "tops", rows: [] } });
+    pages.push({
+      header: { projectLabel, docLabel },
+      intro: introChunks[0] || null,
+      preRemarks: preRemarksPending ? preRemarks : null,
+      table: { type: "tops", rows: [] },
+    });
   }
 
   const total = pages.length || 1;
