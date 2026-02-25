@@ -2362,11 +2362,6 @@ export default class SettingsView {
             return;
           }
         }
-        if (!this.devUnlocked) {
-          alert("Entwicklung ist gesperrt");
-          return;
-        }
-        this.devUnlocked = false;
         this._devPopupOpen = true;
         await loadDbDiagnostics();
         await loadTopLimitSettings();
@@ -2589,17 +2584,6 @@ export default class SettingsView {
 
     this.root = root;
     this.msgEl = msg;
-    if (!this._devUnlockHandler) {
-      this._devUnlockHandler = (e) => {
-        if (!e.ctrlKey || !e.altKey || e.code !== "KeyD") return;
-        e.preventDefault();
-        this.devUnlocked = true;
-        this._setMsg("Entwicklung freigeschaltet (einmalig)");
-        if (this._devUnlockMsgTimer) clearTimeout(this._devUnlockMsgTimer);
-        this._devUnlockMsgTimer = setTimeout(() => this._setMsg(""), 1200);
-      };
-      document.addEventListener("keydown", this._devUnlockHandler);
-    }
     this.inpUserName1 = inpUserName1;
     this.inpUserName2 = inpUserName2;
     this.inpUserStreet = inpUserStreet;
