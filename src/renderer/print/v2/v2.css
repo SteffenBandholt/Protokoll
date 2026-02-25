@@ -1,6 +1,7 @@
 /* Print V2 â€“ Header styles (Version A) */
 
 .printV2Root .page {
+  position: relative;
   padding-top: var(--v2-pad-top, 2mm);
   padding-left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
   padding-right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
@@ -410,4 +411,27 @@
 
 .printV2Root .v2PartEmpty {
   opacity: 0.7;
+}
+
+/* Sichtbarer Footer-Schutzbereich (Debug/Abnahme) */
+.printV2Root .v2FooterReserveSpacer {
+  height: 12mm;
+  min-height: 12mm;
+  flex: 0 0 auto;
+}
+
+.printV2Root .v2FooterReserveMarker {
+  position: absolute;
+  left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
+  right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
+  bottom: var(--v2-pad-bottom, 18mm);
+  height: 12mm;
+  border-top: 0.3mm dashed #b71c1c;
+  background: rgba(183, 28, 28, 0.06);
+  color: #7f1d1d;
+  font-size: 7.5pt;
+  line-height: 1.2;
+  padding: 0.8mm 1mm 0 1mm;
+  box-sizing: border-box;
+  pointer-events: none;
 }

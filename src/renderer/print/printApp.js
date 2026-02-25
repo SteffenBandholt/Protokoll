@@ -283,6 +283,21 @@ function _buildMeasureRoot() {
   return root;
 }
 
+function _mmToPx(mm) {
+  const probe = document.createElement("div");
+  probe.style.position = "absolute";
+  probe.style.left = "-10000px";
+  probe.style.top = "-10000px";
+  probe.style.width = "100mm";
+  probe.style.height = "1px";
+  probe.style.visibility = "hidden";
+  document.body.appendChild(probe);
+  const pxPerMm = probe.getBoundingClientRect().width / 100;
+  probe.remove();
+  const factor = Number.isFinite(pxPerMm) && pxPerMm > 0 ? pxPerMm : 3.78;
+  return Math.max(0, Number(mm) || 0) * factor;
+}
+
 function _buildPageHeaderForMeasure(projectLabel, docLabel) {
   const header = _el("div", "pageHeader");
   header.appendChild(_el("div", "headerLeft", projectLabel));
@@ -425,6 +440,61 @@ function _buildParticipantsIntroElement(intro) {
   return wrap;
 }
 
+function _measureIntroHeight(ctx, intro) {
+  if (!ctx || !intro) return 0;
+  const introEl = _buildParticipantsIntroElement(intro);
+  if (!introEl) return 0;
+  ctx.root.querySelector(".page")?.appendChild(introEl);
+  const h = Math.ceil(introEl.getBoundingClientRect().height);
+  introEl.remove();
+  return Math.max(0, h);
+}
+
+function _buildParticipantsIntroPlan({ intro, ctxFirst, ctxNext, firstCap, nextCap }) {
+  if (!intro) return { chunks: [], heights: [] };
+  const rows = Array.isArray(intro.rows) ? intro.rows : [];
+  if (!rows.length) {
+    const h = _measureIntroHeight(ctxFirst, intro);
+    return { chunks: [intro], heights: [h] };
+  }
+
+  const chunks = [];
+  const heights = [];
+  let idx = 0;
+  let pageNo = 0;
+
+  while (idx < rows.length) {
+    const cap = pageNo === 0 ? firstCap : nextCap;
+    const ctx = pageNo === 0 ? ctxFirst : (ctxNext || ctxFirst);
+    const chunkRows = [];
+    let lastGoodHeight = 0;
+    while (idx < rows.length) {
+      const candidateRows = chunkRows.concat(rows[idx]);
+      const candidateIntro = { ...intro, rows: candidateRows };
+      const candidateHeight = _measureIntroHeight(ctx, candidateIntro);
+      if (candidateHeight <= cap) {
+        chunkRows.push(rows[idx]);
+        lastGoodHeight = candidateHeight;
+        idx += 1;
+        continue;
+      }
+      if (!chunkRows.length) {
+        // Eine einzelne Zeile passt nie in den Intro-Block: trotzdem nicht verlieren.
+        chunkRows.push(rows[idx]);
+        lastGoodHeight = candidateHeight;
+        idx += 1;
+      }
+      break;
+    }
+    const chunk = { ...intro, rows: chunkRows };
+    chunks.push(chunk);
+    heights.push(lastGoodHeight || _measureIntroHeight(ctx, chunk));
+    pageNo += 1;
+  }
+
+  return { chunks, heights };
+}
+
 function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind = "legacy" }) {
   const root = _buildMeasureRoot();
   const page = _el("div", "page");
@@ -463,7 +533,8 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const tbodyRect = tbody.getBoundingClientRect();
   const contentTop = pageRect.top + padTop;
   const offset = tbodyRect.top - contentTop;
-  const maxBodyHeight = innerHeight - offset;
+  const footerReservePx = _mmToPx(12);
+  const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx);
 
   const measureRow = (rowEl) => {
     tbody.innerHTML = "";
@@ -525,16 +596,19 @@ function _paginateTops(data) {
   const ctxNext = _createMeasureContext({ type: "tops", projectLabel, docLabel, data, headerKind: "mini" });
   const rowMeasureCtx = ctxNext || ctxFirst;
   const intro = _buildParticipantsIntroData(data);
-  let firstPageBodyHeight = ctxFirst.maxBodyHeight;
-  if (intro) {
-    const introEl = _buildParticipantsIntroElement(intro);
-    if (introEl) {
-      ctxFirst.root.querySelector(".page")?.appendChild(introEl);
-      const introHeight = Math.ceil(introEl.getBoundingClientRect().height);
-      introEl.remove();
-      firstPageBodyHeight = Math.max(0, ctxFirst.maxBodyHeight - introHeight);
-    }
-  }
+  const firstCap = ctxFirst.maxBodyHeight;
+  const nextCap = ctxNext?.maxBodyHeight || ctxFirst.maxBodyHeight;
+  const introPlan = _buildParticipantsIntroPlan({
+    intro,
+    ctxFirst,
+    ctxNext,
+    firstCap,
+    nextCap,
+  });
+  const introChunks = introPlan.chunks;
+  const introHeights = introPlan.heights;
+  let pageIndex = 0;
+  let firstPageBodyHeight = Math.max(0, firstCap - (introHeights[0] || 0));
 
   const tops = Array.isArray(data.tops) ? data.tops : [];
   const ampelMap = computeAmpelMapForTops({
@@ -579,19 +653,23 @@ function _paginateTops(data) {
   const pages = [];
   let currentPage = {
     header: { projectLabel, docLabel },
-    intro: intro || null,
+    intro: introChunks[0] || null,
     table: { type: "tops", rows: [] },
   };
   let remaining = firstPageBodyHeight;
 
   const pushPage = () => {
     pages.push(currentPage);
+    pageIndex += 1;
+    const cap = pageIndex === 0 ? firstCap : nextCap;
+    const introForPage = introChunks[pageIndex] || null;
+    const introHeight = introForPage ? (introHeights[pageIndex] || 0) : 0;
     currentPage = {
       header: { projectLabel, docLabel },
-      intro: null,
+      intro: introForPage,
       table: { type: "tops", rows: [] },
     };
-    remaining = ctxNext?.maxBodyHeight || ctxFirst.maxBodyHeight;
+    remaining = Math.max(0, cap - introHeight);
   };
 
   const addRow = (rowData, rowHeight) => {
@@ -692,9 +770,9 @@ function _paginateTops(data) {
     }
   }
 
-  if (currentPage.table.rows.length) pages.push(currentPage);
+  if (currentPage.table.rows.length || currentPage.intro) pages.push(currentPage);
   if (!pages.length) {
-    pages.push({ header: { projectLabel, docLabel }, intro: intro || null, table: { type: "tops", rows: [] } });
+    pages.push({ header: { projectLabel, docLabel }, intro: introChunks[0] || null, table: { type: "tops", rows: [] } });
   }
 
   const total = pages.length || 1;

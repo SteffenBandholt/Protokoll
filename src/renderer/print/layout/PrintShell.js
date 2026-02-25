@@ -418,6 +418,8 @@ export function renderPrint({ pages, data } = {}) {
     // Wenn Seite 1 nur Intro enthält, darf die TOP-Tabelle nicht mit Kopf/Leerzeile starten.
     const renderTable = !(isTops && hasIntro && !hasRows);
     if (renderTable) pageEl.appendChild(_buildTable(page));
+    pageEl.appendChild(_el("div", "v2FooterReserveSpacer"));
+    pageEl.appendChild(_el("div", "v2FooterReserveMarker", "Footer-Reserve 12 mm"));
     root.appendChild(pageEl);
   }
   return root;
