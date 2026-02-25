@@ -565,6 +565,16 @@ function _listMeetingParticipants(db, meetingId) {
         END AS rolle,
 
         CASE
+          WHEN mp.kind = 'project_person' THEN COALESCE(pp.phone, '')
+          ELSE COALESCE(p.phone, '')
+        END AS telefon,
+
+        CASE
+          WHEN mp.kind = 'project_person' THEN COALESCE(pp.email, '')
+          ELSE COALESCE(p.email, '')
+        END AS email,
+
+        CASE
           WHEN mp.kind = 'project_person' THEN COALESCE(pf.short, pf.name, '')
           ELSE COALESCE(f.short, f.name, '')
         END AS firm

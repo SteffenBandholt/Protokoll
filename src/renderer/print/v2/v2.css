@@ -1,4 +1,4 @@
-/* Print V2 – Header styles (Version A) */
+/* Print V2 â€“ Header styles (Version A) */
 
 .printV2Root .page {
   padding-top: var(--v2-pad-top, 2mm);
@@ -305,4 +305,108 @@
 
 .printV2Root .v2MiniGapLineBody {
   height: var(--v2-mini-gap-line-body, 3mm);
+}
+
+/* Teilnehmerliste (Protokoll) */
+.printV2Root .v2ParticipantsBlock {
+  margin: 0 0 3mm 0;
+}
+
+.printV2Root .v2ParticipantsTitle {
+  font-size: 10pt;
+  font-weight: 700;
+  margin: 0 0 1.2mm 0;
+}
+
+.printV2Root .v2ParticipantsTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.printV2Root .v2ParticipantsTable th,
+.printV2Root .v2ParticipantsTable td {
+  border-bottom: 1px solid #cfd8dc;
+  padding: 1.5mm 1.4mm;
+  text-align: left;
+  vertical-align: top;
+  font-size: 9.3pt;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.printV2Root .v2ParticipantsTable th {
+  background: #efefef;
+  font-weight: 700;
+}
+
+.printV2Root .v2PartColName {
+  width: 34mm;
+}
+
+.printV2Root .v2PartColRole {
+  width: 35mm;
+}
+
+.printV2Root .v2PartColFirm {
+  width: 42mm;
+}
+
+.printV2Root .v2PartColContact {
+  width: 60.12mm;
+}
+
+.printV2Root .v2PartColMarks {
+  width: 14.88mm;
+  text-align: center !important;
+}
+
+.printV2Root .v2PartMarksHead {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4mm;
+  font-size: 7pt;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.printV2Root .v2PartContactHead {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.4mm;
+  font-size: 7pt;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.printV2Root .v2PartContactStack {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7mm;
+}
+
+.printV2Root .v2PartContactRow {
+  min-height: 3mm;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.printV2Root .v2PartMarks {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5mm;
+}
+
+.printV2Root .v2PartMarkRow {
+  min-height: 3mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10pt;
+  font-weight: 600;
+}
+
+.printV2Root .v2PartEmpty {
+  opacity: 0.7;
 }

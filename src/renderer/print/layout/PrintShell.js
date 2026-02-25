@@ -1,4 +1,4 @@
-﻿import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
+import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
 import { renderV2FullHeader } from "../v2/header/FullHeader.js";
 import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
@@ -319,6 +319,79 @@ function _buildTable(page) {
   return table;
 }
 
+function _buildIntro(page) {
+  const intro = page?.intro || null;
+  if (!intro || intro.type !== "participants") return null;
+
+  const wrap = _el("section", "v2ParticipantsBlock");
+  wrap.appendChild(_el("div", "v2ParticipantsTitle", intro.title || "Teilnehmer"));
+
+  const table = document.createElement("table");
+  table.className = "v2ParticipantsTable";
+
+  const thead = document.createElement("thead");
+  const trHead = document.createElement("tr");
+  trHead.innerHTML = `
+    <th class="v2PartColName">Name</th>
+    <th class="v2PartColRole">Funktion</th>
+    <th class="v2PartColFirm">Firma</th>
+    <th class="v2PartColContact">
+      <div class="v2PartContactHead">
+        <span>Telefon</span>
+        <span>E-Mail</span>
+      </div>
+    </th>
+    <th class="v2PartColMarks">
+      <div class="v2PartMarksHead">
+        <span>Anwesend</span>
+        <span>Verteiler</span>
+      </div>
+    </th>
+  `;
+  thead.appendChild(trHead);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  const rows = Array.isArray(intro.rows) ? intro.rows : [];
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = _el("td", "v2PartEmpty", "Keine Teilnehmer vorhanden.");
+    td.colSpan = 5;
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  } else {
+    for (const row of rows) {
+      const tr = document.createElement("tr");
+      const contactTd = _el("td", "v2PartColContact");
+      const contactStack = _el("div", "v2PartContactStack");
+      contactStack.append(
+        _el("div", "v2PartContactRow", String(row?.phone || "-")),
+        _el("div", "v2PartContactRow", String(row?.email || "-"))
+      );
+      contactTd.appendChild(contactStack);
+      tr.append(
+        _el("td", "v2PartColName", String(row?.name || "")),
+        _el("td", "v2PartColRole", String(row?.role || "")),
+        _el("td", "v2PartColFirm", String(row?.firm || ""))
+      );
+      tr.appendChild(contactTd);
+      const marksTd = _el("td", "v2PartColMarks");
+      const marks = _el("div", "v2PartMarks");
+      marks.append(
+        _el("div", "v2PartMarkRow", String(row?.presentMark || "-")),
+        _el("div", "v2PartMarkRow", String(row?.distributionMark || "-"))
+      );
+      marksTd.appendChild(marks);
+      tr.appendChild(marksTd);
+      tbody.appendChild(tr);
+    }
+  }
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
   const profileKey = String(data?.printProfile?.key || "").trim();
@@ -337,6 +410,8 @@ export function renderPrint({ pages, data } = {}) {
     } else {
       pageEl.appendChild(renderV2MiniHeader({ data, pageNo, totalPages, modeLabel }));
     }
+    const intro = _buildIntro(page);
+    if (intro) pageEl.appendChild(intro);
     pageEl.appendChild(_buildTable(page));
     root.appendChild(pageEl);
   }

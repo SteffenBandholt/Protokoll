@@ -1,4 +1,4 @@
-﻿import { renderPrint } from "./layout/PrintShell.js";
+import { renderPrint } from "./layout/PrintShell.js";
 import { computeAmpelColorForTop, computeAmpelMapForTops } from "../../shared/ampel/pdfAmpelRule.js";
 import { renderHeaderTestPages } from "./headerTest/HeaderTestPages.js";
 import { renderV2GlobalHeader } from "./v2/header/GlobalHeader.js";
@@ -326,6 +326,105 @@ function _buildColGroup(type) {
   return colgroup;
 }
 
+function _buildParticipantsIntroData(data) {
+  const mode = String(data?.mode || "").trim().toLowerCase();
+  if (!["protocol", "preview", "vorabzug"].includes(mode)) return null;
+  const src = Array.isArray(data?.participants) ? data.participants : [];
+  const rows = src.map((p) => {
+    const name = String(p?.name || "").trim();
+    const role = String(p?.rolle || p?.role || "").trim();
+    const firm = String(p?.firm || "").trim();
+    const mobileOrFunk = String(
+      p?.handy ?? p?.mobile ?? p?.funk ?? p?.mobil ?? p?.cell ?? ""
+    ).trim();
+    const phoneFallback = String(p?.telefon ?? p?.phone ?? "").trim();
+    const phone = mobileOrFunk || phoneFallback;
+    const email = String(p?.email || "").trim();
+    const isPresent = Number(p?.isPresent ?? p?.is_present ?? 0) === 1;
+    const isInDistribution = Number(p?.isInDistribution ?? p?.is_in_distribution ?? 0) === 1;
+    return {
+      name,
+      role,
+      firm,
+      phone,
+      email,
+      presentMark: isPresent ? "x" : "-",
+      distributionMark: isInDistribution ? "x" : "-",
+    };
+  });
+  return { type: "participants", title: "Teilnehmer", rows };
+}
+
+function _buildParticipantsIntroElement(intro) {
+  if (!intro || intro.type !== "participants") return null;
+  const wrap = _el("section", "v2ParticipantsBlock");
+  wrap.appendChild(_el("div", "v2ParticipantsTitle", intro.title || "Teilnehmer"));
+
+  const table = document.createElement("table");
+  table.className = "v2ParticipantsTable";
+
+  const thead = document.createElement("thead");
+  const trHead = document.createElement("tr");
+  trHead.innerHTML = `
+    <th class="v2PartColName">Name</th>
+    <th class="v2PartColRole">Funktion</th>
+    <th class="v2PartColFirm">Firma</th>
+    <th class="v2PartColContact">
+      <div class="v2PartContactHead">
+        <span>Telefon</span>
+        <span>E-Mail</span>
+      </div>
+    </th>
+    <th class="v2PartColMarks">
+      <div class="v2PartMarksHead">
+        <span>Anwesend</span>
+        <span>Verteiler</span>
+      </div>
+    </th>
+  `;
+  thead.appendChild(trHead);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  const rows = Array.isArray(intro.rows) ? intro.rows : [];
+  if (!rows.length) {
+    const tr = document.createElement("tr");
+    const td = _el("td", "v2PartEmpty", "Keine Teilnehmer vorhanden.");
+    td.colSpan = 5;
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  } else {
+    rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      const contactTd = _el("td", "v2PartColContact");
+      const contactStack = _el("div", "v2PartContactStack");
+      contactStack.append(
+        _el("div", "v2PartContactRow", row.phone || "-"),
+        _el("div", "v2PartContactRow", row.email || "-")
+      );
+      contactTd.appendChild(contactStack);
+      tr.append(
+        _el("td", "v2PartColName", row.name || ""),
+        _el("td", "v2PartColRole", row.role || ""),
+        _el("td", "v2PartColFirm", row.firm || "")
+      );
+      tr.appendChild(contactTd);
+      const marksTd = _el("td", "v2PartColMarks");
+      const marks = _el("div", "v2PartMarks");
+      marks.append(
+        _el("div", "v2PartMarkRow", row.presentMark || "-"),
+        _el("div", "v2PartMarkRow", row.distributionMark || "-")
+      );
+      marksTd.appendChild(marks);
+      tr.appendChild(marksTd);
+      tbody.appendChild(tr);
+    });
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
 function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind = "legacy" }) {
   const root = _buildMeasureRoot();
   const page = _el("div", "page");
@@ -422,7 +521,20 @@ function _findSplitText(ctx, rowData, maxLines) {
 function _paginateTops(data) {
   const projectLabel = _projectLabel(data.project);
   const docLabel = _docLabel(data.mode);
-  const ctx = _createMeasureContext({ type: "tops", projectLabel, docLabel });
+  const ctxFirst = _createMeasureContext({ type: "tops", projectLabel, docLabel, data, headerKind: "full" });
+  const ctxNext = _createMeasureContext({ type: "tops", projectLabel, docLabel, data, headerKind: "mini" });
+  const rowMeasureCtx = ctxNext || ctxFirst;
+  const intro = _buildParticipantsIntroData(data);
+  let firstPageBodyHeight = ctxFirst.maxBodyHeight;
+  if (intro) {
+    const introEl = _buildParticipantsIntroElement(intro);
+    if (introEl) {
+      ctxFirst.root.querySelector(".page")?.appendChild(introEl);
+      const introHeight = Math.ceil(introEl.getBoundingClientRect().height);
+      introEl.remove();
+      firstPageBodyHeight = Math.max(0, ctxFirst.maxBodyHeight - introHeight);
+    }
+  }
 
   const tops = Array.isArray(data.tops) ? data.tops : [];
   const ampelMap = computeAmpelMapForTops({
@@ -449,8 +561,8 @@ function _paginateTops(data) {
     const ampelColor = getAmpelColor(t);
     const fullRow = _buildTopRowData(t, null, ampelColor);
     const baseRow = t.longtext ? _buildTopRowData(t, "", ampelColor) : fullRow;
-    const fullMeasure = ctx.measureRow(_buildTopRowElement(fullRow));
-    const baseMeasure = ctx.measureRow(_buildTopRowElement(baseRow));
+    const fullMeasure = rowMeasureCtx.measureRow(_buildTopRowElement(fullRow));
+    const baseMeasure = rowMeasureCtx.measureRow(_buildTopRowElement(baseRow));
     const lineHeight = fullMeasure.lineHeight || baseMeasure.lineHeight || 14;
     return {
       top: t,
@@ -467,17 +579,19 @@ function _paginateTops(data) {
   const pages = [];
   let currentPage = {
     header: { projectLabel, docLabel },
+    intro: intro || null,
     table: { type: "tops", rows: [] },
   };
-  let remaining = ctx.maxBodyHeight;
+  let remaining = firstPageBodyHeight;
 
   const pushPage = () => {
     pages.push(currentPage);
     currentPage = {
       header: { projectLabel, docLabel },
+      intro: null,
       table: { type: "tops", rows: [] },
     };
-    remaining = ctx.maxBodyHeight;
+    remaining = ctxNext?.maxBodyHeight || ctxFirst.maxBodyHeight;
   };
 
   const addRow = (rowData, rowHeight) => {
@@ -526,7 +640,7 @@ function _paginateTops(data) {
     let text = item.fullRow.longtext;
     while (text) {
       const rowData = _buildTopRowData(item.top, text, item.ampelColor);
-      const measure = ctx.measureRow(_buildTopRowElement(rowData));
+      const measure = rowMeasureCtx.measureRow(_buildTopRowElement(rowData));
       const rowHeight = measure.height;
       const longLines = measure.longLines;
 
@@ -546,14 +660,14 @@ function _paginateTops(data) {
       }
 
       const allowedLines = Math.max(3, Math.floor((remaining - item.baseHeight) / item.lineHeight));
-      const part1 = _findSplitText(ctx, rowData, allowedLines);
+      const part1 = _findSplitText(rowMeasureCtx, rowData, allowedLines);
       if (!part1) {
         if (currentPage.table.rows.length) pushPage();
         continue;
       }
 
       const part1Data = _buildTopRowData(item.top, part1, item.ampelColor);
-      const part1Height = ctx.measureRow(_buildTopRowElement(part1Data)).height;
+      const part1Height = rowMeasureCtx.measureRow(_buildTopRowElement(part1Data)).height;
       addRow(part1Data, part1Height);
       pushPage();
       text = text.slice(part1.length).trimStart();
@@ -562,7 +676,7 @@ function _paginateTops(data) {
 
   if (currentPage.table.rows.length) pages.push(currentPage);
   if (!pages.length) {
-    pages.push({ header: { projectLabel, docLabel }, table: { type: "tops", rows: [] } });
+    pages.push({ header: { projectLabel, docLabel }, intro: intro || null, table: { type: "tops", rows: [] } });
   }
 
   const total = pages.length || 1;
@@ -571,7 +685,8 @@ function _paginateTops(data) {
     p.header.totalPages = total;
   });
 
-  ctx.cleanup();
+  ctxFirst.cleanup();
+  if (ctxNext) ctxNext.cleanup();
   console.log(`[PAGINATION] pages=${pages.length} firstPageRows=${pages[0]?.table?.rows?.length || 0}`);
   return pages;
 }
