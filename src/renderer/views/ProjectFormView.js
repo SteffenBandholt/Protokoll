@@ -408,8 +408,8 @@ export default class ProjectFormView {
     const inpName = mkInp("text");
     inpName.placeholder = "Bezeichnung / Name";
     inpName.required = true;
-    inpName.maxLength = 50;
-    applyWidthFromMaxLength(inpName, { fallback: 40, min: 28, max: 52 });
+    inpName.maxLength = 80;
+    applyWidthFromMaxLength(inpName, { fallback: 60, min: 28, max: 82 });
 
     // Projektnummer
     const inpProjectNumber = mkInp("text");
