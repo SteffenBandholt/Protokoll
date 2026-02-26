@@ -88,7 +88,11 @@ function _buildLogoBox(logo, labelNo, { adaptive = false, maxBottomMm = 45, metr
     return box;
   }
 
-  const placeholder = headerUtils.el("div", "v2LogoPlaceholder", "");
+  const placeholder = headerUtils.el(
+    "div",
+    "v2LogoPlaceholder",
+    "Logo optional - Einstellungen > Drucken > Logos"
+  );
   box.appendChild(placeholder);
   return box;
 }

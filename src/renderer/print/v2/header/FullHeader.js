@@ -25,9 +25,10 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const city = String(settings["pdf.footerCity"] || "").trim();
   const hasAnyUserField = !!(name1 || name2 || street || zip || city);
   const userBox = headerUtils.el("div", "v2UserBox");
+  const userHint = "Nutzerdaten fehlen - Einstellungen > Drucken > Nutzerdaten";
 
   if (!useUserData && !hasAnyUserField) {
-    userBox.appendChild(headerUtils.el("div", "v2UserPlaceholder", "Nutzerdaten fehlen"));
+    userBox.appendChild(headerUtils.el("div", "v2UserPlaceholder", userHint));
   } else {
     if (name1) userBox.appendChild(headerUtils.el("div", "v2UserRow", name1));
     if (name2) userBox.appendChild(headerUtils.el("div", "v2UserRow", name2));
@@ -39,7 +40,7 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
       userBox.appendChild(zipCityRow);
     }
     if (!userBox.childNodes.length) {
-      userBox.appendChild(headerUtils.el("div", "v2UserPlaceholder", "Nutzerdaten fehlen"));
+      userBox.appendChild(headerUtils.el("div", "v2UserPlaceholder", userHint));
     }
   }
   right.appendChild(userBox);

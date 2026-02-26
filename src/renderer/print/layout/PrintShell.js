@@ -343,7 +343,9 @@ function _collectProtocolFooterLines(settings) {
   const footerCity = String(settings?.["pdf.footerCity"] || "").trim();
   const linePlaceDate = [footerPlace, footerDate].filter((v) => v).join(", ");
   const lineZipCity = [footerZip, footerCity].filter((v) => v).join(" ").trim();
-  return [linePlaceDate, footerName1, footerName2, footerRecorder, footerStreet, lineZipCity].filter((v) => v);
+  const lines = [linePlaceDate, footerName1, footerName2, footerRecorder, footerStreet, lineZipCity].filter((v) => v);
+  if (lines.length) return lines;
+  return ["Keine Angaben - Einstellungen > Drucken > Protokoll-Fuss"];
 }
 
 function _buildProtocolFooter(data) {
@@ -447,7 +449,9 @@ function _buildPreRemarks(page) {
   if (!preRemarks || preRemarks.type !== "preRemarks") return null;
   const wrap = _el("section", "v2PreRemarksBlock");
   wrap.appendChild(_el("div", "v2PreRemarksTitle", preRemarks.title || "Vorbemerkung zum Protokoll"));
-  wrap.appendChild(_el("div", "v2PreRemarksText", preRemarks.text || ""));
+  const text = String(preRemarks.text || "").trim();
+  const hint = "Keine Vorbemerkung gesetzt - Einstellungen > Drucken > Vorbemerkung";
+  wrap.appendChild(_el("div", "v2PreRemarksText", text || hint));
   return wrap;
 }
 
