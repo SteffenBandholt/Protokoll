@@ -9,6 +9,8 @@ import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { fireAndForget } from "../utils/async.js";
 
+const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/BBM-bunt.png", import.meta.url).href;
+
 export default class TopsView {
   constructor({ router, projectId, meetingId }) {
     this.router = router;
@@ -2692,6 +2694,7 @@ export default class TopsView {
   _renderListOnly() {
     const list = this.listEl;
     list.innerHTML = "";
+    const hasLevel1Top = (this.items || []).some((top) => Number(top?.level) === 1);
 
     const movingTop = this.moveModeActive ? this.selectedTop : null;
     const fontSizes = this._getListFontSizes();
@@ -2921,6 +2924,35 @@ export default class TopsView {
       };
 
       list.appendChild(li);
+    }
+
+    if (!hasLevel1Top) {
+      const emptyWrap = document.createElement("div");
+      emptyWrap.style.display = "flex";
+      emptyWrap.style.flexDirection = "column";
+      emptyWrap.style.alignItems = "center";
+      emptyWrap.style.justifyContent = "center";
+      emptyWrap.style.gap = "10px";
+      emptyWrap.style.padding = "22px 10px";
+      emptyWrap.style.opacity = "0.95";
+
+      const img = document.createElement("img");
+      img.src = EMPTY_LEVEL1_HINT_PNG;
+      img.alt = "Hinweis erstes Level 1";
+      img.style.width = "220px";
+      img.style.maxWidth = "70%";
+      img.style.height = "auto";
+      img.style.objectFit = "contain";
+
+      const hint = document.createElement("div");
+      hint.textContent = "Mit Button  |+Titel|  den ersten Titel anlegen";
+      hint.style.fontSize = "14px";
+      hint.style.fontWeight = "600";
+      hint.style.textAlign = "center";
+      hint.style.color = "#1f2937";
+
+      emptyWrap.append(img, hint);
+      list.appendChild(emptyWrap);
     }
 
     this._updateMoveControls();
