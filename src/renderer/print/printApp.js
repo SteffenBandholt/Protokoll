@@ -584,7 +584,11 @@ function _measurePreRemarksHeight(ctx, preRemarks) {
   const el = _buildPreRemarksElement(preRemarks);
   if (!el) return 0;
   ctx.root.querySelector(".page")?.appendChild(el);
-  const h = Math.ceil(el.getBoundingClientRect().height);
+  const rectH = el.getBoundingClientRect().height;
+  const style = getComputedStyle(el);
+  const marginTop = parseFloat(style.marginTop) || 0;
+  const marginBottom = parseFloat(style.marginBottom) || 0;
+  const h = Math.ceil(rectH + marginTop + marginBottom);
   el.remove();
   return Math.max(0, h);
 }
@@ -594,7 +598,11 @@ function _measureIntroHeight(ctx, intro) {
   const introEl = _buildParticipantsIntroElement(intro);
   if (!introEl) return 0;
   ctx.root.querySelector(".page")?.appendChild(introEl);
-  const h = Math.ceil(introEl.getBoundingClientRect().height);
+  const rectH = introEl.getBoundingClientRect().height;
+  const style = getComputedStyle(introEl);
+  const marginTop = parseFloat(style.marginTop) || 0;
+  const marginBottom = parseFloat(style.marginBottom) || 0;
+  const h = Math.ceil(rectH + marginTop + marginBottom);
   introEl.remove();
   return Math.max(0, h);
 }
