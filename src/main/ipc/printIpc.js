@@ -31,6 +31,15 @@ function sanitizeFileName(name) {
   return safe.toLowerCase().endsWith(".pdf") ? safe : `${safe}.pdf`;
 }
 
+function sanitizeDirName(name) {
+  const s = String(name || "").trim() || "Projekt";
+  return s
+    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
 function uniquePath(dir, fileName) {
   const base = sanitizeFileName(fileName);
   const full = path.join(dir, base);
@@ -61,7 +70,38 @@ function buildPrintToPdfOptions() {
   };
 }
 
-async function _buildOutputPath({ fileName, targetDir, baseDir, projectNumber, overwrite } = {}) {
+function _folderForMode(mode) {
+  const m = String(mode || "").trim().toLowerCase();
+  if (m === "protocol") return "Protokolle";
+  if (m === "preview") return "Vorabzug";
+  if (m === "todo" || m === "topsall" || m === "firms") return "Listen";
+  if (m === "headertest") return "HeaderTest";
+  return "PDF";
+}
+
+function _projectFolderName(project, projectNumber) {
+  const number = String(
+    projectNumber ||
+      project?.project_number ||
+      project?.projectNumber ||
+      project?.number ||
+      ""
+  ).trim();
+  const short = String(project?.short || "").trim();
+  const name = String(project?.name || "").trim();
+  const label = short || name || "Projekt";
+  return number ? `${number}_${label}` : label;
+}
+
+async function _buildOutputPath({
+  fileName,
+  targetDir,
+  baseDir,
+  projectNumber,
+  project,
+  mode,
+  overwrite,
+} = {}) {
   const downloads = app.getPath("downloads");
   const tempDir = app.getPath("temp");
   let outBaseDir = targetDir === "temp" ? tempDir : downloads;
@@ -70,8 +110,10 @@ async function _buildOutputPath({ fileName, targetDir, baseDir, projectNumber, o
   else if (baseDir) outBaseDir = baseDir;
 
   let outDir = outBaseDir;
-  if (projectNumber && targetDir !== "temp") {
-    outDir = path.join(outBaseDir, "bbm", String(projectNumber));
+  if (targetDir !== "temp") {
+    const projectFolder = sanitizeDirName(_projectFolderName(project, projectNumber));
+    const modeFolder = sanitizeDirName(_folderForMode(mode));
+    outDir = path.join(outBaseDir, "bbm", projectFolder, modeFolder);
   }
 
   fs.mkdirSync(outDir, { recursive: true });
@@ -118,6 +160,8 @@ async function printToPdf(payload = {}) {
     targetDir: payload.targetDir,
     baseDir: payload.baseDir,
     projectNumber,
+    project: data?.project || null,
+    mode,
     overwrite: payload.overwrite,
   });
 
