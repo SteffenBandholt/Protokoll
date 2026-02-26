@@ -1633,7 +1633,7 @@ export default class TopsView {
     topBar.style.zIndex = "5";
 
     const topsText = document.createElement("div");
-    topsText.textContent = "TOPs";
+    topsText.textContent = "Protokoll bearbeiten";
     topsText.style.fontWeight = "600";
     topsText.style.whiteSpace = "nowrap";
     topsText.style.flex = "0 0 auto";
@@ -1662,15 +1662,14 @@ export default class TopsView {
     topMeta.style.opacity = "0";
     topMeta.style.borderLeft = "1px solid transparent";
 
-    // ✅ Positions-Tausch: TOPs links, dann "zurück"
-    // Reihenfolge rechts: Spacer, Protokoll schließen, Labels (ganz rechts)
+    // Reihenfolge rechts: Spacer, Protokoll schließen + Schalter, Labels (ganz rechts)
     topBar.append(
       topsText,
-      btnCloseMeeting,
-      btnLongToggle,
-      btnAmpelToggle,
       spacer,
       btnEndMeeting,
+      btnAmpelToggle,
+      btnLongToggle,
+      btnCloseMeeting,
       topMeta
     );
 
