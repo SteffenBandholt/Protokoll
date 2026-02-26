@@ -419,7 +419,7 @@
   align-items: center;
   justify-content: center;
   gap: 8mm;
-  font-size: 10pt;
+  font-size: 12pt;
   font-weight: 600;
   text-align: center;
 }
@@ -443,8 +443,9 @@
 
 .printV2Root .v2TopsInterlude {
   margin-top: 10mm;
-  text-align: center;
-  font-size: 10pt;
+  text-align: left;
+  max-width: 175mm;
+  font-size: 12pt;
   line-height: 1.35;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -455,7 +456,7 @@
 .printV2Root .v2ProtocolFooter {
   margin-top: 10mm;
   text-align: left;
-  font-size: 10pt;
+  font-size: 12pt;
   line-height: 1.35;
 }
 
