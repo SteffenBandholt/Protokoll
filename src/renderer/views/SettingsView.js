@@ -2198,7 +2198,7 @@ export default class SettingsView {
         await loadFontScaleSettings();
         openSettingsModal({
           title: "Nutzereinstellungen",
-          content: [userTopRow, userLogoRedirectBox],
+          content: [userTopRow],
           closeOnly: false,
           saveFn: async () => (await this._save()) !== false,
         });
