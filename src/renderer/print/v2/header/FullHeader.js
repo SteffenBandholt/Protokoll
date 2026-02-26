@@ -16,9 +16,6 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   if (listStandLine) {
     left.appendChild(headerUtils.el("div", "v2ListStand", listStandLine));
   }
-  if (brandingText) {
-    left.appendChild(headerUtils.el("div", "v2DraftBadge", brandingText));
-  }
 
   const right = headerUtils.el("div", "v2HeaderRight");
   const name1 = String(settings["pdf.footerName1"] || "").trim();
@@ -55,6 +52,9 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const line2Divider = headerUtils.el("div", "v2Divider v2FullDivider");
   line2Divider.setAttribute("data-v2", "line2");
 
+  if (brandingText) {
+    header.appendChild(headerUtils.el("div", "v2DraftBadge v2FullDraftBadge", "Vorabzug - nicht freigegeben"));
+  }
   header.append(textBlock, headerUtils.el("div", "v2FullGapProjectLine"), line2Divider);
 
   return header;

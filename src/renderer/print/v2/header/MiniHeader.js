@@ -19,19 +19,16 @@ export function renderV2MiniHeader({ data, pageNo, totalPages, modeLabel } = {})
   const line2Protocol = headerUtils.el("div", "v2MiniProtocolTitle", titleText);
   line2Protocol.setAttribute("data-v2", "miniText");
   if (brandingText) {
-    line2Protocol.appendChild(headerUtils.el("span", "v2DraftBadge v2MiniDraftBadge", brandingText));
+    line2Protocol.appendChild(
+      headerUtils.el("span", "v2MiniDraftNotice", "Vorabzug - nicht freigegeben")
+    );
   }
 
   const line = headerUtils.el("div", "v2Divider v2MiniDivider");
   line.setAttribute("data-v2", "miniLine");
 
-  header.append(
-    topRow,
-    line2Protocol,
-    headerUtils.el("div", "v2MiniGapTextLine"),
-    line,
-    headerUtils.el("div", "v2MiniGapLineBody")
-  );
+  header.append(topRow, line2Protocol);
+  header.append(headerUtils.el("div", "v2MiniGapTextLine"), line, headerUtils.el("div", "v2MiniGapLineBody"));
 
   return header;
 }
