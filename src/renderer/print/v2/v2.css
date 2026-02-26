@@ -452,6 +452,22 @@
   color: #111;
 }
 
+.printV2Root .v2ProtocolFooter {
+  margin-top: 10mm;
+  text-align: left;
+  font-size: 10pt;
+  line-height: 1.35;
+}
+
+.printV2Root .v2ProtocolFooterTitle {
+  font-weight: 700;
+  margin: 0 0 1mm 0;
+}
+
+.printV2Root .v2ProtocolFooterLine {
+  margin: 0;
+}
+
 .printV2Root .v2PreRemarksBlock {
   margin: 5mm 0 5mm 0;
   break-inside: avoid;

@@ -398,6 +398,31 @@ function _buildTopsLegendElement() {
   return wrap;
 }
 
+function _collectProtocolFooterLines(settings) {
+  const footerPlace = String(settings?.["pdf.footerPlace"] || "").trim();
+  const footerDate = String(settings?.["pdf.footerDate"] || "").trim();
+  const footerName1 = String(settings?.["pdf.footerName1"] || "").trim();
+  const footerName2 = String(settings?.["pdf.footerName2"] || "").trim();
+  const footerRecorder = String(settings?.["pdf.footerRecorder"] || "").trim();
+  const footerStreet = String(settings?.["pdf.footerStreet"] || "").trim();
+  const footerZip = String(settings?.["pdf.footerZip"] || "").trim();
+  const footerCity = String(settings?.["pdf.footerCity"] || "").trim();
+  const linePlaceDate = [footerPlace, footerDate].filter((v) => v).join(", ");
+  const lineZipCity = [footerZip, footerCity].filter((v) => v).join(" ").trim();
+  return [linePlaceDate, footerName1, footerName2, footerRecorder, footerStreet, lineZipCity].filter((v) => v);
+}
+
+function _buildProtocolFooterElement(data) {
+  const mode = String(data?.mode || "").trim().toLowerCase();
+  if (mode !== "protocol") return null;
+  const lines = _collectProtocolFooterLines(data?.settings || {});
+  if (!lines.length) return null;
+  const wrap = _el("div", "v2ProtocolFooter");
+  wrap.appendChild(_el("div", "v2ProtocolFooterTitle", "Aufgestellt:"));
+  for (const line of lines) wrap.appendChild(_el("div", "v2ProtocolFooterLine", line));
+  return wrap;
+}
+
 function _resolveInterludeText(data) {
   const settings = data?.settings || {};
 
@@ -440,6 +465,8 @@ function _buildTopsTailElement(data) {
   wrap.appendChild(_buildTopsLegendElement());
   const interlude = _resolveInterludeText(data);
   if (interlude) wrap.appendChild(_el("div", "v2TopsInterlude", interlude));
+  const footer = _buildProtocolFooterElement(data);
+  if (footer) wrap.appendChild(footer);
   return wrap;
 }
 
