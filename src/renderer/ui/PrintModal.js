@@ -4211,6 +4211,21 @@ export default class PrintModal {
 
       // Vorabzug nur wenn wirklich offen UND mode=vorabzug
       const isVorabzug = !isClosed && mode === "vorabzug";
+      if (isVorabzug) {
+        const meetingDateRawForPrompt =
+          meeting?.meeting_date ||
+          meeting?.meetingDate ||
+          meeting?.date ||
+          "";
+        const defaultDateIso = /^\d{4}-\d{2}-\d{2}$/.test(String(meetingDateRawForPrompt).slice(0, 10))
+          ? String(meetingDateRawForPrompt).slice(0, 10)
+          : new Date().toISOString().slice(0, 10);
+        const promptRes = await this.promptNextMeetingSettings({ defaultDateIso });
+        if (promptRes?.cancelled) return;
+        if (promptRes?.ok && promptRes?.data) {
+          settings = { ...settings, ...(promptRes.data || {}) };
+        }
+      }
 
       // Projektnummer/Label: direkt aus DB holen
       const pid = projectId || meeting.project_id || this.router?.currentProjectId || null;

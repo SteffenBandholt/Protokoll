@@ -414,7 +414,7 @@ function _collectProtocolFooterLines(settings) {
 
 function _buildProtocolFooterElement(data) {
   const mode = String(data?.mode || "").trim().toLowerCase();
-  if (mode !== "protocol") return null;
+  if (!["protocol", "preview", "vorabzug"].includes(mode)) return null;
   const lines = _collectProtocolFooterLines(data?.settings || {});
   if (!lines.length) return null;
   const wrap = _el("div", "v2ProtocolFooter");
