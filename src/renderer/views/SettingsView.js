@@ -3055,6 +3055,9 @@ export default class SettingsView {
     ta.maxLength = 300;
     ta.style.width = "100%";
     ta.style.resize = "vertical";
+    ta.style.fontFamily = "Calibri, Arial, sans-serif";
+    ta.style.fontSize = "11pt";
+    ta.style.lineHeight = "1.35";
     ta.value = String(this.pdfPreRemarks || "");
 
     const normalizeLocal = () => {

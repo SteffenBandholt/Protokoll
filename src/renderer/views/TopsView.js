@@ -1811,7 +1811,7 @@ export default class TopsView {
     inpTitle.type = "text";
     inpTitle.placeholder = "Kurztext…";
     inpTitle.style.width = "100%";
-    inpTitle.style.fontFamily = "Calibri, \"Segoe UI\", Arial, sans-serif";
+    inpTitle.style.fontFamily = "Calibri, Arial, sans-serif";
     inpTitle.maxLength = this._titleMax();
     inpTitle.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
@@ -1889,7 +1889,7 @@ export default class TopsView {
     taLong.rows = 4;
     taLong.placeholder = "Langtext…";
     taLong.style.width = "100%";
-    taLong.style.fontFamily = "Calibri, \"Segoe UI\", Arial, sans-serif";
+    taLong.style.fontFamily = "Calibri, Arial, sans-serif";
     taLong.maxLength = this._longMax();
     // Hinweis: Enter = neue Zeile, Ctrl/Cmd+Enter = Speichern
     taLong.title = "Enter: neue Zeile · Ctrl/Cmd+Enter: speichern";
