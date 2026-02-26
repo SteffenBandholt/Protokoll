@@ -53,6 +53,7 @@ export default class PrintModal {
     this.msgEl = null;
     this.titleEl = null;
     this.hintEl = null;
+    this.protocolsDirEl = null;
 
     this.nextMeetingEnabled = null;
     this.nextMeetingDate = null;
@@ -160,7 +161,24 @@ export default class PrintModal {
     hint.style.opacity = "0.8";
     hint.textContent = "Hinweis: Es werden nur geschlossene Besprechungen angezeigt.";
 
-    box.append(row, hint);
+    const protocolsInfo = document.createElement("div");
+    protocolsInfo.style.marginTop = "8px";
+    protocolsInfo.style.display = "flex";
+    protocolsInfo.style.gap = "6px";
+    protocolsInfo.style.flexWrap = "wrap";
+    protocolsInfo.style.alignItems = "baseline";
+    protocolsInfo.style.fontSize = "12px";
+
+    const protocolsLabel = document.createElement("span");
+    protocolsLabel.style.opacity = "0.8";
+    protocolsLabel.textContent = "Speicherort Protokolle:";
+
+    const protocolsValue = document.createElement("span");
+    protocolsValue.style.fontWeight = "600";
+    protocolsValue.textContent = "-";
+
+    protocolsInfo.append(protocolsLabel, protocolsValue);
+    box.append(row, hint, protocolsInfo);
 
     const nextMeetBox = document.createElement("div");
     nextMeetBox.style.border = "1px solid #ddd";
@@ -258,6 +276,7 @@ export default class PrintModal {
     this.msgEl = msg;
     this.titleEl = title;
     this.hintEl = hint;
+    this.protocolsDirEl = protocolsValue;
 
     this.selMeeting = sel;
     this.btnPrint = btnPrint;
@@ -372,6 +391,56 @@ export default class PrintModal {
         this.mode === "vorabzug"
           ? "Hinweis: Vorabzug ist für offene Besprechungen gedacht."
           : "Hinweis: Es werden nur geschlossene Besprechungen angezeigt.";
+    }
+  }
+
+  _defaultProtocolsDir() {
+    return "C:\\Downloads";
+  }
+
+  async _resolveProtocolsDir({ settings = null, api = null, persistIfMissing = false } = {}) {
+    const dbApi = api || window.bbmDb || {};
+    let resolvedSettings = settings || this.router?.context?.settings || {};
+    let dir = String(resolvedSettings?.["pdf.protocolsDir"] || "").trim();
+    let hadStoredValue = !!dir;
+
+    if (!dir && typeof dbApi.appSettingsGetMany === "function") {
+      const res = await dbApi.appSettingsGetMany(["pdf.protocolsDir"]);
+      if (res?.ok) {
+        const fromDb = String(res?.data?.["pdf.protocolsDir"] || "").trim();
+        if (fromDb) {
+          dir = fromDb;
+          hadStoredValue = true;
+          resolvedSettings = { ...resolvedSettings, "pdf.protocolsDir": dir };
+        }
+      }
+    }
+
+    if (!dir) {
+      dir = this._defaultProtocolsDir();
+      resolvedSettings = { ...resolvedSettings, "pdf.protocolsDir": dir };
+      if (!hadStoredValue && persistIfMissing && typeof dbApi.appSettingsSetMany === "function") {
+        await dbApi.appSettingsSetMany({ "pdf.protocolsDir": dir });
+      }
+    }
+
+    if (this.router?.context) {
+      this.router.context.settings = {
+        ...(this.router.context.settings || {}),
+        "pdf.protocolsDir": dir,
+      };
+    }
+
+    return { dir, settings: resolvedSettings };
+  }
+
+  async _refreshProtocolsDirLabel() {
+    if (!this.protocolsDirEl) return;
+    try {
+      const resolved = await this._resolveProtocolsDir({ persistIfMissing: true });
+      this.protocolsDirEl.textContent = resolved?.dir || this._defaultProtocolsDir();
+    } catch {
+      this.protocolsDirEl.textContent = this._defaultProtocolsDir();
     }
   }
 
@@ -804,6 +873,7 @@ export default class PrintModal {
     this.msgEl = null;
     this.titleEl = null;
     this.hintEl = null;
+    this.protocolsDirEl = null;
 
     this.nextMeetingEnabled = null;
     this.nextMeetingDate = null;
@@ -851,6 +921,7 @@ export default class PrintModal {
 
     await this._loadClosedMeetings();
     await this._loadNextMeetingSettings();
+    await this._refreshProtocolsDirLabel();
     this._applyState();
   }
 
@@ -986,7 +1057,9 @@ export default class PrintModal {
       }
 
       let settings = this.router?.context?.settings || {};
-      const protocolsDir = String(settings?.["pdf.protocolsDir"] || "").trim();
+      const dirResolved = await this._resolveProtocolsDir({ settings, api, persistIfMissing: true });
+      settings = dirResolved.settings || settings;
+      const protocolsDir = String(dirResolved.dir || "").trim();
       if (typeof api.appSettingsGetMany === "function") {
         const resNext = await api.appSettingsGetMany([
           "print.nextMeeting.enabled",
@@ -1505,7 +1578,9 @@ export default class PrintModal {
       }
 
       let settings = this.router?.context?.settings || {};
-      const protocolsDir = String(settings?.["pdf.protocolsDir"] || "").trim();
+      const dirResolved = await this._resolveProtocolsDir({ settings, api, persistIfMissing: true });
+      settings = dirResolved.settings || settings;
+      const protocolsDir = String(dirResolved.dir || "").trim();
       if (typeof api.appSettingsGetMany === "function") {
         const resNext = await api.appSettingsGetMany([
           "print.nextMeeting.enabled",
@@ -1652,7 +1727,9 @@ export default class PrintModal {
       }
 
       let settings = this.router?.context?.settings || {};
-      const protocolsDir = String(settings?.["pdf.protocolsDir"] || "").trim();
+      const dirResolved = await this._resolveProtocolsDir({ settings, api, persistIfMissing: true });
+      settings = dirResolved.settings || settings;
+      const protocolsDir = String(dirResolved.dir || "").trim();
 
       let meeting = null;
       if (mid) {
@@ -4173,7 +4250,9 @@ export default class PrintModal {
       }
 
       let settings = this.router?.context?.settings || {};
-      const protocolsDir = String(settings?.["pdf.protocolsDir"] || "").trim();
+      const dirResolved = await this._resolveProtocolsDir({ settings, api, persistIfMissing: true });
+      settings = dirResolved.settings || settings;
+      const protocolsDir = String(dirResolved.dir || "").trim();
       if (typeof api.appSettingsGetMany === "function") {
         const resNext = await api.appSettingsGetMany([
           "print.nextMeeting.enabled",

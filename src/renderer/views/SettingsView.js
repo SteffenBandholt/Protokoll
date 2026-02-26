@@ -4254,7 +4254,8 @@ export default class SettingsView {
       this.inpPdfTrafficLightAll?.checked,
       defaults.trafficLightAllEnabled
     );
-    const protocolsDir = (this.inpPdfProtocolsDir?.value ?? "").toString().trim();
+    const protocolsDirRaw = (this.inpPdfProtocolsDir?.value ?? "").toString().trim();
+    const protocolsDir = protocolsDirRaw || defaults.protocolsDir;
     const footerUseUserData = this._parseBool(
       this.pdfFooterUseUserData,
       defaults.footerUseUserData
@@ -4293,7 +4294,10 @@ export default class SettingsView {
     if (this.inpPdfProtocolTitle) this.inpPdfProtocolTitle.value = values.protocolTitle || "";
     if (this.inpPdfTrafficLightAll) this.inpPdfTrafficLightAll.checked = !!values.trafficLightAllEnabled;
     this.pdfFooterUseUserData = !!values.footerUseUserData;
-    if (this.inpPdfProtocolsDir) this.inpPdfProtocolsDir.value = values.protocolsDir || "";
+    if (this.inpPdfProtocolsDir) {
+      const defaults = this._pdfSettingsDefaults();
+      this.inpPdfProtocolsDir.value = String(values.protocolsDir || "").trim() || defaults.protocolsDir;
+    }
     if (this.inpPdfFooterPlace) this.inpPdfFooterPlace.value = values.footerPlace || "";
     if (this.inpPdfFooterDate) this.inpPdfFooterDate.value = values.footerDate || "";
     if (this.inpPdfFooterName1) this.inpPdfFooterName1.value = values.footerName1 || "";
@@ -5680,8 +5684,8 @@ export default class SettingsView {
       pdfSettingsDefaults.trafficLightAllEnabled
     );
     const protocolsDirRaw = data["pdf.protocolsDir"];
-    const protocolsDir =
-      protocolsDirRaw == null ? pdfSettingsDefaults.protocolsDir : String(protocolsDirRaw);
+    const protocolsDirNormalized = protocolsDirRaw == null ? "" : String(protocolsDirRaw).trim();
+    const protocolsDir = protocolsDirNormalized || pdfSettingsDefaults.protocolsDir;
     const preRemarksRaw = data["pdf.preRemarks"];
     const preRemarks =
       preRemarksRaw == null ? pdfSettingsDefaults.preRemarks : String(preRemarksRaw);
@@ -5718,6 +5722,10 @@ export default class SettingsView {
       footerZip,
       footerCity,
     });
+
+    if (!protocolsDirNormalized) {
+      this._schedulePdfSettingsSave();
+    }
 
     if (footerUseUserData) {
       this._applyPdfFooterUserDefaultsFromUser();
