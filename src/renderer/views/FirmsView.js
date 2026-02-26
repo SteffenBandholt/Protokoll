@@ -773,38 +773,6 @@ const taFirmNotes = document.createElement("textarea");
   async _openFirmEditor({ mode = "edit", firmId = null } = {}) {
     this._releaseImportUiLock();
     if (this.savingFirm || this.savingPerson) return;
-    if (mode === "edit") {
-      const targetId = firmId || this.selectedFirmId;
-      if (!targetId) return;
-      const firm =
-        (this.firms || []).find((f) => String(f?.id) === String(targetId)) ||
-        this.selectedFirm ||
-        null;
-      const usedEditor = await this._openEditorWindow(
-        {
-          kind: "firm",
-          title: "Firma bearbeiten",
-          firm: {
-            id: targetId,
-            short: firm?.short || "",
-            name: firm?.name || "",
-            name2: firm?.name2 || "",
-            street: firm?.street || "",
-            zip: firm?.zip || "",
-            city: firm?.city || "",
-            phone: firm?.phone || "",
-            email: firm?.email || "",
-            gewerk: firm?.gewerk || "",
-            role_code: firm?.role_code || "",
-            notes: firm?.notes || "",
-          },
-        },
-        async (data) => {
-          await this._saveFirmFromEditor(targetId, data);
-        }
-      );
-      if (usedEditor) return;
-    }
     if (mode === "create") {
       this._beginCreateFirm();
       this.persons = [];
@@ -837,40 +805,6 @@ const taFirmNotes = document.createElement("textarea");
     this._releaseImportUiLock();
     if (this.savingPerson || this.savingFirm) return;
     if (!this._hasFirmSelectedSaved()) return;
-    if (mode === "edit") {
-      const targetId = personId !== null && personId !== undefined ? String(personId) : null;
-      if (!targetId) return;
-      let person = (this.persons || []).find((p) => String(p?.id) === targetId) || null;
-      if (!person) {
-        await this._reloadPersons();
-        person = (this.persons || []).find((p) => String(p?.id) === targetId) || null;
-      }
-      const usedEditor = await this._openEditorWindow(
-        {
-          kind: "person",
-          title: "Mitarbeiter bearbeiten",
-          subtitle: this.selectedFirm?.name || "",
-          person: {
-            id: targetId,
-            firstName: person?.first_name || "",
-            lastName: person?.last_name || "",
-            funktion: person?.funktion || "",
-            phone: person?.phone || "",
-            email: person?.email || "",
-            rolle: person?.rolle || "",
-            notes: person?.notes || "",
-            firmName: this.selectedFirm?.name || "",
-          },
-        },
-        async (data) => {
-          await this._savePersonFromEditor(targetId, data);
-        },
-        async () => {
-          await this._deletePerson(targetId);
-        }
-      );
-      if (usedEditor) return;
-    }
     if (mode === "edit" && personId !== null && personId !== undefined) {
       const targetId = String(personId);
       const hasPerson = (this.persons || []).some((p) => String(p?.id) === targetId);
