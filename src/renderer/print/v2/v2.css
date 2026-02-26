@@ -516,3 +516,45 @@
   box-sizing: border-box;
   pointer-events: none;
 }
+
+.printV2Root .v2DraftWatermarks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  z-index: 3;
+}
+
+.printV2Root .v2DraftWatermark {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  font-size: 44pt;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(185, 28, 28, 0.12);
+  mix-blend-mode: multiply;
+  white-space: nowrap;
+}
+
+.printV2Root .v2DraftWatermark.isTop {
+  top: 26%;
+}
+
+.printV2Root .v2DraftWatermark.isMid {
+  top: 52%;
+}
+
+.printV2Root .v2DraftWatermark.isBottom {
+  top: 78%;
+}
+
+.printV2Root .v2Header,
+.printV2Root table,
+.printV2Root .v2ParticipantsBlock,
+.printV2Root .v2PreRemarksBlock,
+.printV2Root .v2TopsTail {
+  position: relative;
+  z-index: 2;
+}

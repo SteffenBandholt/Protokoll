@@ -450,6 +450,17 @@ function _buildPreRemarks(page) {
   return wrap;
 }
 
+function _buildDraftWatermark(data) {
+  const enabled = !!data?.printProfile?.branding?.enabled;
+  const label = String(data?.printProfile?.branding?.label || "").trim();
+  if (!enabled || !label) return null;
+  const wrap = _el("div", "v2DraftWatermarks");
+  wrap.appendChild(_el("div", "v2DraftWatermark isTop", label));
+  wrap.appendChild(_el("div", "v2DraftWatermark isMid", label));
+  wrap.appendChild(_el("div", "v2DraftWatermark isBottom", label));
+  return wrap;
+}
+
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
   const profileKey = String(data?.printProfile?.key || "").trim();
@@ -470,6 +481,8 @@ export function renderPrint({ pages, data } = {}) {
 
   (pages || []).forEach((page, idx) => {
     const pageEl = _el("div", "page");
+    const watermark = _buildDraftWatermark(data);
+    if (watermark) pageEl.appendChild(watermark);
     const pageNo = Number(page?.header?.pageNo || 0);
     if (pageNo === 1) {
       pageEl.appendChild(renderV2GlobalHeader({ data }));
