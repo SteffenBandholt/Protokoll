@@ -2182,15 +2182,6 @@ export default class SettingsView {
     userTopRow.style.marginTop = "10px";
     userTopRow.append(userBox, userRightCol);
 
-    const userLogoRedirectBox = document.createElement("div");
-    applyPopupCardStyle(userLogoRedirectBox);
-    userLogoRedirectBox.style.padding = "10px";
-    userLogoRedirectBox.style.maxWidth = "720px";
-    userLogoRedirectBox.style.marginTop = "10px";
-    const userLogoRedirectText = document.createElement("div");
-    userLogoRedirectText.textContent = "Logos jetzt unter Druckeinstellungen -> Logos.";
-    userLogoRedirectBox.appendChild(userLogoRedirectText);
-
     const openSettingsModal = ({ title, content, saveFn, closeOnly = false }) => {
       this._openSettingsModal({
         title,
