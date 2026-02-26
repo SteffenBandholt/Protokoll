@@ -2,6 +2,7 @@ import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
 import { renderV2FullHeader } from "../v2/header/FullHeader.js";
 import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
+const APP_ICON_URL = new URL("../assets/bbm-icon-256.png", window.location.href).toString();
 
 function _el(tag, className, text) {
   const el = document.createElement(tag);
@@ -451,11 +452,18 @@ function _buildPreRemarks(page) {
 }
 
 function _buildSpineNote() {
-  return _el(
-    "div",
-    "pdfSpineNote",
+  const wrap = _el("div", "pdfSpineNote");
+  const icon = document.createElement("img");
+  icon.className = "pdfSpineNoteIcon";
+  icon.src = APP_ICON_URL;
+  icon.alt = "";
+  const text = _el(
+    "span",
+    "pdfSpineNoteText",
     "© v0.1.2 - BBM 2026   |   erstellt mit Baubesprechungsmanager    -    Testversion    - nicht freigegeben"
   );
+  wrap.append(icon, text);
+  return wrap;
 }
 
 function _buildDraftWatermark(data) {

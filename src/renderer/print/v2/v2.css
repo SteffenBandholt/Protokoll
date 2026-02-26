@@ -15,6 +15,9 @@
   bottom: calc(var(--v2-pad-bottom, 18mm) + var(--v2-footer-reserve, 12mm));
   transform: rotate(-90deg);
   transform-origin: left bottom;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8mm;
   font-size: 6pt;
   font-weight: 400;
   color: #000;
@@ -23,6 +26,17 @@
   pointer-events: none;
   user-select: none;
   z-index: 1;
+}
+
+.printV2Root .pdfSpineNoteIcon {
+  width: 4mm;
+  height: 4mm;
+  flex: 0 0 4mm;
+  object-fit: contain;
+}
+
+.printV2Root .pdfSpineNoteText {
+  display: inline-block;
 }
 
 /* GlobalHeader (page 1 only) */
