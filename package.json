@@ -1,6 +1,8 @@
 {
   "name": "baubesprechungs-manager",
   "version": "0.1.2",
+  "description": "BBM - Baubesprechungsmanager",
+  "author": "Steffen Bandholt",
   "main": "src/main/main.js",
   "type": "commonjs",
   "scripts": {
