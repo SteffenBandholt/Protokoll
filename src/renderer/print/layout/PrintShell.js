@@ -450,6 +450,14 @@ function _buildPreRemarks(page) {
   return wrap;
 }
 
+function _buildSpineNote() {
+  return _el(
+    "div",
+    "pdfSpineNote",
+    "© version 0.1.2 - BBM 2026   |   erstellt mit Baubesprechungsmanager    -    Testversion    - nicht freigegeben"
+  );
+}
+
 function _buildDraftWatermark(data) {
   const enabled = !!data?.printProfile?.branding?.enabled;
   const label = String(data?.printProfile?.branding?.label || "").trim();
@@ -484,6 +492,9 @@ export function renderPrint({ pages, data } = {}) {
     const watermark = _buildDraftWatermark(data);
     if (watermark) pageEl.appendChild(watermark);
     const pageNo = Number(page?.header?.pageNo || 0);
+    if (pageNo === 1 && String(data?.mode || "").trim().toLowerCase() === "protocol") {
+      pageEl.appendChild(_buildSpineNote());
+    }
     if (pageNo === 1) {
       pageEl.appendChild(renderV2GlobalHeader({ data }));
       pageEl.appendChild(renderV2FullHeader({ data, pageNo, totalPages, modeLabel }));

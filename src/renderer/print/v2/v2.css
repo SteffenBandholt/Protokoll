@@ -9,6 +9,23 @@
   overflow: hidden;
 }
 
+.printV2Root .pdfSpineNote {
+  position: absolute;
+  left: calc(var(--v2-pad-left, var(--v2-pad-x, 12mm)) - 1mm);
+  bottom: calc(var(--v2-pad-bottom, 18mm) + var(--v2-footer-reserve, 12mm));
+  writing-mode: vertical-rl;
+  transform: translateX(-100%) rotate(180deg);
+  transform-origin: left top;
+  font-size: 10pt;
+  font-weight: 400;
+  color: #bdbdbd;
+  line-height: 1.1;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
 /* GlobalHeader (page 1 only) */
 .printV2Root .v2GlobalHeader {
   height: var(--v2-global-height, 50mm);
