@@ -7,6 +7,8 @@ export default class Router {
 
     this.currentProjectId = null;
     this.currentMeetingId = null;
+    this.lastTopsProjectId = null;
+    this.lastTopsMeetingId = null;
 
     this.refreshHeader = null;
 
@@ -474,6 +476,8 @@ export default class Router {
 
     this.currentProjectId = projectId || this.currentProjectId || null;
     this.currentMeetingId = meetingId || null;
+    this.lastTopsProjectId = this.currentProjectId || null;
+    this.lastTopsMeetingId = this.currentMeetingId || null;
 
     await this.show(new V({ router: this, meetingId, projectId }), {
       section: "meetings",

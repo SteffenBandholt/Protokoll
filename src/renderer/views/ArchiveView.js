@@ -85,7 +85,7 @@ export default class ArchiveView {
     h.textContent = "Archiviert";
     h.style.margin = "0";
 
-    const hasActiveProject = !!this.router?.currentProjectId;
+    const hasActiveProject = !!(this.router?.currentProjectId || this.router?.lastTopsProjectId);
     let btnBackToProject = null;
     if (hasActiveProject) {
       btnBackToProject = document.createElement("button");
@@ -93,8 +93,10 @@ export default class ArchiveView {
       btnBackToProject.textContent = "Zurück zum Protokoll";
       applyPopupButtonStyle(btnBackToProject, { variant: "neutral" });
       btnBackToProject.onclick = async () => {
-        const projectId = this.router?.currentProjectId || null;
-        const meetingId = this.router?.currentMeetingId || null;
+        const projectId =
+          this.router?.currentProjectId || this.router?.lastTopsProjectId || null;
+        const meetingId =
+          this.router?.currentMeetingId || this.router?.lastTopsMeetingId || null;
         if (!projectId) return;
         if (meetingId && typeof this.router?.showTops === "function") {
           await this.router.showTops(meetingId, projectId);
