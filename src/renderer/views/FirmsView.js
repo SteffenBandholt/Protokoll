@@ -214,7 +214,6 @@ export default class FirmsView {
     const btnNewFirm = document.createElement("button");
     btnNewFirm.textContent = "Neue Firma";
     btnNewFirm.onclick = async () => {
-      if (this.savingFirm || this.savingPerson) return;
       await this._openFirmEditor({ mode: "create" });
     };
 
@@ -464,7 +463,6 @@ const taFirmNotes = document.createElement("textarea");
     const btnNewPerson = document.createElement("button");
     btnNewPerson.textContent = "Neuer Mitarbeiter";
     btnNewPerson.onclick = async () => {
-      if (this.savingFirm || this.savingPerson) return;
       if (!this._hasFirmSelectedSaved()) return;
       await this._openPersonEditor({ mode: "create" });
     };
@@ -638,13 +636,43 @@ const taFirmNotes = document.createElement("textarea");
     return String(id);
   }
 
+  _sameId(a, b) {
+    if (a === null || a === undefined || b === null || b === undefined) return false;
+    return String(a) === String(b);
+  }
+
+  _clearStaleBusyState() {
+    const importBusy = !!this.importLoading || !!this.personImportLoading || !!this.personImportNewFirmSaving;
+    const editorVisible =
+      (!!this.firmPopupOverlay && this.firmPopupOverlay.style.display !== "none") ||
+      (!!this.personPopupOverlay && this.personPopupOverlay.style.display !== "none");
+    const overlays = [
+      this.importModalRoot,
+      this.personImportModalRoot,
+      this.personImportNewFirmOverlay,
+      this.personImportDetailOverlay,
+      this.importDetailOverlay,
+    ];
+    const importUiVisible = overlays.some((overlay) => {
+      if (!overlay) return false;
+      return overlay.style.display !== "none";
+    });
+    if (importBusy || importUiVisible || editorVisible) return;
+    if (!this.savingFirm && !this.savingPerson) return;
+    this.savingFirm = false;
+    this.savingPerson = false;
+    this._setMsg("");
+    this._applyFirmFormState();
+    this._applyPersonFormState();
+  }
+
   _hasFirmSelected() {
     return !!this.selectedFirmId;
   }
 
   _selectFirm(firmId) {
     this.selectedFirmId = firmId || null;
-    this.selectedFirm = this.firms.find((f) => f.id === this.selectedFirmId) || null;
+    this.selectedFirm = this.firms.find((f) => this._sameId(f?.id, this.selectedFirmId)) || null;
     this._renderFirmDetails();
   }
 
@@ -700,7 +728,6 @@ const taFirmNotes = document.createElement("textarea");
     const btnEdit = document.createElement("button");
     btnEdit.textContent = "Bearbeiten";
     btnEdit.onclick = async () => {
-      if (this.savingFirm || this.savingPerson) return;
       await this._openFirmEditor({ mode: "edit", firmId: firm.id });
     };
 
@@ -771,7 +798,41 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   async _openFirmEditor({ mode = "edit", firmId = null } = {}) {
+    this._clearStaleBusyState();
     this._releaseImportUiLock();
+    if (mode === "edit") {
+      const targetId = firmId || this.selectedFirmId;
+      if (targetId) {
+        const firm =
+          (this.firms || []).find((f) => this._sameId(f?.id, targetId)) ||
+          this.selectedFirm ||
+          null;
+        const usedEditor = await this._openEditorWindow(
+          {
+            kind: "firm",
+            title: "Firma bearbeiten",
+            firm: {
+              id: targetId,
+              short: firm?.short || "",
+              name: firm?.name || "",
+              name2: firm?.name2 || "",
+              street: firm?.street || "",
+              zip: firm?.zip || "",
+              city: firm?.city || "",
+              phone: firm?.phone || "",
+              email: firm?.email || "",
+              gewerk: firm?.gewerk || "",
+              role_code: firm?.role_code || "",
+              notes: firm?.notes || "",
+            },
+          },
+          async (data) => {
+            await this._saveFirmFromEditor(targetId, data);
+          }
+        );
+        if (usedEditor) return;
+      }
+    }
     if (this.savingFirm || this.savingPerson) return;
     if (mode === "create") {
       this._beginCreateFirm();
@@ -802,6 +863,7 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   async _openPersonEditor({ mode = "create", personId = null } = {}) {
+    this._clearStaleBusyState();
     this._releaseImportUiLock();
     if (this.savingPerson || this.savingFirm) return;
     if (!this._hasFirmSelectedSaved()) return;
@@ -1116,6 +1178,8 @@ const taFirmNotes = document.createElement("textarea");
     this.importLoading = false;
     this.personImportLoading = false;
     this.personImportNewFirmSaving = false;
+    this.savingFirm = false;
+    this.savingPerson = false;
 
     const overlays = [
       this.importModalRoot,
@@ -1132,6 +1196,7 @@ const taFirmNotes = document.createElement("textarea");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._updateVisibility();
+    this._setMsg("");
   }
 
   _closePersonEditor() {
@@ -1325,7 +1390,7 @@ const taFirmNotes = document.createElement("textarea");
     this.firms = res.list || [];
 
     if (this.selectedFirmId && this.firmMode === "edit") {
-      const still = this.firms.find((f) => f.id === this.selectedFirmId);
+      const still = this.firms.find((f) => this._sameId(f?.id, this.selectedFirmId));
       if (!still) {
         this._closeFirmEditor();
         this._selectFirm(null);
@@ -1383,7 +1448,7 @@ const taFirmNotes = document.createElement("textarea");
       const tr = document.createElement("tr");
       tr.style.cursor = "pointer";
 
-      const isSel = f.id === this.selectedFirmId;
+      const isSel = this._sameId(f?.id, this.selectedFirmId);
       tr.style.background = isSel ? "#dff0ff" : "transparent";
 
       const tdShort = document.createElement("td");
@@ -1400,6 +1465,7 @@ const taFirmNotes = document.createElement("textarea");
 
       const handleRowClick = async (event) => {
         if (event?.detail > 1) return;
+        this._clearStaleBusyState();
         if (this.savingFirm || this.savingPerson) return;
 
         this.firmMode = "none";
@@ -1415,7 +1481,6 @@ const taFirmNotes = document.createElement("textarea");
       tr.addEventListener("click", handleRowClick);
       tr.addEventListener("dblclick", async (event) => {
         event.stopPropagation();
-        if (this.savingFirm || this.savingPerson) return;
         this._selectFirm(f.id);
         await this._openFirmEditor({ mode: "edit", firmId: f.id });
       });
@@ -1481,7 +1546,6 @@ const taFirmNotes = document.createElement("textarea");
 
       tr.onclick = async (event) => {
         if (event?.detail > 1) return;
-        if (this.savingPerson || this.savingFirm) return;
         await this._openPersonEditor({ mode: "edit", personId: p.id });
       };
 
@@ -4227,7 +4291,8 @@ const taFirmNotes = document.createElement("textarea");
         console.warn('Firms reload after save failed:', reloadError);
       }
       if (this.selectedFirmId) {
-        this.selectedFirm = (this.firms || []).find((f) => f.id === this.selectedFirmId) || null;
+        this.selectedFirm =
+          (this.firms || []).find((f) => this._sameId(f?.id, this.selectedFirmId)) || null;
       } else {
         this.selectedFirm = null;
       }
@@ -4270,7 +4335,9 @@ const taFirmNotes = document.createElement("textarea");
           role_code: data.role_code,
           notes: data.notes,
         };
-        this.firms = (this.firms || []).map((f) => (f.id === this.selectedFirmId ? updatedFirm : f));
+        this.firms = (this.firms || []).map((f) =>
+          this._sameId(f?.id, this.selectedFirmId) ? updatedFirm : f
+        );
         this.selectedFirm = updatedFirm;
         this._renderFirmsOnly();
         this._renderFirmDetails();
@@ -4283,7 +4350,8 @@ const taFirmNotes = document.createElement("textarea");
         } catch (reloadError) {
           console.warn("Firms reload after save failed:", reloadError);
         }
-        this.selectedFirm = (this.firms || []).find((f) => f.id === this.selectedFirmId) || null;
+        this.selectedFirm =
+          (this.firms || []).find((f) => this._sameId(f?.id, this.selectedFirmId)) || null;
         this._renderFirmsOnly();
         this._renderFirmDetails();
       }
@@ -4299,6 +4367,7 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   async _saveFirmFromEditor(firmId, data) {
+    this._clearStaleBusyState();
     if (this.savingFirm) return;
     const name = String(data?.name || "").trim();
     if (!name) {
@@ -4340,7 +4409,7 @@ const taFirmNotes = document.createElement("textarea");
         id: firmId,
         ...patch,
       };
-      this.firms = (this.firms || []).map((f) => (f.id === firmId ? updatedFirm : f));
+      this.firms = (this.firms || []).map((f) => (this._sameId(f?.id, firmId) ? updatedFirm : f));
       this.selectedFirmId = firmId;
       this.selectedFirm = updatedFirm;
       this._renderFirmsOnly();
@@ -4351,7 +4420,7 @@ const taFirmNotes = document.createElement("textarea");
       } catch (reloadError) {
         console.warn("Firms reload after save failed:", reloadError);
       }
-      this.selectedFirm = (this.firms || []).find((f) => f.id === firmId) || null;
+      this.selectedFirm = (this.firms || []).find((f) => this._sameId(f?.id, firmId)) || null;
       this._renderFirmsOnly();
       this._renderFirmDetails();
     } catch (err) {
@@ -4390,7 +4459,7 @@ const taFirmNotes = document.createElement("textarea");
         return;
       }
 
-      this.firms = (this.firms || []).filter((f) => f.id !== targetFirmId);
+      this.firms = (this.firms || []).filter((f) => !this._sameId(f?.id, targetFirmId));
       this.firmMode = "none";
       this.selectedFirmId = null;
       this.selectedFirm = null;

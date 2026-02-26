@@ -1300,6 +1300,25 @@ const taFirmNotes = document.createElement("textarea");
     this.msgEl.textContent = text || "";
   }
 
+  _clearStaleBusyState() {
+    const modalVisible =
+      !!this.globalAssignOpen ||
+      !!this.localFirmCreateOpen ||
+      !!this.localPersonCreateOpen ||
+      (!!this.globalAssignOverlayEl && this.globalAssignOverlayEl.style.display !== "none") ||
+      (!!this.localFirmOverlayEl && this.localFirmOverlayEl.style.display !== "none") ||
+      (!!this.localPersonOverlayEl && this.localPersonOverlayEl.style.display !== "none");
+    if (modalVisible) return;
+    if (!this.savingFirm && !this.savingPerson && !this.savingGlobalAssign) return;
+    this.savingFirm = false;
+    this.savingPerson = false;
+    this.savingGlobalAssign = false;
+    this._setMsg("");
+    this._applyFirmFormState();
+    this._applyPersonFormState();
+    this._applyGlobalAssignState();
+  }
+
   _openProjectFirmImportModal() {
     this._ensureProjectId();
     if (!this.projectId) {
@@ -1322,9 +1341,14 @@ const taFirmNotes = document.createElement("textarea");
     return !!this.selectedFirmId && this.firmMode === "edit";
   }
 
+  _sameId(a, b) {
+    if (a === null || a === undefined || b === null || b === undefined) return false;
+    return String(a) === String(b);
+  }
+
   _selectFirm(firmId) {
     this.selectedFirmId = firmId || null;
-    this.selectedFirm = this.firms.find((f) => f.id === this.selectedFirmId) || null;
+    this.selectedFirm = this.firms.find((f) => this._sameId(f?.id, this.selectedFirmId)) || null;
   }
 
   _beginCreateFirm() {
@@ -1728,7 +1752,7 @@ const taFirmNotes = document.createElement("textarea");
     this.firms = res.list || [];
 
     if (this.selectedFirmId && this.firmMode === "edit") {
-      const still = this.firms.find((f) => f.id === this.selectedFirmId);
+      const still = this.firms.find((f) => this._sameId(f?.id, this.selectedFirmId));
       if (!still) {
         this._closeFirmEditor();
         this._selectFirm(null);
@@ -1786,7 +1810,7 @@ const taFirmNotes = document.createElement("textarea");
       const tr = document.createElement("tr");
       tr.style.cursor = "pointer";
 
-      const isSel = f.id === this.selectedFirmId && this.firmMode === "edit";
+      const isSel = this._sameId(f?.id, this.selectedFirmId) && this.firmMode === "edit";
       tr.style.background = isSel ? "#dff0ff" : "transparent";
       tr.onmouseenter = () => {
         if (isSel) return;
@@ -1882,7 +1906,7 @@ const taFirmNotes = document.createElement("textarea");
     for (const p of this.persons) {
       const tr = document.createElement("tr");
       tr.style.cursor = "pointer";
-      const isSel = this.personMode === "edit" && this.editPersonId === p.id;
+      const isSel = this.personMode === "edit" && this._sameId(this.editPersonId, p.id);
       tr.style.background = isSel ? "#dff0ff" : "transparent";
       tr.onmouseenter = () => {
         if (isSel) return;
@@ -2041,7 +2065,7 @@ const taFirmNotes = document.createElement("textarea");
 
     const editing =
       this.personMode === "edit" && this.editPersonId
-        ? this.persons.find((x) => x.id === this.editPersonId) || null
+        ? this.persons.find((x) => this._sameId(x?.id, this.editPersonId)) || null
         : null;
 
     const show = hasFirm && (this.personMode === "create" || this.personMode === "edit");
@@ -2248,6 +2272,7 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   async _openLocalFirmEditModal(firm) {
+    this._clearStaleBusyState();
     if (this._isReadOnly()) return;
     if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
     if (!firm || !firm.id) return;
@@ -2364,32 +2389,6 @@ const taFirmNotes = document.createElement("textarea");
     if (!this.localPersonOverlayEl) return;
 
     this.router?.cleanupTransientOverlays?.();
-
-    const usedEditor = await this._openEditorWindow(
-      {
-        kind: "person",
-        title: "Mitarbeiter bearbeiten",
-        subtitle: this.selectedFirm?.name || "",
-        person: {
-          id: person.id,
-          firstName: person.first_name || "",
-          lastName: person.last_name || "",
-          funktion: person.funktion || "",
-          phone: person.phone || "",
-          email: person.email || "",
-          rolle: person.rolle || "",
-          notes: person.notes || "",
-          firmName: this.selectedFirm?.name || "",
-        },
-      },
-      async (data) => {
-        await this._saveLocalPersonFromEditor(person.id, data);
-      },
-      async () => {
-        await this._deletePerson(person.id);
-      }
-    );
-    if (usedEditor) return;
 
     this.localPersonModalMode = "edit";
     this.localPersonEditId = person.id;
@@ -2564,6 +2563,7 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   async _saveLocalFirmFromEditor(firmId, data) {
+    this._clearStaleBusyState();
     if (this._isReadOnly()) return;
     if (this.savingFirm) return;
     this._ensureProjectId();
@@ -3248,7 +3248,7 @@ const taFirmNotes = document.createElement("textarea");
 
       this.persons = (this.persons || []).filter((p) => p.id !== projectPersonId);
 
-      if (this.personMode === "edit" && this.editPersonId === projectPersonId) {
+      if (this.personMode === "edit" && this._sameId(this.editPersonId, projectPersonId)) {
         this.personMode = "none";
         this.editPersonId = null;
       }
