@@ -668,6 +668,7 @@ export default class SettingsView {
     printV2LayoutHint.textContent = "Seitenraender + Footer-Reserve in mm.";
 
     const DEFAULT_PRINT_LAYOUT = { topMm: 3, leftMm: 19, rightMm: 15 };
+    const DEFAULT_PRINT_FOOTER_RESERVE = 12;
     printV2LayoutHint.style.fontSize = "12px";
     printV2LayoutHint.style.opacity = "0.75";
     printV2LayoutHint.style.marginBottom = "6px";
@@ -746,7 +747,9 @@ export default class SettingsView {
         clampMm(data[PRINT_V2_PAD_TOP_KEY], 0, 40, DEFAULT_PRINT_LAYOUT.topMm)
       );
       inpPrintV2PadBottom.value = String(clampMm(data[PRINT_V2_PAD_BOTTOM_KEY], 0, 40, 18));
-      inpPrintV2FooterReserve.value = String(clampMm(data[PRINT_V2_FOOTER_RESERVE_KEY], 0, 30, 12));
+      inpPrintV2FooterReserve.value = String(
+        clampMm(data[PRINT_V2_FOOTER_RESERVE_KEY], 0, 30, DEFAULT_PRINT_FOOTER_RESERVE)
+      );
       printV2LayoutMsg.textContent = "";
     };
 
@@ -760,7 +763,12 @@ export default class SettingsView {
       const padRight = clampMm(inpPrintV2PadRight.value, 0, 30, DEFAULT_PRINT_LAYOUT.rightMm);
       const padTop = clampMm(inpPrintV2PadTop.value, 0, 40, DEFAULT_PRINT_LAYOUT.topMm);
       const padBottom = clampMm(inpPrintV2PadBottom.value, 0, 40, 18);
-      const footerReserve = clampMm(inpPrintV2FooterReserve.value, 0, 30, 12);
+      const footerReserve = clampMm(
+        inpPrintV2FooterReserve.value,
+        0,
+        30,
+        DEFAULT_PRINT_FOOTER_RESERVE
+      );
       inpPrintV2PadLeft.value = String(padLeft);
       inpPrintV2PadRight.value = String(padRight);
       inpPrintV2PadTop.value = String(padTop);
@@ -796,6 +804,7 @@ export default class SettingsView {
       inpPrintV2PadLeft.value = String(DEFAULT_PRINT_LAYOUT.leftMm);
       inpPrintV2PadRight.value = String(DEFAULT_PRINT_LAYOUT.rightMm);
       inpPrintV2PadTop.value = String(DEFAULT_PRINT_LAYOUT.topMm);
+      inpPrintV2FooterReserve.value = String(DEFAULT_PRINT_FOOTER_RESERVE);
       await savePrintV2LayoutSettings();
     };
 
