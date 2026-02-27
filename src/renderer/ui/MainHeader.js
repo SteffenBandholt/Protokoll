@@ -510,7 +510,7 @@ export default class MainHeader {
       }
       alert(`Kopf-Test PDF erzeugt:\n${out.filePath || "(Pfad unbekannt)"}`);
     });
-    const firmsBranch = mkSubmenuBranch("Firmenliste â–¶", "firms");
+    const firmsBranch = mkSubmenuBranch("Firmenliste", "firms");
     const itemFirmsOpen = mkPrintItem("Offene Besprechung", async (state) => {
       if (!state.openMeetingId) return;
       if (typeof this.router?.openFirmsPrintPreview !== "function") return;
@@ -528,7 +528,7 @@ export default class MainHeader {
     });
     firmsBranch.submenu.append(itemFirmsOpen, itemFirmsClosed);
 
-    const todoBranch = mkSubmenuBranch("ToDo-Liste â–¶", "todo");
+    const todoBranch = mkSubmenuBranch("ToDo-Liste", "todo");
     const itemTodoOpen = mkPrintItem("Offene Besprechung", async (state) => {
       if (!state.openMeetingId) return;
       if (typeof this.router?.openTodoPrintPreview !== "function") return;
