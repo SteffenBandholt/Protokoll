@@ -618,3 +618,28 @@
   position: relative;
   z-index: 2;
 }
+
+.printV2Root .v2VorabzugWatermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  font-size: 72px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(0, 0, 0, 0.12);
+  opacity: 0.08;
+  z-index: 9999;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  text-align: center;
+}
+
+@media print {
+  .printV2Root .v2VorabzugWatermark {
+    font-size: 88px;
+    opacity: 0.08;
+  }
+}

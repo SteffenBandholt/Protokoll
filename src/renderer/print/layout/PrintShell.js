@@ -470,19 +470,15 @@ function _buildSpineNote() {
   return wrap;
 }
 
-function _buildDraftWatermark(data) {
-  const enabled = !!data?.printProfile?.branding?.enabled;
-  const label = String(data?.printProfile?.branding?.label || "").trim();
-  if (!enabled || !label) return null;
-  const wrap = _el("div", "v2DraftWatermarks");
-  wrap.appendChild(_el("div", "v2DraftWatermark isTop", label));
-  wrap.appendChild(_el("div", "v2DraftWatermark isMid", label));
-  wrap.appendChild(_el("div", "v2DraftWatermark isBottom", label));
-  return wrap;
-}
-
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
+  const showVorabzugWatermark =
+    ["vorabzug", "preview"].includes(String(data?.mode || "").trim().toLowerCase());
+  if (showVorabzugWatermark) {
+    const watermark = _el("div", "v2VorabzugWatermark", "Vorabzug");
+    watermark.setAttribute("aria-hidden", "true");
+    root.appendChild(watermark);
+  }
   const profileKey = String(data?.printProfile?.key || "").trim();
   if (profileKey) root.classList.add("v2Profile" + profileKey.charAt(0).toUpperCase() + profileKey.slice(1));
   _applyV2Vars(root, data);
