@@ -519,7 +519,7 @@ export default class MainHeader {
         meetingId: state.openMeetingId,
       });
     });
-    const itemFirmsClosed = mkPrintItem("Geschlossene Besprechungâ€¦", async (state) => {
+    const itemFirmsClosed = mkPrintItem("Geschlossene Besprechungen", async (state) => {
       if (typeof this.router?.openMeetingsForPrintSelection !== "function") return;
       await this.router.openMeetingsForPrintSelection({
         projectId: state.projectId,
@@ -537,7 +537,7 @@ export default class MainHeader {
         meetingId: state.openMeetingId,
       });
     });
-    const itemTodoClosed = mkPrintItem("Geschlossene Besprechungâ€¦", async (state) => {
+    const itemTodoClosed = mkPrintItem("Geschlossene Besprechungen", async (state) => {
       if (typeof this.router?.openMeetingsForPrintSelection !== "function") return;
       await this.router.openMeetingsForPrintSelection({
         projectId: state.projectId,
@@ -871,7 +871,7 @@ export default class MainHeader {
     if (!this.elActive) return;
 
     const value = (val ?? "").toString().trim();
-    const shown = value || "â€”";
+    const shown = value || "-";
 
     // "aktiv:" 14/16 normal, Wert 16/18 600, Abstand 0,75cm
     this.elActive.textContent = "";
@@ -1007,9 +1007,9 @@ export default class MainHeader {
         const sh = (p.short ?? "").toString().trim();
         const nm = (p.name ?? "").toString().trim();
 
-        // Ziel: Projektnummer â€“ Kurzbez (Fallbacks siehe Spec)
+        // Ziel: Projektnummer - Kurzbez (Fallbacks siehe Spec)
         let label = "";
-        if (pn && sh) label = `${pn} â€“ ${sh}`;
+        if (pn && sh) label = `${pn} - ${sh}`;
         else if (pn && !sh) label = pn;
         else if (!pn && sh) label = sh;
         else if (nm) label = nm;

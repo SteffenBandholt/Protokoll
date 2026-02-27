@@ -348,7 +348,7 @@ export default class FirmsPoolView {
 
     const btnClose = document.createElement("button");
     btnClose.type = "button";
-    btnClose.textContent = "SchlieÃŸen";
+    btnClose.textContent = "Schließen";
     applyPopupButtonStyle(btnClose);
     btnClose.onclick = async () => {
       await this._goToTopsView();
