@@ -497,8 +497,6 @@ export function renderPrint({ pages, data } = {}) {
 
   (pages || []).forEach((page, idx) => {
     const pageEl = _el("div", "page");
-    const watermark = _buildDraftWatermark(data);
-    if (watermark) pageEl.appendChild(watermark);
     const pageNo = Number(page?.header?.pageNo || 0);
     if (pageNo === 1) {
       pageEl.appendChild(_buildSpineNote());
