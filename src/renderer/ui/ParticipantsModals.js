@@ -6,6 +6,29 @@
 
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
+
+const PARTICIPANTS_EMPTY_HINT_STYLE_ID = "bbm-participants-empty-hint-style";
+function _ensureParticipantsEmptyHintStyle() {
+  if (typeof document === "undefined") return;
+  if (document.getElementById(PARTICIPANTS_EMPTY_HINT_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = PARTICIPANTS_EMPTY_HINT_STYLE_ID;
+  style.textContent = `
+.list-empty-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 700;
+  color: #ff8a00;
+  height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  user-select: none;
+}
+`;
+  document.head?.appendChild(style);
+}
 //
 // UX / Regeln:
 // - Dual-List, flach: Name, Rolle, Firma
@@ -393,12 +416,11 @@ export default class ParticipantsModals {
     return arr;
   }
 
-  _renderEmpty(container) {
+  _renderEmpty(container, text = "Keine Einträge") {
+    _ensureParticipantsEmptyHintStyle();
     const empty = document.createElement("div");
-    empty.style.padding = "10px";
-    empty.style.fontSize = "12px";
-    empty.style.opacity = "0.7";
-    empty.textContent = "Keine Einträge";
+    empty.className = "list-empty-hint";
+    empty.textContent = text;
     container.appendChild(empty);
   }
 
@@ -1268,7 +1290,12 @@ export default class ParticipantsModals {
         },
       });
     }
-    if (!leftSorted.length) this._renderEmpty(leftListEl);
+    if (!leftSorted.length) {
+      this._renderEmpty(
+        leftListEl,
+        '„Mitarbeiter aus Liste "Personen im Projekt" mit Doppelklick auswählen“'
+      );
+    }
 
     // RIGHT
     const right = [];
@@ -1315,7 +1342,12 @@ export default class ParticipantsModals {
         },
       });
     }
-    if (!rightSorted.length) this._renderEmpty(rightListEl);
+    if (!rightSorted.length) {
+      this._renderEmpty(
+        rightListEl,
+        "„zunächst Firmen incl. Mitarbeitern anlegen“"
+      );
+    }
   }
 
   async _saveParticipants() {
