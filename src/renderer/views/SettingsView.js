@@ -2237,6 +2237,11 @@ export default class SettingsView {
         const tabBtnPreRemarks = document.createElement("button");
         tabBtnPreRemarks.textContent = "Vorbemerkung";
 
+        const btnSeitenlayout = document.createElement("button");
+        btnSeitenlayout.type = "button";
+        btnSeitenlayout.textContent = "Seitenlayout";
+        applyPopupButtonStyle(btnSeitenlayout);
+
         const applyTabButtonBase = (btn) => {
           btn.style.padding = "6px 10px";
           btn.style.borderRadius = "8px";
@@ -2265,6 +2270,7 @@ export default class SettingsView {
         applyTabButtonBase(tabBtnLogos);
         applyTabButtonBase(tabBtnRoles);
         applyTabButtonBase(tabBtnPreRemarks);
+        applyTabButtonBase(btnSeitenlayout);
         applyHover(tabBtnPdf);
         applyHover(tabBtnLogos);
         applyHover(tabBtnRoles);
@@ -2305,29 +2311,8 @@ export default class SettingsView {
         const openPrintLayoutModal = async () => {
           await loadPrintV2LayoutSettings();
           this._openSettingsModal({
-            title: "Druck-Layout (C2)",
+            title: "Druck-Layout",
             content: [printV2LayoutBox],
-            closeOnly: true,
-          });
-        };
-
-        const openSeitenlayoutPopup = () => {
-          const layoutTile = mkTile({
-            titleText: "Druck-Layout(C2)",
-            subText: "Seitenränder & Footer-Reserve anpassen",
-            onClick: async () => {
-              this._closeSettingsModal();
-              await openPrintLayoutModal();
-            },
-          });
-          const layoutWrap = document.createElement("div");
-          layoutWrap.style.display = "flex";
-          layoutWrap.style.justifyContent = "center";
-          layoutWrap.style.padding = "12px";
-          layoutWrap.appendChild(layoutTile);
-          this._openSettingsModal({
-            title: "Seitenlayout",
-            content: [layoutWrap],
             closeOnly: true,
           });
         };
@@ -2365,24 +2350,13 @@ export default class SettingsView {
           if (ok === true) this._setMsg("Vorbemerkung gespeichert");
         };
 
-        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks);
-
-        const btnPageLayout = document.createElement("button");
-        btnPageLayout.type = "button";
-        btnPageLayout.textContent = "Seitenlayout";
-        applyPopupButtonStyle(btnPageLayout);
-        btnPageLayout.onclick = () => {
+        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks, btnSeitenlayout);
+        btnSeitenlayout.onclick = async () => {
           this._closeSettingsModal();
-          openSeitenlayoutPopup();
+          await openPrintLayoutModal();
         };
 
-        const tabActionRow = document.createElement("div");
-        tabActionRow.style.display = "flex";
-        tabActionRow.style.justifyContent = "flex-end";
-        tabActionRow.style.marginBottom = "10px";
-        tabActionRow.appendChild(btnPageLayout);
-
-        tabWrap.append(tabHead, tabActionRow, tabBody);
+        tabWrap.append(tabHead, tabBody);
 
         showTab("pdf");
 
