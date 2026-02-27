@@ -656,12 +656,14 @@ export default class SettingsView {
     printV2LayoutBox.style.boxSizing = "border-box";
 
     const printV2LayoutTitle = document.createElement("div");
-    printV2LayoutTitle.textContent = "Druck-Layout (V2)";
+    printV2LayoutTitle.textContent = "Druck-Layout";
     printV2LayoutTitle.style.fontWeight = "bold";
     printV2LayoutTitle.style.marginBottom = "6px";
 
     const printV2LayoutHint = document.createElement("div");
     printV2LayoutHint.textContent = "Seitenraender + Footer-Reserve in mm.";
+
+    const DEFAULT_PRINT_LAYOUT = { topMm: 3, leftMm: 19, rightMm: 15 };
     printV2LayoutHint.style.fontSize = "12px";
     printV2LayoutHint.style.opacity = "0.75";
     printV2LayoutHint.style.marginBottom = "6px";
@@ -730,9 +732,15 @@ export default class SettingsView {
         return;
       }
       const data = res.data || {};
-      inpPrintV2PadLeft.value = String(clampMm(data[PRINT_V2_PAD_LEFT_KEY], 0, 30, 12));
-      inpPrintV2PadRight.value = String(clampMm(data[PRINT_V2_PAD_RIGHT_KEY], 0, 30, 12));
-      inpPrintV2PadTop.value = String(clampMm(data[PRINT_V2_PAD_TOP_KEY], 0, 40, 2));
+      inpPrintV2PadLeft.value = String(
+        clampMm(data[PRINT_V2_PAD_LEFT_KEY], 0, 30, DEFAULT_PRINT_LAYOUT.leftMm)
+      );
+      inpPrintV2PadRight.value = String(
+        clampMm(data[PRINT_V2_PAD_RIGHT_KEY], 0, 30, DEFAULT_PRINT_LAYOUT.rightMm)
+      );
+      inpPrintV2PadTop.value = String(
+        clampMm(data[PRINT_V2_PAD_TOP_KEY], 0, 40, DEFAULT_PRINT_LAYOUT.topMm)
+      );
       inpPrintV2PadBottom.value = String(clampMm(data[PRINT_V2_PAD_BOTTOM_KEY], 0, 40, 18));
       inpPrintV2FooterReserve.value = String(clampMm(data[PRINT_V2_FOOTER_RESERVE_KEY], 0, 30, 12));
       printV2LayoutMsg.textContent = "";
@@ -744,9 +752,9 @@ export default class SettingsView {
         printV2LayoutMsg.textContent = "Settings-API fehlt (IPC noch nicht aktiv).";
         return false;
       }
-      const padLeft = clampMm(inpPrintV2PadLeft.value, 0, 30, 12);
-      const padRight = clampMm(inpPrintV2PadRight.value, 0, 30, 12);
-      const padTop = clampMm(inpPrintV2PadTop.value, 0, 40, 2);
+      const padLeft = clampMm(inpPrintV2PadLeft.value, 0, 30, DEFAULT_PRINT_LAYOUT.leftMm);
+      const padRight = clampMm(inpPrintV2PadRight.value, 0, 30, DEFAULT_PRINT_LAYOUT.rightMm);
+      const padTop = clampMm(inpPrintV2PadTop.value, 0, 40, DEFAULT_PRINT_LAYOUT.topMm);
       const padBottom = clampMm(inpPrintV2PadBottom.value, 0, 40, 18);
       const footerReserve = clampMm(inpPrintV2FooterReserve.value, 0, 30, 12);
       inpPrintV2PadLeft.value = String(padLeft);
@@ -775,6 +783,24 @@ export default class SettingsView {
     inpPrintV2PadBottom.addEventListener("change", () => savePrintV2LayoutSettings());
     inpPrintV2FooterReserve.addEventListener("change", () => savePrintV2LayoutSettings());
 
+    const btnDefaultLayout = document.createElement("button");
+    btnDefaultLayout.type = "button";
+    btnDefaultLayout.textContent = "default";
+    applyPopupButtonStyle(btnDefaultLayout);
+    btnDefaultLayout.style.marginTop = "4px";
+    btnDefaultLayout.onclick = async () => {
+      inpPrintV2PadLeft.value = String(DEFAULT_PRINT_LAYOUT.leftMm);
+      inpPrintV2PadRight.value = String(DEFAULT_PRINT_LAYOUT.rightMm);
+      inpPrintV2PadTop.value = String(DEFAULT_PRINT_LAYOUT.topMm);
+      await savePrintV2LayoutSettings();
+    };
+
+    const actionsRow = document.createElement("div");
+    actionsRow.style.display = "flex";
+    actionsRow.style.justifyContent = "flex-end";
+    actionsRow.style.gap = "4px";
+    actionsRow.appendChild(btnDefaultLayout);
+
     printV2LayoutBox.append(
       printV2LayoutTitle,
       printV2LayoutHint,
@@ -783,6 +809,7 @@ export default class SettingsView {
       mkRow("Rand oben (mm)", inpPrintV2PadTop),
       mkRow("Rand unten (mm)", inpPrintV2PadBottom),
       mkRow("Footer-Reserve (mm)", inpPrintV2FooterReserve),
+      actionsRow,
       printV2LayoutMsg
     );
 
