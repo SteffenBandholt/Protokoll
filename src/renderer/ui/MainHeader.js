@@ -121,7 +121,7 @@ export default class MainHeader {
     logoGroup.style.gridRow = "1";
     logoGroup.style.alignSelf = "start";
     logoGroup.style.justifySelf = "start";
-    logoGroup.style.display = "flex";
+    logoGroup.style.display = "none";
     logoGroup.style.flexDirection = "column";
     logoGroup.style.alignItems = "flex-start";
     logoGroup.style.gap = "4px";
@@ -131,15 +131,14 @@ export default class MainHeader {
     logoWrap.style.justifyContent = "flex-start";
 
     const logoImg = document.createElement("img");
-    logoImg.src = this._fallbackBundledLogoUrl();
-    logoImg.onerror = () => {
-      const fallback = this._fallbackBundledLogoUrl();
-      if (logoImg.src !== fallback) logoImg.src = fallback;
-    };
+    logoImg.style.display = "none";
     logoImg.alt = "Logo";
     logoImg.draggable = false;
     logoImg.style.width = "auto";
-    logoImg.style.display = "block";
+    logoImg.onerror = () => {
+      logoImg.style.display = "none";
+      logoImg.removeAttribute("src");
+    };
 
     logoWrap.append(logoImg);
 
@@ -856,12 +855,16 @@ export default class MainHeader {
     if (!this.elLogoImg) return;
 
     const customLogo = this._toFileUrl(settings["header.logoPath"]);
-    const defaultLogo = await this._resolveDefaultLogoSrc();
-    const nextSrc = customLogo || defaultLogo || this._fallbackBundledLogoUrl();
-
-    if (this.elLogoImg.src !== nextSrc) {
-      this.elLogoImg.src = nextSrc;
+    if (!customLogo) {
+      this.elLogoImg.style.display = "none";
+      this.elLogoImg.removeAttribute("src");
+      return;
     }
+
+    if (this.elLogoImg.src !== customLogo) {
+      this.elLogoImg.src = customLogo;
+    }
+    this.elLogoImg.style.display = "block";
   }
 
   _setActiveText(val) {
@@ -1610,9 +1613,10 @@ export default class MainHeader {
     );
     const logoPos = this._normalizeLogoPosition(settings["header.logoPosition"], "left");
     const logoEnabled = this._parseBool(settings["header.logoEnabled"], true);
+    const hasCustomLogo = !!String(settings["header.logoPath"] || "").trim();
 
     if (this.elLogoGroup) {
-      this.elLogoGroup.style.display = logoEnabled ? "flex" : "none";
+      this.elLogoGroup.style.display = logoEnabled && hasCustomLogo ? "flex" : "none";
       this.elLogoGroup.style.gridColumn = logoPos === "right" ? "3" : "1";
       this.elLogoGroup.style.justifySelf = logoPos === "right" ? "end" : "start";
       this.elLogoGroup.style.alignItems = logoPos === "right" ? "flex-end" : "flex-start";

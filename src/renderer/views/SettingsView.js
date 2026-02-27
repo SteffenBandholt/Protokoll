@@ -1242,6 +1242,7 @@ export default class SettingsView {
     themeDefaultWrap.style.opacity = "0.9";
     const themeDefaultInp = document.createElement("input");
     themeDefaultInp.type = "checkbox";
+    themeDefaultInp.disabled = true;
     const themeDefaultTxt = document.createElement("span");
     themeDefaultTxt.textContent = "Default";
     themeDefaultWrap.append(themeDefaultInp, themeDefaultTxt);
@@ -2400,7 +2401,17 @@ export default class SettingsView {
       },
     });
 
-    tiles.append(tileUser, tilePrint, tileDev);
+    tiles.append(tileUser, tilePrint);
+    (async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appIsPackaged !== "function") {
+        return;
+      }
+      const packagedRes = await api.appIsPackaged();
+      if (packagedRes?.ok && packagedRes.isPackaged === false) {
+        tiles.append(tileDev);
+      }
+    })();
 
     // Overlay im Body, damit kein Header-Stacking-Context stört
     const settingsOverlay = createPopupOverlay({ background: "rgba(0,0,0,0.35)" });
@@ -2881,7 +2892,7 @@ export default class SettingsView {
     if (this.canvasThemeHeaderHue) this.canvasThemeHeaderHue.style.pointerEvents = themeBusy ? "none" : "auto";
     if (this.canvasThemeSidebarHue) this.canvasThemeSidebarHue.style.pointerEvents = themeBusy ? "none" : "auto";
     if (this.canvasThemeMainHue) this.canvasThemeMainHue.style.pointerEvents = themeBusy ? "none" : "auto";
-    if (this.inpThemeGlobalDefault) this.inpThemeGlobalDefault.disabled = themeBusy;
+    if (this.inpThemeGlobalDefault) this.inpThemeGlobalDefault.disabled = true;
     if (this.inpSecurityCurrentPin) this.inpSecurityCurrentPin.disabled = securityBusy;
     if (this.inpSecurityNewPin) this.inpSecurityNewPin.disabled = securityBusy;
     if (this.inpSecurityConfirmPin) this.inpSecurityConfirmPin.disabled = securityBusy;
