@@ -1020,7 +1020,7 @@ export default class SettingsView {
     devPlaygroundButtons.append(btnDevOpenUser, btnDevOpenPrint, btnDevOpenPreRemarks);
     devPlaygroundBox.append(devPlaygroundTitle, devPlaygroundHint, devPlaygroundButtons);
 
-    devRightCol.append(devPlaygroundBox, printV2LayoutBox, topsLimitBox);
+    devRightCol.append(devPlaygroundBox, topsLimitBox);
     devTopCardsRow.append(logoBox, devRightCol);
 
     const themeBox = document.createElement("div");
@@ -2302,6 +2302,36 @@ export default class SettingsView {
           tabBtnPreRemarks.style.boxShadow = "none";
         };
 
+        const openPrintLayoutModal = async () => {
+          await loadPrintV2LayoutSettings();
+          this._openSettingsModal({
+            title: "Druck-Layout (C2)",
+            content: [printV2LayoutBox],
+            closeOnly: true,
+          });
+        };
+
+        const openSeitenlayoutPopup = () => {
+          const layoutTile = mkTile({
+            titleText: "Druck-Layout(C2)",
+            subText: "Seitenränder & Footer-Reserve anpassen",
+            onClick: async () => {
+              this._closeSettingsModal();
+              await openPrintLayoutModal();
+            },
+          });
+          const layoutWrap = document.createElement("div");
+          layoutWrap.style.display = "flex";
+          layoutWrap.style.justifyContent = "center";
+          layoutWrap.style.padding = "12px";
+          layoutWrap.appendChild(layoutTile);
+          this._openSettingsModal({
+            title: "Seitenlayout",
+            content: [layoutWrap],
+            closeOnly: true,
+          });
+        };
+
         const showTab = (next) => {
           activeTab = next;
           tabBody.innerHTML = "";
@@ -2336,7 +2366,23 @@ export default class SettingsView {
         };
 
         tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks);
-        tabWrap.append(tabHead, tabBody);
+
+        const btnPageLayout = document.createElement("button");
+        btnPageLayout.type = "button";
+        btnPageLayout.textContent = "Seitenlayout";
+        applyPopupButtonStyle(btnPageLayout);
+        btnPageLayout.onclick = () => {
+          this._closeSettingsModal();
+          openSeitenlayoutPopup();
+        };
+
+        const tabActionRow = document.createElement("div");
+        tabActionRow.style.display = "flex";
+        tabActionRow.style.justifyContent = "flex-end";
+        tabActionRow.style.marginBottom = "10px";
+        tabActionRow.appendChild(btnPageLayout);
+
+        tabWrap.append(tabHead, tabActionRow, tabBody);
 
         showTab("pdf");
 
