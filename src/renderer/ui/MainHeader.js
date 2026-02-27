@@ -482,34 +482,6 @@ export default class MainHeader {
     });
 
 
-    const itemHeaderTest = mkPrintItem("Kopf-Test", async (state) => {
-      if (typeof window?.bbmPrint?.printPdf !== "function") {
-        alert("printPdf ist nicht verfuegbar (Preload/IPC fehlt).");
-        return;
-      }
-      const projectId = state.projectId || null;
-      const meetingId = state.currentMeetingId || state.openMeetingId || null;
-      if (!projectId) {
-        alert("Bitte zuerst ein Projekt auswaehlen.");
-        return;
-      }
-      if (!meetingId) {
-        alert("Bitte zuerst eine offene Besprechung in der TopsView laden.");
-        return;
-      }
-      const out = await window.bbmPrint.printPdf({
-        mode: "headerTest",
-        projectId,
-        meetingId,
-        targetDir: "C:\\Users\\Steffen\\Downloads\\bbm",
-        fileName: "Kopf-Test.pdf",
-      });
-      if (!out?.ok) {
-        alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
-        return;
-      }
-      alert(`Kopf-Test PDF erzeugt:\n${out.filePath || "(Pfad unbekannt)"}`);
-    });
     const firmsBranch = mkSubmenuBranch("Firmenliste", "firms");
     const itemFirmsOpen = mkPrintItem("Offene Besprechung", async (state) => {
       if (!state.openMeetingId) return;
@@ -546,12 +518,20 @@ export default class MainHeader {
     });
     todoBranch.submenu.append(itemTodoOpen, itemTodoClosed);
 
-    const itemMeetings = mkPrintItem("Protokolle", async (state) => {
+    const itemTopList = mkPrintItem("Top-Liste", async (state) => {
+      if (typeof this.router?.openTopListAllPrintPreview !== "function") return;
+      await this.router.openTopListAllPrintPreview({
+        projectId: state.projectId,
+        meetingId: state.currentMeetingId || null,
+      });
+    });
+
+    const itemMeetingsClosed = mkPrintItem("Protokolle (geschlossen)", async (state) => {
       if (typeof this.router?.showMeetings !== "function") return;
       await this.router.showMeetings(state.projectId);
     });
 
-    printMenu.append(itemPreview, itemHeaderTest, firmsBranch.wrap, todoBranch.wrap, itemMeetings);
+    printMenu.append(itemPreview, firmsBranch.wrap, todoBranch.wrap, itemTopList, itemMeetingsClosed);
     printWrap.append(printBtn, printMenu);
 
     printBtn.onclick = async (e) => {
@@ -724,7 +704,8 @@ export default class MainHeader {
     this.elPrintWrap = printWrap;
     this.elPrintMenu = printMenu;
     this.elPrintItemPreview = itemPreview;
-    this.elPrintItemHeaderTest = itemHeaderTest;
+    this.elPrintItemHeaderTest = null;
+    this.elPrintItemTopList = null;
     this.elPrintBranchFirms = firmsBranch.trigger;
     this.elPrintBranchTodo = todoBranch.trigger;
     this.elPrintBranchFirmsWrap = firmsBranch.wrap;
@@ -735,7 +716,8 @@ export default class MainHeader {
     this.elPrintItemFirmsClosed = itemFirmsClosed;
     this.elPrintItemTodoOpen = itemTodoOpen;
     this.elPrintItemTodoClosed = itemTodoClosed;
-    this.elPrintItemMeetings = itemMeetings;
+    this.elPrintItemTopList = itemTopList;
+    this.elPrintItemMeetings = itemMeetingsClosed;
     this.elActionProjectFirmsBtn = btnProjectFirms;
     this.elActionFirmsPoolBtn = btnFirmsPool;
     this.elActionCandidatesBtn = null;
@@ -1221,11 +1203,6 @@ export default class MainHeader {
       "Nur in der TopsView mit geladener offener Besprechung verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
-      this.elPrintItemHeaderTest,
-      !!s.canPreviewProtocol,
-      "Nur in der TopsView mit geladener offener Besprechung verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
       this.elPrintBranchFirms,
       hasProject,
       "Nur mit aktivem Projekt verfÃ¼gbar"
@@ -1253,6 +1230,11 @@ export default class MainHeader {
     this._setMenuButtonEnabled(
       this.elPrintItemTodoClosed,
       !!s.canSelectClosedMeeting,
+      "Nur mit aktivem Projekt verfÃ¼gbar"
+    );
+    this._setMenuButtonEnabled(
+      this.elPrintItemTopList,
+      hasProject,
       "Nur mit aktivem Projekt verfÃ¼gbar"
     );
     this._setMenuButtonEnabled(
