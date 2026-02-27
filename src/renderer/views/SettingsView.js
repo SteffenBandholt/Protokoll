@@ -650,7 +650,8 @@ export default class SettingsView {
     const printV2LayoutBox = document.createElement("div");
     applyPopupCardStyle(printV2LayoutBox);
     printV2LayoutBox.style.padding = "8px 10px";
-    printV2LayoutBox.style.maxWidth = "720px";
+    printV2LayoutBox.style.maxWidth = "320px";
+    printV2LayoutBox.style.minWidth = "260px";
     printV2LayoutBox.style.marginTop = "0";
     printV2LayoutBox.style.boxSizing = "border-box";
 
@@ -665,40 +666,40 @@ export default class SettingsView {
     printV2LayoutHint.style.opacity = "0.75";
     printV2LayoutHint.style.marginBottom = "6px";
 
-    const inpPrintV2PadLeft = document.createElement("input");
-    inpPrintV2PadLeft.type = "number";
+    const mkLayoutInput = () => {
+      const input = document.createElement("input");
+      input.type = "number";
+      input.style.width = "2cm";
+      input.style.padding = "4px";
+      input.style.boxSizing = "border-box";
+      input.style.marginRight = "4px";
+      return input;
+    };
+
+    const inpPrintV2PadLeft = mkLayoutInput();
     inpPrintV2PadLeft.min = "0";
     inpPrintV2PadLeft.max = "30";
     inpPrintV2PadLeft.step = "0.5";
-    inpPrintV2PadLeft.style.width = "100%";
 
-    const inpPrintV2PadRight = document.createElement("input");
-    inpPrintV2PadRight.type = "number";
+    const inpPrintV2PadRight = mkLayoutInput();
     inpPrintV2PadRight.min = "0";
     inpPrintV2PadRight.max = "30";
     inpPrintV2PadRight.step = "0.5";
-    inpPrintV2PadRight.style.width = "100%";
 
-    const inpPrintV2PadTop = document.createElement("input");
-    inpPrintV2PadTop.type = "number";
+    const inpPrintV2PadTop = mkLayoutInput();
     inpPrintV2PadTop.min = "0";
     inpPrintV2PadTop.max = "40";
     inpPrintV2PadTop.step = "0.5";
-    inpPrintV2PadTop.style.width = "100%";
 
-    const inpPrintV2PadBottom = document.createElement("input");
-    inpPrintV2PadBottom.type = "number";
+    const inpPrintV2PadBottom = mkLayoutInput();
     inpPrintV2PadBottom.min = "0";
     inpPrintV2PadBottom.max = "40";
     inpPrintV2PadBottom.step = "0.5";
-    inpPrintV2PadBottom.style.width = "100%";
 
-    const inpPrintV2FooterReserve = document.createElement("input");
-    inpPrintV2FooterReserve.type = "number";
+    const inpPrintV2FooterReserve = mkLayoutInput();
     inpPrintV2FooterReserve.min = "0";
     inpPrintV2FooterReserve.max = "30";
     inpPrintV2FooterReserve.step = "0.5";
-    inpPrintV2FooterReserve.style.width = "100%";
 
     const printV2LayoutMsg = document.createElement("div");
     printV2LayoutMsg.style.fontSize = "12px";
@@ -2274,6 +2275,7 @@ export default class SettingsView {
         applyHover(tabBtnPdf);
         applyHover(tabBtnLogos);
         applyHover(tabBtnRoles);
+        applyHover(btnSeitenlayout);
         applyHover(tabBtnPreRemarks);
 
         const tabBody = document.createElement("div");
@@ -2778,11 +2780,16 @@ export default class SettingsView {
       const titleNorm = String(title || "").trim().toLowerCase();
       const isCompactPopup = titleNorm === "nutzereinstellungen" || titleNorm === "entwicklung";
       const isPrintSettingsPopup = titleNorm === "druckeinstellungen";
-      this.settingsModalEl.style.width = isPrintSettingsPopup
-        ? "min(1280px, 95vw)"
-        : isCompactPopup
-          ? "min(760px, calc(100vw - 24px))"
-          : "min(980px, calc(100vw - 24px))";
+      const isLayoutPopup = titleNorm === "druck-layout";
+      if (isPrintSettingsPopup) {
+        this.settingsModalEl.style.width = "min(1280px, 95vw)";
+      } else if (isLayoutPopup) {
+        this.settingsModalEl.style.width = "min(640px, calc(100vw - 24px))";
+      } else if (isCompactPopup) {
+        this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
+      } else {
+        this.settingsModalEl.style.width = "min(980px, calc(100vw - 24px))";
+      }
     }
     this.settingsModalBodyEl.innerHTML = "";
     const nodes = Array.isArray(content) ? content : [content];
