@@ -2,7 +2,7 @@ import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
 import { renderV2FullHeader } from "../v2/header/FullHeader.js";
 import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
-const APP_ICON_URL = new URL("../assets/bbm-icon-256.png", window.location.href).toString();
+const APP_ICON_URL = new URL("../assets/bbm-icon.png", window.location.href).toString();
 
 function _el(tag, className, text) {
   const el = document.createElement(tag);

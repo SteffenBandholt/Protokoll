@@ -1,0 +1,7 @@
+Übergabeprotokoll
+
+- Stand: Branch `feature/pdf-v2-rebuild`, alle Änderungen committed (Menü Druck, V2 Vorbemerkung/Logotext, Footer-Reserve). Arbeitsverzeichnis sauber.
+- Schwächen / offen: keine Tests gelaufen (siehe Notiz); visuelle Überprüfung der Drucksachen wäre sinnvoll.
+- Noch zu tun: ggf. Druck-Layout/Popup/Dropdown prüfen, Top-Liste im Druckmenü testen, Footer-Reserve-Default im Popup validieren.
+- Git-Handling: Weiter auf `feature/pdf-v2-rebuild` arbeiten. Neue Änderungen mit `git add` + `git commit -m "..."`. Für größere Aufgaben ggfs. neue Sub-Branches.
+- Bitte beim nächsten Start erwähnen: letzter Commit `Footer-Reserve default`, Fokus v2-Druck/Settings/MainHeader, um direkt weiterzumachen.
