@@ -67,7 +67,7 @@ function _logoMetrics(logo) {
   };
 }
 
-function _buildLogoBox(logo, labelNo, { adaptive = false, maxBottomMm = 45, metric = null } = {}) {
+function _buildLogoBox(logo, labelNo, { adaptive = false, maxBottomMm = 45, metric = null, showPlaceholderText = true } = {}) {
   const box = headerUtils.el("div", "v2LogoBox");
   box.classList.add(_logoClassBySize(_normalizeLogoSize(logo?.size)));
   box.classList.add(_logoClassByAlign(_normalizeLogoAlign(logo?.align)));
@@ -88,11 +88,10 @@ function _buildLogoBox(logo, labelNo, { adaptive = false, maxBottomMm = 45, metr
     return box;
   }
 
-  const placeholder = headerUtils.el(
-    "div",
-    "v2LogoPlaceholder",
-    "Logo optional - Einstellungen > Drucken > Logos"
-  );
+  const placeholder = headerUtils.el("div", "v2LogoPlaceholder");
+  if (showPlaceholderText) {
+    placeholder.textContent = "Logo optional - Einstellungen > Drucken > Logos";
+  }
   box.appendChild(placeholder);
   return box;
 }
@@ -116,11 +115,11 @@ export function renderV2GlobalHeader({ data } = {}) {
   ];
   const labelByPos = [3, 2, 1];
   const metrics = ordered.map((logo) => _logoMetrics(logo));
-  const hasActive = metrics.some((m) => !!m?.active);
-  const maxBottomMm = hasActive
+  const anyLogoSelected = metrics.some((m) => !!m?.active);
+  const maxBottomMm = anyLogoSelected
     ? metrics.reduce((max, m) => Math.max(max, Number(m?.bottomMm || 0)), 0)
     : 45;
-  if (adaptive && hasActive) {
+  if (adaptive && anyLogoSelected) {
     const gapLogoToLineMm = Number(V2_LAYOUT?.global?.gapLogoToLineMm || 3);
     const lineReserveMm = Number(V2_LAYOUT?.global?.lineThicknessPx || 1) / 3.78;
     header.style.height = String(maxBottomMm + gapLogoToLineMm + Math.max(0.2, lineReserveMm)) + "mm";
@@ -129,9 +128,10 @@ export function renderV2GlobalHeader({ data } = {}) {
   for (let i = 0; i < maxLogos; i++) {
     logoRow.appendChild(
       _buildLogoBox(ordered[i], labelByPos[i], {
-        adaptive: adaptive && hasActive,
+        adaptive: adaptive && anyLogoSelected,
         maxBottomMm,
         metric: metrics[i],
+        showPlaceholderText: !anyLogoSelected,
       })
     );
   }

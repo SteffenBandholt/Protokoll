@@ -38,6 +38,10 @@ function _docLabel(mode) {
   return "Dokument";
 }
 
+const DEFAULT_V2_PRE_REMARKS_TITLE = "Vorbemerkung:";
+const DEFAULT_V2_PRE_REMARKS_TEXT =
+  "folgende Punkte gelten als fest vereinbart, Diesen Text anpassen unter Einstellungen - Druckeinstellungen - Vorbemergung";
+
 function _formatDateIso(value) {
   const s = String(value || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return s || "";
@@ -592,23 +596,23 @@ function _buildPreRemarksData(data) {
   const mode = String(data?.mode || "").trim().toLowerCase();
   if (!["protocol", "preview", "vorabzug"].includes(mode)) return null;
   const settings = data?.settings || {};
-  const enabled = _parseBoolSetting(settings["print.preRemarks.enabled"], false);
+  const enabled = _parseBoolSetting(settings["print.preRemarks.enabled"], true);
   if (!enabled) return null;
   const text = String(settings["pdf.preRemarks"] || "").replace(/\r\n?/g, "\n").trim();
   if (!text) {
     return {
       type: "preRemarks",
-      title: "Vorbemerkung zum Protokoll",
-      text: "Keine Vorbemerkung gesetzt - Einstellungen > Drucken > Vorbemerkung",
+      title: DEFAULT_V2_PRE_REMARKS_TITLE,
+      text: DEFAULT_V2_PRE_REMARKS_TEXT,
     };
   }
-  return { type: "preRemarks", title: "Vorbemerkung zum Protokoll", text };
+  return { type: "preRemarks", title: DEFAULT_V2_PRE_REMARKS_TITLE, text };
 }
 
 function _buildPreRemarksElement(preRemarks) {
   if (!preRemarks || preRemarks.type !== "preRemarks") return null;
   const wrap = _el("section", "v2PreRemarksBlock");
-  wrap.appendChild(_el("div", "v2PreRemarksTitle", preRemarks.title || "Vorbemerkung zum Protokoll"));
+  wrap.appendChild(_el("div", "v2PreRemarksTitle", preRemarks.title || DEFAULT_V2_PRE_REMARKS_TITLE));
   const body = _el("div", "v2PreRemarksText", preRemarks.text || "");
   wrap.appendChild(body);
   return wrap;

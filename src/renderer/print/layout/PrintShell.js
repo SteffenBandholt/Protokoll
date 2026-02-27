@@ -448,7 +448,7 @@ function _buildPreRemarks(page) {
   const preRemarks = page?.preRemarks || null;
   if (!preRemarks || preRemarks.type !== "preRemarks") return null;
   const wrap = _el("section", "v2PreRemarksBlock");
-  wrap.appendChild(_el("div", "v2PreRemarksTitle", preRemarks.title || "Vorbemerkung zum Protokoll"));
+  wrap.appendChild(_el("div", "v2PreRemarksTitle", preRemarks.title || "Vorbemerkung:"));
   const text = String(preRemarks.text || "").trim();
   const hint = "Keine Vorbemerkung gesetzt - Einstellungen > Drucken > Vorbemerkung";
   wrap.appendChild(_el("div", "v2PreRemarksText", text || hint));

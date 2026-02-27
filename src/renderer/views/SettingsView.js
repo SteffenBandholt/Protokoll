@@ -13,6 +13,10 @@ import {
   parseCssColor,
 } from "../theme/themes.js";
 
+const DEFAULT_V2_PRE_REMARKS_TEXT =
+  "folgende Punkte gelten als fest vereinbart, Diesen Text anpassen unter Einstellungen - Druckeinstellungen - Vorbemergung";
+const DEFAULT_V2_PRE_REMARKS_ENABLED = true;
+
 export default class SettingsView {
   constructor({ router } = {}) {
     this.router = router || null;
@@ -130,8 +134,8 @@ export default class SettingsView {
     this.btnPdfProtocolsBrowse = null;
     this.inpPdfFooterUseUserData = null;
     this.pdfFooterUseUserData = false;
-    this.pdfPreRemarks = "";
-    this.pdfPreRemarksEnabled = false;
+    this.pdfPreRemarks = DEFAULT_V2_PRE_REMARKS_TEXT;
+    this.pdfPreRemarksEnabled = DEFAULT_V2_PRE_REMARKS_ENABLED;
     this.btnPdfSettingsSave = null;
     this.btnPdfFooterUseUserData = null;
     this._pdfLogoDataUrl = "";
@@ -3073,7 +3077,7 @@ export default class SettingsView {
     body.style.gap = "8px";
 
     const label = document.createElement("div");
-    label.textContent = "Vorbemerkung zum Protokoll";
+    label.textContent = "Vorbemerkung:";
     label.style.fontWeight = "700";
 
     const enabledWrap = document.createElement("label");
@@ -4249,8 +4253,8 @@ export default class SettingsView {
       trafficLightAllEnabled: true,
       footerUseUserData: false,
       protocolsDir: "C:\\Downloads",
-      preRemarks: "",
-      preRemarksEnabled: false,
+      preRemarks: DEFAULT_V2_PRE_REMARKS_TEXT,
+      preRemarksEnabled: DEFAULT_V2_PRE_REMARKS_ENABLED,
     };
   }
 
