@@ -1433,6 +1433,20 @@ export default class SettingsView {
             input.rows = 3;
             input.style.width = "100%";
             input.style.resize = "vertical";
+            input.addEventListener("keydown", (e) => {
+              if (e.key !== "Enter") return;
+              // Enter im Defaults-Textarea immer als Zeilenumbruch behandeln.
+              e.preventDefault();
+              e.stopPropagation();
+              const start = Number(input.selectionStart || 0);
+              const end = Number(input.selectionEnd || start);
+              const before = input.value.slice(0, start);
+              const after = input.value.slice(end);
+              input.value = `${before}\n${after}`;
+              const nextPos = start + 1;
+              input.selectionStart = nextPos;
+              input.selectionEnd = nextPos;
+            });
           } else {
             input = document.createElement("input");
             input.type = "text";
