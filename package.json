@@ -9,12 +9,15 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
+    "lint": "eslint \"src/**/*.js\"",
+    "lint:fix": "eslint \"src/**/*.js\" --fix",
     "postinstall": "electron-builder install-app-deps",
     "gen:worklog": "powershell -ExecutionPolicy Bypass -File scripts/gen-worklog.ps1",
     "prestart": "npm run gen:worklog",
     "predist": "npm run gen:worklog"
   },
   "devDependencies": {
+    "eslint": "^8.57.1",
     "electron": "^30.0.0",
     "electron-builder": "^24.13.3"
   },

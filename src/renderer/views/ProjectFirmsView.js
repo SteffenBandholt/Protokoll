@@ -221,7 +221,7 @@ export default class ProjectFirmsView {
     viewLabel.style.opacity = "0.9";
 
     const viewScope = document.createElement("div");
-    viewScope.textContent = `Firmen nur in ${this._projectScopeText()}`;
+    viewScope.textContent = this._projectScopeText();
     viewScope.style.fontSize = "16px";
     viewScope.style.fontWeight = "600";
     viewScope.style.opacity = "0.9";
@@ -265,7 +265,7 @@ export default class ProjectFirmsView {
     msg.style.fontSize = "12px";
     msg.style.opacity = "0.85";
 
-    head.append(titleWrap, btnToProject, msg);
+    head.append(titleWrap, msg);
 
     // ------------------------------------------------------------
     // Layout: Lokale Firmen
@@ -283,6 +283,16 @@ export default class ProjectFirmsView {
     localCol.style.display = "flex";
     localCol.style.flexDirection = "column";
     localCol.style.gap = "12px";
+    localCol.style.position = "relative";
+
+    const localTopActions = document.createElement("div");
+    localTopActions.style.display = "flex";
+    localTopActions.style.justifyContent = "flex-end";
+    localTopActions.style.width = "100%";
+    localTopActions.style.position = "absolute";
+    localTopActions.style.top = "-42px";
+    localTopActions.style.left = "0";
+    localTopActions.append(btnToProject);
 
     const listWrap = document.createElement("div");
     applyPopupCardStyle(listWrap);
@@ -683,7 +693,7 @@ const taFirmNotes = document.createElement("textarea");
     editWrap.append(detailHead, detailBody, detailActions, firmGrid, firmButtons, firmGewerkList);
     personsWrap.append(personsTitle, personsHead, personsTableWrap, personForm);
 
-    localCol.append(listWrap);
+    localCol.append(localTopActions, listWrap);
 
     const detailCol = document.createElement("div");
     detailCol.style.display = "flex";
