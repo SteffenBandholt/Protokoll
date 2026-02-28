@@ -49,6 +49,8 @@ export default class ProjectFormView {
     this.inpEnd = null;
 
     this.taNotes = null;
+    this.storagePreviewInfo = null;
+    this._storagePreviewReqId = 0;
 
     // buttons
     this.btnSave = null;
@@ -61,6 +63,59 @@ export default class ProjectFormView {
     const text = t || "";
     if (this.msgEl) this.msgEl.textContent = text;
     if (this.modalMsgEl) this.modalMsgEl.textContent = text;
+  }
+
+  _setStoragePreviewLines(lines = {}) {
+    const info = this.storagePreviewInfo;
+    if (!info) return;
+    const {
+      baseDir = "",
+      projectFolder = "",
+      protocolsDir = "",
+      previewDir = "",
+      listsDir = "",
+      error = "",
+    } = lines;
+    info.baseDir.textContent = baseDir || "-";
+    info.projectFolder.textContent = projectFolder || "-";
+    info.protocolsDir.textContent = protocolsDir || "-";
+    info.previewDir.textContent = previewDir || "-";
+    info.listsDir.textContent = listsDir || "-";
+    info.status.textContent = error || "";
+    info.status.style.color = error ? "#b91c1c" : "#4b5563";
+  }
+
+  async _refreshStoragePreview() {
+    if (!this.storagePreviewInfo) return;
+    const api = window.bbmDb || {};
+    if (typeof api.projectsStoragePreview !== "function") {
+      this._setStoragePreviewLines({ error: "Speicherpfad-Vorschau ist nicht verfuegbar." });
+      return;
+    }
+    const reqId = ++this._storagePreviewReqId;
+    try {
+      const res = await api.projectsStoragePreview({
+        project_number: this.inpProjectNumber?.value || "",
+        short: this.inpShort?.value || "",
+        name: this.inpName?.value || "",
+      });
+      if (reqId !== this._storagePreviewReqId) return;
+      if (!res?.ok) {
+        this._setStoragePreviewLines({ error: res?.error || "Vorschau konnte nicht geladen werden." });
+        return;
+      }
+      this._setStoragePreviewLines({
+        baseDir: res.baseDir || "",
+        projectFolder: res.projectFolder || "",
+        protocolsDir: res.protocolsDir || "",
+        previewDir: res.previewDir || "",
+        listsDir: res.listsDir || "",
+        error: "",
+      });
+    } catch (err) {
+      if (reqId !== this._storagePreviewReqId) return;
+      this._setStoragePreviewLines({ error: err?.message || "Vorschau konnte nicht geladen werden." });
+    }
   }
 
   _normText(v) {
@@ -167,6 +222,7 @@ export default class ProjectFormView {
     if (this.inpEnd) this.inpEnd.value = (proj.end_date || "").toString().slice(0, 10);
 
     if (this.taNotes) this.taNotes.value = (proj.notes || "").toString();
+    this._refreshStoragePreview();
   }
 
   _collectPayload() {
@@ -464,6 +520,67 @@ export default class ProjectFormView {
     const fieldShort = mkField("Kurzbez.", inpShort, { grow: false });
     row1.append(fieldProjectNumber, fieldShort);
 
+    const storagePreviewWrap = document.createElement("div");
+    storagePreviewWrap.style.marginTop = "8px";
+    storagePreviewWrap.style.padding = "8px 10px";
+    storagePreviewWrap.style.border = "1px solid #e5e7eb";
+    storagePreviewWrap.style.borderRadius = "8px";
+    storagePreviewWrap.style.background = "#fafafa";
+    storagePreviewWrap.style.display = "grid";
+    storagePreviewWrap.style.gap = "4px";
+
+    const storagePreviewTitle = document.createElement("div");
+    storagePreviewTitle.textContent = "Ablageordner (Vorschau):";
+    storagePreviewTitle.style.fontSize = "12px";
+    storagePreviewTitle.style.fontWeight = "700";
+    storagePreviewTitle.style.color = "#111827";
+
+    const mkPreviewLine = (label) => {
+      const row = document.createElement("div");
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "100px minmax(0, 1fr)";
+      row.style.gap = "8px";
+      row.style.alignItems = "start";
+
+      const left = document.createElement("div");
+      left.textContent = label;
+      left.style.fontSize = "12px";
+      left.style.fontWeight = "600";
+      left.style.color = "#374151";
+
+      const right = document.createElement("div");
+      right.style.fontSize = "12px";
+      right.style.fontFamily = "Consolas, 'Courier New', monospace";
+      right.style.wordBreak = "break-all";
+      right.style.color = "#111827";
+      right.textContent = "-";
+
+      row.append(left, right);
+      return { row, valueEl: right };
+    };
+
+    const lineBase = mkPreviewLine("Basis");
+    const lineProject = mkPreviewLine("Projekt");
+    const lineProtocols = mkPreviewLine("Protokolle");
+    const linePreview = mkPreviewLine("Vorabzug");
+    const lineLists = mkPreviewLine("Listen");
+
+    const storagePreviewStatus = document.createElement("div");
+    storagePreviewStatus.style.fontSize = "12px";
+    storagePreviewStatus.style.color = "#4b5563";
+    storagePreviewStatus.style.minHeight = "16px";
+    storagePreviewStatus.textContent = "";
+
+    storagePreviewWrap.append(
+      storagePreviewTitle,
+      lineBase.row,
+      lineProject.row,
+      lineProtocols.row,
+      linePreview.row,
+      lineLists.row,
+      storagePreviewStatus
+    );
+
     const row2 = mkRow();
     row2.append(mkField("Straße", inpStreet, { grow: false }));
 
@@ -490,7 +607,7 @@ export default class ProjectFormView {
     leftCol.style.flexDirection = "column";
     leftCol.style.gap = "10px";
     leftCol.style.paddingRight = "4px";
-    leftCol.append(row0, row1, row2, row3);
+    leftCol.append(row0, row1, storagePreviewWrap, row2, row3);
 
     const rightCol = document.createElement("div");
     rightCol.style.minWidth = "0";
@@ -570,6 +687,24 @@ export default class ProjectFormView {
     this.inpEnd = inpEnd;
 
     this.taNotes = taNotes;
+    this.storagePreviewInfo = {
+      baseDir: lineBase.valueEl,
+      projectFolder: lineProject.valueEl,
+      protocolsDir: lineProtocols.valueEl,
+      previewDir: linePreview.valueEl,
+      listsDir: lineLists.valueEl,
+      status: storagePreviewStatus,
+    };
+
+    const refreshPreview = () => {
+      this._refreshStoragePreview();
+    };
+    inpName.addEventListener("input", refreshPreview);
+    inpName.addEventListener("blur", refreshPreview);
+    inpProjectNumber.addEventListener("input", refreshPreview);
+    inpProjectNumber.addEventListener("blur", refreshPreview);
+    inpShort.addEventListener("input", refreshPreview);
+    inpShort.addEventListener("blur", refreshPreview);
 
     this.btnFirmsPdf = null;
     this.btnClose = null;

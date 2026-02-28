@@ -1,8 +1,10 @@
 ﻿// src/main/ipc/projectsIpc.js
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
-const { ipcMain } = require("electron");
+const { ipcMain, app } = require("electron");
+const { appSettingsGetMany } = require("../db/appSettingsRepo");
 const projectsRepo = require("../db/projectsRepo");
+const { buildStoragePreviewPaths } = require("./projectStoragePaths");
 
 function registerProjectsIpc() {
   ipcMain.handle("projects:list", () => {
@@ -102,6 +104,26 @@ function registerProjectsIpc() {
     try {
       const project = projectsRepo.updateProject(data || {});
       return { ok: true, project };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("projects:storagePreview", (_e, data) => {
+    try {
+      const d = data && typeof data === "object" ? data : {};
+      const settings = appSettingsGetMany(["pdf.protocolsDir"]) || {};
+      const baseDirRaw = String(settings["pdf.protocolsDir"] || "").trim();
+      const baseDir = baseDirRaw || app.getPath("downloads");
+      const preview = buildStoragePreviewPaths({
+        baseDir,
+        project: {
+          project_number: d.project_number ?? d.projectNumber ?? d.number ?? "",
+          short: d.short ?? "",
+          name: d.name ?? "",
+        },
+      });
+      return { ok: true, ...preview };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
     }

@@ -16,6 +16,10 @@ const fs = require("fs");
 const path = require("path");
 const { createPrintWindow, getPrintAppUrl } = require("../print/printWindow");
 const { getPrintData } = require("../print/printData");
+const {
+  sanitizeDirName,
+  resolveProjectFolderName,
+} = require("./projectStoragePaths");
 
 function _randId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -29,15 +33,6 @@ function sanitizeFileName(name) {
     .trim()
     .slice(0, 160);
   return safe.toLowerCase().endsWith(".pdf") ? safe : `${safe}.pdf`;
-}
-
-function sanitizeDirName(name) {
-  const s = String(name || "").trim() || "Projekt";
-  return s
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 120);
 }
 
 function uniquePath(dir, fileName) {
@@ -73,24 +68,9 @@ function buildPrintToPdfOptions() {
 function _folderForMode(mode) {
   const m = String(mode || "").trim().toLowerCase();
   if (m === "protocol") return "Protokolle";
-  if (m === "preview") return "Vorabzug";
+  if (m === "preview" || m === "vorabzug") return "Vorabzug";
   if (m === "todo" || m === "topsall" || m === "firms") return "Listen";
-  if (m === "headertest") return "HeaderTest";
   return "PDF";
-}
-
-function _projectFolderName(project, projectNumber) {
-  const number = String(
-    projectNumber ||
-      project?.project_number ||
-      project?.projectNumber ||
-      project?.number ||
-      ""
-  ).trim();
-  const short = String(project?.short || "").trim();
-  const name = String(project?.name || "").trim();
-  const label = short || name || "Projekt";
-  return number ? `${number}_${label}` : label;
 }
 
 async function _buildOutputPath({
@@ -102,17 +82,27 @@ async function _buildOutputPath({
   mode,
   overwrite,
 } = {}) {
+  const modeKey = String(mode || "").trim().toLowerCase();
+  const effectiveTargetDir = modeKey === "headertest" ? "temp" : targetDir;
   const downloads = app.getPath("downloads");
   const tempDir = app.getPath("temp");
-  let outBaseDir = targetDir === "temp" ? tempDir : downloads;
+  let outBaseDir = effectiveTargetDir === "temp" ? tempDir : downloads;
 
-  if (targetDir && targetDir !== "temp") outBaseDir = targetDir;
+  if (effectiveTargetDir && effectiveTargetDir !== "temp") outBaseDir = effectiveTargetDir;
   else if (baseDir) outBaseDir = baseDir;
 
   let outDir = outBaseDir;
-  if (targetDir !== "temp") {
-    const projectFolder = sanitizeDirName(_projectFolderName(project, projectNumber));
-    const modeFolder = sanitizeDirName(_folderForMode(mode));
+  if (effectiveTargetDir !== "temp") {
+    const projectFolder = resolveProjectFolderName({
+      ...(project || {}),
+      project_number:
+        projectNumber ||
+        project?.project_number ||
+        project?.projectNumber ||
+        project?.number ||
+        "",
+    });
+    const modeFolder = sanitizeDirName(_folderForMode(modeKey));
     outDir = path.join(outBaseDir, "bbm", projectFolder, modeFolder);
   }
 
