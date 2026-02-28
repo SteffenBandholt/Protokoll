@@ -3739,8 +3739,18 @@ export default class SettingsView {
     ta.addEventListener("input", normalizeLocal);
     ta.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
-      // Enter soll im Textfeld nur einen Zeilenumbruch erzeugen und nicht in übergeordnete Handler laufen.
+      // Enter erzeugt im Textfeld immer einen Zeilenumbruch (kein Weiterreichen an uebergeordnete Handler).
+      e.preventDefault();
       e.stopPropagation();
+      const start = Number(ta.selectionStart || 0);
+      const end = Number(ta.selectionEnd || start);
+      const before = ta.value.slice(0, start);
+      const after = ta.value.slice(end);
+      ta.value = `${before}\n${after}`;
+      const nextPos = start + 1;
+      ta.selectionStart = nextPos;
+      ta.selectionEnd = nextPos;
+      normalizeLocal();
     });
 
     body.append(label, enabledWrap, infoRow, ta);
