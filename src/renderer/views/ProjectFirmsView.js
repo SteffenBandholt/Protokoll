@@ -338,22 +338,7 @@ export default class ProjectFirmsView {
       this._openProjectFirmImportModal();
     };
 
-    const btnEditFirmList = document.createElement("button");
-    btnEditFirmList.textContent = "Bearbeiten";
-    applyPopupButtonStyle(btnEditFirmList);
-    btnEditFirmList.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (this._isReadOnly()) return;
-      if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
-      if (!this.selectedFirmId || !this.selectedFirm || this.firmMode !== "edit") {
-        alert("Bitte zuerst eine Projektfirma auswählen.");
-        return;
-      }
-      this._openLocalFirmEditModal(this.selectedFirm);
-    };
-
-    listActions.append(btnNewFirm, btnImportCsv, btnEditFirmList);
+    listActions.append(btnNewFirm, btnImportCsv);
 
     listHead.append(localTitle, listActions);
 
@@ -578,9 +563,12 @@ const taFirmNotes = document.createElement("textarea");
     const btnImportPersonsCsv = document.createElement("button");
     btnImportPersonsCsv.textContent = "Import Kontakt (CSV)";
     applyPopupButtonStyle(btnImportPersonsCsv);
+    btnImportPersonsCsv.disabled = true;
+    btnImportPersonsCsv.style.opacity = "0.55";
     btnImportPersonsCsv.onclick = () => {
       if (this._isReadOnly()) return;
       if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
+      if (!this._hasFirmSelectedSaved()) return;
       this._openProjectPersonImportModal();
     };
 
@@ -1132,7 +1120,6 @@ const taFirmNotes = document.createElement("textarea");
     // local refs
     this.btnNewFirm = btnNewFirm;
     this.btnImportCsv = btnImportCsv;
-    this.btnEditFirmList = btnEditFirmList;
     this.tableBodyEl = tbody;
 
     this.editWrapEl = editWrap;
@@ -1999,18 +1986,12 @@ const taFirmNotes = document.createElement("textarea");
         this.btnImportCsv.style.opacity = can ? "1" : "0.55";
       }
       if (this.btnImportPersonsCsv) {
-        this.btnImportPersonsCsv.disabled = !can;
-        this.btnImportPersonsCsv.style.opacity = can ? "1" : "0.55";
+        const canImportPersons = okProj && !isSaving && !ro && this._hasFirmSelectedSaved();
+        this.btnImportPersonsCsv.disabled = !canImportPersons;
+        this.btnImportPersonsCsv.style.opacity = canImportPersons ? "1" : "0.55";
       }
     }
 
-    const hasSelectedFirm = !!this.selectedFirmId && !!this.selectedFirm && this.firmMode === "edit";
-    if (this.btnEditFirmList) {
-      const canEdit = !isSaving && !ro && hasSelectedFirm;
-      this.btnEditFirmList.disabled = !canEdit;
-      this.btnEditFirmList.style.opacity = canEdit ? "1" : "0.55";
-      this.btnEditFirmList.title = hasSelectedFirm ? "" : "Bitte zuerst eine Projektfirma auswählen.";
-    }
     if (!hasEditor) return;
 
     const setInp = (el, val) => {

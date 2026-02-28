@@ -76,6 +76,7 @@ export default class TopsView {
 
     // Labels in topbar (when longtext on)
     this.topMetaEl = null;
+    this.topsTitleEl = null;
 
     // Save button
     this.btnSaveTop = null;
@@ -126,6 +127,81 @@ export default class TopsView {
     // UI sizing (Meta-Spalte ~30% schmaler)
     this.META_COL_W = 133; // px
     this.NUM_COL_W = 56; // px (ohne Ampel links)
+  }
+
+  _updateTopBarProtocolTitle() {
+    if (!this.topsTitleEl) return;
+    const meetingIndexRaw = Number(this.meetingMeta?.meeting_index);
+    const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
+    const hasMeetingIndex = Number.isFinite(meetingIndexRaw) && meetingIndexRaw > 0;
+    const meetingIndexInt = hasMeetingIndex ? Math.trunc(meetingIndexRaw) : 0;
+    const meetingIndex = hasMeetingIndex ? `#${meetingIndexInt}` : "";
+    let meetingTitle = String(this.meetingMeta?.title || "").trim();
+    if (hasMeetingIndex) {
+      const leadingIndexPattern = new RegExp(`^#\\s*${meetingIndexInt}(?:\\s*[-–—:]\\s*|\\s+)`, "i");
+      if (leadingIndexPattern.test(meetingTitle)) {
+        meetingTitle = meetingTitle.replace(leadingIndexPattern, "").trim();
+      } else if (new RegExp(`^#\\s*${meetingIndexInt}$`, "i").test(meetingTitle)) {
+        meetingTitle = "";
+      }
+    }
+    const host = this.topsTitleEl;
+    host.innerHTML = "";
+
+    const appendText = (text) => {
+      if (!text) return;
+      host.appendChild(document.createTextNode(text));
+    };
+    const appendIndex = (text) => {
+      if (!text) return;
+      const span = document.createElement("span");
+      span.textContent = text;
+      span.style.color = "#1b5e20";
+      span.style.fontWeight = "700";
+      host.appendChild(span);
+    };
+
+    const appendEditSuffix = () => {
+      appendText("  ");
+      const edit = document.createElement("span");
+      edit.textContent = "bearbeiten";
+      edit.style.color = "#000";
+      edit.style.fontWeight = "400";
+      host.appendChild(edit);
+    };
+
+    const buildBaseText = () => {
+      if (meetingIndex && meetingTitle) return `${meetingIndex} - ${meetingTitle}`;
+      if (meetingIndex) return meetingIndex;
+      return meetingTitle || "";
+    };
+
+    if (isClosedMeeting) {
+      const closedText = `${buildBaseText()} (geschlossen) read only`.trim();
+      const closed = document.createElement("span");
+      closed.textContent = closedText;
+      closed.style.color = "#b71c1c";
+      closed.style.fontWeight = "700";
+      host.appendChild(closed);
+      host.title = closedText;
+      return;
+    }
+
+    if (meetingIndex && meetingTitle) {
+      appendIndex(`${meetingIndex} - ${meetingTitle}`);
+      appendEditSuffix();
+      host.title = `${meetingIndex} - ${meetingTitle}  bearbeiten`;
+      return;
+    }
+    if (meetingIndex) {
+      appendIndex(meetingIndex);
+      appendEditSuffix();
+      host.title = `${meetingIndex}  bearbeiten`;
+      return;
+    }
+    appendText(meetingTitle || "");
+    appendEditSuffix();
+    host.title = `${meetingTitle || ""}  bearbeiten`.trim();
   }
 
   _readUiMode() {
@@ -2025,8 +2101,10 @@ export default class TopsView {
     this.btnMove = btnMove;
 
     this.topMetaEl = topMeta;
+    this.topsTitleEl = topsText;
     this._updateAmpelToggleUi = updateAmpelToggleUi;
     updateAmpelToggleUi();
+    this._updateTopBarProtocolTitle();
 
     // layout spacers
     const updateEditBoxSpacer = () => {
@@ -2647,6 +2725,7 @@ export default class TopsView {
 
     this.meetingMeta = res.meeting || null;
     this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
+    this._updateTopBarProtocolTitle();
 
     const items = res.list || [];
     this.items = items;
