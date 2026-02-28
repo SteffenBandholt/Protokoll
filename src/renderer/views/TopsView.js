@@ -2742,17 +2742,13 @@ export default class TopsView {
       }
 
       if (typeof window.bbmDb?.topsMarkTrashed === "function") {
-        window.bbmDb
-          .topsMarkTrashed({ topId: currentId })
-          .then((markRes) => {
-            if (markRes?.ok === false) {
-              console.warn("[tops] topsMarkTrashed failed:", markRes.error);
-            }
-          })
-          .catch((err) => {
-            console.warn("[tops] topsMarkTrashed error:", err);
-          });
+        const markRes = await window.bbmDb.topsMarkTrashed({ topId: currentId });
+        if (markRes?.ok === false) {
+          console.warn("[tops] topsMarkTrashed failed:", markRes.error);
+        }
       }
+      await this.reloadList(false);
+      await this._autoFixNumberGapsAfterDelete();
     } finally {
       this._deleteInFlight = false;
       this._updateDeleteControls();
@@ -2764,7 +2760,7 @@ export default class TopsView {
     if (!t) return;
 
     if (this.isReadOnly) {
-      alert("Besprechung ist geschlossen – Löschen nicht erlaubt.");
+      alert("Besprechung ist geschlossen - Löschen nicht erlaubt.");
       return;
     }
     if (this._busy) return;
@@ -2817,10 +2813,107 @@ export default class TopsView {
       if (!res?.ok) {
         alert(res?.error || "Löschen fehlgeschlagen");
         await this.reloadList(false);
+        return;
       }
+      if (typeof window.bbmDb?.topsMarkTrashed === "function") {
+        const markRes = await window.bbmDb.topsMarkTrashed({ topId: currentId });
+        if (markRes?.ok === false) {
+          console.warn("[tops] topsMarkTrashed failed:", markRes.error);
+        }
+      }
+      await this.reloadList(false);
+      await this._autoFixNumberGapsAfterDelete();
     } finally {
       this._deleteInFlight = false;
       this._updateDeleteControls();
+    }
+  }
+
+  _firstNumberGapFromItems() {
+    const rows = Array.isArray(this.items) ? this.items : [];
+    const groups = new Map();
+
+    for (const row of rows) {
+      const id = row?.id;
+      const level = Math.floor(Number(row?.level));
+      const number = Math.floor(Number(row?.number));
+      if (!id || !Number.isFinite(level) || level < 1 || level > 4) continue;
+      if (!Number.isFinite(number) || number < 1) continue;
+
+      const parentTopId = row?.parent_top_id ?? null;
+      const key = `${level}::${parentTopId ?? "root"}`;
+      if (!groups.has(key)) groups.set(key, { level, parentTopId, items: [] });
+      groups.get(key).items.push({ id, number });
+    }
+
+    const gaps = [];
+    for (const group of groups.values()) {
+      if (!group.items.length) continue;
+      const numbers = new Set();
+      let maxNumber = 0;
+      for (const item of group.items) {
+        numbers.add(item.number);
+        if (item.number > maxNumber) maxNumber = item.number;
+      }
+      if (maxNumber < 1) continue;
+
+      let missingNumber = null;
+      for (let i = 1; i <= maxNumber; i += 1) {
+        if (!numbers.has(i)) {
+          missingNumber = i;
+          break;
+        }
+      }
+      if (missingNumber === null) continue;
+
+      let lastTopId = null;
+      for (const item of group.items) {
+        if (item.number !== maxNumber) continue;
+        if (lastTopId === null || String(item.id) > String(lastTopId)) lastTopId = item.id;
+      }
+      if (!lastTopId) continue;
+
+      gaps.push({
+        level: group.level,
+        parentTopId: group.parentTopId,
+        missingNumber,
+        lastTopId,
+      });
+    }
+
+    gaps.sort((a, b) => {
+      if (a.level !== b.level) return a.level - b.level;
+      const ap = a.parentTopId ?? "";
+      const bp = b.parentTopId ?? "";
+      if (ap !== bp) return String(ap) < String(bp) ? -1 : 1;
+      return a.missingNumber - b.missingNumber;
+    });
+
+    return gaps[0] || null;
+  }
+
+  async _autoFixNumberGapsAfterDelete() {
+    if (this.isReadOnly) return;
+    if (typeof window.bbmDb?.meetingTopsFixNumberGap !== "function") return;
+
+    const maxSteps = 20;
+    for (let i = 0; i < maxSteps; i += 1) {
+      const gap = this._firstNumberGapFromItems();
+      if (!gap?.lastTopId) break;
+
+      const fixRes = await window.bbmDb.meetingTopsFixNumberGap({
+        meetingId: this.meetingId,
+        level: gap.level,
+        parentTopId: gap.parentTopId ?? null,
+        fromTopId: gap.lastTopId,
+        toNumber: gap.missingNumber,
+      });
+      if (!fixRes?.ok) {
+        console.warn("[tops] auto fixNumberGap failed:", fixRes?.error || fixRes?.errorCode);
+        break;
+      }
+
+      await this.reloadList(false);
     }
   }
 
