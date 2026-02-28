@@ -1016,46 +1016,6 @@ export default class SettingsView {
     devRightCol.style.gridTemplateColumns = "1fr";
     devRightCol.style.gap = "10px";
     devRightCol.style.alignContent = "start";
-    const devPlaygroundBox = document.createElement("div");
-    applyPopupCardStyle(devPlaygroundBox);
-    devPlaygroundBox.style.padding = "8px 10px";
-    devPlaygroundBox.style.maxWidth = "720px";
-    devPlaygroundBox.style.marginTop = "0";
-
-    const devPlaygroundTitle = document.createElement("div");
-    devPlaygroundTitle.textContent = "Druck-Playground";
-    devPlaygroundTitle.style.fontWeight = "bold";
-    devPlaygroundTitle.style.marginBottom = "6px";
-
-    const devPlaygroundHint = document.createElement("div");
-    devPlaygroundHint.textContent = "Schnellzugriff auf Popups (nur Entwicklermodus).";
-    devPlaygroundHint.style.fontSize = "12px";
-    devPlaygroundHint.style.opacity = "0.75";
-    devPlaygroundHint.style.marginBottom = "8px";
-
-    const devPlaygroundButtons = document.createElement("div");
-    devPlaygroundButtons.style.display = "flex";
-    devPlaygroundButtons.style.flexWrap = "wrap";
-    devPlaygroundButtons.style.gap = "8px";
-
-    const btnDevOpenUser = document.createElement("button");
-    btnDevOpenUser.type = "button";
-    btnDevOpenUser.textContent = "Popup Nutzerdaten";
-    applyPopupButtonStyle(btnDevOpenUser);
-
-    const btnDevOpenPrint = document.createElement("button");
-    btnDevOpenPrint.type = "button";
-    btnDevOpenPrint.textContent = "Popup Druckeinstellungen";
-    applyPopupButtonStyle(btnDevOpenPrint);
-
-    const btnDevOpenPreRemarks = document.createElement("button");
-    btnDevOpenPreRemarks.type = "button";
-    btnDevOpenPreRemarks.textContent = "Popup Vorbemerkung";
-    applyPopupButtonStyle(btnDevOpenPreRemarks);
-
-    devPlaygroundButtons.append(btnDevOpenUser, btnDevOpenPrint, btnDevOpenPreRemarks);
-    devPlaygroundBox.append(devPlaygroundTitle, devPlaygroundHint, devPlaygroundButtons);
-
     const versionBox = document.createElement("div");
     applyPopupCardStyle(versionBox);
     versionBox.style.padding = "8px 10px";
@@ -1314,7 +1274,7 @@ export default class SettingsView {
       }
     };
 
-    devRightCol.append(devPlaygroundBox, topsLimitBox);
+    devRightCol.append(topsLimitBox);
     devTopCardsRow.append(versionBox, devRightCol);
 
     const themeBox = document.createElement("div");
@@ -2671,20 +2631,6 @@ export default class SettingsView {
         });
       },
     });
-
-    btnDevOpenUser.onclick = () => {
-      this._closeSettingsModal();
-      tileUser.click();
-    };
-    btnDevOpenPrint.onclick = () => {
-      this._closeSettingsModal();
-      tilePrint.click();
-    };
-    btnDevOpenPreRemarks.onclick = async () => {
-      this._closeSettingsModal();
-      const ok = await this._openPdfPreRemarksPopup();
-      if (ok === true) this._setMsg("Vorbemerkung gespeichert");
-    };
 
     const tileDev = mkTile({
       titleText: "Entwicklung",
