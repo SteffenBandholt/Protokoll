@@ -64,6 +64,7 @@ export default class ParticipantsModals {
     this.candidates = []; // left in candidates modal
     this.projectCandidates = []; // right in participants modal
     this.participants = []; // left in participants modal
+    this.distributionHintKeys = new Set();
 
     this.searchLeft = "";
     this.searchRight = "";
@@ -101,6 +102,14 @@ export default class ParticipantsModals {
     return 1;
   }
 
+  _personEmail(person) {
+    return String(person?.email ?? person?.email_raw ?? "").trim();
+  }
+
+  _hasPersonEmail(person) {
+    return this._personEmail(person) !== "";
+  }
+
   _requestSetupStatusRefresh() {
     if (!this.isNewUi) return;
     const router = this.router || null;
@@ -109,6 +118,18 @@ export default class ParticipantsModals {
       return;
     }
     router?.refreshHeader?.();
+  }
+
+  _requestCurrentViewLayoutRefresh() {
+    const view = this.router?.currentView || null;
+    if (!view) return;
+    try {
+      if (typeof view._syncPinnedBars === "function") view._syncPinnedBars();
+      if (typeof view._updateListTopPadding === "function") view._updateListTopPadding();
+      if (typeof view._syncPinnedPositions === "function") view._syncPinnedPositions();
+    } catch (_e) {
+      // ignore
+    }
   }
 
   _syncRouterMeetingContext() {
@@ -205,6 +226,7 @@ export default class ParticipantsModals {
     this.isSaving = false;
     this.searchLeft = "";
     this.searchRight = "";
+    this.distributionHintKeys = new Set();
     this._setError("");
 
     this.overlayEl.style.display = "flex";
@@ -239,12 +261,19 @@ export default class ParticipantsModals {
     this.searchLeft = "";
     this.searchRight = "";
     this.openParticipantRefs = new Map();
+    this.distributionHintKeys = new Set();
 
     this._setError("");
 
     if (this.overlayEl) this.overlayEl.style.display = "none";
     if (this.bodyEl) this.bodyEl.innerHTML = "";
     if (this.footerEl) this.footerEl.innerHTML = "";
+
+    // Nach Modal-Close die fixe Tops-Buttonbar neu einmessen.
+    this._requestCurrentViewLayoutRefresh();
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => this._requestCurrentViewLayoutRefresh());
+    }
   }
 
   // ============================================================
@@ -437,6 +466,7 @@ export default class ParticipantsModals {
     rightWidth = null,
     dividerOffsetMm = 0,
     flushLeftToDivider = false,
+    leftHintText = "",
   }) {
     const row = document.createElement("div");
     row.style.padding = "8px";
@@ -486,6 +516,17 @@ export default class ParticipantsModals {
     t1.style.textOverflow = "ellipsis";
 
     line1.append(t1);
+    if (leftHintText) {
+      const leftHint = document.createElement("span");
+      leftHint.textContent = leftHintText;
+      leftHint.style.fontSize = "11px";
+      leftHint.style.fontWeight = "700";
+      leftHint.style.color = "#b42318";
+      leftHint.style.whiteSpace = "nowrap";
+      leftHint.style.flexShrink = "0";
+      line1.append(leftHint);
+      row.title = row.title ? `${row.title} | ${leftHintText}` : leftHintText;
+    }
     if (roleInline && rolle) {
       const roleInlineEl = document.createElement("div");
       roleInlineEl.textContent = rolle;
@@ -640,6 +681,9 @@ export default class ParticipantsModals {
         .filter((x) => Number(x?.is_closed || 0) !== 1)
         .sort((a, b) => Number(b?.meeting_index || 0) - Number(a?.meeting_index || 0));
 
+      // Explizit gesetzte Meeting-ID nicht auf ein anderes offenes Meeting umbiegen
+      // (wichtig direkt nach Neuanlage, wenn List-Refresh verzögert ist).
+      if (this.meetingId && !current) return;
       if (current && Number(current?.is_closed || 0) !== 1) return;
       if (open.length > 0) {
         this.meetingId = open[0]?.id || this.meetingId;
@@ -690,6 +734,7 @@ export default class ParticipantsModals {
           kind,
           personId,
           name: (x.name || "").toString(),
+          email: this._personEmail(x),
           rolle: (x.rolle || x.role || "").toString(),
           firm: (x.firm || x.firm_name || x.firmName || "").toString(),
           firmId: x.firmId ?? x.firm_id ?? null,
@@ -744,6 +789,7 @@ export default class ParticipantsModals {
           kind: it.kind,
           personId: it.personId,
           name: "?",
+          email: "",
           rolle: "",
           firm: "",
           is_active: this._parseActiveFlag(it?.is_active),
@@ -837,6 +883,7 @@ export default class ParticipantsModals {
             kind,
             personId,
             name: (x.name || "").toString(),
+            email: this._personEmail(x),
             rolle: (x.rolle || x.role || "").toString(),
             firm: (x.firm || x.firm_name || x.firmName || "").toString(),
             firmId: x.firmId ?? x.firm_id ?? null,
@@ -912,6 +959,7 @@ export default class ParticipantsModals {
           kind,
           personId,
           name: (p?.name || x.name || "").toString() || "€”",
+          email: this._personEmail(p) || this._personEmail(x),
           rolle: (p?.rolle || x.rolle || "").toString(),
           firm: (p?.firm || x.firm || x.firm_name || "").toString(),
           firmId: p?.firmId ?? p?.firm_id ?? null,
@@ -1201,6 +1249,13 @@ export default class ParticipantsModals {
 
     const leftSorted = this._sortPersons(left);
     for (const p of leftSorted) {
+      const rowKey = this._key(p.kind, p.personId);
+      const hasEmail = this._hasPersonEmail(p);
+      if (hasEmail) this.distributionHintKeys.delete(rowKey);
+      const showDistributionHint = !hasEmail;
+      if (!hasEmail && Number(p.isInDistribution) === 1) {
+        p.isInDistribution = 0;
+      }
       const firmIsActive = this._parseActiveFlag(
         p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
       );
@@ -1235,6 +1290,12 @@ export default class ParticipantsModals {
       lblDistribution.textContent = "Verteiler";
       lblDistribution.style.fontSize = "12px";
       lblDistribution.style.textAlign = "right";
+      lblDistribution.style.cursor = hasEmail ? "default" : "not-allowed";
+      lblDistribution.onclick = () => {
+        if (hasEmail) return;
+        this.distributionHintKeys.add(rowKey);
+        this._renderParticipantsLists(leftListEl, rightListEl);
+      };
 
       labelsRow.append(lblPresent, lblDistribution);
 
@@ -1252,7 +1313,7 @@ export default class ParticipantsModals {
       cbPresent.onchange = () => {
         const wasPresent = Number(p.isPresent) === 1;
         p.isPresent = cbPresent.checked ? 1 : 0;
-        if (this.isNewUi && !wasPresent && p.isPresent === 1) {
+        if (this.isNewUi && !wasPresent && p.isPresent === 1 && hasEmail) {
           p.isInDistribution = 1;
           this._renderParticipantsLists(leftListEl, rightListEl);
         }
@@ -1261,8 +1322,15 @@ export default class ParticipantsModals {
       const cbDistribution = document.createElement("input");
       cbDistribution.type = "checkbox";
       cbDistribution.checked = Number(p.isInDistribution) === 1;
-      cbDistribution.disabled = this.readOnly || this.isSaving;
+      cbDistribution.disabled = this.readOnly || this.isSaving || !hasEmail;
       cbDistribution.onchange = () => {
+        if (!hasEmail) {
+          cbDistribution.checked = false;
+          p.isInDistribution = 0;
+          this.distributionHintKeys.add(rowKey);
+          this._renderParticipantsLists(leftListEl, rightListEl);
+          return;
+        }
         p.isInDistribution = cbDistribution.checked ? 1 : 0;
       };
 
@@ -1279,6 +1347,7 @@ export default class ParticipantsModals {
         rightWidth: "172px",
         dividerOffsetMm: 14,
         flushLeftToDivider: true,
+        leftHintText: showDistributionHint ? "E-Mail Adresse fehlt." : "",
         badgeText: invalidReason ? invalidReason : "",
         onDblClick: () => {
           if (this.readOnly) return;
@@ -1331,10 +1400,11 @@ export default class ParticipantsModals {
             kind: c.kind,
             personId: c.personId,
             name: c.name,
+            email: this._personEmail(c),
             rolle: c.rolle,
             firm: c.firm,
             isPresent: 1,
-            isInDistribution: 1,
+            isInDistribution: this._hasPersonEmail(c) ? 1 : 0,
           };
 
           this.participants = this._sortPersons([...(this.participants || []), newP]);
@@ -1367,7 +1437,7 @@ export default class ParticipantsModals {
         kind: p.kind,
         personId: p.personId,
         isPresent: Number(p.isPresent) === 1,
-        isInDistribution: Number(p.isInDistribution) === 1,
+        isInDistribution: Number(p.isInDistribution) === 1 && this._hasPersonEmail(p),
       }));
 
       const res = await api.meetingParticipantsSet({ meetingId: this.meetingId, items });

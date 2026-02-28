@@ -11,6 +11,7 @@ import { applyPopupButtonStyle } from "../ui/popupButtonStyles.js";
 // - Projektnummer: eigene Zeile
 
 const LAST_PROJECT_KEY = "bbm.lastProjectId";
+const CREATE_MEETING_EDIT_PARTICIPANTS_KEY = "bbm.createMeeting.editParticipants";
 
 export default class ProjectsView {
   constructor({ router }) {
@@ -251,7 +252,7 @@ export default class ProjectsView {
       header.style.borderBottom = "1px solid #e2e8f0";
 
       const title = document.createElement("div");
-      title.textContent = "Besprechung anlegen";
+      title.textContent = "Protokoll anlegen";
       title.style.fontWeight = "800";
 
       const btnClose = document.createElement("button");
@@ -302,6 +303,23 @@ export default class ProjectsView {
       inpKeyword.style.border = "1px solid #ddd";
       inpKeyword.style.borderRadius = "6px";
 
+      const participantsOptionRow = document.createElement("label");
+      participantsOptionRow.style.display = "flex";
+      participantsOptionRow.style.alignItems = "center";
+      participantsOptionRow.style.gap = "8px";
+      participantsOptionRow.style.marginTop = "12px";
+      participantsOptionRow.style.cursor = "pointer";
+
+      const chkEditParticipants = document.createElement("input");
+      chkEditParticipants.type = "checkbox";
+      chkEditParticipants.checked = this._readCreateMeetingEditParticipantsDefault();
+      chkEditParticipants.style.margin = "0";
+
+      const participantsOptionText = document.createElement("span");
+      participantsOptionText.textContent = "Teilnehmerliste bearbeiten";
+
+      participantsOptionRow.append(chkEditParticipants, participantsOptionText);
+
       const btnRow = document.createElement("div");
       btnRow.style.display = "flex";
       btnRow.style.justifyContent = "flex-end";
@@ -324,12 +342,14 @@ export default class ProjectsView {
         this._closeCreateMeetingModal({
           dateISO: String(inpDate.value || "").trim(),
           keyword: String(inpKeyword.value || "").trim(),
+          editParticipants: chkEditParticipants.checked,
         });
 
       const submitCreate = () =>
         this._closeCreateMeetingModal({
           dateISO: String(inpDate.value || "").trim(),
           keyword: String(inpKeyword.value || "").trim(),
+          editParticipants: chkEditParticipants.checked,
         });
 
       inpDate.addEventListener("keydown", (e) => {
@@ -355,7 +375,7 @@ export default class ProjectsView {
       });
 
       btnRow.append(btnCancel, btnCreate);
-      body.append(labDate, inpDate, labKeyword, inpKeyword);
+      body.append(labDate, inpDate, labKeyword, inpKeyword, participantsOptionRow);
       box.append(header, body, btnRow);
       overlay.appendChild(box);
 
@@ -456,6 +476,30 @@ export default class ProjectsView {
     if (!id) return;
     try {
       window.localStorage?.setItem?.(LAST_PROJECT_KEY, id);
+    } catch (_e) {
+      // ignore
+    }
+  }
+
+  _readCreateMeetingEditParticipantsDefault() {
+    try {
+      const raw = String(
+        window.localStorage?.getItem?.(CREATE_MEETING_EDIT_PARTICIPANTS_KEY) || ""
+      ).trim().toLowerCase();
+      if (raw === "0" || raw === "false") return false;
+      if (raw === "1" || raw === "true") return true;
+    } catch (_e) {
+      // ignore
+    }
+    return true;
+  }
+
+  _writeCreateMeetingEditParticipants(value) {
+    try {
+      window.localStorage?.setItem?.(
+        CREATE_MEETING_EDIT_PARTICIPANTS_KEY,
+        value ? "1" : "0"
+      );
     } catch (_e) {
       // ignore
     }
@@ -750,6 +794,8 @@ export default class ProjectsView {
       }
 
       const keyword = String(modalRes.keyword || "").trim();
+      const editParticipants = modalRes.editParticipants !== false;
+      this._writeCreateMeetingEditParticipants(editParticipants);
 
       const dd = this._isoToDDMMYYYY(dateISO);
       const idx = `#${nextIndex}`;
@@ -785,6 +831,13 @@ export default class ProjectsView {
         opened = true;
       } catch (_err) {
         // ignore
+      }
+      if (opened && editParticipants && typeof this.router?.openParticipantsModal === "function") {
+        try {
+          await this.router.openParticipantsModal({ projectId, meetingId: mid });
+        } catch (errOpenParticipants) {
+          console.warn("[ProjectsView] openParticipantsModal failed:", errOpenParticipants);
+        }
       }
       if (opened) this._rememberLastProject(projectId);
       return opened;
