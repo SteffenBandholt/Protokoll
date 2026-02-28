@@ -1005,11 +1005,6 @@ export default class SettingsView {
     devTopCardsRow.style.maxWidth = "720px";
     devTopCardsRow.style.marginTop = "10px";
 
-    logoBox.style.maxWidth = "none";
-    logoBox.style.width = "100%";
-    logoBox.style.marginTop = "0";
-    logoBox.style.boxSizing = "border-box";
-
     topsLimitBox.style.maxWidth = "none";
     topsLimitBox.style.width = "100%";
     topsLimitBox.style.marginTop = "0";
@@ -1319,8 +1314,8 @@ export default class SettingsView {
       }
     };
 
-    devRightCol.append(devPlaygroundBox, versionBox, topsLimitBox);
-    devTopCardsRow.append(logoBox, devRightCol);
+    devRightCol.append(devPlaygroundBox, topsLimitBox);
+    devTopCardsRow.append(versionBox, devRightCol);
 
     const themeBox = document.createElement("div");
     applyPopupCardStyle(themeBox);
@@ -2693,7 +2688,7 @@ export default class SettingsView {
 
     const tileDev = mkTile({
       titleText: "Entwicklung",
-      subText: "Header-Logo, Farben einstellen, DB-Diagnose",
+      subText: "Versionierung, Farben einstellen, DB-Diagnose",
       onClick: async () => {
         const api = window.bbmDb || {};
         if (typeof api.appIsPackaged === "function") {
@@ -2714,9 +2709,8 @@ export default class SettingsView {
           closeOnly: false,
           saveFn: async () => {
             const okTops = (await saveTopLimitSettings()) !== false;
-            const okLogo = (await this._saveLogoSettings()) !== false;
             const okPrintLayout = (await savePrintV2LayoutSettings()) !== false;
-            return okTops && okLogo && okPrintLayout;
+            return okTops && okPrintLayout;
           },
         });
       },
