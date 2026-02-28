@@ -125,6 +125,9 @@ contextBridge.exposeInMainWorld("bbmDb", {
   appIsWindows: () => ipcRenderer.invoke("app:isWindows"),
   appIsPackaged: () => ipcRenderer.invoke("app:isPackaged"),
   openQuickAssist: () => ipcRenderer.invoke("app:openQuickAssist"),
+  devVersionGet: () => ipcRenderer.invoke("dev:versionGet"),
+  devVersionBump: (payload) => ipcRenderer.invoke("dev:versionBump", payload),
+  devVersionSet: (payload) => ipcRenderer.invoke("dev:versionSet", payload),
 
   // ============================================================
   // Settings: Kategorien

@@ -1061,7 +1061,265 @@ export default class SettingsView {
     devPlaygroundButtons.append(btnDevOpenUser, btnDevOpenPrint, btnDevOpenPreRemarks);
     devPlaygroundBox.append(devPlaygroundTitle, devPlaygroundHint, devPlaygroundButtons);
 
-    devRightCol.append(devPlaygroundBox, topsLimitBox);
+    const versionBox = document.createElement("div");
+    applyPopupCardStyle(versionBox);
+    versionBox.style.padding = "8px 10px";
+    versionBox.style.maxWidth = "720px";
+    versionBox.style.marginTop = "0";
+    versionBox.style.display = "none";
+
+    const versionTitle = document.createElement("div");
+    versionTitle.textContent = "Versionierung";
+    versionTitle.style.fontWeight = "bold";
+    versionTitle.style.marginBottom = "6px";
+
+    const versionHint = document.createElement("div");
+    versionHint.textContent = "SemVer fuer den naechsten Build aus package.json.";
+    versionHint.style.fontSize = "12px";
+    versionHint.style.opacity = "0.75";
+    versionHint.style.marginBottom = "8px";
+
+    const appVersionValue = document.createElement("div");
+    appVersionValue.style.fontWeight = "600";
+    appVersionValue.textContent = "-";
+
+    const repoVersionValue = document.createElement("div");
+    repoVersionValue.style.fontWeight = "600";
+    repoVersionValue.textContent = "-";
+
+    const badgesRow = document.createElement("div");
+    badgesRow.style.display = "flex";
+    badgesRow.style.flexWrap = "wrap";
+    badgesRow.style.gap = "6px";
+
+    const mkBadge = (label) => {
+      const badge = document.createElement("span");
+      badge.style.display = "inline-flex";
+      badge.style.alignItems = "center";
+      badge.style.gap = "4px";
+      badge.style.padding = "2px 8px";
+      badge.style.border = "1px solid #d6dbe3";
+      badge.style.borderRadius = "999px";
+      badge.style.fontSize = "12px";
+      badge.style.background = "#fff";
+      badge.textContent = label;
+      return badge;
+    };
+    const badgeMajor = mkBadge("Major: -");
+    const badgeMinor = mkBadge("Minor: -");
+    const badgePatch = mkBadge("Patch: -");
+    badgesRow.append(badgeMajor, badgeMinor, badgePatch);
+
+    const releaseTypeSelect = document.createElement("select");
+    releaseTypeSelect.style.width = "100%";
+    const releaseOptions = [
+      { value: "patch", label: "Fixes (Patch)" },
+      { value: "minor", label: "Feature (Minor)" },
+      { value: "major", label: "Breaking (Major)" },
+    ];
+    for (const opt of releaseOptions) {
+      const node = document.createElement("option");
+      node.value = opt.value;
+      node.textContent = opt.label;
+      releaseTypeSelect.appendChild(node);
+    }
+
+    const nextVersionValue = document.createElement("div");
+    nextVersionValue.style.fontWeight = "700";
+    nextVersionValue.textContent = "-";
+
+    const versionButtons = document.createElement("div");
+    versionButtons.style.display = "flex";
+    versionButtons.style.justifyContent = "space-between";
+    versionButtons.style.gap = "8px";
+    versionButtons.style.flexWrap = "wrap";
+
+    const btnVersionBump = document.createElement("button");
+    btnVersionBump.type = "button";
+    btnVersionBump.textContent = "Version hochschalten";
+    applyPopupButtonStyle(btnVersionBump, { variant: "primary" });
+
+    const btnVersionSet100 = document.createElement("button");
+    btnVersionSet100.type = "button";
+    btnVersionSet100.textContent = "Auf 1.0.0 setzen";
+    applyPopupButtonStyle(btnVersionSet100);
+    btnVersionSet100.style.display = "none";
+
+    versionButtons.append(btnVersionBump, btnVersionSet100);
+
+    const versionStatus = document.createElement("div");
+    versionStatus.style.fontSize = "12px";
+    versionStatus.style.minHeight = "16px";
+    versionStatus.style.marginTop = "4px";
+    versionStatus.style.color = "#4b5563";
+
+    const versionRestartHint = document.createElement("div");
+    versionRestartHint.style.fontSize = "12px";
+    versionRestartHint.style.opacity = "0.8";
+    versionRestartHint.style.marginTop = "2px";
+    versionRestartHint.textContent = "";
+
+    versionBox.append(
+      versionTitle,
+      versionHint,
+      mkRow("Aktuelle App-Version (laufend)", appVersionValue),
+      mkRow("Repo-Version (package.json)", repoVersionValue),
+      mkRow("Major / Minor / Patch", badgesRow),
+      mkRow("Release-Typ", releaseTypeSelect),
+      mkRow("Naechste Version", nextVersionValue),
+      versionButtons,
+      versionStatus,
+      versionRestartHint
+    );
+
+    let versionStatusTimer = null;
+    let versionRepoCurrent = "";
+
+    const setVersionStatus = (text, isError = false) => {
+      if (versionStatusTimer) {
+        clearTimeout(versionStatusTimer);
+        versionStatusTimer = null;
+      }
+      versionStatus.textContent = String(text || "");
+      versionStatus.style.color = isError ? "#b91c1c" : "#166534";
+      if (text) {
+        versionStatusTimer = setTimeout(() => {
+          versionStatus.textContent = "";
+          versionStatus.style.color = "#4b5563";
+          versionStatusTimer = null;
+        }, 4500);
+      }
+    };
+
+    const parseSemverLocal = (value) => {
+      const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(value || "").trim());
+      if (!m) return null;
+      return {
+        major: Number(m[1]),
+        minor: Number(m[2]),
+        patch: Number(m[3]),
+      };
+    };
+
+    const formatSemverLocal = (parts) => `${parts.major}.${parts.minor}.${parts.patch}`;
+
+    const bumpSemverLocal = (version, kind) => {
+      const parsed = parseSemverLocal(version);
+      if (!parsed) return "";
+      if (kind === "major") return formatSemverLocal({ major: parsed.major + 1, minor: 0, patch: 0 });
+      if (kind === "minor") return formatSemverLocal({ major: parsed.major, minor: parsed.minor + 1, patch: 0 });
+      return formatSemverLocal({ major: parsed.major, minor: parsed.minor, patch: parsed.patch + 1 });
+    };
+
+    const updateVersionBadges = (version) => {
+      const parsed = parseSemverLocal(version);
+      if (!parsed) {
+        badgeMajor.textContent = "Major: -";
+        badgeMinor.textContent = "Minor: -";
+        badgePatch.textContent = "Patch: -";
+        return;
+      }
+      badgeMajor.textContent = `Major: ${parsed.major}`;
+      badgeMinor.textContent = `Minor: ${parsed.minor}`;
+      badgePatch.textContent = `Patch: ${parsed.patch}`;
+    };
+
+    const updateNextVersionPreview = () => {
+      const next = bumpSemverLocal(versionRepoCurrent, releaseTypeSelect.value);
+      nextVersionValue.textContent = next || "-";
+      const parsed = parseSemverLocal(versionRepoCurrent);
+      btnVersionSet100.style.display = parsed && parsed.major < 1 ? "inline-flex" : "none";
+    };
+
+    const setVersionBusy = (busy) => {
+      const isBusy = !!busy;
+      releaseTypeSelect.disabled = isBusy;
+      btnVersionBump.disabled = isBusy;
+      btnVersionSet100.disabled = isBusy;
+    };
+
+    const loadVersioningData = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devVersionGet !== "function") {
+        versionBox.style.display = "none";
+        return false;
+      }
+      setVersionBusy(true);
+      try {
+        const res = await api.devVersionGet();
+        if (!res?.ok) {
+          setVersionStatus(res?.error || "Versionen konnten nicht geladen werden.", true);
+          versionBox.style.display = "none";
+          return false;
+        }
+        versionRepoCurrent = String(res.repoVersion || "").trim();
+        appVersionValue.textContent = String(res.appVersion || "-");
+        repoVersionValue.textContent = versionRepoCurrent || "-";
+        updateVersionBadges(versionRepoCurrent);
+        updateNextVersionPreview();
+        versionRestartHint.textContent = "Hinweis: Laufende App-Version aktualisiert sich nach Neustart.";
+        versionBox.style.display = "block";
+        return true;
+      } catch (err) {
+        setVersionStatus(err?.message || "Versionen konnten nicht geladen werden.", true);
+        versionBox.style.display = "none";
+        return false;
+      } finally {
+        setVersionBusy(false);
+      }
+    };
+
+    releaseTypeSelect.addEventListener("change", updateNextVersionPreview);
+
+    btnVersionBump.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devVersionBump !== "function") {
+        setVersionStatus("Versionierung ist nicht verfuegbar.", true);
+        return;
+      }
+      setVersionBusy(true);
+      try {
+        const res = await api.devVersionBump({ kind: releaseTypeSelect.value });
+        if (!res?.ok) {
+          setVersionStatus(res?.error || "Version konnte nicht hochgeschaltet werden.", true);
+          return;
+        }
+        const reloadOk = await loadVersioningData();
+        if (reloadOk) {
+          setVersionStatus(`Repo-Version auf ${res.repoVersion} aktualisiert.`);
+        }
+      } catch (err) {
+        setVersionStatus(err?.message || "Version konnte nicht hochgeschaltet werden.", true);
+      } finally {
+        setVersionBusy(false);
+      }
+    };
+
+    btnVersionSet100.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devVersionSet !== "function") {
+        setVersionStatus("Versionierung ist nicht verfuegbar.", true);
+        return;
+      }
+      setVersionBusy(true);
+      try {
+        const res = await api.devVersionSet({ version: "1.0.0" });
+        if (!res?.ok) {
+          setVersionStatus(res?.error || "Version 1.0.0 konnte nicht gesetzt werden.", true);
+          return;
+        }
+        const reloadOk = await loadVersioningData();
+        if (reloadOk) {
+          setVersionStatus("Repo-Version auf 1.0.0 gesetzt.");
+        }
+      } catch (err) {
+        setVersionStatus(err?.message || "Version 1.0.0 konnte nicht gesetzt werden.", true);
+      } finally {
+        setVersionBusy(false);
+      }
+    };
+
+    devRightCol.append(devPlaygroundBox, versionBox, topsLimitBox);
     devTopCardsRow.append(logoBox, devRightCol);
 
     const themeBox = document.createElement("div");
@@ -2449,6 +2707,7 @@ export default class SettingsView {
         await loadDbDiagnostics();
         await loadTopLimitSettings();
         await loadPrintV2LayoutSettings();
+        await loadVersioningData();
         this._openSettingsModal({
           title: "Entwicklung",
           content: [devTopCardsRow, dbDiagBox],

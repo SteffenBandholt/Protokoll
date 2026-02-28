@@ -43,6 +43,148 @@ function resolveIconPath() {
   return null;
 }
 
+const DEV_ONLY_ERROR = "Nur im Entwicklermodus verfuegbar.";
+
+function _findPackageJsonUp(startDir) {
+  if (!startDir) return null;
+  let current = path.resolve(startDir);
+  const root = path.parse(current).root;
+  while (true) {
+    const candidate = path.join(current, "package.json");
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch (_err) {
+      // ignore and continue upwards
+    }
+    if (current === root) break;
+    current = path.dirname(current);
+  }
+  return null;
+}
+
+function _resolveProjectRoot() {
+  const starts = [];
+  try {
+    starts.push(app.getAppPath());
+  } catch (_err) {
+    // ignore
+  }
+  starts.push(process.cwd());
+  starts.push(path.join(__dirname, "..", ".."));
+
+  for (const rawStart of starts) {
+    const start = String(rawStart || "").trim();
+    if (!start) continue;
+    let startDir = start;
+    try {
+      const stat = fs.existsSync(start) ? fs.statSync(start) : null;
+      if (stat && stat.isFile()) startDir = path.dirname(start);
+    } catch (_err) {
+      // ignore
+    }
+    const pkgPath = _findPackageJsonUp(startDir);
+    if (pkgPath) return path.dirname(pkgPath);
+  }
+  return null;
+}
+
+async function _readJsonFile(filePath) {
+  const raw = await fs.promises.readFile(filePath, "utf8");
+  return JSON.parse(raw);
+}
+
+async function _writeJsonAtomic(filePath, data) {
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}`;
+  const payload = `${JSON.stringify(data, null, 2)}\n`;
+  await fs.promises.writeFile(tempPath, payload, "utf8");
+  try {
+    await fs.promises.rename(tempPath, filePath);
+  } catch (err) {
+    if (err && (err.code === "EEXIST" || err.code === "EPERM")) {
+      try {
+        await fs.promises.unlink(filePath);
+      } catch (_unlinkErr) {
+        // ignore
+      }
+      await fs.promises.rename(tempPath, filePath);
+      return;
+    }
+    throw err;
+  }
+}
+
+function _parseSemver(version) {
+  const raw = String(version || "").trim();
+  const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(raw);
+  if (!match) throw new Error(`Ungueltige SemVer-Version: ${raw || "(leer)"}`);
+  return {
+    major: Number(match[1]),
+    minor: Number(match[2]),
+    patch: Number(match[3]),
+  };
+}
+
+function _formatSemver(parts) {
+  return `${parts.major}.${parts.minor}.${parts.patch}`;
+}
+
+function _bumpSemver(version, kind) {
+  const current = _parseSemver(version);
+  const mode = String(kind || "").trim().toLowerCase();
+  if (mode === "patch") return _formatSemver({ ...current, patch: current.patch + 1 });
+  if (mode === "minor") {
+    return _formatSemver({ major: current.major, minor: current.minor + 1, patch: 0 });
+  }
+  if (mode === "major") return _formatSemver({ major: current.major + 1, minor: 0, patch: 0 });
+  throw new Error(`Unbekannter Release-Typ: ${kind}`);
+}
+
+async function _loadRepoVersionFiles(projectRoot) {
+  const packagePath = path.join(projectRoot, "package.json");
+  if (!fs.existsSync(packagePath)) {
+    throw new Error("package.json nicht gefunden.");
+  }
+  const packageData = await _readJsonFile(packagePath);
+  const repoVersion = String(packageData?.version || "").trim();
+  if (!repoVersion) throw new Error("In package.json fehlt die Versionsnummer.");
+  _parseSemver(repoVersion);
+  const lockPath = path.join(projectRoot, "package-lock.json");
+  const hasLock = fs.existsSync(lockPath);
+  const lockData = hasLock ? await _readJsonFile(lockPath) : null;
+  return {
+    repoVersion,
+    packagePath,
+    packageData,
+    lockPath,
+    lockData,
+    hasLock,
+  };
+}
+
+async function _setRepoVersion(nextVersion) {
+  _parseSemver(nextVersion);
+  const projectRoot = _resolveProjectRoot();
+  if (!projectRoot) throw new Error("Projektroot mit package.json konnte nicht ermittelt werden.");
+  const files = await _loadRepoVersionFiles(projectRoot);
+  const next = String(nextVersion);
+
+  const packageData = { ...files.packageData, version: next };
+  await _writeJsonAtomic(files.packagePath, packageData);
+
+  if (files.hasLock && files.lockData) {
+    const lockData = { ...files.lockData, version: next };
+    if (lockData.packages && typeof lockData.packages === "object" && lockData.packages[""]) {
+      lockData.packages[""] = {
+        ...lockData.packages[""],
+        version: next,
+      };
+    }
+    await _writeJsonAtomic(files.lockPath, lockData);
+  }
+
+  return next;
+}
+
 function createWindow() {
   const isProd = app.isPackaged;
   const iconPath = resolveIconPath();
@@ -219,6 +361,52 @@ app.whenReady().then(async () => {
       return { ok: true, isPackaged: !!app.isPackaged };
     } catch (err) {
       return { ok: false, error: err?.message || String(err), isPackaged: true };
+    }
+  });
+
+  ipcMain.handle("dev:versionGet", async () => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const projectRoot = _resolveProjectRoot();
+      if (!projectRoot) {
+        return { ok: false, error: "Projektroot mit package.json konnte nicht ermittelt werden." };
+      }
+      const files = await _loadRepoVersionFiles(projectRoot);
+      return {
+        ok: true,
+        appVersion: String(app.getVersion() || "").trim(),
+        repoVersion: files.repoVersion,
+      };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dev:versionBump", async (_event, payload) => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const kind = String(payload?.kind || "").trim().toLowerCase();
+      const projectRoot = _resolveProjectRoot();
+      if (!projectRoot) {
+        return { ok: false, error: "Projektroot mit package.json konnte nicht ermittelt werden." };
+      }
+      const files = await _loadRepoVersionFiles(projectRoot);
+      const nextVersion = _bumpSemver(files.repoVersion, kind);
+      const repoVersion = await _setRepoVersion(nextVersion);
+      return { ok: true, repoVersion };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dev:versionSet", async (_event, payload) => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const nextVersion = String(payload?.version || "").trim();
+      const repoVersion = await _setRepoVersion(nextVersion);
+      return { ok: true, repoVersion };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
     }
   });
 
