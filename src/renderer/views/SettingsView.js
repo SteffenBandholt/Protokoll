@@ -16,6 +16,49 @@ import {
 const DEFAULT_V2_PRE_REMARKS_TEXT =
   "folgende Punkte gelten als fest vereinbart, Diesen Text anpassen unter Einstellungen - Druckeinstellungen - Vorbemergung";
 const DEFAULT_V2_PRE_REMARKS_ENABLED = true;
+const PRINT_DEFAULTS_FIELD_GROUPS = [
+  {
+    title: "Nutzerdaten",
+    fields: [
+      { key: "user_name", label: "Nutzername" },
+      { key: "user_company", label: "Firma" },
+      { key: "user_name1", label: "Name 1" },
+      { key: "user_name2", label: "Name 2" },
+      { key: "user_street", label: "Strasse" },
+      { key: "user_zip", label: "PLZ" },
+      { key: "user_city", label: "Ort" },
+    ],
+  },
+  {
+    title: "Druckeinstellungen",
+    fields: [
+      { key: "pdf.protocolTitle", label: "Protokolltitel" },
+      { key: "pdf.preRemarks", label: "Vorbemerkung", multiline: true },
+      { key: "print.preRemarks.enabled", label: "Vorbemerkung drucken (true/false)" },
+      { key: "pdf.footerPlace", label: "Footer Ort" },
+      { key: "pdf.footerDate", label: "Footer Datum" },
+      { key: "pdf.footerName1", label: "Footer Name 1" },
+      { key: "pdf.footerName2", label: "Footer Name 2" },
+      { key: "pdf.footerRecorder", label: "Footer Protokollfuehrer" },
+      { key: "pdf.footerStreet", label: "Footer Strasse" },
+      { key: "pdf.footerZip", label: "Footer PLZ" },
+      { key: "pdf.footerCity", label: "Footer Ort" },
+      { key: "pdf.footerUseUserData", label: "Footer nutzt Nutzerdaten (true/false)" },
+      { key: "print.v2.pagePadTopMm", label: "Rand oben (mm)" },
+      { key: "print.v2.pagePadLeftMm", label: "Rand links (mm)" },
+      { key: "print.v2.pagePadRightMm", label: "Rand rechts (mm)" },
+      { key: "print.v2.pagePadBottomMm", label: "Rand unten (mm)" },
+      { key: "print.v2.footerReserveMm", label: "Footer-Reserve (mm)" },
+    ],
+  },
+];
+const PRINT_LAYOUT_TOUCHED_KEYS = [
+  "print.v2.pagePadLeftMm",
+  "print.v2.pagePadRightMm",
+  "print.v2.pagePadTopMm",
+  "print.v2.pagePadBottomMm",
+  "print.v2.footerReserveMm",
+];
 
 export default class SettingsView {
   constructor({ router } = {}) {
@@ -774,13 +817,15 @@ export default class SettingsView {
       inpPrintV2PadTop.value = String(padTop);
       inpPrintV2PadBottom.value = String(padBottom);
       inpPrintV2FooterReserve.value = String(footerReserve);
-      const res = await api.appSettingsSetMany({
+      const payload = {
         [PRINT_V2_PAD_LEFT_KEY]: String(padLeft),
         [PRINT_V2_PAD_RIGHT_KEY]: String(padRight),
         [PRINT_V2_PAD_TOP_KEY]: String(padTop),
         [PRINT_V2_PAD_BOTTOM_KEY]: String(padBottom),
         [PRINT_V2_FOOTER_RESERVE_KEY]: String(footerReserve),
-      });
+        ...this._buildTouchedPayloadForKeys(PRINT_LAYOUT_TOUCHED_KEYS),
+      };
+      const res = await api.appSettingsSetMany(payload);
       if (!res?.ok) {
         printV2LayoutMsg.textContent = res?.error || "Speichern fehlgeschlagen";
         return false;
@@ -1274,7 +1319,322 @@ export default class SettingsView {
       }
     };
 
-    devRightCol.append(topsLimitBox);
+    const devDefaultsBox = document.createElement("div");
+    applyPopupCardStyle(devDefaultsBox);
+    devDefaultsBox.style.padding = "8px 10px";
+    devDefaultsBox.style.maxWidth = "720px";
+    devDefaultsBox.style.marginTop = "0";
+    devDefaultsBox.style.boxSizing = "border-box";
+
+    const devDefaultsTitle = document.createElement("div");
+    devDefaultsTitle.textContent = "Druck-Vorgaben";
+    devDefaultsTitle.style.fontWeight = "bold";
+    devDefaultsTitle.style.marginBottom = "6px";
+
+    const devDefaultsHint = document.createElement("div");
+    devDefaultsHint.textContent = "Defaultwerte fuer den Druck pflegen + Speicherorte anzeigen.";
+    devDefaultsHint.style.fontSize = "12px";
+    devDefaultsHint.style.opacity = "0.75";
+    devDefaultsHint.style.marginBottom = "8px";
+
+    const devDefaultsActions = document.createElement("div");
+    devDefaultsActions.style.display = "flex";
+    devDefaultsActions.style.gap = "8px";
+    devDefaultsActions.style.flexWrap = "wrap";
+
+    const btnOpenPrintDefaults = document.createElement("button");
+    btnOpenPrintDefaults.type = "button";
+    btnOpenPrintDefaults.textContent = "Druck-Vorgaben";
+    applyPopupButtonStyle(btnOpenPrintDefaults);
+
+    const btnOpenStoragePreview = document.createElement("button");
+    btnOpenStoragePreview.type = "button";
+    btnOpenStoragePreview.textContent = "Speicherorte";
+    applyPopupButtonStyle(btnOpenStoragePreview);
+
+    const devDefaultsStatus = document.createElement("div");
+    devDefaultsStatus.style.fontSize = "12px";
+    devDefaultsStatus.style.minHeight = "16px";
+    devDefaultsStatus.style.marginTop = "6px";
+    devDefaultsStatus.style.color = "#4b5563";
+
+    let devDefaultsStatusTimer = null;
+    const setDevDefaultsStatus = (text, isError = false) => {
+      if (devDefaultsStatusTimer) {
+        clearTimeout(devDefaultsStatusTimer);
+        devDefaultsStatusTimer = null;
+      }
+      devDefaultsStatus.textContent = String(text || "");
+      devDefaultsStatus.style.color = isError ? "#b91c1c" : "#166534";
+      if (text) {
+        devDefaultsStatusTimer = setTimeout(() => {
+          devDefaultsStatus.textContent = "";
+          devDefaultsStatus.style.color = "#4b5563";
+          devDefaultsStatusTimer = null;
+        }, 4500);
+      }
+    };
+
+    const DEFAULT_PRINT_DEFAULTS = {
+      "pdf.preRemarks": DEFAULT_V2_PRE_REMARKS_TEXT,
+      "print.preRemarks.enabled": "true",
+      "print.v2.pagePadTopMm": "3",
+      "print.v2.pagePadLeftMm": "19",
+      "print.v2.pagePadRightMm": "15",
+      "print.v2.footerReserveMm": "12",
+    };
+
+    const allDefaultFields = PRINT_DEFAULTS_FIELD_GROUPS.flatMap((group) => group.fields || []);
+
+    const openPrintDefaultsModal = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsGetMany !== "function" || typeof api.appSettingsSetMany !== "function") {
+        setDevDefaultsStatus("Settings-API fehlt.", true);
+        return;
+      }
+
+      const root = document.createElement("div");
+      root.style.display = "grid";
+      root.style.gap = "10px";
+      root.style.maxWidth = "920px";
+
+      const valueRefs = {};
+      const defaultKeys = [];
+      for (const field of allDefaultFields) {
+        const key = String(field?.key || "").trim();
+        if (!key) continue;
+        defaultKeys.push(`defaults.${key}`);
+      }
+
+      for (const group of PRINT_DEFAULTS_FIELD_GROUPS) {
+        const groupBox = document.createElement("div");
+        applyPopupCardStyle(groupBox);
+        groupBox.style.padding = "8px 10px";
+        groupBox.style.marginTop = "0";
+        const groupTitle = document.createElement("div");
+        groupTitle.textContent = String(group?.title || "");
+        groupTitle.style.fontWeight = "700";
+        groupTitle.style.marginBottom = "6px";
+        groupBox.append(groupTitle);
+        for (const field of group.fields || []) {
+          const key = String(field?.key || "").trim();
+          if (!key) continue;
+          let input = null;
+          if (field.multiline) {
+            input = document.createElement("textarea");
+            input.rows = 3;
+            input.style.width = "100%";
+            input.style.resize = "vertical";
+          } else {
+            input = document.createElement("input");
+            input.type = "text";
+            input.style.width = "100%";
+          }
+          valueRefs[key] = input;
+          groupBox.append(mkRow(field.label || key, input));
+        }
+        root.append(groupBox);
+      }
+
+      const footerRow = document.createElement("div");
+      footerRow.style.display = "flex";
+      footerRow.style.justifyContent = "space-between";
+      footerRow.style.alignItems = "center";
+      footerRow.style.gap = "8px";
+      footerRow.style.flexWrap = "wrap";
+
+      const localStatus = document.createElement("div");
+      localStatus.style.fontSize = "12px";
+      localStatus.style.minHeight = "16px";
+      localStatus.style.color = "#4b5563";
+
+      const btnResetDefaults = document.createElement("button");
+      btnResetDefaults.type = "button";
+      btnResetDefaults.textContent = "Defaults zuruecksetzen";
+      applyPopupButtonStyle(btnResetDefaults);
+
+      footerRow.append(localStatus, btnResetDefaults);
+      root.append(footerRow);
+
+      const setLocalStatus = (text, isError = false) => {
+        localStatus.textContent = String(text || "");
+        localStatus.style.color = isError ? "#b91c1c" : "#166534";
+      };
+
+      const loadDefaults = async () => {
+        const res = await api.appSettingsGetMany(defaultKeys);
+        if (!res?.ok) {
+          setLocalStatus(res?.error || "Defaults konnten nicht geladen werden.", true);
+          return;
+        }
+        const data = res.data || {};
+        for (const field of allDefaultFields) {
+          const key = String(field?.key || "").trim();
+          if (!key) continue;
+          const node = valueRefs[key];
+          if (!node) continue;
+          const raw = data[`defaults.${key}`];
+          node.value = raw == null ? "" : String(raw);
+        }
+        setLocalStatus("");
+      };
+
+      const collectPayload = () => {
+        const payload = {};
+        for (const field of allDefaultFields) {
+          const key = String(field?.key || "").trim();
+          if (!key) continue;
+          const node = valueRefs[key];
+          if (!node) continue;
+          payload[`defaults.${key}`] = String(node.value ?? "").trim();
+        }
+        return payload;
+      };
+
+      btnResetDefaults.onclick = async () => {
+        for (const field of allDefaultFields) {
+          const key = String(field?.key || "").trim();
+          if (!key) continue;
+          if (!valueRefs[key]) continue;
+          valueRefs[key].value = Object.prototype.hasOwnProperty.call(DEFAULT_PRINT_DEFAULTS, key)
+            ? String(DEFAULT_PRINT_DEFAULTS[key])
+            : "";
+        }
+        const payload = collectPayload();
+        const saveRes = await api.appSettingsSetMany(payload);
+        if (!saveRes?.ok) {
+          setLocalStatus(saveRes?.error || "Defaults konnten nicht gespeichert werden.", true);
+          return;
+        }
+        setLocalStatus("Defaults zurueckgesetzt.");
+      };
+
+      this._openSettingsModal({
+        title: "Druck-Vorgaben",
+        content: [root],
+        closeOnly: false,
+        saveFn: async () => {
+          const payload = collectPayload();
+          const res = await api.appSettingsSetMany(payload);
+          if (!res?.ok) {
+            setLocalStatus(res?.error || "Speichern fehlgeschlagen.", true);
+            return false;
+          }
+          setLocalStatus("Gespeichert.");
+          return true;
+        },
+      });
+
+      await loadDefaults();
+    };
+
+    const openStoragePreviewModal = async () => {
+      const api = window.bbmDb || {};
+      const previewApi =
+        typeof api.devGetStoragePreview === "function"
+          ? api.devGetStoragePreview
+          : typeof api.projectsStoragePreview === "function"
+            ? api.projectsStoragePreview
+            : null;
+      if (!previewApi) {
+        setDevDefaultsStatus("Speicherorte-API fehlt.", true);
+        return;
+      }
+
+      const box = document.createElement("div");
+      applyPopupCardStyle(box);
+      box.style.padding = "10px";
+      box.style.marginTop = "0";
+      box.style.display = "grid";
+      box.style.gap = "8px";
+
+      const hint = document.createElement("div");
+      hint.style.fontSize = "12px";
+      hint.style.opacity = "0.75";
+      hint.textContent = "Nur Anzeige, keine finale Speicherlogik-Entscheidung.";
+
+      const inpNumber = document.createElement("input");
+      inpNumber.type = "text";
+      inpNumber.style.width = "100%";
+      const inpShort = document.createElement("input");
+      inpShort.type = "text";
+      inpShort.style.width = "100%";
+      const inpName = document.createElement("input");
+      inpName.type = "text";
+      inpName.style.width = "100%";
+
+      const mkPathOutput = () => {
+        const output = document.createElement("input");
+        output.type = "text";
+        output.readOnly = true;
+        output.style.width = "100%";
+        return output;
+      };
+      const outProtocols = mkPathOutput();
+      const outPreview = mkPathOutput();
+      const outLists = mkPathOutput();
+      const status = document.createElement("div");
+      status.style.fontSize = "12px";
+      status.style.minHeight = "16px";
+      status.style.color = "#4b5563";
+
+      box.append(
+        hint,
+        mkRow("Projekt-Nr (Vorschau)", inpNumber),
+        mkRow("Kurzbez. (Vorschau)", inpShort),
+        mkRow("Projektname (Fallback)", inpName),
+        mkRow("Protokolle", outProtocols),
+        mkRow("Vorabzug", outPreview),
+        mkRow("Listen", outLists),
+        status
+      );
+
+      const refreshPreview = async () => {
+        const res = await previewApi({
+          project_number: String(inpNumber.value || "").trim(),
+          short: String(inpShort.value || "").trim(),
+          name: String(inpName.value || "").trim(),
+        });
+        if (!res?.ok) {
+          status.textContent = res?.error || "Speicherorte konnten nicht geladen werden.";
+          status.style.color = "#b91c1c";
+          return;
+        }
+        outProtocols.value = String(res.protocolsDir || "");
+        outPreview.value = String(res.previewDir || "");
+        outLists.value = String(res.listsDir || "");
+        status.textContent = "";
+        status.style.color = "#4b5563";
+      };
+
+      [inpNumber, inpShort, inpName].forEach((inp) => {
+        inp.addEventListener("input", () => {
+          refreshPreview();
+        });
+      });
+
+      this._openSettingsModal({
+        title: "Speicherorte",
+        content: [box],
+        closeOnly: true,
+      });
+
+      await refreshPreview();
+    };
+
+    btnOpenPrintDefaults.onclick = async () => {
+      this._closeSettingsModal();
+      await openPrintDefaultsModal();
+    };
+    btnOpenStoragePreview.onclick = async () => {
+      this._closeSettingsModal();
+      await openStoragePreviewModal();
+    };
+
+    devDefaultsActions.append(btnOpenPrintDefaults, btnOpenStoragePreview);
+    devDefaultsBox.append(devDefaultsTitle, devDefaultsHint, devDefaultsActions, devDefaultsStatus);
+
+    devRightCol.append(devDefaultsBox, topsLimitBox);
     devTopCardsRow.append(versionBox, devRightCol);
 
     const themeBox = document.createElement("div");
@@ -2647,7 +3007,6 @@ export default class SettingsView {
         this._devPopupOpen = true;
         await loadDbDiagnostics();
         await loadTopLimitSettings();
-        await loadPrintV2LayoutSettings();
         await loadVersioningData();
         this._openSettingsModal({
           title: "Entwicklung",
@@ -2655,8 +3014,7 @@ export default class SettingsView {
           closeOnly: false,
           saveFn: async () => {
             const okTops = (await saveTopLimitSettings()) !== false;
-            const okPrintLayout = (await savePrintV2LayoutSettings()) !== false;
-            return okTops && okPrintLayout;
+            return okTops;
           },
         });
       },
@@ -3224,6 +3582,30 @@ export default class SettingsView {
     return v.length > maxLen ? v.slice(0, maxLen) : v;
   }
 
+  _isTouchedTextValue(value) {
+    return String(value ?? "").trim() !== "";
+  }
+
+  _buildTouchedPayloadFromValues(values = {}) {
+    const payload = {};
+    for (const [key, value] of Object.entries(values || {})) {
+      if (!key) continue;
+      if (!this._isTouchedTextValue(value)) continue;
+      payload[`meta.touched.${key}`] = "1";
+    }
+    return payload;
+  }
+
+  _buildTouchedPayloadForKeys(keys = []) {
+    const payload = {};
+    for (const key of keys || []) {
+      const normalizedKey = String(key || "").trim();
+      if (!normalizedKey) continue;
+      payload[`meta.touched.${normalizedKey}`] = "1";
+    }
+    return payload;
+  }
+
   _normalizePdfPreRemarks(value) {
     const raw = String(value || "").replace(/\r\n?/g, "\n");
     const lines = raw.split("\n").slice(0, 5);
@@ -3404,10 +3786,15 @@ export default class SettingsView {
       const onSave = async () => {
         normalizeLocal();
         const normalized = this._normalizePdfPreRemarks(ta.value);
-        const res = await api.appSettingsSetMany({
+        const payload = {
           "pdf.preRemarks": normalized,
           "print.preRemarks.enabled": chkEnabled.checked ? "true" : "false",
-        });
+          ...this._buildTouchedPayloadFromValues({
+            "pdf.preRemarks": normalized,
+          }),
+          ...this._buildTouchedPayloadForKeys(["print.preRemarks.enabled"]),
+        };
+        const res = await api.appSettingsSetMany(payload);
         if (!res?.ok) {
           alert(res?.error || "Speichern fehlgeschlagen");
           return;
@@ -4587,18 +4974,18 @@ export default class SettingsView {
     this.pdfPreRemarksEnabled = this._parseBool(values.preRemarksEnabled, false);
   }
 
-  _schedulePdfSettingsSave() {
+  _schedulePdfSettingsSave({ markTouched = true } = {}) {
     if (this._pdfSettingsSaveTimer) {
       clearTimeout(this._pdfSettingsSaveTimer);
       this._pdfSettingsSaveTimer = null;
     }
     this._pdfSettingsSaveTimer = setTimeout(() => {
       this._pdfSettingsSaveTimer = null;
-      this._savePdfSettings();
+      this._savePdfSettings({ markTouched });
     }, 200);
   }
 
-  async _savePdfSettings() {
+  async _savePdfSettings({ markTouched = true } = {}) {
     if (this._pdfSettingsSaving) return false;
     if (this.saving) return false;
 
@@ -4620,7 +5007,7 @@ export default class SettingsView {
     this._pdfSettingsSaving = true;
 
     try {
-      const res = await api.appSettingsSetMany({
+      const payload = {
         "pdf.protocolTitle": values.protocolTitle,
         "pdf.trafficLightAllEnabled": values.trafficLightAllEnabled ? "true" : "false",
         "pdf.protocolsDir": values.protocolsDir,
@@ -4635,7 +5022,31 @@ export default class SettingsView {
         "pdf.footerZip": values.footerZip,
         "pdf.footerCity": values.footerCity,
         "pdf.footerUseUserData": values.footerUseUserData ? "true" : "false",
-      });
+      };
+      if (markTouched) {
+        Object.assign(
+          payload,
+          this._buildTouchedPayloadFromValues({
+            "pdf.protocolTitle": values.protocolTitle,
+            "pdf.protocolsDir": values.protocolsDir,
+            "pdf.preRemarks": values.preRemarks,
+            "pdf.footerPlace": values.footerPlace,
+            "pdf.footerDate": values.footerDate,
+            "pdf.footerName1": values.footerName1,
+            "pdf.footerName2": values.footerName2,
+            "pdf.footerRecorder": values.footerRecorder,
+            "pdf.footerStreet": values.footerStreet,
+            "pdf.footerZip": values.footerZip,
+            "pdf.footerCity": values.footerCity,
+          }),
+          this._buildTouchedPayloadForKeys([
+            "pdf.trafficLightAllEnabled",
+            "print.preRemarks.enabled",
+            "pdf.footerUseUserData",
+          ])
+        );
+      }
+      const res = await api.appSettingsSetMany(payload);
       if (!res?.ok) {
         alert(res?.error || "Speichern fehlgeschlagen");
         return false;
@@ -6001,7 +6412,7 @@ export default class SettingsView {
     });
 
     if (!protocolsDirNormalized) {
-      this._schedulePdfSettingsSave();
+      this._schedulePdfSettingsSave({ markTouched: false });
     }
 
     if (footerUseUserData) {
@@ -6010,7 +6421,7 @@ export default class SettingsView {
 
     const defaultsChanged = this._applyPdfFooterPlaceDateDefaults({ city: userCity });
     if (defaultsChanged) {
-      this._schedulePdfSettingsSave();
+      this._schedulePdfSettingsSave({ markTouched: false });
     }
 
     this.roleLabels = this._normalizeRoleLabels(data.firm_role_labels || "");
@@ -6096,7 +6507,7 @@ export default class SettingsView {
         }
       }
 
-      const res = await api.appSettingsSetMany({
+      const payload = {
         user_name,
         user_company,
         user_name1,
@@ -6117,7 +6528,32 @@ export default class SettingsView {
         "pdf.footerZip": pdfValuesForSave.footerZip,
         "pdf.footerCity": pdfValuesForSave.footerCity,
         "pdf.footerUseUserData": pdfValuesForSave.footerUseUserData ? "true" : "false",
-        });
+        ...this._buildTouchedPayloadFromValues({
+          user_name,
+          user_company,
+          user_name1,
+          user_name2,
+          user_street,
+          user_zip,
+          user_city,
+          "pdf.protocolTitle": pdfValuesForSave.protocolTitle,
+          "pdf.preRemarks": pdfValuesForSave.preRemarks,
+          "pdf.footerPlace": pdfValuesForSave.footerPlace,
+          "pdf.footerDate": pdfValuesForSave.footerDate,
+          "pdf.footerName1": pdfValuesForSave.footerName1,
+          "pdf.footerName2": pdfValuesForSave.footerName2,
+          "pdf.footerRecorder": pdfValuesForSave.footerRecorder,
+          "pdf.footerStreet": pdfValuesForSave.footerStreet,
+          "pdf.footerZip": pdfValuesForSave.footerZip,
+          "pdf.footerCity": pdfValuesForSave.footerCity,
+        }),
+        ...this._buildTouchedPayloadForKeys([
+          "pdf.trafficLightAllEnabled",
+          "print.preRemarks.enabled",
+          "pdf.footerUseUserData",
+        ]),
+        };
+      const res = await api.appSettingsSetMany(payload);
         if (!res?.ok) {
           alert(res?.error || "Speichern fehlgeschlagen");
           return false;

@@ -129,6 +129,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
   devVersionGet: () => ipcRenderer.invoke("dev:versionGet"),
   devVersionBump: (payload) => ipcRenderer.invoke("dev:versionBump", payload),
   devVersionSet: (payload) => ipcRenderer.invoke("dev:versionSet", payload),
+  devGetStoragePreview: (payload) => ipcRenderer.invoke("dev:getStoragePreview", payload),
 
   // ============================================================
   // Settings: Kategorien

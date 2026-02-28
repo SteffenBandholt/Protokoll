@@ -223,11 +223,13 @@ function registerSettingsIpc() {
         "tops.fontscale.list",
         "tops.fontscale.editbox",
       ]);
+      const allowedPrefixes = ["defaults.", "meta.touched."];
       const data = {};
 
       for (const [k, v] of Object.entries(payload)) {
         const key = (k || "").toString().trim();
-        if (!allowed.has(key)) continue;
+        const isPrefixAllowed = allowedPrefixes.some((prefix) => key.startsWith(prefix));
+        if (!allowed.has(key) && !isPrefixAllowed) continue;
         data[key] = (v == null ? "" : String(v)).trim();
       }
 

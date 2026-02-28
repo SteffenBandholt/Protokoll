@@ -21,6 +21,7 @@ const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
 const personsRepo = require("./db/personsRepo");
+const { buildStoragePreviewPaths } = require("./ipc/projectStoragePaths");
 
 let mainWindow;
 const WINDOWS_APP_ID = "de.bbm.baubesprechungsmanager";
@@ -405,6 +406,27 @@ app.whenReady().then(async () => {
       const nextVersion = String(payload?.version || "").trim();
       const repoVersion = await _setRepoVersion(nextVersion);
       return { ok: true, repoVersion };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dev:getStoragePreview", async (_event, payload) => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const data = payload && typeof payload === "object" ? payload : {};
+      const settings = appSettingsGetMany(["pdf.protocolsDir"]) || {};
+      const baseDirRaw = String(settings["pdf.protocolsDir"] || "").trim();
+      const baseDir = baseDirRaw || app.getPath("downloads");
+      const preview = buildStoragePreviewPaths({
+        baseDir,
+        project: {
+          project_number: data.project_number ?? data.projectNumber ?? data.number ?? "",
+          short: data.short ?? "",
+          name: data.name ?? "",
+        },
+      });
+      return { ok: true, ...preview };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
     }

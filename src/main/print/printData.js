@@ -597,8 +597,7 @@ function _listMeetingParticipants(db, meetingId) {
     .all(meetingId);
 }
 
-function _loadSettings(db) {
-  const keys = [
+const PRINT_SETTINGS_KEYS = [
     "print.interludeText",
     "print.logo1.enabled",
     "print.logo2.enabled",
@@ -644,8 +643,49 @@ function _loadSettings(db) {
     "pdf.trafficLightAllEnabled",
     "firm_role_order",
     "firm_role_labels",
-  ];
-  return appSettingsGetManyWithDb(db, keys);
+];
+
+function _hasOwn(obj, key) {
+  return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function _hasMeaningfulValue(value) {
+  if (value == null) return false;
+  return String(value).trim() !== "";
+}
+
+function _isTouchedValue(rawTouched, userValue) {
+  const touched = String(rawTouched ?? "").trim().toLowerCase();
+  if (["1", "true", "yes", "ja", "on"].includes(touched)) return true;
+  if (["0", "false", "no", "nein", "off"].includes(touched)) return false;
+  // Kompatibilitaet fuer bestehende Installationen ohne touched-Flags.
+  return _hasMeaningfulValue(userValue);
+}
+
+function _resolveEffectiveSettings(rawSettings, keys) {
+  const out = {};
+  for (const key of keys || []) {
+    const defaultKey = `defaults.${key}`;
+    const touchedKey = `meta.touched.${key}`;
+    const userValue = rawSettings?.[key];
+    const touched = _isTouchedValue(rawSettings?.[touchedKey], userValue);
+    if (!touched && _hasOwn(rawSettings, defaultKey)) {
+      out[key] = rawSettings?.[defaultKey];
+      continue;
+    }
+    out[key] = userValue;
+  }
+  return out;
+}
+
+function _loadSettings(db) {
+  const metaKeys = [];
+  for (const key of PRINT_SETTINGS_KEYS) {
+    metaKeys.push(`defaults.${key}`);
+    metaKeys.push(`meta.touched.${key}`);
+  }
+  const raw = appSettingsGetManyWithDb(db, [...PRINT_SETTINGS_KEYS, ...metaKeys]);
+  return _resolveEffectiveSettings(raw || {}, PRINT_SETTINGS_KEYS);
 }
 
 function _buildV2Layout(settings, logos) {
