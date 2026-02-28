@@ -697,15 +697,11 @@ export default class SettingsView {
     const printV2LayoutBox = document.createElement("div");
     applyPopupCardStyle(printV2LayoutBox);
     printV2LayoutBox.style.padding = "8px 10px";
+    printV2LayoutBox.style.width = "320px";
     printV2LayoutBox.style.maxWidth = "320px";
     printV2LayoutBox.style.minWidth = "260px";
     printV2LayoutBox.style.marginTop = "0";
     printV2LayoutBox.style.boxSizing = "border-box";
-
-    const printV2LayoutTitle = document.createElement("div");
-    printV2LayoutTitle.textContent = "Druck-Layout";
-    printV2LayoutTitle.style.fontWeight = "bold";
-    printV2LayoutTitle.style.marginBottom = "6px";
 
     const printV2LayoutHint = document.createElement("div");
     printV2LayoutHint.textContent = "Seitenraender + Footer-Reserve in mm.";
@@ -867,7 +863,6 @@ export default class SettingsView {
     actionsRow.appendChild(btnDefaultLayout);
 
     printV2LayoutBox.append(
-      printV2LayoutTitle,
       printV2LayoutHint,
       printV2LayoutDefaultsInfo,
       mkRow("Rand links (mm)", inpPrintV2PadLeft),
@@ -2693,7 +2688,7 @@ export default class SettingsView {
 
     userBox.append(actions);
 
-    const rolesBox = document.createElement("div");    applyPopupCardStyle(rolesBox);    rolesBox.style.padding = "10px";    rolesBox.style.maxWidth = "720px";    rolesBox.style.marginTop = "10px";
+    const rolesBox = document.createElement("div");    applyPopupCardStyle(rolesBox);    rolesBox.style.padding = "10px";    rolesBox.style.width = "600px";    rolesBox.style.maxWidth = "600px";    rolesBox.style.marginLeft = "0";    rolesBox.style.marginRight = "auto";    rolesBox.style.marginTop = "10px";    rolesBox.style.boxSizing = "border-box";
     const rolesHead = document.createElement("div");
     rolesHead.style.display = "flex";
     rolesHead.style.alignItems = "center";
@@ -2918,6 +2913,14 @@ export default class SettingsView {
         tabBody.style.gap = "10px";
 
         let activeTab = "pdf";
+        const syncPrintSettingsModalWidth = () => {
+          if (!this.settingsModalEl) return;
+          if (activeTab === "logos") {
+            this.settingsModalEl.style.width = "min(1280px, 95vw)";
+          } else {
+            this.settingsModalEl.style.width = "min(624px, calc(100vw - 24px))";
+          }
+        };
 
         const applyTabStyles = () => {
           const isPdf = activeTab === "pdf";
@@ -2977,6 +2980,7 @@ export default class SettingsView {
             }
           }
           applyTabStyles();
+          syncPrintSettingsModalWidth();
         };
 
         tabBtnPdf.onclick = () => showTab("pdf");
@@ -3011,6 +3015,7 @@ export default class SettingsView {
             return (await this._savePdfSettings()) !== false;
           },
         });
+        syncPrintSettingsModalWidth();
       },
     });
 
@@ -3401,13 +3406,17 @@ export default class SettingsView {
       const isPrintSettingsPopup = titleNorm === "druckeinstellungen";
       const isLayoutPopup = titleNorm === "druck-layout";
       if (isPrintSettingsPopup) {
-        this.settingsModalEl.style.width = "min(1280px, 95vw)";
+        this.settingsModalEl.style.width = "min(624px, calc(100vw - 24px))";
       } else if (isLayoutPopup) {
-        this.settingsModalEl.style.width = "min(640px, calc(100vw - 24px))";
+        this.settingsModalEl.style.width = "min(344px, calc(100vw - 24px))";
       } else if (isCompactPopup) {
         this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
       } else {
         this.settingsModalEl.style.width = "min(980px, calc(100vw - 24px))";
+      }
+      const footerInner = this.settingsModalFooterEl?.firstElementChild;
+      if (footerInner) {
+        footerInner.style.maxWidth = isPrintSettingsPopup ? "600px" : "720px";
       }
     }
     this.settingsModalBodyEl.innerHTML = "";
@@ -3688,10 +3697,6 @@ export default class SettingsView {
     body.style.display = "grid";
     body.style.gap = "8px";
 
-    const label = document.createElement("div");
-    label.textContent = "Vorbemerkung:";
-    label.style.fontWeight = "700";
-
     const enabledWrap = document.createElement("label");
     enabledWrap.style.display = "inline-flex";
     enabledWrap.style.alignItems = "center";
@@ -3767,7 +3772,7 @@ export default class SettingsView {
       normalizeLocal();
     });
 
-    body.append(label, enabledWrap, infoRow, ta);
+    body.append(enabledWrap, infoRow, ta);
 
     const footer = document.createElement("div");
     footer.style.display = "flex";
