@@ -50,6 +50,18 @@ function registerMeetingsIpc() {
     }
   });
 
+  ipcMain.handle("meetings:updateTitle", (_e, payload) => {
+    try {
+      const meetingId = String(payload?.meetingId || payload?.id || "").trim();
+      const title = String(payload?.title || "").trim();
+      if (!meetingId) return { ok: false, error: "meetingId fehlt" };
+      const result = meetingsRepo.updateMeetingTitle({ meetingId, title });
+      return { ok: true, ...result };
+    } catch (err) {
+      return { ok: false, error: err?.stack || err?.message || String(err) };
+    }
+  });
+
   console.log("[main] meetings IPC registered");
 }
 

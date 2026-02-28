@@ -131,12 +131,78 @@ export default class TopsView {
 
   _updateTopBarProtocolTitle() {
     if (!this.topsTitleEl) return;
-    const meetingIndexRaw = Number(this.meetingMeta?.meeting_index);
     const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
+    const parts = this._parseMeetingTitleParts();
+    const meetingIndex = parts.meetingIndex;
+    const meetingDateText = parts.meetingDateText;
+    const meetingKeyword = parts.meetingKeyword;
+
+    const host = this.topsTitleEl;
+    host.innerHTML = "";
+    host.style.display = "flex";
+    host.style.flexDirection = "column";
+    host.style.alignItems = "flex-start";
+    host.style.gap = "1px";
+    host.style.lineHeight = "1.1";
+
+    const firstLineBase =
+      meetingIndex && meetingDateText
+        ? `${meetingIndex} - ${meetingDateText}`
+        : meetingIndex || meetingDateText || "";
+    const firstLineSafe = firstLineBase || "Protokoll";
+
+    const line1 = document.createElement("div");
+    if (isClosedMeeting) {
+      line1.textContent = `${firstLineSafe} (geschlossen) read only`.trim();
+      line1.style.color = "#b71c1c";
+      line1.style.fontWeight = "700";
+    } else {
+      const green = document.createElement("span");
+      green.textContent = firstLineSafe;
+      green.style.color = "#1b5e20";
+      green.style.fontWeight = "700";
+      line1.appendChild(green);
+      const edit = document.createElement("span");
+      edit.textContent = "  bearbeiten";
+      edit.style.color = "#000";
+      edit.style.fontWeight = "400";
+      line1.appendChild(edit);
+    }
+    host.appendChild(line1);
+
+    if (meetingKeyword) {
+      const line2 = document.createElement("div");
+      line2.textContent = meetingKeyword;
+      line2.style.color = isClosedMeeting ? "#b71c1c" : "#1b5e20";
+      line2.style.fontWeight = "700";
+      host.appendChild(line2);
+    }
+
+    const titleText = [line1.textContent || "", meetingKeyword].filter(Boolean).join(" | ");
+    host.title = titleText;
+    host.style.cursor = "pointer";
+  }
+
+  _formatDateToDdMmYyyy(raw) {
+    const src = String(raw || "").trim();
+    if (!src) return "";
+    const direct = src.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (direct) return `${direct[3]}.${direct[2]}.${direct[1]}`;
+    const d = new Date(src);
+    if (Number.isNaN(d.getTime())) return "";
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(d.getFullYear());
+    return `${dd}.${mm}.${yyyy}`;
+  }
+
+  _parseMeetingTitleParts() {
+    const meetingIndexRaw = Number(this.meetingMeta?.meeting_index);
     const hasMeetingIndex = Number.isFinite(meetingIndexRaw) && meetingIndexRaw > 0;
     const meetingIndexInt = hasMeetingIndex ? Math.trunc(meetingIndexRaw) : 0;
     const meetingIndex = hasMeetingIndex ? `#${meetingIndexInt}` : "";
     let meetingTitle = String(this.meetingMeta?.title || "").trim();
+
     if (hasMeetingIndex) {
       const leadingIndexPattern = new RegExp(`^#\\s*${meetingIndexInt}(?:\\s*[-–—:]\\s*|\\s+)`, "i");
       if (leadingIndexPattern.test(meetingTitle)) {
@@ -145,63 +211,189 @@ export default class TopsView {
         meetingTitle = "";
       }
     }
-    const host = this.topsTitleEl;
-    host.innerHTML = "";
 
-    const appendText = (text) => {
-      if (!text) return;
-      host.appendChild(document.createTextNode(text));
-    };
-    const appendIndex = (text) => {
-      if (!text) return;
-      const span = document.createElement("span");
-      span.textContent = text;
-      span.style.color = "#1b5e20";
-      span.style.fontWeight = "700";
-      host.appendChild(span);
-    };
+    const titleNormalized = meetingTitle.replace(/^#\d+\s*(?:-\s*)?/i, "").trim();
+    let meetingDateText = "";
+    let meetingKeyword = "";
 
-    const appendEditSuffix = () => {
-      appendText("  ");
-      const edit = document.createElement("span");
-      edit.textContent = "bearbeiten";
-      edit.style.color = "#000";
-      edit.style.fontWeight = "400";
-      host.appendChild(edit);
-    };
+    if (titleNormalized) {
+      const directDate = titleNormalized.match(/^(\d{2}\.\d{2}\.\d{4})(?:\s*-\s*(.*))?$/);
+      if (directDate) {
+        meetingDateText = directDate[1];
+        meetingKeyword = String(directDate[2] || "").trim();
+      } else {
+        const dateInText = titleNormalized.match(/(\d{2}\.\d{2}\.\d{4})/);
+        if (dateInText) {
+          meetingDateText = dateInText[1];
+          const idx = titleNormalized.indexOf(dateInText[1]);
+          const after = titleNormalized.slice(idx + dateInText[1].length).replace(/^\s*-\s*/, "").trim();
+          meetingKeyword = after;
+        } else {
+          meetingKeyword = titleNormalized;
+        }
+      }
+    }
 
-    const buildBaseText = () => {
-      if (meetingIndex && meetingTitle) return `${meetingIndex} - ${meetingTitle}`;
-      if (meetingIndex) return meetingIndex;
-      return meetingTitle || "";
-    };
+    if (!meetingDateText) {
+      const m = this.meetingMeta || {};
+      meetingDateText = this._formatDateToDdMmYyyy(
+        m.meeting_date || m.meetingDate || m.date || m.created_at || m.createdAt || m.updated_at || m.updatedAt || ""
+      );
+    }
 
-    if (isClosedMeeting) {
-      const closedText = `${buildBaseText()} (geschlossen) read only`.trim();
-      const closed = document.createElement("span");
-      closed.textContent = closedText;
-      closed.style.color = "#b71c1c";
-      closed.style.fontWeight = "700";
-      host.appendChild(closed);
-      host.title = closedText;
+    if (meetingKeyword) {
+      meetingKeyword = meetingKeyword.replace(/^#\d+\s*(?:-\s*)?/i, "").trim();
+    }
+
+    return {
+      meetingIndex,
+      meetingDateText: String(meetingDateText || "").trim(),
+      meetingKeyword: String(meetingKeyword || "").trim(),
+    };
+  }
+
+  async _openMeetingKeywordPopup() {
+    const api = window.bbmDb || {};
+    if (typeof api.meetingsUpdateTitle !== "function") {
+      alert("Meeting-Update ist nicht verfuegbar.");
       return;
     }
 
-    if (meetingIndex && meetingTitle) {
-      appendIndex(`${meetingIndex} - ${meetingTitle}`);
-      appendEditSuffix();
-      host.title = `${meetingIndex} - ${meetingTitle}  bearbeiten`;
-      return;
-    }
-    if (meetingIndex) {
-      appendIndex(meetingIndex);
-      appendEditSuffix();
-      host.title = `${meetingIndex}  bearbeiten`;
-      return;
-    }
-    appendText(meetingTitle || "");
-    appendEditSuffix();
-    host.title = `${meetingTitle || ""}  bearbeiten`.trim();
+    const parts = this._parseMeetingTitleParts();
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "1400";
+    overlay.tabIndex = -1;
+
+    const modal = document.createElement("div");
+    applyPopupCardStyle(modal);
+    modal.style.width = "min(560px, calc(100vw - 24px))";
+    modal.style.background = "#fff";
+    modal.style.padding = "12px";
+    modal.style.display = "grid";
+    modal.style.gap = "10px";
+
+    const title = document.createElement("div");
+    title.textContent = "Schlagwort bearbeiten";
+    title.style.fontWeight = "700";
+
+    const mkReadOnly = (labelText, value) => {
+      const row = document.createElement("div");
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "170px 1fr";
+      row.style.gap = "8px";
+      const lab = document.createElement("div");
+      lab.textContent = labelText;
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.readOnly = true;
+      inp.value = String(value || "");
+      inp.style.width = "100%";
+      row.append(lab, inp);
+      return row;
+    };
+
+    const rowKeyword = document.createElement("div");
+    rowKeyword.style.display = "grid";
+    rowKeyword.style.gridTemplateColumns = "170px 1fr";
+    rowKeyword.style.gap = "8px";
+    const keywordLabel = document.createElement("div");
+    keywordLabel.textContent = "Schlagwort";
+    const keywordInput = document.createElement("input");
+    keywordInput.type = "text";
+    keywordInput.value = parts.meetingKeyword || "";
+    keywordInput.maxLength = 120;
+    keywordInput.style.width = "100%";
+    rowKeyword.append(keywordLabel, keywordInput);
+
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.justifyContent = "flex-end";
+    actions.style.gap = "8px";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.type = "button";
+    btnCancel.textContent = "Abbrechen";
+    applyPopupButtonStyle(btnCancel);
+
+    const btnDelete = document.createElement("button");
+    btnDelete.type = "button";
+    btnDelete.textContent = "Loeschen";
+    applyPopupButtonStyle(btnDelete);
+
+    const btnSave = document.createElement("button");
+    btnSave.type = "button";
+    btnSave.textContent = "Speichern";
+    applyPopupButtonStyle(btnSave, { variant: "primary" });
+
+    actions.append(btnCancel, btnDelete, btnSave);
+
+    const close = () => {
+      try {
+        overlay.remove();
+      } catch {
+        // ignore
+      }
+    };
+
+    const applyKeyword = async (nextKeywordRaw) => {
+      const nextKeyword = String(nextKeywordRaw || "").trim();
+      const titleValue = parts.meetingDateText
+        ? (nextKeyword ? `${parts.meetingDateText} - ${nextKeyword}` : parts.meetingDateText)
+        : nextKeyword;
+      const res = await api.meetingsUpdateTitle({ meetingId: this.meetingId, title: titleValue });
+      if (!res?.ok) {
+        alert(res?.error || "Schlagwort konnte nicht gespeichert werden.");
+        return;
+      }
+      if (res.meeting) {
+        this.meetingMeta = res.meeting;
+        this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
+      }
+      this._updateTopBarProtocolTitle();
+      close();
+    };
+
+    btnSave.onclick = async () => {
+      await applyKeyword(keywordInput.value);
+    };
+    btnDelete.onclick = async () => {
+      await applyKeyword("");
+    };
+    btnCancel.onclick = () => close();
+
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) close();
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      close();
+    });
+
+    modal.append(
+      title,
+      mkReadOnly("Besprechungsnummer", parts.meetingIndex),
+      mkReadOnly("Datum", parts.meetingDateText),
+      rowKeyword,
+      actions
+    );
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    setTimeout(() => {
+      try {
+        keywordInput.focus();
+        keywordInput.select();
+      } catch {
+        // ignore
+      }
+    }, 0);
   }
 
   _readUiMode() {
@@ -1715,6 +1907,11 @@ export default class TopsView {
     topsText.style.fontWeight = "600";
     topsText.style.whiteSpace = "nowrap";
     topsText.style.flex = "0 0 auto";
+    topsText.style.cursor = "pointer";
+    topsText.title = "Schlagwort bearbeiten";
+    topsText.onclick = async () => {
+      await this._openMeetingKeywordPopup();
+    };
 
     const spacer = document.createElement("div");
     spacer.style.flex = "1 1 auto";
@@ -2779,6 +2976,7 @@ export default class TopsView {
     const fontSizes = this._getListFontSizes();
     const ampelCompute = createAmpelComputer(this.items, this._ampelBaseDate());
     const meeting = this.meetingMeta || { id: this.meetingId };
+    const isMeetingClosed = Number(meeting?.is_closed) === 1;
 
     let collapsedParentId = null;
     for (const top of this.items) {
@@ -2809,22 +3007,24 @@ export default class TopsView {
       }
 
       const doneColor = "#9e9e9e";
-      const shortColor = isDone
-        ? doneColor
-        : isImportant
-        ? "#c62828"
-        : isOld
-        ? "black"
-        : "blue";
-      const longColor = isDone
-        ? doneColor
-        : isImportant
-        ? "#c62828"
-        : isOld
-        ? isTouched
-          ? "blue"
-          : "black"
-        : "blue";
+      const shortColor = isMeetingClosed
+        ? (isImportant ? "#c62828" : "black")
+        : isDone
+          ? doneColor
+          : isImportant
+            ? "#c62828"
+            : isOld
+              ? "black"
+              : "blue";
+      const longColor = isMeetingClosed
+        ? (isImportant ? "#c62828" : "black")
+        : isDone
+          ? doneColor
+          : isImportant
+            ? "#c62828"
+            : isOld
+              ? (isTouched ? "blue" : "black")
+              : "blue";
 
       const baseBg = isLevel1 ? "#f3f3f3" : "transparent";
       li.style.background = isSelected ? "#dff0ff" : baseBg;

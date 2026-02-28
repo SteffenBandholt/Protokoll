@@ -233,6 +233,27 @@ function closeMeeting(meetingId, { pdfShowAmpel, todoSnapshotJson, nextMeeting }
   return { changed: info.changes, meeting: getMeetingById(meetingId) };
 }
 
+function updateMeetingTitle({ meetingId, title }) {
+  const db = initDatabase();
+  if (!meetingId) throw new Error("meetingId required");
+  const now = new Date().toISOString();
+  const nextTitle = String(title || "").trim() || null;
+  const info = db
+    .prepare(`
+      UPDATE meetings
+      SET
+        title = @title,
+        updated_at = @now
+      WHERE id = @id
+    `)
+    .run({
+      id: meetingId,
+      title: nextTitle,
+      now,
+    });
+  return { changed: info.changes, meeting: getMeetingById(meetingId) };
+}
+
 module.exports = {
   getMeetingById,
   listByProject,
@@ -240,4 +261,5 @@ module.exports = {
   getLastClosedMeetingByProject,
   createMeeting,
   closeMeeting,
+  updateMeetingTitle,
 };

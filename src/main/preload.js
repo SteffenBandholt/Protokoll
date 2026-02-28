@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
     ipcRenderer.invoke("meetings:listByProject", projectId),
   meetingsCreate: (data) => ipcRenderer.invoke("meetings:create", data),
   meetingsClose: (meetingId) => ipcRenderer.invoke("meetings:close", meetingId),
+  meetingsUpdateTitle: (data) => ipcRenderer.invoke("meetings:updateTitle", data),
 
   // ============================================================
   // TOPs
