@@ -1496,7 +1496,7 @@ export default class SettingsView {
     themeDefaultWrap.style.opacity = "0.9";
     const themeDefaultInp = document.createElement("input");
     themeDefaultInp.type = "checkbox";
-    themeDefaultInp.disabled = true;
+    themeDefaultInp.disabled = false;
     const themeDefaultTxt = document.createElement("span");
     themeDefaultTxt.textContent = "Default";
     themeDefaultWrap.append(themeDefaultInp, themeDefaultTxt);
@@ -3158,7 +3158,7 @@ export default class SettingsView {
     if (this.canvasThemeHeaderHue) this.canvasThemeHeaderHue.style.pointerEvents = themeBusy ? "none" : "auto";
     if (this.canvasThemeSidebarHue) this.canvasThemeSidebarHue.style.pointerEvents = themeBusy ? "none" : "auto";
     if (this.canvasThemeMainHue) this.canvasThemeMainHue.style.pointerEvents = themeBusy ? "none" : "auto";
-    if (this.inpThemeGlobalDefault) this.inpThemeGlobalDefault.disabled = true;
+    if (this.inpThemeGlobalDefault) this.inpThemeGlobalDefault.disabled = themeBusy;
     if (this.inpSecurityCurrentPin) this.inpSecurityCurrentPin.disabled = securityBusy;
     if (this.inpSecurityNewPin) this.inpSecurityNewPin.disabled = securityBusy;
     if (this.inpSecurityConfirmPin) this.inpSecurityConfirmPin.disabled = securityBusy;
