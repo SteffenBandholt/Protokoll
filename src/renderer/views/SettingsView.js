@@ -716,6 +716,13 @@ export default class SettingsView {
     printV2LayoutHint.style.opacity = "0.75";
     printV2LayoutHint.style.marginBottom = "6px";
 
+    const printV2LayoutDefaultsInfo = document.createElement("div");
+    printV2LayoutDefaultsInfo.textContent =
+      `Default: oben ${DEFAULT_PRINT_LAYOUT.topMm} mm, links ${DEFAULT_PRINT_LAYOUT.leftMm} mm, rechts ${DEFAULT_PRINT_LAYOUT.rightMm} mm, Footer-Reserve ${DEFAULT_PRINT_FOOTER_RESERVE} mm`;
+    printV2LayoutDefaultsInfo.style.fontSize = "12px";
+    printV2LayoutDefaultsInfo.style.opacity = "0.75";
+    printV2LayoutDefaultsInfo.style.marginBottom = "6px";
+
     const mkLayoutInput = () => {
       const input = document.createElement("input");
       input.type = "number";
@@ -862,6 +869,7 @@ export default class SettingsView {
     printV2LayoutBox.append(
       printV2LayoutTitle,
       printV2LayoutHint,
+      printV2LayoutDefaultsInfo,
       mkRow("Rand links (mm)", inpPrintV2PadLeft),
       mkRow("Rand rechts (mm)", inpPrintV2PadRight),
       mkRow("Rand oben (mm)", inpPrintV2PadTop),
