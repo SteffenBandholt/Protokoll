@@ -9,7 +9,7 @@ import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { fireAndForget } from "../utils/async.js";
 
-const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/BBM-bunt.png", import.meta.url).href;
+const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 
 export default class TopsView {
   constructor({ router, projectId, meetingId }) {
@@ -1724,18 +1724,6 @@ export default class TopsView {
       await attemptClose();
     };
 
-    // "zurück"
-    const btnCloseMeeting = document.createElement("button");
-    btnCloseMeeting.textContent = "zurück";
-    btnCloseMeeting.style.background = "#f3f3f3";
-    btnCloseMeeting.style.color = "#333";
-    btnCloseMeeting.style.border = "1px solid #ddd";
-    styleBtnBase(btnCloseMeeting);
-    btnCloseMeeting.onclick = async () => {
-      if (this._busy) return;
-      await this.router.showProjects();
-    };
-
     // + Titel
     const btnL1 = document.createElement("button");
     btnL1.textContent = "+ Titel";
@@ -1917,6 +1905,13 @@ export default class TopsView {
     const spacer = document.createElement("div");
     spacer.style.flex = "1 1 auto";
 
+    const actionBtnsWrap = document.createElement("div");
+    actionBtnsWrap.style.display = "inline-flex";
+    actionBtnsWrap.style.alignItems = "center";
+    actionBtnsWrap.style.gap = "8px";
+    actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
+    actionBtnsWrap.append(btnAmpelToggle, btnLongToggle, btnEndMeeting);
+
     // Feldbezeichnungen rechts über Meta-Spalte (Platz immer reserviert)
     const topMeta = document.createElement("div");
     topMeta.style.display = "flex";
@@ -1942,10 +1937,7 @@ export default class TopsView {
     topBar.append(
       topsText,
       spacer,
-      btnEndMeeting,
-      btnAmpelToggle,
-      btnLongToggle,
-      btnCloseMeeting,
+      actionBtnsWrap,
       topMeta
     );
 
@@ -2267,7 +2259,7 @@ export default class TopsView {
     this.btnChild = btnChild;
 
     this.btnEndMeeting = btnEndMeeting;
-    this.btnCloseMeeting = btnCloseMeeting;
+    this.btnCloseMeeting = null;
     this.btnLongToggle = btnLongToggle;
     this.btnAmpelToggle = btnAmpelToggle;
 

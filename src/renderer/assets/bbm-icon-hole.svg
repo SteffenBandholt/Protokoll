@@ -5,7 +5,7 @@
    viewBox="0 0 1024 1024"
    version="1.1"
    id="svg12"
-   sodipodi:docname="bbm-icon.svg"
+   sodipodi:docname="bbm-icon-hole.svg"
    inkscape:export-filename="bbm-icon.png"
    inkscape:export-xdpi="96"
    inkscape:export-ydpi="96"
@@ -34,23 +34,15 @@
      inkscape:window-y="-8"
      inkscape:window-maximized="1"
      inkscape:current-layer="svg12" />
-  <defs
-     id="defs8">
+  <defs id="defs8">
     <color-profile
        name="Adobe-RGB-1998"
        xlink:href="../../../../../WINDOWS/system32/spool/drivers/color/AdobeRGB1998.icc"
        id="color-profile1" />
+
     <!-- Outer shape clip -->
-    <clipPath
-       id="outerClip">
-      <rect
-         x="62"
-         y="62"
-         width="900"
-         height="900"
-         rx="160"
-         ry="160"
-         id="rect1" />
+    <clipPath id="outerClip">
+      <rect x="62" y="62" width="900" height="900" rx="160" ry="160" id="rect1" />
     </clipPath>
 
     <!-- MASK: punches the inner rounded square out (transparent hole) -->
@@ -69,100 +61,29 @@
     </mask>
 
     <!-- Corner gradients -->
-    <linearGradient
-       id="gBlue"
-       x1="0"
-       y1="0"
-       x2="1"
-       y2="1">
-      <stop
-         offset="0"
-         stop-color="#1AA0FF"
-         id="stop1" />
-      <stop
-         offset="1"
-         stop-color="#0B5BD3"
-         id="stop2" />
+    <linearGradient id="gBlue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1AA0FF" id="stop1" />
+      <stop offset="1" stop-color="#0B5BD3" id="stop2" />
     </linearGradient>
-    <linearGradient
-       id="gGreen"
-       x1="0"
-       y1="0"
-       x2="1"
-       y2="1">
-      <stop
-         offset="0"
-         stop-color="#9BE400"
-         id="stop3" />
-      <stop
-         offset="1"
-         stop-color="#2FAE00"
-         id="stop4" />
+    <linearGradient id="gGreen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9BE400" id="stop3" />
+      <stop offset="1" stop-color="#2FAE00" id="stop4" />
     </linearGradient>
-    <linearGradient
-       id="gOrange"
-       x1="0"
-       y1="0"
-       x2="1"
-       y2="1">
-      <stop
-         offset="0"
-         stop-color="#FFC400"
-         id="stop5" />
-      <stop
-         offset="1"
-         stop-color="#FF7A00"
-         id="stop6" />
+    <linearGradient id="gOrange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFC400" id="stop5" />
+      <stop offset="1" stop-color="#FF7A00" id="stop6" />
     </linearGradient>
-    <linearGradient
-       id="gRed"
-       x1="0"
-       y1="0"
-       x2="1"
-       y2="1">
-      <stop
-         offset="0"
-         stop-color="#FF4D4D"
-         id="stop7" />
-      <stop
-         offset="1"
-         stop-color="#D8002A"
-         id="stop8" />
+    <linearGradient id="gRed" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FF4D4D" id="stop7" />
+      <stop offset="1" stop-color="#D8002A" id="stop8" />
     </linearGradient>
   </defs>
 
   <!-- Colored outer frame (4 corners) clipped into rounded square, with inner hole mask -->
-  <g
-     clip-path="url(#outerClip)"
-     mask="url(#innerHoleMask)"
-     id="g11">
-    <rect
-       x="62"
-       y="62"
-       width="450"
-       height="450"
-       fill="url(#gBlue)"
-       id="rect8" />
-    <rect
-       x="512"
-       y="62"
-       width="450"
-       height="450"
-       fill="url(#gGreen)"
-       id="rect9" />
-    <rect
-       x="62"
-       y="512"
-       width="450"
-       height="450"
-       fill="url(#gOrange)"
-       id="rect10" />
-    <rect
-       x="512"
-       y="512"
-       width="450"
-       height="450"
-       fill="url(#gRed)"
-       id="rect11" />
+  <g clip-path="url(#outerClip)" mask="url(#innerHoleMask)" id="g11">
+    <rect x="62"  y="62"  width="450" height="450" fill="url(#gBlue)"   id="rect8"  />
+    <rect x="512" y="62"  width="450" height="450" fill="url(#gGreen)"  id="rect9"  />
+    <rect x="62"  y="512" width="450" height="450" fill="url(#gOrange)" id="rect10" />
+    <rect x="512" y="512" width="450" height="450" fill="url(#gRed)"    id="rect11" />
   </g>
 </svg>
