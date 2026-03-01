@@ -507,10 +507,19 @@ export default class ProjectFormView {
     const inpEnd = mkInp("date");
     applyWidthFromMaxLength(inpStart, { fallback: 12, min: 12, max: 16 });
     applyWidthFromMaxLength(inpEnd, { fallback: 12, min: 12, max: 16 });
+    inpStart.style.width = `calc(${inpStart.style.width || "14ch"} + 1cm)`;
+    inpEnd.style.width = `calc(${inpEnd.style.width || "14ch"} + 1cm)`;
 
     const taNotes = mkTa();
     taNotes.placeholder = "Notizen";
-    applyWidthFromMaxLength(taNotes, { fallback: 34, min: 22, max: 42 });
+    taNotes.rows = 1;
+    taNotes.style.minHeight = "96px";
+    taNotes.style.height = "96px";
+    taNotes.style.maxHeight = "96px";
+    taNotes.style.resize = "none";
+    taNotes.style.width = "100%";
+    taNotes.style.maxWidth = "100%";
+    taNotes.style.boxSizing = "border-box";
 
     const row0 = mkRow();
     row0.append(mkField("Bezeichnung *", inpName, { grow: false }));
@@ -522,6 +531,12 @@ export default class ProjectFormView {
 
     const storagePreviewWrap = document.createElement("div");
     storagePreviewWrap.style.marginTop = "8px";
+    storagePreviewWrap.style.marginLeft = "0";
+    storagePreviewWrap.style.alignSelf = "flex-start";
+    // Spannt von linker Kante der linken Spalte bis zur rechten Kante der rechten Spalte.
+    storagePreviewWrap.style.width = "calc(200% + 33px)";
+    storagePreviewWrap.style.maxWidth = "calc(200% + 33px)";
+    storagePreviewWrap.style.boxSizing = "border-box";
     storagePreviewWrap.style.padding = "8px 10px";
     storagePreviewWrap.style.border = "1px solid #e5e7eb";
     storagePreviewWrap.style.borderRadius = "8px";
@@ -530,7 +545,7 @@ export default class ProjectFormView {
     storagePreviewWrap.style.gap = "4px";
 
     const storagePreviewTitle = document.createElement("div");
-    storagePreviewTitle.textContent = "Ablageordner (Vorschau):";
+    storagePreviewTitle.textContent = "Ablageordner (PDF):";
     storagePreviewTitle.style.fontSize = "12px";
     storagePreviewTitle.style.fontWeight = "700";
     storagePreviewTitle.style.color = "#111827";
@@ -595,11 +610,17 @@ export default class ProjectFormView {
     row4.append(fieldLead, fieldLeadPhone);
 
     const row5 = mkRow();
+    row5.style.gap = "1cm";
     const fieldEnd = mkField("Enddatum", inpEnd, { grow: false });
     row5.append(mkField("Startdatum", inpStart, { grow: false }), fieldEnd);
 
     const row6 = mkRow();
-    row6.append(mkField("Notizen", taNotes, { grow: false }));
+    row6.style.justifyContent = "flex-start";
+    const fieldNotes = mkField("Notizen", taNotes, { grow: true });
+    fieldNotes.style.width = "100%";
+    fieldNotes.style.maxWidth = "100%";
+    fieldNotes.style.boxSizing = "border-box";
+    row6.append(fieldNotes);
 
     const leftCol = document.createElement("div");
     leftCol.style.minWidth = "0";
@@ -607,7 +628,7 @@ export default class ProjectFormView {
     leftCol.style.flexDirection = "column";
     leftCol.style.gap = "10px";
     leftCol.style.paddingRight = "4px";
-    leftCol.append(row0, row1, storagePreviewWrap, row2, row3);
+    leftCol.append(row0, row1, row2, row3, storagePreviewWrap);
 
     const rightCol = document.createElement("div");
     rightCol.style.minWidth = "0";
@@ -620,7 +641,8 @@ export default class ProjectFormView {
     const separator = document.createElement("div");
     separator.style.width = "1px";
     separator.style.background = "rgba(0,0,0,0.16)";
-    separator.style.alignSelf = "stretch";
+    separator.style.alignSelf = "start";
+    separator.style.height = "50%";
     separator.style.marginTop = "2px";
     separator.style.marginBottom = "2px";
 
