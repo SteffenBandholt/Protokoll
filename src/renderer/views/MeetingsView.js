@@ -18,6 +18,7 @@ export default class MeetingsView {
     this.btnTopListAll = null;
 
     this.meetings = [];
+    this.closedMeetings = [];
     this.openMeetingId = null;
     this.filterEnabled = false;
     this.searchText = "";
@@ -268,8 +269,12 @@ export default class MeetingsView {
         (a, b) =>
           sortValue(b) - sortValue(a) || Number(b.meeting_index || 0) - Number(a.meeting_index || 0)
       );
+    this.closedMeetings = this.meetings.filter((m) => Number(m.is_closed) === 1);
     this.openMeetingId =
       this.meetings.find((m) => Number(m.is_closed) === 0)?.id || null;
+    if (!this.closedMeetings.some((m) => m.id === this.selectedMeetingId)) {
+      this.selectedMeetingId = null;
+    }
     this.renderList();
     this._updateBackButtonState();
     this._applyFilter();
@@ -289,7 +294,7 @@ export default class MeetingsView {
     }
 
     const term = (this.searchText || "").trim().toLowerCase();
-    const closed = this.meetings.filter((m) => Number(m.is_closed) === 1);
+    const closed = this.closedMeetings || [];
 
     if (!term) {
       this.filteredMeetings = closed;
@@ -409,9 +414,24 @@ export default class MeetingsView {
     const list = this.listEl;
     list.innerHTML = "";
 
+    const base = this.closedMeetings || [];
     const visible = this.filterEnabled
       ? this.filteredMeetings || []
-      : this.meetings;
+      : base;
+
+    if (!visible.length) {
+      const empty = document.createElement("li");
+      empty.style.listStyle = "none";
+      empty.style.padding = "8px 8px";
+      empty.style.margin = "4px 0";
+      empty.style.color = "var(--text-muted, #666)";
+      empty.style.cursor = "default";
+      empty.textContent = this.filterEnabled && this.searchText
+        ? "Keine Treffer in geschlossenen Protokollen."
+        : "Keine geschlossenen Protokolle vorhanden.";
+      list.appendChild(empty);
+      return;
+    }
 
     for (const m of visible) {
       const li = document.createElement("li");
@@ -433,21 +453,14 @@ export default class MeetingsView {
         : title === "(ohne Titel)"
           ? `#${m.meeting_index}`
           : `#${m.meeting_index} – ${title}`;
-      li.textContent = `${displayTitle}${closed ? " (geschlossen)" : ""}`;
-      if (closed) li.style.opacity = "0.75";
-      if (this.printSelectionMode && !closed) li.style.opacity = "0.45";
-
-      const isOpen = this.openMeetingId && m.id === this.openMeetingId;
+      li.textContent = displayTitle;
       const isSelected = !this.printSelectionMode && this.selectedMeetingId && m.id === this.selectedMeetingId;
-      const baseBg = isOpen ? "#ffffff" : "#f3f3f3";
+      const baseBg = "#f3f3f3";
       li.style.background = isSelected ? "#eaf3ff" : baseBg;
       li.style.cursor = selectableInPrintMode ? "pointer" : "not-allowed";
 
       if (isSelected) {
         li.style.border = "1px solid #b6d4ff";
-      }
-      if (isOpen) {
-        li.style.border = "1px solid #f39c12";
       }
 
       li.tabIndex = selectableInPrintMode ? 0 : -1;
@@ -455,13 +468,13 @@ export default class MeetingsView {
         if (!selectableInPrintMode) return;
         if (isSelected) return;
         li.style.background = "#eaf3ff";
-        if (!isOpen) li.style.border = "1px solid #b6d4ff";
+        li.style.border = "1px solid #b6d4ff";
       });
       li.addEventListener("mouseleave", () => {
         if (!selectableInPrintMode) return;
         if (isSelected) return;
         li.style.background = baseBg;
-        li.style.border = isOpen ? "1px solid #f39c12" : "1px solid transparent";
+        li.style.border = "1px solid transparent";
       });
       li.addEventListener("click", () => {
         if (this.printSelectionMode) {
