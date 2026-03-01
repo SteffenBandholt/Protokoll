@@ -47,6 +47,7 @@ export default class MainHeader {
     this.elPrintItemMeetings = null;
     this.elActionProjectFirmsBtn = null;
     this.elActionFirmsPoolBtn = null;
+    this.elActionMeetingsBtn = null;
     this.elActionCandidatesBtn = null;
     this.elActionParticipantsBtn = null;
     this.elSetupWrap = null;
@@ -605,6 +606,25 @@ export default class MainHeader {
       }
     };
 
+    const btnMeetings = document.createElement("button");
+    btnMeetings.type = "button";
+    btnMeetings.textContent = "Protokolle";
+    applyActionTextButtonStyle(btnMeetings);
+    btnMeetings.onclick = async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (btnMeetings.disabled) return;
+      this._setPrintOpen(false);
+      try {
+        const projectId = this.router?.currentProjectId || null;
+        if (!projectId) return;
+        if (typeof this.router?.showMeetings !== "function") return;
+        await this.router.showMeetings(projectId);
+      } catch (err) {
+        console.error("[header] action Protokolle failed:", err);
+      }
+    };
+
     const btnParticipants = document.createElement("button");
     btnParticipants.type = "button";
     btnParticipants.textContent = "Teilnehmer";
@@ -625,9 +645,9 @@ export default class MainHeader {
     };
 
     if (this._isNewUi) {
-      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, printWrap);
+      actionWrap.append(btnProjectFirms, btnFirmsPool, btnMeetings, btnParticipants, printWrap);
     } else {
-      actionWrap.append(setupWrap, printWrap);
+      actionWrap.append(btnMeetings, setupWrap, printWrap);
     }
 
     const stickyNotice = document.createElement("div");
@@ -720,6 +740,7 @@ export default class MainHeader {
     this.elPrintItemMeetings = itemMeetingsClosed;
     this.elActionProjectFirmsBtn = btnProjectFirms;
     this.elActionFirmsPoolBtn = btnFirmsPool;
+    this.elActionMeetingsBtn = btnMeetings;
     this.elActionCandidatesBtn = null;
     this.elActionParticipantsBtn = btnParticipants;
     this.elSetupWrap = setupWrap;
@@ -1482,6 +1503,7 @@ export default class MainHeader {
     const participantsDisabledTitle = "Nur mit geÃ¶ffneter Besprechung verfÃ¼gbar";
     this._setMenuButtonEnabled(this.elActionProjectFirmsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionFirmsPoolBtn, hasProject, projectDisabledTitle);
+    this._setMenuButtonEnabled(this.elActionMeetingsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionCandidatesBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(
       this.elActionParticipantsBtn,
