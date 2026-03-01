@@ -986,7 +986,7 @@ export default class FirmsPoolView {
       const tdType = document.createElement("td");
       tdType.style.padding = "6px";
       tdType.style.borderBottom = "1px solid #eee";
-      tdType.textContent = isGlobal ? "Stamm" : "Projekt";
+      tdType.textContent = isGlobal ? "extern" : "intern";
 
       tr.append(tdName, tdType);
       if (this.isNewUi) {
