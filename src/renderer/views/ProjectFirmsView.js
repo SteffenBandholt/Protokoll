@@ -349,7 +349,7 @@ export default class ProjectFirmsView {
     const thead = document.createElement("thead");
     thead.innerHTML = `
       <tr>
-        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:160px;">Kurzbezeichnung</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:160px;">Kurzbez.</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Funktion/Gewerk</th>
         <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;width:70px;">Aktiv</th>
       </tr>
@@ -468,7 +468,7 @@ export default class ProjectFirmsView {
 
     const inpFirmName1 = mkInp("Name 1…");
     const inpFirmName2 = mkInp("Name 2…");
-    const inpFirmShort = mkInp("Kurzbez.…");
+    const inpFirmShort = mkInp("verantw. im Projekt");
     const inpFirmStreet = mkInp("Straße / HsNr…");
     const inpFirmZip = mkInp("PLZ…");
     const inpFirmCity = mkInp("Ort…");
@@ -906,7 +906,7 @@ const taFirmNotes = document.createElement("textarea");
     localFirmName2.style.width = "100%";
     const localFirmShort = document.createElement("input");
     localFirmShort.type = "text";
-    localFirmShort.placeholder = "Kurzbez.";
+    localFirmShort.placeholder = "verantw. im Projekt";
     localFirmShort.style.width = "100%";
     const localFirmStreet = document.createElement("input");
     localFirmStreet.type = "text";
@@ -1431,7 +1431,7 @@ const taFirmNotes = document.createElement("textarea");
 
     this.detailFirmBodyEl.append(
       mkRow("Name", (firm.name || "").trim() || "-"),
-      mkRow("Kurzbezeichnung", (firm.short || "").trim() || "-"),
+      mkRow("Kurzbez.", (firm.short || "").trim() || "-"),
       mkRow("Adresse", address || "-"),
       mkRow("Telefon", (firm.phone || "").trim() || "-"),
       mkRow("E-Mail", (firm.email || "").trim() || "-"),

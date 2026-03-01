@@ -176,7 +176,7 @@ export default class FirmsView {
     head.style.marginBottom = "10px";
 
     const title = document.createElement("h2");
-    title.textContent = "Firmen (Stamm)";
+    title.textContent = "Firmen";
     title.style.margin = "0";
 
     const msg = document.createElement("div");
@@ -244,7 +244,7 @@ export default class FirmsView {
     thead.innerHTML = `
       <tr>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
-        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:140px;">Kurz</th>
+        <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;width:140px;">Kurzbez.</th>
       </tr>
     `;
 
@@ -381,7 +381,7 @@ export default class FirmsView {
 
     const inpFirmName1 = mkFirmInp("Name 1…");
     const inpFirmName2 = mkFirmInp("Name 2…");
-    const inpFirmShort = mkFirmInp("Kurzbez.…");
+    const inpFirmShort = mkFirmInp("verantw. im Projekt");
     const inpFirmStreet = mkFirmInp("Straße / HsNr…");
     const inpFirmZip = mkFirmInp("PLZ…");
     const inpFirmCity = mkFirmInp("Ort…");
@@ -715,7 +715,7 @@ const taFirmNotes = document.createElement("textarea");
 
     this.detailBodyEl.append(
       mkRow("Name", firm.name || "(kein Name)"),
-      mkRow("Kurzbezeichnung", firm.short || "-"),
+      mkRow("Kurzbez.", firm.short || "-"),
       mkRow("Adresse", address || "-"),
       mkRow("Telefon", firm.phone || "-"),
       mkRow("E-Mail", firm.email || "-"),
@@ -2414,6 +2414,7 @@ const taFirmNotes = document.createElement("textarea");
     };
 
     const inpShort = mkInput(draft.short);
+    inpShort.placeholder = "verantw. im Projekt";
     const inpName1 = mkInput(draft.name1);
     const inpName2 = mkInput(draft.name2);
     const inpStreet = mkInput(draft.street);
@@ -3948,7 +3949,7 @@ const taFirmNotes = document.createElement("textarea");
         return { label, input };
       };
 
-      const fShort = mkCreateInput("Kurz");
+      const fShort = mkCreateInput("Kurzbez.");
       const fName = mkCreateInput("Name 1 *");
       const fName2 = mkCreateInput("Name 2");
       const fStreet = mkCreateInput("Straße");

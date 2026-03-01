@@ -136,7 +136,7 @@ async function init() {
     const fields = [
       ["name", "Name 1", "text", firm.name],
       ["name2", "Name 2", "text", firm.name2],
-      ["short", "Kurz", "text", firm.short],
+      ["short", "Kurzbez.", "text", firm.short],
       ["street", "Straße", "text", firm.street],
       ["zip", "PLZ", "text", firm.zip],
       ["city", "Ort", "text", firm.city],
@@ -146,6 +146,7 @@ async function init() {
     fields.forEach(([key, label, type, value]) => {
       form.appendChild(mkEl("div", null, label));
       const inp = mkInput(type, value);
+      if (key === "short") inp.placeholder = "verantw. im Projekt";
       inputs[key] = inp;
       form.appendChild(inp);
     });
