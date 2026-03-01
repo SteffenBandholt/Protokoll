@@ -39,6 +39,7 @@ export default class Router {
     this._helpModal = null;
     this._helpModalLoading = null;
     this.currentView = null;
+    this.activeView = null;
 
     this._setupStatusRefreshTimer = null;
     this._printSelectionState = null;
@@ -381,6 +382,7 @@ export default class Router {
         console.warn("[router] previous view cleanup failed:", e);
       } finally {
         this.currentView = null;
+        this.activeView = null;
       }
     }
 
@@ -401,6 +403,7 @@ export default class Router {
     this.contentRoot.appendChild(e);
     if (v.load) await v.load();
     this.currentView = v;
+    this.activeView = v;
 
     this._refreshHeaderSafe();
     this._emitContextChange();

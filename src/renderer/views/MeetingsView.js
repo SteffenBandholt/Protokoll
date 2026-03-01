@@ -346,42 +346,76 @@ export default class MeetingsView {
 
     const mid = this.selectedMeetingId || null;
     if (!mid) {
-      alert("Bitte zuerst ein Protokoll auswählen.");
+      alert("Bitte ein Protokoll ausw\u00E4hlen.");
       return;
+    }
+
+    this._printBusy = true;
+    try {
+      await this._openPdfPreviewForMeeting(mid);
+    } finally {
+      this._printBusy = false;
+      if (typeof this.router?.closePrintModal === "function") {
+        await this.router.closePrintModal({ keepPreview: true });
+      }
+    }
+  }
+
+  async _openPdfPreviewForMeeting(meetingId) {
+    const mid = meetingId || null;
+    if (!mid) {
+      alert("Bitte ein Protokoll ausw\u00E4hlen.");
+      return false;
     }
 
     const meeting = (this.meetings || []).find((m) => m.id === mid) || null;
     if (!meeting) {
       alert("Besprechung nicht gefunden.");
-      return;
+      return false;
     }
 
     const isClosed = Number(meeting.is_closed) === 1;
+    if (!isClosed) {
+      if (typeof this.router?.openPrintVorabzug === "function") {
+        await this.router.openPrintVorabzug({
+          projectId: this.projectId,
+          meetingId: meeting.id,
+        });
+        return true;
+      }
+      alert("PrintModal unterst\u00FCtzt keinen Vorabzug (openPrintVorabzug fehlt).");
+      return false;
+    }
+
+    if (typeof this.router?.openMeetingPrintPreview === "function") {
+      await this.router.openMeetingPrintPreview({
+        projectId: this.projectId,
+        meetingId: meeting.id,
+        mode: "closed",
+      });
+      return true;
+    }
+
+    alert("PrintModal unterst\u00FCtzt keine Protokoll-Vorschau (openMeetingPrintPreview fehlt).");
+    return false;
+  }
+
+  async printSelectedProtocolPreviewFromHeader() {
+    const mid = this.selectedMeetingId || null;
+    if (!mid) {
+      alert("Bitte ein Protokoll ausw\u00E4hlen.");
+      return { handled: true, ok: false };
+    }
+    if (this._printBusy) {
+      return { handled: true, ok: false };
+    }
 
     this._printBusy = true;
     try {
-      if (!isClosed) {
-        if (typeof this.router?.openPrintVorabzug === "function") {
-          await this.router.openPrintVorabzug({
-            projectId: this.projectId,
-            meetingId: meeting.id,
-          });
-          return;
-        }
-        alert("PrintModal unterstützt keinen Vorabzug (openPrintVorabzug fehlt).");
-        return;
-      }
-
-      if (typeof this.router?.openMeetingPrintPreview === "function") {
-        await this.router.openMeetingPrintPreview({
-          projectId: this.projectId,
-          meetingId: meeting.id,
-          mode: "closed",
-        });
-        return;
-      }
-
-      alert("PrintModal unterstützt keine Protokoll-Vorschau (openMeetingPrintPreview fehlt).");
+      const ok = await this._openPdfPreviewForMeeting(mid);
+      return { handled: true, ok: !!ok };
+    } catch (_e) {
+      return { handled: true, ok: false };
     } finally {
       this._printBusy = false;
       if (typeof this.router?.closePrintModal === "function") {

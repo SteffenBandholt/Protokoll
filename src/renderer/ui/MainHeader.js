@@ -539,6 +539,15 @@ export default class MainHeader {
       e.preventDefault();
       e.stopPropagation();
       if (printBtn.disabled) return;
+      if (this._isMeetingsQuickPrintActive()) {
+        this._setPrintOpen(false);
+        try {
+          await this.router?.activeView?.printSelectedProtocolPreviewFromHeader?.();
+        } catch (_err) {
+          // MeetingsView handles user-facing feedback itself.
+        }
+        return;
+      }
       if (this._printOpen) {
         this._setPrintOpen(false);
         return;
@@ -1098,7 +1107,17 @@ export default class MainHeader {
     }
   }
 
+  _isMeetingsQuickPrintActive() {
+    return typeof this.router?.activeView?.printSelectedProtocolPreviewFromHeader === "function";
+  }
+
   _setPrintOpen(open) {
+    if (open && this._isMeetingsQuickPrintActive()) {
+      this._printOpen = false;
+      if (this.elPrintMenu) this.elPrintMenu.style.display = "none";
+      this._setPrintSubmenu("");
+      return;
+    }
     this._printOpen = !!open;
     if (this.elPrintMenu) {
       this.elPrintMenu.style.display = this._printOpen ? "flex" : "none";
@@ -1535,12 +1554,19 @@ export default class MainHeader {
   _applyPrintButtonState() {
     if (!this.elPrintBtn) return;
     const hasProject = !!this.router?.currentProjectId;
+    const isMeetingsQuickPrint = this._isMeetingsQuickPrintActive();
     this.elPrintBtn.disabled = !hasProject;
     this.elPrintBtn.style.opacity = hasProject ? "1" : "0.55";
     this.elPrintBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
     this.elPrintBtn.title = hasProject
-      ? "Drucken-MenÃ¼ Ã¶ffnen"
+      ? (isMeetingsQuickPrint
+        ? "In Protokolle-Ansicht: Drucken öffnet die PDF-Vorschau des markierten Protokolls."
+        : "Drucken-MenÃ¼ Ã¶ffnen")
       : "Nur mit aktivem Projekt verfÃ¼gbar";
+    if (this.elPrintMenu) {
+      this.elPrintMenu.style.display = isMeetingsQuickPrint ? "none" : (this._printOpen ? "flex" : "none");
+    }
+    if (isMeetingsQuickPrint) this._setPrintOpen(false);
     if (!hasProject) this._setPrintOpen(false);
 
     const fallbackState = this._printMenuState || {
