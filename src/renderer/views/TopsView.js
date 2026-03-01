@@ -168,11 +168,6 @@ export default class TopsView {
       green.style.color = "#1b5e20";
       green.style.fontWeight = "700";
       line1.appendChild(green);
-      const edit = document.createElement("span");
-      edit.textContent = "  bearbeiten";
-      edit.style.color = "#000";
-      edit.style.fontWeight = "400";
-      line1.appendChild(edit);
     }
     host.appendChild(line1);
 

@@ -749,7 +749,7 @@ document.addEventListener("DOMContentLoaded", () => {
   router.showHome();
   header.refresh();
   updateContextButtons();
-  maybeShowWhatsNew();
+  // Start-Popup "Was ist neu/geändert" ist deaktiviert.
   };
 
   const initUiNew = () => {

@@ -654,7 +654,7 @@ export default class MainHeader {
     };
 
     if (this._isNewUi) {
-      actionWrap.append(btnProjectFirms, btnFirmsPool, btnMeetings, btnParticipants, printWrap);
+      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, btnMeetings, printWrap);
     } else {
       actionWrap.append(btnMeetings, setupWrap, printWrap);
     }
