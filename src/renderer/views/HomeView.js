@@ -7,6 +7,7 @@ export default class HomeView {
     this.lastProjectTileEl = null;
     this.lastProjectSubEl = null;
     this.lastProjectId = null;
+    this.footerEl = null;
   }
 
   _readUiMode() {
@@ -298,11 +299,12 @@ export default class HomeView {
     creditLine.appendChild(creditMail);
 
     const footer = document.createElement("div");
-    footer.textContent = "© 2026 BBM alle Rechte vorbehalten";
+    footer.textContent = `\u00A9 ${new Date().getFullYear()} BBM alle Rechte vorbehalten`;
     footer.style.fontSize = "11px";
     footer.style.color = "#000";
     footer.style.userSelect = "none";
 
+    this.footerEl = footer;
     footerWrap.append(creditLine, footer);
     root.append(head, grid, footerWrap);
 
@@ -312,5 +314,14 @@ export default class HomeView {
 
   async load() {
     await this._loadLastProjectTile();
+    try {
+      const res = await window.bbmDb?.appGetVersion?.();
+      const year = new Date().getFullYear();
+      const v = res && res.ok && res.version ? ` v${res.version}` : "";
+      if (this.footerEl) this.footerEl.textContent = `\u00A9 ${year} BBM${v} alle Rechte vorbehalten`;
+    } catch (_e) {
+      const year = new Date().getFullYear();
+      if (this.footerEl) this.footerEl.textContent = `\u00A9 ${year} BBM alle Rechte vorbehalten`;
+    }
   }
 }

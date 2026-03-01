@@ -126,6 +126,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
   appGetBundledIconPath: () => ipcRenderer.invoke("app:getBundledIconPath"),
   appIsWindows: () => ipcRenderer.invoke("app:isWindows"),
   appIsPackaged: () => ipcRenderer.invoke("app:isPackaged"),
+  appGetVersion: () => ipcRenderer.invoke("app:getVersion"),
   openQuickAssist: () => ipcRenderer.invoke("app:openQuickAssist"),
   devVersionGet: () => ipcRenderer.invoke("dev:versionGet"),
   devVersionBump: (payload) => ipcRenderer.invoke("dev:versionBump", payload),

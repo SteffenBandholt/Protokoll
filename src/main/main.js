@@ -365,6 +365,14 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle("app:getVersion", () => {
+    try {
+      return { ok: true, version: app.getVersion() };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err), version: "" };
+    }
+  });
+
   ipcMain.handle("dev:versionGet", async () => {
     if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
     try {
