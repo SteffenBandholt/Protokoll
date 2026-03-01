@@ -79,6 +79,64 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const showStartupOverlay = ({ durationMs = 3000 } = {}) => {
+    if (document.querySelector('[data-bbm-startup-overlay="true"]')) return;
+
+    const overlay = document.createElement("div");
+    overlay.setAttribute("data-bbm-startup-overlay", "true");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.background = "rgba(15,23,42,0.18)";
+    overlay.style.zIndex = "11000";
+    overlay.style.pointerEvents = "none";
+    overlay.style.opacity = "1";
+    overlay.style.transition = "opacity 260ms ease";
+
+    const card = document.createElement("div");
+    card.style.width = "75vw";
+    card.style.height = "75vh";
+    card.style.maxWidth = "1100px";
+    card.style.maxHeight = "760px";
+    card.style.minWidth = "360px";
+    card.style.minHeight = "260px";
+    card.style.borderRadius = "14px";
+    card.style.background = "rgba(15,23,42,0.92)";
+    card.style.boxShadow = "0 20px 50px rgba(0,0,0,0.35)";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.alignItems = "center";
+    card.style.justifyContent = "center";
+    card.style.gap = "14px";
+
+    const img = document.createElement("img");
+    img.src = "./assets/icon-BBM.png";
+    img.alt = "BBM";
+    img.style.width = "clamp(200px, 26vw, 360px)";
+    img.style.height = "auto";
+    img.style.objectFit = "contain";
+
+    const text = document.createElement("div");
+    text.textContent = "Initialisiere ...";
+    text.style.color = "#e2e8f0";
+    text.style.fontSize = "14px";
+    text.style.fontWeight = "600";
+    text.style.letterSpacing = "0.3px";
+
+    card.append(img, text);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      overlay.style.opacity = "0";
+      setTimeout(() => {
+        if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
+      }, 280);
+    }, Math.max(500, Number(durationMs) || 3000));
+  };
+
   const readUiMode = () => {
     try {
       window.localStorage?.setItem?.(UI_MODE_KEY, "new");
@@ -749,6 +807,7 @@ document.addEventListener("DOMContentLoaded", () => {
   router.showHome();
   header.refresh();
   updateContextButtons();
+  showStartupOverlay({ durationMs: 3000 });
   // Start-Popup "Was ist neu/geändert" ist deaktiviert.
   };
 
