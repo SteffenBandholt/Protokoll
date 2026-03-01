@@ -145,6 +145,12 @@ export default class TopsView {
     host.style.gap = "1px";
     host.style.lineHeight = "1.1";
 
+    const labelLine = document.createElement("div");
+    labelLine.textContent = "Protokoll";
+    labelLine.style.color = "#000";
+    labelLine.style.fontWeight = "600";
+    host.appendChild(labelLine);
+
     const firstLineBase =
       meetingIndex && meetingDateText
         ? `${meetingIndex} - ${meetingDateText}`
@@ -1903,7 +1909,7 @@ export default class TopsView {
     topBar.style.zIndex = "5";
 
     const topsText = document.createElement("div");
-    topsText.textContent = "Protokoll bearbeiten";
+    topsText.textContent = "Protokoll";
     topsText.style.fontWeight = "600";
     topsText.style.whiteSpace = "nowrap";
     topsText.style.flex = "0 0 auto";
