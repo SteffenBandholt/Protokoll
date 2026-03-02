@@ -7,7 +7,7 @@ module.exports = {
   extends: ["eslint:recommended"],
   parserOptions: {
     ecmaVersion: "latest",
-    sourceType: "script",
+    sourceType: "module",
   },
   globals: {
     __dirname: "readonly",
@@ -25,4 +25,12 @@ module.exports = {
     "no-console": "off",
     "no-empty": "warn",
   },
+  overrides: [
+    {
+      files: ["src/main/**/*.js", "scripts/**/*.js", ".eslintrc.cjs"],
+      parserOptions: {
+        sourceType: "script",
+      },
+    },
+  ],
 };
