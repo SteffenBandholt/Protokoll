@@ -95,7 +95,7 @@ export default class MeetingsView {
     head.style.marginBottom = "10px";
 
     const btnBackToTops = document.createElement("button");
-    btnBackToTops.textContent = this.printSelectionMode ? "Abbrechen" : "Zur\u00fcck zum Protokoll";
+    btnBackToTops.textContent = this.printSelectionMode ? "Abbrechen" : "zum Protokoll:";
     btnBackToTops.onclick = () => {
       if (this.printSelectionMode) {
         if (typeof this.router?.cancelPrintSelection === "function") {
