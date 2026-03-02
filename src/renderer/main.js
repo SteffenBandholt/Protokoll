@@ -14,6 +14,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const TRIAL_DAYS_KEY = "trial.daysLimit";
   const TRIAL_ENABLED_KEY = "trial.enabled";
   const TRIAL_FIRST_START_KEY = "trial.firstStartAt";
+  const PRINT_V2_PAD_LEFT_KEY = "print.v2.pagePadLeftMm";
+  const PRINT_V2_PAD_RIGHT_KEY = "print.v2.pagePadRightMm";
+  const PRINT_V2_PAD_TOP_KEY = "print.v2.pagePadTopMm";
+  const PRINT_V2_PAD_BOTTOM_KEY = "print.v2.pagePadBottomMm";
+  const PRINT_V2_FOOTER_RESERVE_KEY = "print.v2.footerReserveMm";
+  const PRINT_LAYOUT_DEFAULTS = {
+    [PRINT_V2_PAD_LEFT_KEY]: "19",
+    [PRINT_V2_PAD_RIGHT_KEY]: "15",
+    [PRINT_V2_PAD_TOP_KEY]: "3",
+    [PRINT_V2_PAD_BOTTOM_KEY]: "18",
+    [PRINT_V2_FOOTER_RESERVE_KEY]: "12",
+  };
   const WHATSNEW_KEY_PREFIX = "bbm_whatsnew_seen_";
   const toSeenKey = (version) => `${WHATSNEW_KEY_PREFIX}${String(version || "").trim() || "unknown"}`;
   const isSeenValue = (v) => {
@@ -189,6 +201,24 @@ document.addEventListener("DOMContentLoaded", async () => {
       // ignore
     }
     return false;
+  };
+
+  const ensureInitialPrintLayoutDefaults = async () => {
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") return;
+    if (typeof api.appSettingsSetMany !== "function") return;
+
+    const keys = Object.keys(PRINT_LAYOUT_DEFAULTS);
+    try {
+      const res = await api.appSettingsGetMany(keys);
+      if (!res?.ok) return;
+      const data = res.data || {};
+      const hasAnySavedValue = keys.some((key) => String(data[key] || "").trim() !== "");
+      if (hasAnySavedValue) return;
+      await api.appSettingsSetMany(PRINT_LAYOUT_DEFAULTS);
+    } catch (_e) {
+      // ignore
+    }
   };
 
   const readUiMode = () => {
@@ -907,6 +937,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const canContinue = await enforceTrialLimit();
   if (!canContinue) return;
+  await ensureInitialPrintLayoutDefaults();
 
   const uiMode = readUiMode();
 

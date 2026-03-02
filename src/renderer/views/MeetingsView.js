@@ -248,6 +248,9 @@ export default class MeetingsView {
     if (!this.meetings.some((m) => m.id === this.selectedMeetingId)) {
       this.selectedMeetingId = null;
     }
+    if (!this.printSelectionMode && !this.selectedMeetingId && this.openMeetingId) {
+      this.selectedMeetingId = this.openMeetingId;
+    }
     this.renderList();
     this._updateBackButtonState();
     this._applyFilter();
