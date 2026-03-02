@@ -5163,37 +5163,16 @@ export default class SettingsView {
     const { enabled, widthMm, topMm, rightMm } = this._getPdfLogoInputValues();
     this._applyPdfLogoInputs({ enabled, widthMm, topMm, rightMm });
 
-    this._pdfLogoSaving = true;    try {
-      if (typeof api.userProfileUpsert === "function") {
-        const resProfile = await api.userProfileUpsert({
-          name1: user_name1,
-          name2: user_name2,
-          street: user_street,
-          zip: user_zip,
-          city: user_city,
-        });
-        if (!resProfile?.ok) {
-          alert(resProfile?.error || "Speichern der Nutzerdaten fehlgeschlagen");
-          return false;
-        }
-        if (resProfile?.profile) {
-          const p = resProfile.profile;
-          if (this.inpUserName1) this.inpUserName1.value = (p.name1 ?? "").toString();
-          if (this.inpUserName2) this.inpUserName2.value = (p.name2 ?? "").toString();
-          if (this.inpUserStreet) this.inpUserStreet.value = (p.street ?? "").toString();
-          if (this.inpUserZip) this.inpUserZip.value = this._normalizeUserZip((p.zip ?? "").toString(), 5);
-          if (this.inpUserCity) this.inpUserCity.value = (p.city ?? "").toString();
-        }
-      }
-
-    const res = await api.appSettingsSetMany({
-      "pdf.userLogoEnabled": enabled ? "true" : "false",
-      "pdf.userLogoWidthMm": widthMm,
-      "pdf.userLogoTopMm": topMm,
-      "pdf.userLogoRightMm": rightMm,
-      "pdf.userLogoPngDataUrl": this._pdfLogoDataUrl || "",
-      "pdf.userLogoFilePath": this._pdfLogoFilePath || "",
-    });
+    this._pdfLogoSaving = true;
+    try {
+      const res = await api.appSettingsSetMany({
+        "pdf.userLogoEnabled": enabled ? "true" : "false",
+        "pdf.userLogoWidthMm": widthMm,
+        "pdf.userLogoTopMm": topMm,
+        "pdf.userLogoRightMm": rightMm,
+        "pdf.userLogoPngDataUrl": this._pdfLogoDataUrl || "",
+        "pdf.userLogoFilePath": this._pdfLogoFilePath || "",
+      });
       if (!res?.ok) {
         alert(res?.error || "Speichern fehlgeschlagen");
         return false;

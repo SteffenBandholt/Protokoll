@@ -49,7 +49,6 @@ class TopService {
           longtext: r.longtext,
           is_carried_over: r.is_carried_over,
           completed_in_meeting_id: r.completed_in_meeting_id ?? null,
-          completed_in_meeting_id: r.completed_in_meeting_id ?? null,
 
           // Wichtig (pro Meeting)
           is_important: r.is_important ?? 0,
