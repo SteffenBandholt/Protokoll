@@ -1639,7 +1639,7 @@ export default class MainHeader {
         const dayMs = 24 * 60 * 60 * 1000;
         const usedDays = Math.floor((Date.now() - firstStart) / dayMs) + 1;
         const remaining = Math.max(0, limit - usedDays + 1);
-        this._trialInfoText = `Testvesion Restlaufzeit beträgt ${remaining} Tage`;
+        this._trialInfoText = `Testversion: noch ${remaining} Tage`;
       } catch (_e) {
         this._trialInfoText = "";
       } finally {
