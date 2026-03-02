@@ -423,6 +423,18 @@ export default class MeetingsView {
   renderList() {
     const list = this.listEl;
     list.innerHTML = "";
+    const formatMeetingLabel = (meeting) => {
+      const idx = Number(meeting?.meeting_index || 0);
+      const raw = String(meeting?.title || "").trim();
+      const prefixed = raw.match(/^#(\d+)\s*[-–]?\s*(.*)$/);
+      if (prefixed) {
+        const nr = Number(prefixed[1] || 0) || idx;
+        const rest = String(prefixed[2] || "").trim();
+        return rest ? `#${nr} - ${rest}` : `#${nr}`;
+      }
+      if (!raw) return `#${idx}`;
+      return `#${idx} - ${raw}`;
+    };
 
     const base = this.meetings || [];
     const visible = this.filterEnabled
@@ -456,13 +468,7 @@ export default class MeetingsView {
 
       const closed = Number(m.is_closed) === 1;
       const selectableInPrintMode = !this.printSelectionMode || closed;
-      const title = m.title ? String(m.title) : "(ohne Titel)";
-      const titleHasIndex = /^#\d+\b/.test(title);
-      const displayTitle = titleHasIndex
-        ? title
-        : title === "(ohne Titel)"
-          ? `#${m.meeting_index}`
-          : `#${m.meeting_index} – ${title}`;
+      const displayTitle = formatMeetingLabel(m);
       const isOpen = this.openMeetingId && m.id === this.openMeetingId;
       li.textContent = "";
       const titleLine = document.createElement("div");
