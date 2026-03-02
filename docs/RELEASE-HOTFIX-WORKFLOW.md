@@ -19,6 +19,7 @@ git status
 npm version 1.0.2 --no-git-tag-version
 
 npm ci
+npm run lint
 if (Test-Path .\dist) { Remove-Item -Recurse -Force .\dist }
 npm run dist
 
