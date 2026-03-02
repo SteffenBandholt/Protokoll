@@ -779,14 +779,7 @@ async function getPrintData({ mode, projectId, meetingId, settingsOverride } = {
       meetingNextMeeting.extra
     );
   const settingsNextMeeting = {
-    enabled:
-      _parseBool(settings?.["print.nextMeeting.enabled"]) ||
-      !!(
-        String(settings?.["print.nextMeeting.date"] || "").trim() ||
-        String(settings?.["print.nextMeeting.time"] || "").trim() ||
-        String(settings?.["print.nextMeeting.place"] || "").trim() ||
-        String(settings?.["print.nextMeeting.extra"] || "").trim()
-      ),
+    enabled: _parseBool(settings?.["print.nextMeeting.enabled"]),
     date: String(settings?.["print.nextMeeting.date"] || "").trim(),
     time: String(settings?.["print.nextMeeting.time"] || "").trim(),
     place: String(settings?.["print.nextMeeting.place"] || "").trim(),

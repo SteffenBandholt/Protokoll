@@ -59,6 +59,14 @@ const PRINT_LAYOUT_TOUCHED_KEYS = [
   "print.v2.pagePadBottomMm",
   "print.v2.footerReserveMm",
 ];
+const THEME_DEFAULT_KEYS = [
+  "defaults.ui.themeHeaderBaseColor",
+  "defaults.ui.themeSidebarBaseColor",
+  "defaults.ui.themeMainBaseColor",
+  "defaults.ui.themeHeaderTone",
+  "defaults.ui.themeSidebarTone",
+  "defaults.ui.themeMainTone",
+];
 
 export default class SettingsView {
   constructor({ router } = {}) {
@@ -203,6 +211,8 @@ export default class SettingsView {
     this._logoSaveTimer = null;
     this._themeSaving = false;
     this._themeSaveTimer = null;
+    this._themeSaveMode = "user";
+    this._themeRuntimeDefaults = { ...DEFAULT_THEME_SETTINGS };
     this._themeLastValid = {
       header: this._themeAreaDefaultRgb("header"),
       sidebar: this._themeAreaDefaultRgb("sidebar"),
@@ -574,6 +584,8 @@ export default class SettingsView {
 
     const TOPS_TITLE_KEY = "tops.titleMax";
     const TOPS_LONG_KEY = "tops.longMax";
+    const TRIAL_DAYS_KEY = "trial.daysLimit";
+    const TRIAL_ENABLED_KEY = "trial.enabled";
     const TOPS_FONT_LIST_KEY = "tops.fontscale.list";
     const TOPS_FONT_EDIT_KEY = "tops.fontscale.editbox";
     const PRINT_V2_PAD_LEFT_KEY = "print.v2.pagePadLeftMm";
@@ -604,6 +616,7 @@ export default class SettingsView {
     inpTopsLongMax.step = "1";
     inpTopsLongMax.style.width = "100%";
 
+
     const topsLimitMsg = document.createElement("div");
     topsLimitMsg.style.fontSize = "12px";
     topsLimitMsg.style.opacity = "0.75";
@@ -629,6 +642,17 @@ export default class SettingsView {
     const isValidInt = (val) => {
       const n = Math.floor(Number(val));
       return Number.isFinite(n) && n > 0;
+    };
+
+    const clampNonNegativeInt = (val, min, max, fallback) => {
+      const n = Math.floor(Number(val));
+      if (!Number.isFinite(n) || n < 0) return fallback;
+      return Math.max(min, Math.min(max, n));
+    };
+
+    const isValidNonNegativeInt = (val) => {
+      const n = Math.floor(Number(val));
+      return Number.isFinite(n) && n >= 0;
     };
 
     const loadTopLimitSettings = async () => {
@@ -691,8 +715,108 @@ export default class SettingsView {
     topsRowShort.style.marginBottom = "6px";
     const topsRowLong = mkRow("Langtext max", inpTopsLongMax);
     topsRowLong.style.marginBottom = "4px";
-
     topsLimitBox.append(topsLimitTitle, topsRowShort, topsRowLong, topsLimitMsg);
+
+    const trialBox = document.createElement("div");
+    applyPopupCardStyle(trialBox);
+    trialBox.style.padding = "8px 10px";
+    trialBox.style.maxWidth = "720px";
+    trialBox.style.marginTop = "0";
+    trialBox.style.boxSizing = "border-box";
+
+    const trialTitle = document.createElement("div");
+    trialTitle.textContent = "Testversion";
+    trialTitle.style.fontWeight = "bold";
+    trialTitle.style.marginBottom = "6px";
+
+    const trialEnabled = document.createElement("input");
+    trialEnabled.type = "checkbox";
+    trialEnabled.checked = false;
+
+    const trialEnabledWrap = document.createElement("div");
+    trialEnabledWrap.style.display = "flex";
+    trialEnabledWrap.style.alignItems = "center";
+    trialEnabledWrap.style.gap = "8px";
+
+    const trialEnabledLabel = document.createElement("div");
+    trialEnabledLabel.textContent = "Nutzungstage-Limit aktiv";
+    trialEnabledWrap.append(trialEnabled, trialEnabledLabel);
+
+    const inpTrialDays = document.createElement("input");
+    inpTrialDays.type = "number";
+    inpTrialDays.min = "0";
+    inpTrialDays.step = "1";
+    inpTrialDays.style.width = "100%";
+
+    const trialStatus = document.createElement("div");
+    trialStatus.style.fontSize = "12px";
+    trialStatus.style.opacity = "0.75";
+    trialStatus.style.marginTop = "4px";
+
+    const loadTrialSettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsGetMany !== "function") {
+        trialEnabled.checked = false;
+        inpTrialDays.value = "0";
+        inpTrialDays.disabled = true;
+        inpTrialDays.style.opacity = "0.55";
+        return;
+      }
+      const res = await api.appSettingsGetMany([TRIAL_ENABLED_KEY, TRIAL_DAYS_KEY]);
+      if (!res?.ok) {
+        trialEnabled.checked = false;
+        inpTrialDays.value = "0";
+        inpTrialDays.disabled = true;
+        inpTrialDays.style.opacity = "0.55";
+        return;
+      }
+      const data = res.data || {};
+      const enabledRaw = String(data[TRIAL_ENABLED_KEY] || "").trim().toLowerCase();
+      const enabled = enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes" || enabledRaw === "on";
+      const trialDays = clampNonNegativeInt(data[TRIAL_DAYS_KEY], 0, 3650, 0);
+      trialEnabled.checked = enabled;
+      inpTrialDays.value = String(trialDays);
+      inpTrialDays.disabled = !enabled;
+      inpTrialDays.style.opacity = enabled ? "1" : "0.55";
+      trialStatus.textContent = "";
+    };
+
+    const saveTrialSettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsSetMany !== "function") {
+        trialStatus.textContent = "Settings-API fehlt (IPC noch nicht aktiv).";
+        return false;
+      }
+      const valid = isValidNonNegativeInt(inpTrialDays.value);
+      const trialDays = clampNonNegativeInt(inpTrialDays.value, 0, 3650, 0);
+      inpTrialDays.value = String(trialDays);
+      const res = await api.appSettingsSetMany({
+        [TRIAL_ENABLED_KEY]: trialEnabled.checked ? "1" : "0",
+        [TRIAL_DAYS_KEY]: String(trialDays),
+      });
+      if (!res?.ok) {
+        trialStatus.textContent = res?.error || "Speichern fehlgeschlagen";
+        return false;
+      }
+      trialStatus.textContent = valid ? "Gespeichert" : "Ung?ltiger Wert ? Standard wurde verwendet.";
+      return true;
+    };
+
+    trialEnabled.addEventListener("change", async () => {
+      inpTrialDays.disabled = !trialEnabled.checked;
+      inpTrialDays.style.opacity = trialEnabled.checked ? "1" : "0.55";
+      await saveTrialSettings();
+    });
+    inpTrialDays.addEventListener("change", async () => {
+      if (!trialEnabled.checked) return;
+      await saveTrialSettings();
+    });
+
+    const trialRowDays = mkRow("Nutzungstage (0 = aus)", inpTrialDays);
+    trialRowDays.style.marginBottom = "4px";
+
+    trialBox.append(trialTitle, trialEnabledWrap, trialRowDays, trialStatus);
+
 
     const printV2LayoutBox = document.createElement("div");
     applyPopupCardStyle(printV2LayoutBox);
@@ -1355,6 +1479,12 @@ export default class SettingsView {
     btnOpenStoragePreview.textContent = "Speicherorte";
     applyPopupButtonStyle(btnOpenStoragePreview);
 
+    const btnOpenThemeDefaults = document.createElement("button");
+    btnOpenThemeDefaults.type = "button";
+    btnOpenThemeDefaults.textContent = "Start-Defaults Farbschema";
+    applyPopupButtonStyle(btnOpenThemeDefaults);
+
+
     const devDefaultsStatus = document.createElement("div");
     devDefaultsStatus.style.fontSize = "12px";
     devDefaultsStatus.style.minHeight = "16px";
@@ -1647,11 +1777,18 @@ export default class SettingsView {
       this._closeSettingsModal();
       await openStoragePreviewModal();
     };
-
-    devDefaultsActions.append(btnOpenPrintDefaults, btnOpenStoragePreview);
+    btnOpenThemeDefaults.onclick = async () => {
+      this._closeSettingsModal();
+      await openThemeDefaultsPopup();
+    };
+    devDefaultsActions.append(
+      btnOpenPrintDefaults,
+      btnOpenStoragePreview,
+      btnOpenThemeDefaults
+    );
     devDefaultsBox.append(devDefaultsTitle, devDefaultsHint, devDefaultsActions, devDefaultsStatus);
 
-    devRightCol.append(devDefaultsBox, topsLimitBox);
+    devRightCol.append(devDefaultsBox, topsLimitBox, trialBox);
     devTopCardsRow.append(versionBox, devRightCol);
 
     const themeBox = document.createElement("div");
@@ -1865,31 +2002,27 @@ export default class SettingsView {
     wireThemeArea("sidebar", themeSidebar);
     wireThemeArea("main", themeMain);
 
-    const themeDefaultWrap = document.createElement("label");
-    themeDefaultWrap.style.display = "inline-flex";
-    themeDefaultWrap.style.alignItems = "center";
-    themeDefaultWrap.style.gap = "6px";
-    themeDefaultWrap.style.fontSize = "12px";
-    themeDefaultWrap.style.opacity = "0.9";
-    const themeDefaultInp = document.createElement("input");
-    themeDefaultInp.type = "checkbox";
-    themeDefaultInp.disabled = false;
-    const themeDefaultTxt = document.createElement("span");
-    themeDefaultTxt.textContent = "Default";
-    themeDefaultWrap.append(themeDefaultInp, themeDefaultTxt);
-    themeDefaultInp.addEventListener("change", () => {
-      if (themeDefaultInp.checked) {
-        this._applyThemeDefaultForArea("header");
-        this._applyThemeDefaultForArea("sidebar");
-        this._applyThemeDefaultForArea("main");
-      }
-      onThemeInput();
-    });
+    const themeDefaultsResetWrap = document.createElement("div");
+    themeDefaultsResetWrap.style.display = "inline-flex";
+    themeDefaultsResetWrap.style.alignItems = "center";
+    themeDefaultsResetWrap.style.gap = "8px";
+    const btnThemeResetDefaults = document.createElement("button");
+    btnThemeResetDefaults.type = "button";
+    btnThemeResetDefaults.textContent = "Werkseinstellungen setzen";
+    applyPopupButtonStyle(btnThemeResetDefaults);
+    const themeDefaultsResetHint = document.createElement("span");
+    themeDefaultsResetHint.textContent = "setzt Header/Sidebar/Main auf Startwerte";
+    themeDefaultsResetHint.style.fontSize = "12px";
+    themeDefaultsResetHint.style.opacity = "0.8";
+    themeDefaultsResetWrap.append(btnThemeResetDefaults, themeDefaultsResetHint);
+    btnThemeResetDefaults.onclick = async () => {
+      await this._applyThemeStartDefaultsToUser();
+    };
 
     themeBox.append(
       themeTitle,
       themeHint,
-      mkRow("Default (global)", themeDefaultWrap),
+      mkRow("Werkseinstellung", themeDefaultsResetWrap),
       mkRow("Header", themeHeader.outer),
       mkRow("Sidebar", themeSidebar.outer),
       mkRow("Main", themeMain.outer)
@@ -2774,11 +2907,24 @@ export default class SettingsView {
     rolesBox.append(rolesHead, rolesHint, rolesActions, roleList);
 
     const openThemePopup = () => {
+      this._themeSaveMode = "user";
       this._openSettingsModal({
         title: "Farben einstellen",
         content: [themeBox],
         closeOnly: false,
         saveFn: async () => (await this._saveThemeSettings()) !== false,
+      });
+      this._applyThemePreviewFromInputs();
+    };
+
+    const openThemeDefaultsPopup = async () => {
+      this._themeSaveMode = "startDefaults";
+      await this._loadThemeStartDefaults();
+      this._openSettingsModal({
+        title: "Start-Defaults Farbschema",
+        content: [themeBox],
+        closeOnly: false,
+        saveFn: async () => (await this._saveThemeStartDefaults()) !== false,
       });
       this._applyThemePreviewFromInputs();
     };
@@ -3034,6 +3180,7 @@ export default class SettingsView {
         this._devPopupOpen = true;
         await loadDbDiagnostics();
         await loadTopLimitSettings();
+        await loadTrialSettings();
         await loadVersioningData();
         this._openSettingsModal({
           title: "Entwicklung",
@@ -3041,7 +3188,8 @@ export default class SettingsView {
           closeOnly: false,
           saveFn: async () => {
             const okTops = (await saveTopLimitSettings()) !== false;
-            return okTops;
+            const okTrial = (await saveTrialSettings()) !== false;
+            return okTops && okTrial;
           },
         });
       },
@@ -3294,7 +3442,7 @@ export default class SettingsView {
     this.inpThemeHeaderDefault = null;
     this.inpThemeSidebarDefault = null;
     this.inpThemeMainDefault = null;
-    this.inpThemeGlobalDefault = themeDefaultInp;
+    this.inpThemeGlobalDefault = null;
     this.lblThemeHeaderTone = null;
     this.lblThemeSidebarTone = null;
     this.lblThemeMainTone = null;
@@ -3996,7 +4144,47 @@ export default class SettingsView {
   }
 
   _themeDefaults() {
-    return { ...DEFAULT_THEME_SETTINGS };
+    return { ...(this._themeRuntimeDefaults || DEFAULT_THEME_SETTINGS) };
+  }
+
+  _setThemeRuntimeDefaults(values = {}) {
+    const normalized = normalizeThemeSettings({
+      ...DEFAULT_THEME_SETTINGS,
+      ...values,
+      headerUseDefault: false,
+      sidebarUseDefault: false,
+      mainUseDefault: false,
+    });
+    this._themeRuntimeDefaults = {
+      ...DEFAULT_THEME_SETTINGS,
+      headerBaseColor: normalized.headerBaseColor,
+      sidebarBaseColor: normalized.sidebarBaseColor,
+      mainBaseColor: normalized.mainBaseColor,
+      headerTone: normalized.headerTone,
+      sidebarTone: normalized.sidebarTone,
+      mainTone: normalized.mainTone,
+      headerUseDefault: false,
+      sidebarUseDefault: false,
+      mainUseDefault: false,
+    };
+  }
+
+  _readThemeStartDefaultsFromData(data = {}) {
+    const defaults = this._themeDefaults();
+    return {
+      headerBaseColor: String(
+        data["defaults.ui.themeHeaderBaseColor"] || defaults.headerBaseColor || ""
+      ).trim() || defaults.headerBaseColor,
+      sidebarBaseColor: String(
+        data["defaults.ui.themeSidebarBaseColor"] || defaults.sidebarBaseColor || ""
+      ).trim() || defaults.sidebarBaseColor,
+      mainBaseColor: String(
+        data["defaults.ui.themeMainBaseColor"] || defaults.mainBaseColor || ""
+      ).trim() || defaults.mainBaseColor,
+      headerTone: this._clampThemeTone(data["defaults.ui.themeHeaderTone"], defaults.headerTone),
+      sidebarTone: this._clampThemeTone(data["defaults.ui.themeSidebarTone"], defaults.sidebarTone),
+      mainTone: this._clampThemeTone(data["defaults.ui.themeMainTone"], defaults.mainTone),
+    };
   }
 
   _clampThemeTone(value, fallback) {
@@ -4027,9 +4215,10 @@ export default class SettingsView {
   }
 
   _themeAreaDefaultHex(area) {
-    if (area === "header") return "#F4F4F9";
-    if (area === "sidebar") return "#696969";
-    return "#F8FAFC";
+    const defaults = this._themeDefaults();
+    if (area === "header") return defaults.headerBaseColor || DEFAULT_THEME_SETTINGS.headerBaseColor;
+    if (area === "sidebar") return defaults.sidebarBaseColor || DEFAULT_THEME_SETTINGS.sidebarBaseColor;
+    return defaults.mainBaseColor || DEFAULT_THEME_SETTINGS.mainBaseColor;
   }
 
   _themeHexToRgb(hex, fallback = { r: 255, g: 255, b: 255 }) {
@@ -4183,7 +4372,7 @@ export default class SettingsView {
   }
 
   _ensureThemeAreaEditableOnInput(area) {
-    if (this.inpThemeGlobalDefault?.checked) this.inpThemeGlobalDefault.checked = false;
+    void area;
   }
 
   _bindThemeCanvasDrag(canvas, onInput) {
@@ -4436,7 +4625,7 @@ export default class SettingsView {
   }
 
   _getThemeInputValues() {
-    const useDefaultGlobal = !!this.inpThemeGlobalDefault?.checked;
+    const useDefaultGlobal = false;
     const collect = (area) => {
       const defRgb = this._themeAreaDefaultRgb(area);
       const last = this._themeLastValid[area] || defRgb;
@@ -4496,9 +4685,7 @@ export default class SettingsView {
       sidebar: { ...sidebarRgb },
       main: { ...mainRgb },
     };
-    if (this.inpThemeGlobalDefault) {
-      this.inpThemeGlobalDefault.checked = headerUseDefault && sidebarUseDefault && mainUseDefault;
-    }
+    // Werkseinstellung wird über den Reset-Button gesetzt, nicht über eine Checkbox.
     this._setThemeAreaRgbInputs("header", headerRgb);
     this._setThemeAreaRgbInputs("sidebar", sidebarRgb);
     this._setThemeAreaRgbInputs("main", mainRgb);
@@ -4574,7 +4761,11 @@ export default class SettingsView {
     }
     this._themeSaveTimer = setTimeout(() => {
       this._themeSaveTimer = null;
-      this._saveThemeSettings();
+      if (this._themeSaveMode === "startDefaults") {
+        this._saveThemeStartDefaults();
+      } else {
+        this._saveThemeSettings();
+      }
     }, 200);
   }
 
@@ -4667,6 +4858,152 @@ export default class SettingsView {
     } finally {
       this._themeSaving = false;
     }
+  }
+
+  async _loadThemeStartDefaults() {
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") {
+      return false;
+    }
+    const res = await api.appSettingsGetMany(THEME_DEFAULT_KEYS);
+    if (!res?.ok) return false;
+    const startDefaults = this._readThemeStartDefaultsFromData(res.data || {});
+    this._setThemeRuntimeDefaults(startDefaults);
+    const themeSettings = normalizeThemeSettings({
+      ...startDefaults,
+      headerUseDefault: false,
+      sidebarUseDefault: false,
+      mainUseDefault: false,
+      headerTone: 50,
+      sidebarTone: 50,
+      mainTone: 50,
+    });
+    this._applyThemeInputs(themeSettings);
+    return true;
+  }
+
+  async _saveThemeStartDefaults() {
+    if (this._themeSaving) return false;
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsSetMany !== "function") {
+      alert("Settings-API fehlt (IPC noch nicht aktiv).");
+      return false;
+    }
+
+    const v = this._getThemeInputValues();
+    const payload = {
+      "defaults.ui.themeHeaderBaseColor": v.headerBaseColor,
+      "defaults.ui.themeSidebarBaseColor": v.sidebarBaseColor,
+      "defaults.ui.themeMainBaseColor": v.mainBaseColor,
+      "defaults.ui.themeHeaderTone": String(v.headerTone),
+      "defaults.ui.themeSidebarTone": String(v.sidebarTone),
+      "defaults.ui.themeMainTone": String(v.mainTone),
+    };
+
+    this._themeSaving = true;
+    try {
+      const res = await api.appSettingsSetMany(payload);
+      if (!res?.ok) {
+        alert(res?.error || "Speichern fehlgeschlagen");
+        return false;
+      }
+      this._setThemeRuntimeDefaults({
+        headerBaseColor: v.headerBaseColor,
+        sidebarBaseColor: v.sidebarBaseColor,
+        mainBaseColor: v.mainBaseColor,
+        headerTone: v.headerTone,
+        sidebarTone: v.sidebarTone,
+        mainTone: v.mainTone,
+      });
+
+      if (this.router?.context) {
+        this.router.context.settings = {
+          ...(this.router.context.settings || {}),
+          ...payload,
+        };
+      }
+
+      applyThemeForSettings(this.router?.context?.settings || {});
+      window.dispatchEvent(new Event("bbm:theme-refresh"));
+      return true;
+    } catch (err) {
+      console.error("[SettingsView] _saveThemeStartDefaults failed", {
+        message: err?.message || String(err),
+        stack: err?.stack || null,
+      });
+      alert(err?.message || "Speichern fehlgeschlagen");
+      return false;
+    } finally {
+      this._themeSaving = false;
+    }
+  }
+
+  async _applyThemeStartDefaultsToUser() {
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function" || typeof api.appSettingsSetMany !== "function") {
+      alert("Settings-API fehlt (IPC noch nicht aktiv).");
+      return false;
+    }
+
+    const loadRes = await api.appSettingsGetMany(THEME_DEFAULT_KEYS);
+    if (!loadRes?.ok) {
+      alert(loadRes?.error || "Start-Defaults konnten nicht geladen werden.");
+      return false;
+    }
+    const defaults = this._readThemeStartDefaultsFromData(loadRes.data || {});
+    this._setThemeRuntimeDefaults(defaults);
+
+    const payload = {
+      "ui.themeHeaderBaseColor": defaults.headerBaseColor,
+      "ui.themeSidebarBaseColor": defaults.sidebarBaseColor,
+      "ui.themeMainBaseColor": defaults.mainBaseColor,
+      "ui.themeHeaderTone": String(defaults.headerTone),
+      "ui.themeSidebarTone": String(defaults.sidebarTone),
+      "ui.themeMainTone": String(defaults.mainTone),
+      "ui.themeHeaderUseDefault": "false",
+      "ui.themeSidebarUseDefault": "false",
+      "ui.themeMainUseDefault": "false",
+      "dev_color_default_enabled": "false",
+      "dev_color_header_default": "false",
+      "dev_color_sidebar_default": "false",
+      "dev_color_main_default": "false",
+      "dev_color_header_r": String(this._themeHexToRgb(defaults.headerBaseColor, { r: 0, g: 0, b: 0 })?.r ?? 0),
+      "dev_color_header_g": String(this._themeHexToRgb(defaults.headerBaseColor, { r: 0, g: 0, b: 0 })?.g ?? 0),
+      "dev_color_header_b": String(this._themeHexToRgb(defaults.headerBaseColor, { r: 0, g: 0, b: 0 })?.b ?? 0),
+      "dev_color_sidebar_r": String(this._themeHexToRgb(defaults.sidebarBaseColor, { r: 0, g: 0, b: 0 })?.r ?? 0),
+      "dev_color_sidebar_g": String(this._themeHexToRgb(defaults.sidebarBaseColor, { r: 0, g: 0, b: 0 })?.g ?? 0),
+      "dev_color_sidebar_b": String(this._themeHexToRgb(defaults.sidebarBaseColor, { r: 0, g: 0, b: 0 })?.b ?? 0),
+      "dev_color_main_r": String(this._themeHexToRgb(defaults.mainBaseColor, { r: 0, g: 0, b: 0 })?.r ?? 0),
+      "dev_color_main_g": String(this._themeHexToRgb(defaults.mainBaseColor, { r: 0, g: 0, b: 0 })?.g ?? 0),
+      "dev_color_main_b": String(this._themeHexToRgb(defaults.mainBaseColor, { r: 0, g: 0, b: 0 })?.b ?? 0),
+    };
+    const saveRes = await api.appSettingsSetMany(payload);
+    if (!saveRes?.ok) {
+      alert(saveRes?.error || "Werkseinstellung konnte nicht aktiviert werden.");
+      return false;
+    }
+
+    if (this.router?.context) {
+      this.router.context.settings = {
+        ...(this.router.context.settings || {}),
+        ...payload,
+        ...loadRes.data,
+      };
+    }
+    this._applyThemeInputs({
+      headerBaseColor: defaults.headerBaseColor,
+      sidebarBaseColor: defaults.sidebarBaseColor,
+      mainBaseColor: defaults.mainBaseColor,
+      headerTone: defaults.headerTone,
+      sidebarTone: defaults.sidebarTone,
+      mainTone: defaults.mainTone,
+      headerUseDefault: false,
+      sidebarUseDefault: false,
+      mainUseDefault: false,
+    });
+    applyThemeForSettings(this.router?.context?.settings || {});
+    window.dispatchEvent(new Event("bbm:theme-refresh"));
+    return true;
   }
 
   async _reloadSecurityPinState() {
@@ -6120,6 +6457,12 @@ export default class SettingsView {
       "ui.themeHeaderUseDefault",
       "ui.themeSidebarUseDefault",
       "ui.themeMainUseDefault",
+      "defaults.ui.themeHeaderBaseColor",
+      "defaults.ui.themeSidebarBaseColor",
+      "defaults.ui.themeMainBaseColor",
+      "defaults.ui.themeHeaderTone",
+      "defaults.ui.themeSidebarTone",
+      "defaults.ui.themeMainTone",
       "dev_color_default_enabled",
       "dev_color_header_default",
       "dev_color_header_name",
@@ -6245,6 +6588,8 @@ export default class SettingsView {
     const logoEnabled = this._parseBool(data["header.logoEnabled"], defaults.enabled);
     this._applyLogoInputs({ size, padLeft, padTop, padRight, position, enabled: logoEnabled });
 
+    const startThemeDefaults = this._readThemeStartDefaultsFromData(data);
+    this._setThemeRuntimeDefaults(startThemeDefaults);
     const themeDefaults = this._themeDefaults();
     const headerDefaultRgb = this._themeAreaDefaultRgb("header");
     const sidebarDefaultRgb = this._themeAreaDefaultRgb("sidebar");
@@ -6335,6 +6680,12 @@ export default class SettingsView {
         "ui.themeHeaderUseDefault": themeSettings.headerUseDefault ? "true" : "false",
         "ui.themeSidebarUseDefault": themeSettings.sidebarUseDefault ? "true" : "false",
         "ui.themeMainUseDefault": themeSettings.mainUseDefault ? "true" : "false",
+        "defaults.ui.themeHeaderBaseColor": this._themeRuntimeDefaults.headerBaseColor,
+        "defaults.ui.themeSidebarBaseColor": this._themeRuntimeDefaults.sidebarBaseColor,
+        "defaults.ui.themeMainBaseColor": this._themeRuntimeDefaults.mainBaseColor,
+        "defaults.ui.themeHeaderTone": String(this._themeRuntimeDefaults.headerTone),
+        "defaults.ui.themeSidebarTone": String(this._themeRuntimeDefaults.sidebarTone),
+        "defaults.ui.themeMainTone": String(this._themeRuntimeDefaults.mainTone),
         "dev_color_default_enabled": themeSettings.headerUseDefault ? "true" : "false",
         "dev_color_header_default": themeSettings.headerUseDefault ? "true" : "false",
         "dev_color_header_name": themeSettings.headerColorName,

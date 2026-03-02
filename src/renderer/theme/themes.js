@@ -12,6 +12,50 @@ export const DEFAULT_THEME_SETTINGS = {
   mainUseDefault: false,
 };
 
+function resolveThemeDefaults(raw = {}) {
+  return {
+    headerBaseColor: normalizeHexCandidate(
+      raw.defaultHeaderBaseColor ?? raw["defaults.ui.themeHeaderBaseColor"],
+      DEFAULT_THEME_SETTINGS.headerBaseColor
+    ),
+    sidebarBaseColor: normalizeHexCandidate(
+      raw.defaultSidebarBaseColor ?? raw["defaults.ui.themeSidebarBaseColor"],
+      DEFAULT_THEME_SETTINGS.sidebarBaseColor
+    ),
+    mainBaseColor: normalizeHexCandidate(
+      raw.defaultMainBaseColor ?? raw["defaults.ui.themeMainBaseColor"],
+      DEFAULT_THEME_SETTINGS.mainBaseColor
+    ),
+    headerTone: clamp(
+      raw.defaultHeaderTone ?? raw["defaults.ui.themeHeaderTone"],
+      0,
+      100
+    ),
+    sidebarTone: clamp(
+      raw.defaultSidebarTone ?? raw["defaults.ui.themeSidebarTone"],
+      0,
+      100
+    ),
+    mainTone: clamp(
+      raw.defaultMainTone ?? raw["defaults.ui.themeMainTone"],
+      0,
+      100
+    ),
+    headerUseDefault: parseBool(
+      raw.defaultHeaderUseDefault ?? raw["defaults.ui.themeHeaderUseDefault"],
+      DEFAULT_THEME_SETTINGS.headerUseDefault
+    ),
+    sidebarUseDefault: parseBool(
+      raw.defaultSidebarUseDefault ?? raw["defaults.ui.themeSidebarUseDefault"],
+      DEFAULT_THEME_SETTINGS.sidebarUseDefault
+    ),
+    mainUseDefault: parseBool(
+      raw.defaultMainUseDefault ?? raw["defaults.ui.themeMainUseDefault"],
+      DEFAULT_THEME_SETTINGS.mainUseDefault
+    ),
+  };
+}
+
 function clamp(n, min, max) {
   const v = Number(n);
   if (!Number.isFinite(v)) return min;
@@ -161,7 +205,7 @@ export function parseCssColor(raw) {
 }
 
 export function normalizeThemeSettings(raw = {}) {
-  const def = DEFAULT_THEME_SETTINGS;
+  const def = resolveThemeDefaults(raw);
   const headerUseDefault = parseBool(
     raw.headerUseDefault ?? raw["ui.themeHeaderUseDefault"],
     def.headerUseDefault

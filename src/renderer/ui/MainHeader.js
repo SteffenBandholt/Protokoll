@@ -29,6 +29,7 @@ export default class MainHeader {
     this.elUserName = null;
     this.elUserCompany = null;
     this.elRightInfo = null;
+    this.elTrialInfo = null;
     this.elPrintBtn = null;
     this.elPrintWrap = null;
     this.elPrintMenu = null;
@@ -81,6 +82,9 @@ export default class MainHeader {
     this._setupStatusLoading = null;
     this._setupStatusLoadedAt = 0;
     this._setupStatusRefreshPending = false;
+    this._trialInfoLoading = null;
+    this._trialInfoText = "";
+    this._baseWindowTitle = String(document?.title || "BBM").trim() || "BBM";
   }
 
   _readUiMode() {
@@ -206,6 +210,17 @@ export default class MainHeader {
     actionWrap.style.alignItems = "center";
     actionWrap.style.gap = "8px";
     actionWrap.style.paddingRight = this._isNewUi ? "clamp(8px, 1.6vw, 18px)" : "0px";
+
+    const trialInfo = document.createElement("div");
+    trialInfo.style.display = "none";
+    trialInfo.style.fontSize = "12px";
+    trialInfo.style.fontWeight = "600";
+    trialInfo.style.color = "#1b5e20";
+    trialInfo.style.whiteSpace = "nowrap";
+    trialInfo.style.gridColumn = "2";
+    trialInfo.style.gridRow = "1";
+    trialInfo.style.justifySelf = "center";
+    trialInfo.style.alignSelf = "start";
 
     const applyActionTextButtonStyle = (btn) => {
       if (!btn) return;
@@ -715,10 +730,12 @@ export default class MainHeader {
       actionWrap.style.rowGap = "6px";
 
       rightInfo.style.display = "none";
+      trialInfo.style.gridRow = "1";
+      trialInfo.style.marginBottom = "0";
       stickyNotice.style.gridRow = "3";
     }
 
-    root.append(logoGroup, elCenterTitle, elActive, rightInfo, actionWrap, stickyNotice);
+    root.append(logoGroup, trialInfo, elCenterTitle, elActive, rightInfo, actionWrap, stickyNotice);
 
     this.root = root;
 
@@ -729,6 +746,7 @@ export default class MainHeader {
     this.elUserName = elUserName;
     this.elUserCompany = elUserCompany;
     this.elRightInfo = rightInfo;
+    this.elTrialInfo = trialInfo;
     this.elPrintBtn = printBtn;
     this.elPrintWrap = printWrap;
     this.elPrintMenu = printMenu;
@@ -1590,6 +1608,49 @@ export default class MainHeader {
     this._applyPrintMenuState(fallbackState);
   }
 
+  async _refreshTrialInfo() {
+    const api = window.bbmDb || {};
+    if (!this.elTrialInfo) return;
+    this.elTrialInfo.style.display = "none";
+    this.elTrialInfo.textContent = "";
+    if (typeof api.appSettingsGetMany !== "function") {
+      document.title = this._baseWindowTitle;
+      return;
+    }
+    if (this._trialInfoLoading) return;
+
+    this._trialInfoLoading = (async () => {
+      try {
+        const res = await api.appSettingsGetMany(["trial.enabled", "trial.daysLimit", "trial.firstStartAt"]);
+        if (!res?.ok) {
+          this._trialInfoText = "";
+          return;
+        }
+        const data = res.data || {};
+        const enabledRaw = String(data["trial.enabled"] || "").trim().toLowerCase();
+        const enabled =
+          enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes" || enabledRaw === "on";
+        const limit = Math.max(0, Math.floor(Number(data["trial.daysLimit"] || 0) || 0));
+        const firstStart = Math.floor(Number(data["trial.firstStartAt"] || 0) || 0);
+        if (!enabled || limit <= 0 || firstStart <= 0) {
+          this._trialInfoText = "";
+          return;
+        }
+        const dayMs = 24 * 60 * 60 * 1000;
+        const usedDays = Math.floor((Date.now() - firstStart) / dayMs) + 1;
+        const remaining = Math.max(0, limit - usedDays + 1);
+        this._trialInfoText = `Testvesion Restlaufzeit beträgt ${remaining} Tage`;
+      } catch (_e) {
+        this._trialInfoText = "";
+      } finally {
+        document.title = this._trialInfoText
+          ? `${this._baseWindowTitle} - ${this._trialInfoText}`
+          : this._baseWindowTitle;
+        this._trialInfoLoading = null;
+      }
+    })();
+  }
+
   refresh() {
     // Center title only in TopsView
     const ui = this.router?.context?.ui || {};
@@ -1616,6 +1677,7 @@ export default class MainHeader {
     if (this.elRightInfo && this._isNewUi) {
       this.elRightInfo.style.display = "none";
     }
+    this._refreshTrialInfo();
 
     const logoSize = this._clampLogoNumber(
       settings["header.logoSizePx"],

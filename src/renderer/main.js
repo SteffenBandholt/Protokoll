@@ -7,10 +7,25 @@ import MainHeader from "./ui/MainHeader.js";
 import { DEFAULT_THEME_SETTINGS, applyThemeForSettings } from "./theme/themes.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "./ui/popupButtonStyles.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const APP_VERSION = "1.0";
   const FEATURE_FLAG_KEY = "bbm.useNewCompanyWorkflow";
   const UI_MODE_KEY = "bbm.uiMode";
+  const TRIAL_DAYS_KEY = "trial.daysLimit";
+  const TRIAL_ENABLED_KEY = "trial.enabled";
+  const TRIAL_FIRST_START_KEY = "trial.firstStartAt";
+  const PRINT_V2_PAD_LEFT_KEY = "print.v2.pagePadLeftMm";
+  const PRINT_V2_PAD_RIGHT_KEY = "print.v2.pagePadRightMm";
+  const PRINT_V2_PAD_TOP_KEY = "print.v2.pagePadTopMm";
+  const PRINT_V2_PAD_BOTTOM_KEY = "print.v2.pagePadBottomMm";
+  const PRINT_V2_FOOTER_RESERVE_KEY = "print.v2.footerReserveMm";
+  const PRINT_LAYOUT_DEFAULTS = {
+    [PRINT_V2_PAD_LEFT_KEY]: "19",
+    [PRINT_V2_PAD_RIGHT_KEY]: "15",
+    [PRINT_V2_PAD_TOP_KEY]: "3",
+    [PRINT_V2_PAD_BOTTOM_KEY]: "18",
+    [PRINT_V2_FOOTER_RESERVE_KEY]: "12",
+  };
   const WHATSNEW_KEY_PREFIX = "bbm_whatsnew_seen_";
   const toSeenKey = (version) => `${WHATSNEW_KEY_PREFIX}${String(version || "").trim() || "unknown"}`;
   const isSeenValue = (v) => {
@@ -74,6 +89,133 @@ document.addEventListener("DOMContentLoaded", () => {
   const writeUseNewCompanyWorkflowFlag = (value) => {
     try {
       window.localStorage?.setItem?.(FEATURE_FLAG_KEY, value ? "true" : "false");
+    } catch (_e) {
+      // ignore
+    }
+  };
+
+  const showStartupOverlay = ({ durationMs = 3000 } = {}) => {
+    if (document.querySelector('[data-bbm-startup-overlay="true"]')) return;
+
+    const overlay = document.createElement("div");
+    overlay.setAttribute("data-bbm-startup-overlay", "true");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.background = "rgba(15,23,42,0.18)";
+    overlay.style.zIndex = "11000";
+    overlay.style.pointerEvents = "none";
+    overlay.style.opacity = "1";
+    overlay.style.transition = "opacity 260ms ease";
+
+    const card = document.createElement("div");
+    card.style.width = "75vw";
+    card.style.height = "75vh";
+    card.style.maxWidth = "1100px";
+    card.style.maxHeight = "760px";
+    card.style.minWidth = "360px";
+    card.style.minHeight = "260px";
+    card.style.borderRadius = "14px";
+    card.style.background = "rgba(15,23,42,0.92)";
+    card.style.boxShadow = "0 20px 50px rgba(0,0,0,0.35)";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.alignItems = "center";
+    card.style.justifyContent = "center";
+    card.style.gap = "14px";
+
+    const img = document.createElement("img");
+    img.src = "./assets/icon-BBM.png";
+    img.alt = "BBM";
+    img.style.width = "clamp(200px, 26vw, 360px)";
+    img.style.height = "auto";
+    img.style.objectFit = "contain";
+
+    const text = document.createElement("div");
+    text.textContent = "Initialisiere ...";
+    text.style.color = "#e2e8f0";
+    text.style.fontSize = "14px";
+    text.style.fontWeight = "600";
+    text.style.letterSpacing = "0.3px";
+
+    card.append(img, text);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+      overlay.style.opacity = "0";
+      setTimeout(() => {
+        if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
+      }, 280);
+    }, Math.max(500, Number(durationMs) || 3000));
+  };
+
+  const enforceTrialLimit = async () => {
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") return true;
+
+    let data = {};
+    try {
+      const res = await api.appSettingsGetMany([TRIAL_ENABLED_KEY, TRIAL_DAYS_KEY, TRIAL_FIRST_START_KEY]);
+      if (!res?.ok) return true;
+      data = res.data || {};
+    } catch (_e) {
+      return true;
+    }
+
+    const enabledRaw = String(data[TRIAL_ENABLED_KEY] || "").trim().toLowerCase();
+    const enabled = enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes" || enabledRaw === "on";
+    const limit = Math.max(0, Math.floor(Number(data[TRIAL_DAYS_KEY] || 0) || 0));
+    if (!enabled || limit <= 0) return true;
+
+    let firstStart = Math.floor(Number(data[TRIAL_FIRST_START_KEY] || 0) || 0);
+    if (!Number.isFinite(firstStart) || firstStart <= 0) {
+      firstStart = Date.now();
+      if (typeof api.appSettingsSetMany === "function") {
+        try {
+          await api.appSettingsSetMany({ [TRIAL_FIRST_START_KEY]: String(firstStart) });
+        } catch (_e) {
+          // ignore
+        }
+      }
+    }
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const usedDays = Math.floor((Date.now() - firstStart) / dayMs) + 1;
+    if (usedDays <= limit) return true;
+
+    alert(`Testversion abgelaufen (${limit} Nutzungstage).`);
+    if (typeof api.appQuit === "function") {
+      try {
+        await api.appQuit();
+        return false;
+      } catch (_e) {
+        // ignore
+      }
+    }
+    try {
+      window.close();
+    } catch (_e) {
+      // ignore
+    }
+    return false;
+  };
+
+  const ensureInitialPrintLayoutDefaults = async () => {
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") return;
+    if (typeof api.appSettingsSetMany !== "function") return;
+
+    const keys = Object.keys(PRINT_LAYOUT_DEFAULTS);
+    try {
+      const res = await api.appSettingsGetMany(keys);
+      if (!res?.ok) return;
+      const data = res.data || {};
+      const hasAnySavedValue = keys.some((key) => String(data[key] || "").trim() !== "");
+      if (hasAnySavedValue) return;
+      await api.appSettingsSetMany(PRINT_LAYOUT_DEFAULTS);
     } catch (_e) {
       // ignore
     }
@@ -749,6 +891,7 @@ document.addEventListener("DOMContentLoaded", () => {
   router.showHome();
   header.refresh();
   updateContextButtons();
+  showStartupOverlay({ durationMs: 3000 });
   // Start-Popup "Was ist neu/geändert" ist deaktiviert.
   };
 
@@ -791,6 +934,10 @@ document.addEventListener("DOMContentLoaded", () => {
     topSection.replaceChildren(btnStart, btnProjects, btnFirmsBase, btnSettings, btnHelp);
     bottomSection.replaceChildren(btnQuit);
   };
+
+  const canContinue = await enforceTrialLimit();
+  if (!canContinue) return;
+  await ensureInitialPrintLayoutDefaults();
 
   const uiMode = readUiMode();
 
