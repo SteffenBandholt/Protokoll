@@ -23,3 +23,20 @@
 - Repro-Schritte + Root-Cause (1â€“2 SÃ¤tze) + Datei:Zeile.
 - Testschritte (inkl. Commands, die DU ausfÃ¼hren kannst).
 - Nicht pushen, nur commiten.
+
+## Release/Hotfix-Regeln (verbindlich)
+- Stabiler Setup-Branch: `main` (aus `main` wird `setup.exe` gebaut).
+- Entwicklungs-Branch: `develop` (normale Arbeit/Fixes/Features).
+- Trigger-Satz: **"Neues Release erstellen"**  
+  -> Versionsnummer aus `package.json` verwenden, Setup bauen, Release committen, Tags setzen:
+  - `v<version>`
+  - `release-v<version>`
+- Trigger-Satz: **"Wir müssen einen Bug in vX.Y.Z fixen"**  
+  -> Hotfix-Workflow ausführen:
+  1) Von Tag `vX.Y.Z` (oder `release-vX.Y.Z`) starten
+  2) Branch `hotfix/X.Y.(Z+1)` erstellen
+  3) Bug fixen, testen, Patch-Version hochsetzen
+  4) Setup bauen
+  5) Nach `main` mergen + neue Tags setzen (`v...` und `release-v...`)
+  6) Fix nach `develop` übernehmen (cherry-pick oder merge), damit er nicht verloren geht
+- Details/Checkliste siehe: `docs/RELEASE-HOTFIX-WORKFLOW.md`
