@@ -304,6 +304,7 @@ function listProjectParticipantsPool(dbConn, projectId) {
         'project_person' AS kind,
         pp.id AS personId,
         pp.name AS name,
+        COALESCE(pp.email, '') AS email,
         COALESCE(pp.rolle, pp.funktion, '') AS rolle,
         COALESCE(pf.short, pf.name, '') AS firm,
         pp.project_firm_id AS firmId,
@@ -320,6 +321,7 @@ function listProjectParticipantsPool(dbConn, projectId) {
         'global_person' AS kind,
         p.id AS personId,
         p.name AS name,
+        COALESCE(p.email, '') AS email,
         COALESCE(p.rolle, p.funktion, '') AS rolle,
         COALESCE(f.short, f.name, '') AS firm,
         f.id AS firmId,
@@ -636,6 +638,9 @@ function registerParticipantsIpc() {
       });
 
       tx();
+      // Expliziter Save (auch "leere Auswahl") gilt als initialisiert,
+      // damit beim nächsten Laden keine Default-Übernahme mehr darüberläuft.
+      _markParticipantsInitialized(db, meetingId);
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };

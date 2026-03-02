@@ -1,0 +1,12 @@
+node_modules
+build
+dist
+out
+coverage
+Cache
+GPUCache
+Code Cache
+*.log
+*.db
+*.bak
+legacy-import
