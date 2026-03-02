@@ -437,15 +437,11 @@ function _resolveInterludeText(data) {
     nextMeeting.enabled != null ? nextMeeting.enabled : settings["print.nextMeeting.enabled"],
     false
   );
+  if (!enabledRaw) return "";
   const dateRaw = String(nextMeeting.date != null ? nextMeeting.date : settings["print.nextMeeting.date"] || "").trim();
   const timeRaw = String(nextMeeting.time != null ? nextMeeting.time : settings["print.nextMeeting.time"] || "").trim();
   const placeRaw = String(nextMeeting.place != null ? nextMeeting.place : settings["print.nextMeeting.place"] || "").trim();
   const extraRaw = String(nextMeeting.extra != null ? nextMeeting.extra : settings["print.nextMeeting.extra"] || "").trim();
-  const hasAny = enabledRaw || !!(dateRaw || timeRaw || placeRaw || extraRaw);
-  if (!hasAny) {
-    const fallback = String(data?.interludeText || settings["print.interludeText"] || "").trim();
-    return fallback || "";
-  }
 
   let weekday = "";
   let dateOut = dateRaw || "-";
