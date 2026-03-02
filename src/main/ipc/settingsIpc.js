@@ -222,6 +222,9 @@ function registerSettingsIpc() {
         "tops.showLongtextInList",
         "tops.fontscale.list",
         "tops.fontscale.editbox",
+        "trial.enabled",
+        "trial.daysLimit",
+        "trial.firstStartAt",
       ]);
       const allowedPrefixes = ["defaults.", "meta.touched."];
       const data = {};

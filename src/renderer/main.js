@@ -7,10 +7,13 @@ import MainHeader from "./ui/MainHeader.js";
 import { DEFAULT_THEME_SETTINGS, applyThemeForSettings } from "./theme/themes.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "./ui/popupButtonStyles.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const APP_VERSION = "1.0";
   const FEATURE_FLAG_KEY = "bbm.useNewCompanyWorkflow";
   const UI_MODE_KEY = "bbm.uiMode";
+  const TRIAL_DAYS_KEY = "trial.daysLimit";
+  const TRIAL_ENABLED_KEY = "trial.enabled";
+  const TRIAL_FIRST_START_KEY = "trial.firstStartAt";
   const WHATSNEW_KEY_PREFIX = "bbm_whatsnew_seen_";
   const toSeenKey = (version) => `${WHATSNEW_KEY_PREFIX}${String(version || "").trim() || "unknown"}`;
   const isSeenValue = (v) => {
@@ -135,6 +138,57 @@ document.addEventListener("DOMContentLoaded", () => {
         if (overlay.parentElement) overlay.parentElement.removeChild(overlay);
       }, 280);
     }, Math.max(500, Number(durationMs) || 3000));
+  };
+
+  const enforceTrialLimit = async () => {
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") return true;
+
+    let data = {};
+    try {
+      const res = await api.appSettingsGetMany([TRIAL_ENABLED_KEY, TRIAL_DAYS_KEY, TRIAL_FIRST_START_KEY]);
+      if (!res?.ok) return true;
+      data = res.data || {};
+    } catch (_e) {
+      return true;
+    }
+
+    const enabledRaw = String(data[TRIAL_ENABLED_KEY] || "").trim().toLowerCase();
+    const enabled = enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes" || enabledRaw === "on";
+    const limit = Math.max(0, Math.floor(Number(data[TRIAL_DAYS_KEY] || 0) || 0));
+    if (!enabled || limit <= 0) return true;
+
+    let firstStart = Math.floor(Number(data[TRIAL_FIRST_START_KEY] || 0) || 0);
+    if (!Number.isFinite(firstStart) || firstStart <= 0) {
+      firstStart = Date.now();
+      if (typeof api.appSettingsSetMany === "function") {
+        try {
+          await api.appSettingsSetMany({ [TRIAL_FIRST_START_KEY]: String(firstStart) });
+        } catch (_e) {
+          // ignore
+        }
+      }
+    }
+
+    const dayMs = 24 * 60 * 60 * 1000;
+    const usedDays = Math.floor((Date.now() - firstStart) / dayMs) + 1;
+    if (usedDays <= limit) return true;
+
+    alert(`Testversion abgelaufen (${limit} Nutzungstage).`);
+    if (typeof api.appQuit === "function") {
+      try {
+        await api.appQuit();
+        return false;
+      } catch (_e) {
+        // ignore
+      }
+    }
+    try {
+      window.close();
+    } catch (_e) {
+      // ignore
+    }
+    return false;
   };
 
   const readUiMode = () => {
@@ -850,6 +904,9 @@ document.addEventListener("DOMContentLoaded", () => {
     topSection.replaceChildren(btnStart, btnProjects, btnFirmsBase, btnSettings, btnHelp);
     bottomSection.replaceChildren(btnQuit);
   };
+
+  const canContinue = await enforceTrialLimit();
+  if (!canContinue) return;
 
   const uiMode = readUiMode();
 

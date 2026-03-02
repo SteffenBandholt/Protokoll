@@ -40,3 +40,26 @@
   5) Nach `main` mergen + neue Tags setzen (`v...` und `release-v...`)
   6) Fix nach `develop` übernehmen (cherry-pick oder merge), damit er nicht verloren geht
 - Details/Checkliste siehe: `docs/RELEASE-HOTFIX-WORKFLOW.md`
+
+
+## Kurz-Start fuer neue Sessions
+- Sprache: immer Deutsch.
+- Vor Arbeit immer pruefen: `git status` und aktueller Branch.
+- Branch-Logik:
+  - `develop` = normale Arbeit
+  - `main` = stabil / Quelle fuer `setup.exe`
+- Bei Trigger **"Neues Release erstellen"**:
+  - Version aus `package.json` verwenden
+  - `npm run dist`
+  - Release committen
+  - Tags setzen: `v<version>` und `release-v<version>`
+- Bei Trigger **"Wir muessen einen Bug in vX.Y.Z fixen"**:
+  - Von Tag `vX.Y.Z` (oder `release-vX.Y.Z`) starten
+  - `hotfix/X.Y.(Z+1)` erstellen
+  - Fix + Tests + Patch-Version
+  - Setup bauen
+  - Nach `main` mergen + neu taggen
+  - Fix nach `develop` uebernehmen
+- Kein Push ohne expliziten Auftrag (nur committen).
+- Keine ungefragten Refactors/Umbenennungen.
+- Referenzdoku: `docs/RELEASE-HOTFIX-WORKFLOW.md`
