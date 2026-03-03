@@ -186,6 +186,33 @@ async function _setRepoVersion(nextVersion) {
   return next;
 }
 
+
+async function _readBuildChannel(projectRoot) {
+  const root = projectRoot || _resolveProjectRoot();
+  if (!root) throw new Error("Projektroot mit package.json konnte nicht ermittelt werden.");
+  const p = path.join(root, "build", "channel.json");
+  try {
+    const raw = await fs.promises.readFile(p, "utf8");
+    const data = JSON.parse(raw);
+    const ch = String(data?.channel || "stable").trim().toLowerCase();
+    return ch === "dev" ? "dev" : "stable";
+  } catch (err) {
+    // Datei fehlt -> stable
+    return "stable";
+  }
+}
+
+async function _writeBuildChannel(channel, projectRoot) {
+  const root = projectRoot || _resolveProjectRoot();
+  if (!root) throw new Error("Projektroot mit package.json konnte nicht ermittelt werden.");
+  const dir = path.join(root, "build");
+  const p = path.join(dir, "channel.json");
+  const ch = String(channel || "").trim().toLowerCase() === "dev" ? "dev" : "stable";
+  await fs.promises.mkdir(dir, { recursive: true });
+  await _writeJsonAtomic(p, { channel: ch });
+  return ch;
+}
+
 function createWindow() {
   const isProd = app.isPackaged;
   const iconPath = resolveIconPath();
@@ -378,6 +405,18 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle("app:getBuildChannel", () => {
+    try {
+      const raw = String(process.env.BBM_CHANNEL || "").trim().toUpperCase();
+      const channel = raw === "DEV" ? "DEV" : "STABLE";
+      return { ok: true, channel };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err), channel: "STABLE" };
+    }
+  });
+
+
+
   ipcMain.handle("dev:versionGet", async () => {
     if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
     try {
@@ -445,7 +484,31 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle("app:openQuickAssist", async () => {
+  
+  ipcMain.handle("dev:buildChannelGet", async () => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const projectRoot = _resolveProjectRoot();
+      const channel = await _readBuildChannel(projectRoot);
+      return { ok: true, channel };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err), channel: "stable" };
+    }
+  });
+
+  ipcMain.handle("dev:buildChannelSet", async (_event, payload) => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const next = String(payload?.channel || "").trim().toLowerCase();
+      const projectRoot = _resolveProjectRoot();
+      const channel = await _writeBuildChannel(next, projectRoot);
+      return { ok: true, channel };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err), channel: "stable" };
+    }
+  });
+
+ipcMain.handle("app:openQuickAssist", async () => {
     if (process.platform !== "win32") {
       return { ok: false, error: "Schnellhilfe ist nur unter Windows verfügbar." };
     }

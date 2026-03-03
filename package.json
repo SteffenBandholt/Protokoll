@@ -1,14 +1,14 @@
 {
-  "name": "bbm-protokoll",
+  "name": "baubesprechungs-manager",
   "version": "1.2.2",
-  "description": "BBM - Protokoll",
+  "description": "BBM - Baubesprechungsmanager",
   "author": "Steffen Bandholt",
   "main": "src/main/main.js",
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder",
+    "dist": "node scripts/dist.cjs",
     "test": "node scripts/test.cjs",
     "lint": "eslint \"src/**/*.js\"",
     "lint:fix": "eslint \"src/**/*.js\" --fix",
@@ -23,7 +23,7 @@
     "better-sqlite3": "^12.6.2"
   },
   "build": {
-    "appId": "de.bbm.protokoll",
+    "appId": "de.bbm.baubesprechungsmanager",
     "productName": "BBM",
     "directories": {
       "output": "dist"

@@ -1202,6 +1202,126 @@ export default class SettingsView {
 
     const versionHint = document.createElement("div");
     versionHint.textContent = "SemVer fuer den naechsten Build aus package.json.";
+
+    // Build-Kanal (STABLE/DEV) fuer `npm run dist`
+    const buildChannelBox = document.createElement("div");
+    buildChannelBox.style.display = "grid";
+    buildChannelBox.style.gridTemplateColumns = "1fr";
+    buildChannelBox.style.gap = "6px";
+    buildChannelBox.style.padding = "8px 10px";
+    buildChannelBox.style.border = "1px solid var(--card-border)";
+    buildChannelBox.style.borderRadius = "8px";
+    buildChannelBox.style.background = "var(--card-bg)";
+
+    const buildChannelTitle = document.createElement("div");
+    buildChannelTitle.textContent = "Build-Kanal (npm run dist)";
+    buildChannelTitle.style.fontWeight = "700";
+
+    const buildChannelHint = document.createElement("div");
+    buildChannelHint.style.fontSize = "12px";
+    buildChannelHint.style.opacity = "0.8";
+    buildChannelHint.textContent = "Damit du es mit Augen siehst: DEV baut BBM-DEV-... und zeigt DEV-Badge in der App.";
+
+    const buildChannelRow = document.createElement("div");
+    buildChannelRow.style.display = "flex";
+    buildChannelRow.style.alignItems = "center";
+    buildChannelRow.style.gap = "12px";
+    buildChannelRow.style.flexWrap = "wrap";
+
+    const mkRadio = (label, value) => {
+      const wrap = document.createElement("label");
+      wrap.style.display = "inline-flex";
+      wrap.style.alignItems = "center";
+      wrap.style.gap = "6px";
+      wrap.style.cursor = "pointer";
+      wrap.style.userSelect = "none";
+      const inp = document.createElement("input");
+      inp.type = "radio";
+      inp.name = "bbmBuildChannel";
+      inp.value = value;
+      const txt = document.createElement("span");
+      txt.textContent = label;
+      txt.style.fontSize = "13px";
+      txt.style.fontWeight = "600";
+      wrap.append(inp, txt);
+      return { wrap, inp };
+    };
+
+    const radioStable = mkRadio("STABLE", "stable");
+    const radioDev = mkRadio("DEV", "dev");
+    buildChannelRow.append(radioStable.wrap, radioDev.wrap);
+
+    const buildChannelStatus = document.createElement("div");
+    buildChannelStatus.style.fontSize = "12px";
+    buildChannelStatus.style.opacity = "0.9";
+    buildChannelStatus.textContent = "Lade...";
+
+    buildChannelBox.append(buildChannelTitle, buildChannelHint, buildChannelRow, buildChannelStatus);
+
+    let buildChannelCurrent = "stable";
+
+    const setBuildChannelUi = (ch, repoVersionForPreview = "") => {
+      const next = String(ch || "stable").trim().toLowerCase() === "dev" ? "dev" : "stable";
+      buildChannelCurrent = next;
+      radioStable.inp.checked = next === "stable";
+      radioDev.inp.checked = next === "dev";
+      const v = String(repoVersionForPreview || versionRepoCurrent || "").trim();
+      const fileName = next === "dev"
+        ? `BBM-DEV-${v || "X.Y.Z"}-Setup.exe`
+        : `BBM-${v || "X.Y.Z"}-Setup.exe`;
+      buildChannelStatus.textContent = `npm run dist baut: ${next === "dev" ? "DEV" : "STABLE"}  ->  ${fileName}`;
+    };
+
+    const loadBuildChannel = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devBuildChannelGet !== "function") {
+        // fallback: ENV/IPC app:getBuildChannel, aber hier im Dev-Popup lieber klar sagen
+        buildChannelStatus.textContent = "Build-Kanal: nicht verfuegbar (devBuildChannelGet fehlt).";
+        return false;
+      }
+      try {
+        const res = await api.devBuildChannelGet();
+        if (!res?.ok) {
+          buildChannelStatus.textContent = res?.error || "Build-Kanal konnte nicht geladen werden.";
+          return false;
+        }
+        setBuildChannelUi(res.channel, versionRepoCurrent);
+        return true;
+      } catch (_e) {
+        buildChannelStatus.textContent = "Build-Kanal konnte nicht geladen werden.";
+        return false;
+      }
+    };
+
+    const saveBuildChannel = async (next) => {
+      const api = window.bbmDb || {};
+      if (typeof api.devBuildChannelSet !== "function") {
+        alert("Build-Kanal speichern: nicht verfuegbar (devBuildChannelSet fehlt).");
+        return false;
+      }
+      try {
+        const res = await api.devBuildChannelSet({ channel: next });
+        if (!res?.ok) {
+          alert(res?.error || "Build-Kanal konnte nicht gespeichert werden.");
+          return false;
+        }
+        setBuildChannelUi(res.channel, versionRepoCurrent);
+        return true;
+      } catch (_e) {
+        alert("Build-Kanal konnte nicht gespeichert werden.");
+        return false;
+      }
+    };
+
+    radioStable.inp.onchange = async () => {
+      if (!radioStable.inp.checked) return;
+      await saveBuildChannel("stable");
+    };
+    radioDev.inp.onchange = async () => {
+      if (!radioDev.inp.checked) return;
+      await saveBuildChannel("dev");
+    };
+
     versionHint.style.fontSize = "12px";
     versionHint.style.opacity = "0.75";
     versionHint.style.marginBottom = "8px";
@@ -1289,6 +1409,7 @@ export default class SettingsView {
     versionBox.append(
       versionTitle,
       versionHint,
+      buildChannelBox,
       mkRow("Aktuelle App-Version (laufend)", appVersionValue),
       mkRow("Repo-Version (package.json)", repoVersionValue),
       mkRow("Major / Minor / Patch", badgesRow),
@@ -1380,6 +1501,7 @@ export default class SettingsView {
           return false;
         }
         versionRepoCurrent = String(res.repoVersion || "").trim();
+        await loadBuildChannel();
         appVersionValue.textContent = String(res.appVersion || "-");
         repoVersionValue.textContent = versionRepoCurrent || "-";
         updateVersionBadges(versionRepoCurrent);
