@@ -1,59 +1,57 @@
 // src/renderer/help/helpTexts.de.js
 
-export const quickStart = `# Erste Schritte
+export const quickStart = `
+# Erste Schritte 
+## 1. Nutzerdaten eingeben 
+Sidebar Einstellungen -> Nutzereinstellungen 
+Die Nutzerdaten werden auf dem Protokoll im Seitenkopf gedruckt 
+## 2. Firma anlegen 
+## 2.1. Firmen (extern) - steht projektübergreifend   bereit - wird dem Projekt über Firmenpool zugeordnet
+- Sidebar Firmen (extern)   - 
+	-	Name 1 (Pflichtfeld) 
+	-	Kurzbez. : „Rufname“ der Firma, wird im Protokoll als „verantwortlich“ eingetragen  
+		 
+## 2.2. Firmen (intern) – steht  projektintern bereit - 
+Projekt wählen - - 
+- Im Header Firmen (intern) wählen 
 
-## 1) Projekt öffnen oder anlegen
-- Home → Projekte
-- Projekt auswählen oder „Neu“ anlegen → Speichern
+- Name 1 (Pflichtfeld) 
+- Kurzbez. : „Rufname“ der Firma, wird im Protokoll als „verantwortlich“ eingetragen  
+- Ist dem Projekt automatisch zugeordnet 
 
-## 2) Firmen dem Projekt zuordnen
-- Projekt öffnen → Projektfirmen
-- Firma auswählen → zum Projekt hinzufügen
-Tipp: Nur zugeordnete Firmen wirken im Projekt (z.B. Personenpool/Firmenliste).
+## 3. Mitarbeiter anlegen 
+## 3.1. Mitarbeiter (extern) bei Firmen (extern) hinzufügen 
+## 3.2. Mitarbeiter (intern) bei Firmen (intern) hinzufügen 
 
-## 3) Teilnehmer auswählen
-- Teilnehmer öffnen
-- Links „Personenpool“: alle Personen aus den dem Projekt zugeordneten Firmen
-- Doppelklick auf eine Person → wird rechts bei „Teilnehmer“ übernommen
-Hinweis: Unten steht „Auswahl mit Doppelklick“.
+## 4. Projekt anlegen 
+## 4.1. Sidebar  ➜ Start  ➜ Neues Projekt anlegen
+## 4.2. Projekte ➜ Projekt anlegen
+ - Bezeichnung (Pflichtfeld) 
+ 
+## 5. Protokoll anlegen 
+ - Sidebar  Projektbezeichnung  ➜ Projekt auswählen 
+        -Protokoll wird automatisch angelegt 
+➜ Neuer Titel und neue Tops werden im geö neten Protokoll mit blauem Text angezeigt. 
+➜ Titel und Tops aus vorherigen Protokollen haben einen schwarzen Text 
+➜ Protokoll schließen beendet die Bearbeitung des Protokolls – nur noch read only 
+➜ Erneute Wahl des Projektes  legt ein neues Protokoll an, das vorherige ist als read only   
+eingefügt, TOPs können bedingt bearbeitet werden: 
+➜ Langtext: kann geändert werden (blauer Text) 
+➜ Fertig bis; Status; Verantw. kann geändert werden
+`;
 
-## 4) ToDo Liste (TOPs) pflegen
-- ToDo Liste öffnen
-- TOP anlegen oder anklicken zum Bearbeiten
-- Felder: Kurztext, Langtext, Datum, Status, Verantwortlich
-- Verantwortlich = zuständig für den TOP (muss nicht zwingend Teilnehmer sein)
+export const glossary = `
+# Glossar
 
-## 5) Protokolle / Besprechungen
-- Protokolle öffnen: Ein Klick markiert, Doppelklick öffnet
-- Geschlossene Protokolle sind nur lesbar (readonly)
-- Nach dem Schließen bleibt die Darstellung im Protokoll-PDF fix
+## Projekt
+Sammlung aller Protokolle, Teilnehmer und Aufgaben eines Bauvorhabens.
 
-## 6) PDFs erzeugen
-- Vorabzug: zeigt den Zustand zum Zeitpunkt des Drucks
-- Protokoll-PDF: final (nach dem Schließen)
-- Firmenliste (PDF): enthält die dem Projekt zugeordneten Firmen
-- Speicherort Protokolle: Einstellungen → Druckeinstellungen → PDF-Einstellungen → „Speicherort Protokolle“
+## Protokoll
+Dokumentation eines Termins mit Beschlüssen und Aufgaben.
 
-## 7) Druckeinstellungen / Firmenliste sortieren
-- In Firmenliste: Zeile markieren
-- Schieben: Pfeiltasten bewegen die markierte Zeile, Enter beendet
-- Umbenennen: markierte Zeile bearbeiten
-- Löschen: markierte Zeile entfernen`;
+## Aufgabe
+Ein zugewiesener Arbeitspunkt mit Verantwortlichem und Frist.
 
-export const glossary = [
-  { term: "Projekt", definition: "Ein Vorgang/Baustelle. Alles (TOPs, Protokolle, Firmen, Teilnehmer) hängt daran." },
-  { term: "Firma", definition: "Stammdaten einer Firma. Alle Firmen existieren unabhängig von Projekten." },
-  { term: "Projektfirma", definition: "Eine Firma, die einem Projekt zugeordnet ist. Nur Projektfirmen wirken im Projekt." },
-  { term: "Mitarbeiter", definition: "Personen, die zu einer Firma gehören." },
-  { term: "Personenpool", definition: "Alle Mitarbeiter der Projektfirmen. Von hier werden Teilnehmer ausgewählt." },
-  { term: "Teilnehmer", definition: "Personen, die für eine Besprechung/Protokoll geführt werden und in Listen erscheinen." },
-  { term: "Verantwortlich", definition: "Zuständige Person für einen TOP. Kann ein Teilnehmer sein, muss es aber nicht." },
-  { term: "TOP / ToDo", definition: "Ein Punkt in der ToDo-Liste bzw. im Protokoll." },
-  { term: "Vorabzug", definition: "PDF-Zwischenstand. Zeigt den Zustand zum Zeitpunkt des Drucks." },
-  { term: "Protokoll schließen", definition: "Protokoll wird final und schreibgeschützt; Protokoll-PDF bleibt danach konsistent." },
-  { term: "Firmenliste (PDF)", definition: "PDF-Liste der dem Projekt zugeordneten Firmen, sortierbar über Firmenliste-Einstellungen." },
-];
-
-const helpTextsDe = { quickStart, glossary };
-
-export default helpTextsDe;
+## Teilnehmer
+Person oder Firma, die an einem Termin beteiligt ist.
+`;
