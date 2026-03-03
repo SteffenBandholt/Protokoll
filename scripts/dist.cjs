@@ -1,7 +1,4 @@
 // scripts/dist.cjs
-// Baut STABLE oder DEV basierend auf build/channel.json.
-// DEV ist sichtbar: Installername BBM-DEV-... und DEV-Badge in der App (BBM_CHANNEL=DEV).
-
 const fs = require("fs");
 const path = require("path");
 const cp = require("child_process");
@@ -14,51 +11,115 @@ function readJson(p) {
   return JSON.parse(fs.readFileSync(p, "utf8"));
 }
 
-const pkg = readJson(pkgPath);
+// ------------------------------------------------------------
+// Version lesen
+// ------------------------------------------------------------
+let pkg;
+try {
+  pkg = readJson(pkgPath);
+} catch (e) {
+  console.error("[dist] Kann package.json nicht lesen:", e?.message || e);
+  process.exit(1);
+}
+
 const version = String(pkg.version || "").trim() || "0.0.0";
 
+// ------------------------------------------------------------
+// Kanal lesen (dev / stable)
+// ------------------------------------------------------------
 let channel = "stable";
 try {
-  const cfg = readJson(channelPath);
-  channel = String(cfg.channel || "stable").trim().toLowerCase();
+  const data = readJson(channelPath);
+  channel = String(data.channel || "stable").trim().toLowerCase();
 } catch {
   channel = "stable";
 }
 
 const isDev = channel === "dev";
 
-const cfg = isDev
-  ? {
-      label: "DEV",
-      appId: "de.bbm.protokoll.dev",
-      productName: "BBM (DEV)",
-      artifactName: `BBM-DEV-${version}-Setup.\${ext}`,
-      envChannel: "DEV",
-    }
-  : {
-      label: "STABLE",
-      appId: "de.bbm.protokoll",
-      productName: "BBM",
-      artifactName: `BBM-${version}-Setup.\${ext}`,
-      envChannel: "STABLE",
-    };
+// ------------------------------------------------------------
+// Build-Konfiguration
+// ------------------------------------------------------------
+const prefix = isDev ? `BBM-DEV-${version}` : `BBM-${version}`;
+const appId = isDev ? "de.bbm.protokoll.dev" : "de.bbm.protokoll";
+const productName = isDev ? "BBM (DEV)" : "BBM";
+const envChannel = isDev ? "DEV" : "STABLE";
+
+// electron-builder Makros als Literaltext
+const artifactNsis = prefix + "-Setup.${ext}";
+const artifactPortable = prefix + ".${ext}";
 
 console.log("======================================");
 console.log(" BBM DIST");
-console.log(` Kanal:    ${cfg.label}`);
-console.log(` Version:  ${version}`);
-console.log(` appId:    ${cfg.appId}`);
-console.log(` Name:     ${cfg.productName}`);
+console.log(" Kanal:   ", envChannel);
+console.log(" Version: ", version);
+console.log(" appId:   ", appId);
+console.log(" Name:    ", productName);
+console.log(" NSIS:    ", artifactNsis);
+console.log(" Portable:", artifactPortable);
 console.log("======================================");
 
+// ------------------------------------------------------------
+// ENV für Build
+// ------------------------------------------------------------
 const env = {
   ...process.env,
-  BBM_CHANNEL: cfg.envChannel,
-  ELECTRON_BUILDER_APP_ID: cfg.appId,
-  ELECTRON_BUILDER_PRODUCT_NAME: cfg.productName,
-  ELECTRON_BUILDER_ARTIFACT_NAME: cfg.artifactName,
+  BBM_CHANNEL: envChannel
 };
 
-const cmd = process.platform === "win32" ? "npx.cmd" : "npx";
-const res = cp.spawnSync(cmd, ["electron-builder"], { stdio: "inherit", cwd: root, env });
-process.exit(res.status ?? 1);
+// ------------------------------------------------------------
+// electron-builder CLI finden
+// ------------------------------------------------------------
+const builderJs = path.join(
+  root,
+  "node_modules",
+  "electron-builder",
+  "out",
+  "cli",
+  "cli.js"
+);
+
+if (!fs.existsSync(builderJs)) {
+  console.error("[dist] electron-builder nicht gefunden.");
+  console.error("Bitte zuerst im Repo-Ordner ausführen:");
+  console.error("npm install");
+  process.exit(1);
+}
+
+console.log("[dist] Starte electron-builder...");
+console.log("[dist] node", builderJs);
+
+// ------------------------------------------------------------
+// CLI Argumente
+// ------------------------------------------------------------
+const args = [
+  builderJs,
+
+  // grundlegende Metadaten
+  `--config.appId=${appId}`,
+  `--config.productName=${productName}`,
+
+  // DEV/STABLE Kennung in package.json der App
+  `--config.extraMetadata.bbmChannel=${envChannel}`,
+
+  // Dateinamen
+  `--config.nsis.artifactName=${artifactNsis}`,
+  `--config.portable.artifactName=${artifactPortable}`
+];
+
+// ------------------------------------------------------------
+// Builder starten
+// ------------------------------------------------------------
+const res = cp.spawnSync(process.execPath, args, {
+  cwd: root,
+  env,
+  stdio: "inherit",
+  windowsHide: false
+});
+
+if (res.error) {
+  console.error("[dist] Spawn Fehler:", res.error?.message || res.error);
+}
+
+console.log("[dist] Exitcode:", res.status);
+process.exit(typeof res.status === "number" ? res.status : 1);

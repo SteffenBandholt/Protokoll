@@ -186,33 +186,6 @@ async function _setRepoVersion(nextVersion) {
   return next;
 }
 
-
-async function _readBuildChannel(projectRoot) {
-  const root = projectRoot || _resolveProjectRoot();
-  if (!root) throw new Error("Projektroot mit package.json konnte nicht ermittelt werden.");
-  const p = path.join(root, "build", "channel.json");
-  try {
-    const raw = await fs.promises.readFile(p, "utf8");
-    const data = JSON.parse(raw);
-    const ch = String(data?.channel || "stable").trim().toLowerCase();
-    return ch === "dev" ? "dev" : "stable";
-  } catch (err) {
-    // Datei fehlt -> stable
-    return "stable";
-  }
-}
-
-async function _writeBuildChannel(channel, projectRoot) {
-  const root = projectRoot || _resolveProjectRoot();
-  if (!root) throw new Error("Projektroot mit package.json konnte nicht ermittelt werden.");
-  const dir = path.join(root, "build");
-  const p = path.join(dir, "channel.json");
-  const ch = String(channel || "").trim().toLowerCase() === "dev" ? "dev" : "stable";
-  await fs.promises.mkdir(dir, { recursive: true });
-  await _writeJsonAtomic(p, { channel: ch });
-  return ch;
-}
-
 function createWindow() {
   const isProd = app.isPackaged;
   const iconPath = resolveIconPath();
@@ -405,17 +378,37 @@ app.whenReady().then(async () => {
     }
   });
 
+  // ✅ Build-Channel für DEV Badge:
+  // - DEV beim Entwickeln: über ENV BBM_CHANNEL=DEV
+  // - DEV in installierter EXE: über extraMetadata.bbmChannel in package.json (asar)
   ipcMain.handle("app:getBuildChannel", () => {
     try {
-      const raw = String(process.env.BBM_CHANNEL || "").trim().toUpperCase();
-      const channel = raw === "DEV" ? "DEV" : "STABLE";
-      return { ok: true, channel };
+      const rawEnv = String(process.env.BBM_CHANNEL || "").trim().toUpperCase();
+      if (rawEnv === "DEV") return { ok: true, channel: "DEV", source: "env" };
+      if (rawEnv) return { ok: true, channel: "STABLE", source: "env" };
+
+      let pkg = null;
+      try {
+        const pkgPath = path.join(app.getAppPath(), "package.json");
+        const txt = fs.readFileSync(pkgPath, "utf8");
+        pkg = JSON.parse(txt);
+      } catch (_e) {
+        pkg = null;
+      }
+
+      const meta = String(pkg?.bbmChannel || "").trim().toUpperCase();
+      if (meta === "DEV") return { ok: true, channel: "DEV", source: "pkg" };
+
+      return { ok: true, channel: "STABLE", source: "pkg" };
     } catch (err) {
-      return { ok: false, error: err?.message || String(err), channel: "STABLE" };
+      return {
+        ok: false,
+        error: err?.message || String(err),
+        channel: "STABLE",
+        source: "error",
+      };
     }
   });
-
-
 
   ipcMain.handle("dev:versionGet", async () => {
     if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
@@ -484,31 +477,7 @@ app.whenReady().then(async () => {
     }
   });
 
-  
-  ipcMain.handle("dev:buildChannelGet", async () => {
-    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
-    try {
-      const projectRoot = _resolveProjectRoot();
-      const channel = await _readBuildChannel(projectRoot);
-      return { ok: true, channel };
-    } catch (err) {
-      return { ok: false, error: err?.message || String(err), channel: "stable" };
-    }
-  });
-
-  ipcMain.handle("dev:buildChannelSet", async (_event, payload) => {
-    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
-    try {
-      const next = String(payload?.channel || "").trim().toLowerCase();
-      const projectRoot = _resolveProjectRoot();
-      const channel = await _writeBuildChannel(next, projectRoot);
-      return { ok: true, channel };
-    } catch (err) {
-      return { ok: false, error: err?.message || String(err), channel: "stable" };
-    }
-  });
-
-ipcMain.handle("app:openQuickAssist", async () => {
+  ipcMain.handle("app:openQuickAssist", async () => {
     if (process.platform !== "win32") {
       return { ok: false, error: "Schnellhilfe ist nur unter Windows verfügbar." };
     }
