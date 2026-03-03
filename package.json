@@ -23,7 +23,7 @@
     "better-sqlite3": "^12.6.2"
   },
   "build": {
-    "appId": "de.bbm.Protokoll",
+    "appId": "de.bbm.protokoll",
     "productName": "BBM",
     "directories": {
       "output": "dist"
