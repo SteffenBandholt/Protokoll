@@ -1,7 +1,7 @@
 {
-  "name": "baubesprechungs-manager",
+  "name": "bbm-protokoll",
   "version": "1.2.2",
-  "description": "BBM - Baubesprechungsmanager",
+  "description": "BBM - Protokoll",
   "author": "Steffen Bandholt",
   "main": "src/main/main.js",
   "type": "commonjs",
@@ -23,7 +23,7 @@
     "better-sqlite3": "^12.6.2"
   },
   "build": {
-    "appId": "de.bbm.baubesprechungsmanager",
+    "appId": "de.bbm.Protokoll",
     "productName": "BBM",
     "directories": {
       "output": "dist"
