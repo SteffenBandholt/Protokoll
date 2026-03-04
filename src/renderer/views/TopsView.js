@@ -2968,12 +2968,15 @@ export default class TopsView {
     } finally {
       this._setBusy(false);
       if (needsReload) {
-        setTimeout(() => {
-          this.reloadList(true).catch(() => {});
-        }, 0);
+        fireAndForget(async () => {
+          // Nach dem Schieben kann in der Ursprungs-Gruppe eine Nummernlücke entstehen.
+          // Die bestehende Auto-Fix-Prozedur (meetingTopsFixNumberGap) schließt diese Lücke(n) sofort.
+          await this.reloadList(true);
+          await this._autoFixNumberGapsAfterDelete();
+        });
       }
     }
-  }
+}
 
   async reloadList(keepSelection) {
     const list = this.listEl;
