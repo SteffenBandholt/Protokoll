@@ -474,7 +474,7 @@ export default class ProjectFormView {
     applyWidthFromMaxLength(inpProjectNumber, { fallback: 10, min: 9, max: 14 });
 
     const inpShort = mkInp("text");
-    inpShort.placeholder = "verantw. im Protokoll";
+   // inpShort.placeholder = "verantw. im Protokoll";
     inpShort.style.fontSize = "11px";
     inpShort.maxLength = 20;
     applyWidthFromMaxLength(inpShort, { fallback: 20, min: 16, max: 24 });
