@@ -186,6 +186,54 @@ async function _setRepoVersion(nextVersion) {
   return next;
 }
 
+// ============================================================
+// ✅ Build Channel (Repo-Schalter + Laufzeitinfo fürs Badge)
+// ============================================================
+function _normalizeChannel(v) {
+  const s = String(v || "").trim().toUpperCase();
+  return s === "DEV" ? "DEV" : "STABLE";
+}
+
+function _getRepoChannelFilePath() {
+  const projectRoot = _resolveProjectRoot();
+  if (!projectRoot) return null;
+  return path.join(projectRoot, "channel.json");
+}
+
+async function _readRepoBuildChannel() {
+  const p = _getRepoChannelFilePath();
+  if (!p) return "DEV";
+  try {
+    if (!fs.existsSync(p)) return "DEV";
+    const raw = await fs.promises.readFile(p, "utf8");
+    const data = JSON.parse(raw);
+    return _normalizeChannel(data?.channel);
+  } catch (_e) {
+    return "DEV";
+  }
+}
+
+async function _writeRepoBuildChannel(next) {
+  const p = _getRepoChannelFilePath();
+  if (!p) throw new Error("Projektroot konnte nicht ermittelt werden (channel.json).");
+  const channel = _normalizeChannel(next);
+  await _writeJsonAtomic(p, { channel });
+  return channel;
+}
+
+// ✅ für EXE: buildChannel aus gepackter package.json (extraMetadata)
+function _readPackagedBuildChannel() {
+  try {
+    const pkgPath = path.join(app.getAppPath(), "package.json");
+    const raw = fs.readFileSync(pkgPath, "utf8");
+    const data = JSON.parse(raw);
+    const ch = _normalizeChannel(data?.buildChannel);
+    return ch;
+  } catch (_e) {
+    return "STABLE";
+  }
+}
+
 function createWindow() {
   const isProd = app.isPackaged;
   const iconPath = resolveIconPath();
@@ -318,6 +366,41 @@ app.whenReady().then(async () => {
   registerSettingsIpc();
   registerEditorIpc({ getMainWindow: () => mainWindow });
 
+  // ============================================================
+  // ✅ Build Channel IPCs
+  // ============================================================
+  ipcMain.handle("app:getBuildChannel", async () => {
+    try {
+      // DEV beim Entwickeln (npm start)
+      if (!app.isPackaged) return { ok: true, channel: "DEV" };
+      // Packaged: aus extraMetadata.buildChannel (package.json im asar)
+      return { ok: true, channel: _readPackagedBuildChannel() };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err), channel: "STABLE" };
+    }
+  });
+
+  ipcMain.handle("dev:buildChannelGet", async () => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const channel = await _readRepoBuildChannel();
+      return { ok: true, channel };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dev:buildChannelSet", async (_event, payload) => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const next = _normalizeChannel(payload?.channel ?? payload?.value ?? payload?.buildChannel);
+      const saved = await _writeRepoBuildChannel(next);
+      return { ok: true, channel: saved };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
   // ✅ App beenden (ohne Confirm) – über IPC
   ipcMain.handle("app:quit", () => {
     try {
@@ -375,38 +458,6 @@ app.whenReady().then(async () => {
       return { ok: true, version: app.getVersion() };
     } catch (err) {
       return { ok: false, error: err?.message || String(err), version: "" };
-    }
-  });
-
-  // ✅ Build-Channel für DEV Badge:
-  // - DEV beim Entwickeln: über ENV BBM_CHANNEL=DEV
-  // - DEV in installierter EXE: über extraMetadata.bbmChannel in package.json (asar)
-  ipcMain.handle("app:getBuildChannel", () => {
-    try {
-      const rawEnv = String(process.env.BBM_CHANNEL || "").trim().toUpperCase();
-      if (rawEnv === "DEV") return { ok: true, channel: "DEV", source: "env" };
-      if (rawEnv) return { ok: true, channel: "STABLE", source: "env" };
-
-      let pkg = null;
-      try {
-        const pkgPath = path.join(app.getAppPath(), "package.json");
-        const txt = fs.readFileSync(pkgPath, "utf8");
-        pkg = JSON.parse(txt);
-      } catch (_e) {
-        pkg = null;
-      }
-
-      const meta = String(pkg?.bbmChannel || "").trim().toUpperCase();
-      if (meta === "DEV") return { ok: true, channel: "DEV", source: "pkg" };
-
-      return { ok: true, channel: "STABLE", source: "pkg" };
-    } catch (err) {
-      return {
-        ok: false,
-        error: err?.message || String(err),
-        channel: "STABLE",
-        source: "error",
-      };
     }
   });
 

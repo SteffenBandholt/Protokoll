@@ -30,8 +30,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // ============================================================
   // Besprechungen
   // ============================================================
-  meetingsListByProject: (projectId) =>
-    ipcRenderer.invoke("meetings:listByProject", projectId),
+  meetingsListByProject: (projectId) => ipcRenderer.invoke("meetings:listByProject", projectId),
   meetingsCreate: (data) => ipcRenderer.invoke("meetings:create", data),
   meetingsClose: (meetingId) => ipcRenderer.invoke("meetings:close", meetingId),
   meetingsUpdateTitle: (data) => ipcRenderer.invoke("meetings:updateTitle", data),
@@ -71,37 +70,27 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // ============================================================
   // PROJEKT Firmen (lokal) + PROJEKT Mitarbeiter (lokal)
   // ============================================================
-  projectFirmsListByProject: (projectId) =>
-    ipcRenderer.invoke("projectFirms:listByProject", projectId),
+  projectFirmsListByProject: (projectId) => ipcRenderer.invoke("projectFirms:listByProject", projectId),
   projectFirmsCreate: (data) => ipcRenderer.invoke("projectFirms:create", data),
   projectFirmsUpdate: (data) => ipcRenderer.invoke("projectFirms:update", data),
-  projectFirmsDelete: (projectFirmId) =>
-    ipcRenderer.invoke("projectFirms:delete", projectFirmId),
+  projectFirmsDelete: (projectFirmId) => ipcRenderer.invoke("projectFirms:delete", projectFirmId),
 
-  projectPersonsListByProjectFirm: (projectFirmId) =>
-    ipcRenderer.invoke("projectPersons:listByProjectFirm", projectFirmId),
+  projectPersonsListByProjectFirm: (projectFirmId) => ipcRenderer.invoke("projectPersons:listByProjectFirm", projectFirmId),
   projectPersonsCreate: (data) => ipcRenderer.invoke("projectPersons:create", data),
   projectPersonsUpdate: (data) => ipcRenderer.invoke("projectPersons:update", data),
-  projectPersonsDelete: (projectPersonId) =>
-    ipcRenderer.invoke("projectPersons:delete", projectPersonId),
+  projectPersonsDelete: (projectPersonId) => ipcRenderer.invoke("projectPersons:delete", projectPersonId),
 
   // ============================================================
   // Projekt ↔ Global-Firma Zuordnung (nur Zuordnung)
   // ============================================================
-  projectFirmsListFirmCandidatesByProject: (projectId) =>
-    ipcRenderer.invoke("projectFirms:listFirmCandidatesByProject", projectId),
-  projectFirmsAssignGlobalFirm: (data) =>
-    ipcRenderer.invoke("projectFirms:assignGlobalFirm", data),
-  projectFirmsUnassignGlobalFirm: (data) =>
-    ipcRenderer.invoke("projectFirms:unassignGlobalFirm", data),
+  projectFirmsListFirmCandidatesByProject: (projectId) => ipcRenderer.invoke("projectFirms:listFirmCandidatesByProject", projectId),
+  projectFirmsAssignGlobalFirm: (data) => ipcRenderer.invoke("projectFirms:assignGlobalFirm", data),
+  projectFirmsUnassignGlobalFirm: (data) => ipcRenderer.invoke("projectFirms:unassignGlobalFirm", data),
   projectFirmsSetActive: (data) => ipcRenderer.invoke("projectFirms:setActive", data),
   projectFirmsCanDeactivate: (data) => ipcRenderer.invoke("projectFirms:canDeactivate", data),
 
   // ============================================================
   // Kandidaten & Teilnehmer (INVARIANT)
-  // - Pool (Projekt-Basisliste)
-  // - Kandidaten (Projekt)
-  // - Teilnehmer (Meeting)
   // ============================================================
   projectParticipantsPool: _wrapIdArg("projectParticipants:pool", "projectId"),
   projectCandidatesList: (data) => ipcRenderer.invoke("projectCandidates:list", data),
@@ -115,8 +104,6 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // Druck (HTML -> PDF)
   // ============================================================
   printHtmlToPdf: (data) => ipcRenderer.invoke("print:htmlToPdf", data),
-
-  // Neue Print-API (Hidden Print Window)
   printPdf: (data) => ipcRenderer.invoke("print:toPdf", data),
 
   // ============================================================
@@ -127,13 +114,21 @@ contextBridge.exposeInMainWorld("bbmDb", {
   appIsWindows: () => ipcRenderer.invoke("app:isWindows"),
   appIsPackaged: () => ipcRenderer.invoke("app:isPackaged"),
   appGetVersion: () => ipcRenderer.invoke("app:getVersion"),
+
+  // ✅ vom Build eingebrannt (packaged) / DEV (unpackaged)
+  appGetBuildChannel: () => ipcRenderer.invoke("app:getBuildChannel"),
+
   openQuickAssist: () => ipcRenderer.invoke("app:openQuickAssist"),
+
+  // ✅ Build-Kanal Umschalten (schreibt channel.json im Repo) – nur DEV-Umgebung
+  devBuildChannelGet: () => ipcRenderer.invoke("dev:buildChannelGet"),
+  devBuildChannelSet: (payload) => ipcRenderer.invoke("dev:buildChannelSet", payload),
+
+  // Versionierung (DEV)
   devVersionGet: () => ipcRenderer.invoke("dev:versionGet"),
   devVersionBump: (payload) => ipcRenderer.invoke("dev:versionBump", payload),
   devVersionSet: (payload) => ipcRenderer.invoke("dev:versionSet", payload),
   devGetStoragePreview: (payload) => ipcRenderer.invoke("dev:getStoragePreview", payload),
-  devBuildChannelGet: () => ipcRenderer.invoke("dev:buildChannelGet"),
-  devBuildChannelSet: (payload) => ipcRenderer.invoke("dev:buildChannelSet", payload),
 
   // ============================================================
   // Settings: Kategorien
@@ -150,16 +145,18 @@ contextBridge.exposeInMainWorld("bbmDb", {
   securitySettingsPinDisable: (data) => ipcRenderer.invoke("security:settingsPinDisable", data),
   selectDirectory: (data) => ipcRenderer.invoke("dialog:selectDirectory", data),
   selectCsvFile: (data) => ipcRenderer.invoke("dialog:selectCsvFile", data),
+
   dbDiagnosticsGet: () => ipcRenderer.invoke("db:diagnostics"),
   dbLegacyImport: () => ipcRenderer.invoke("db:legacyImport"),
   dbOpenFolder: (data) => ipcRenderer.invoke("db:openFolder", data),
+
   firmsImportParseCsv: (data) => ipcRenderer.invoke("firms:importParseCsv", data),
   firmsImportApplyStaging: (data) => ipcRenderer.invoke("firms:importApplyStaging", data),
   personsImportParseCsv: (data) => ipcRenderer.invoke("persons:importParseCsv", data),
   personsImportApplyStaging: (data) => ipcRenderer.invoke("persons:importApplyStaging", data),
 
   // ============================================================
-  // Editor (separates Bearbeiten-Fenster)
+  // Editor
   // ============================================================
   editorOpen: (data) => ipcRenderer.invoke("editor:open", data),
   editorGetInit: () => ipcRenderer.invoke("editor:getInit"),

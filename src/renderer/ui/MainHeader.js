@@ -30,6 +30,8 @@ export default class MainHeader {
     this.elUserCompany = null;
     this.elRightInfo = null;
     this.elTrialInfo = null;
+    this.elDevBadge = null;
+
     this.elPrintBtn = null;
     this.elPrintWrap = null;
     this.elPrintMenu = null;
@@ -82,8 +84,12 @@ export default class MainHeader {
     this._setupStatusLoading = null;
     this._setupStatusLoadedAt = 0;
     this._setupStatusRefreshPending = false;
+
+    // Trial / Build channel
     this._trialInfoLoading = null;
     this._trialInfoText = "";
+    this._buildChannelLoading = null;
+    this._buildChannel = "";
     this._baseWindowTitle = String(document?.title || "BBM").trim() || "BBM";
   }
 
@@ -211,16 +217,35 @@ export default class MainHeader {
     actionWrap.style.gap = "8px";
     actionWrap.style.paddingRight = this._isNewUi ? "clamp(8px, 1.6vw, 18px)" : "0px";
 
+    // Trial Info (Header) – existiert, aber wird NICHT angezeigt (Fenster-Titel bleibt aktiv)
     const trialInfo = document.createElement("div");
     trialInfo.style.display = "none";
     trialInfo.style.fontSize = "12px";
     trialInfo.style.fontWeight = "600";
-    trialInfo.style.color = "#1b5e20";
+    trialInfo.style.color = "var(--header-text)";
+    trialInfo.style.opacity = "0.9";
     trialInfo.style.whiteSpace = "nowrap";
     trialInfo.style.gridColumn = "2";
     trialInfo.style.gridRow = "1";
     trialInfo.style.justifySelf = "center";
     trialInfo.style.alignSelf = "start";
+
+    // DEV Badge (rot oben rechts)
+    const devBadge = document.createElement("div");
+    devBadge.textContent = "DEV";
+    devBadge.style.position = "absolute";
+    devBadge.style.top = "8px";
+    devBadge.style.right = "10px";
+    devBadge.style.background = "#dc2626";
+    devBadge.style.color = "#fff";
+    devBadge.style.fontSize = "11px";
+    devBadge.style.fontWeight = "800";
+    devBadge.style.padding = "2px 10px";
+    devBadge.style.borderRadius = "999px";
+    devBadge.style.letterSpacing = "0.6px";
+    devBadge.style.display = "none";
+    devBadge.style.userSelect = "none";
+    devBadge.style.pointerEvents = "none";
 
     const applyActionTextButtonStyle = (btn) => {
       if (!btn) return;
@@ -497,7 +522,6 @@ export default class MainHeader {
       });
     });
 
-
     const firmsBranch = mkSubmenuBranch("Firmenliste", "firms");
     const itemFirmsOpen = mkPrintItem("Offene Besprechung", async (state) => {
       if (!state.openMeetingId) return;
@@ -558,9 +582,7 @@ export default class MainHeader {
         this._setPrintOpen(false);
         try {
           await this.router?.activeView?.printSelectedProtocolPreviewFromHeader?.();
-        } catch (_err) {
-          // MeetingsView handles user-facing feedback itself.
-        }
+        } catch (_err) {}
         return;
       }
       if (this._printOpen) {
@@ -735,7 +757,7 @@ export default class MainHeader {
       stickyNotice.style.gridRow = "3";
     }
 
-    root.append(logoGroup, trialInfo, elCenterTitle, elActive, rightInfo, actionWrap, stickyNotice);
+    root.append(logoGroup, trialInfo, elCenterTitle, elActive, rightInfo, actionWrap, devBadge, stickyNotice);
 
     this.root = root;
 
@@ -747,6 +769,8 @@ export default class MainHeader {
     this.elUserCompany = elUserCompany;
     this.elRightInfo = rightInfo;
     this.elTrialInfo = trialInfo;
+    this.elDevBadge = devBadge;
+
     this.elPrintBtn = printBtn;
     this.elPrintWrap = printWrap;
     this.elPrintMenu = printMenu;
@@ -903,7 +927,6 @@ export default class MainHeader {
     const value = (val ?? "").toString().trim();
     const shown = value || "-";
 
-    // "aktiv:" 14/16 normal, Wert 16/18 600, Abstand 0,75cm
     this.elActive.textContent = "";
 
     const sLabel = document.createElement("span");
@@ -971,9 +994,8 @@ export default class MainHeader {
     readyLabel.style.fontWeight = "600";
     readyLabel.style.textAlign = "left";
 
-    const setupStatus = this._setupStatusForProjectId === this.router?.currentProjectId
-      ? this._setupStatus
-      : null;
+    const setupStatus =
+      this._setupStatusForProjectId === this.router?.currentProjectId ? this._setupStatus : null;
     const readyLight = String(setupStatus?.worstLight || "").trim().toLowerCase();
     const readyValEl = document.createElement("span");
     readyValEl.textContent = "";
@@ -1017,13 +1039,11 @@ export default class MainHeader {
 
     const api = window.bbmDb || {};
     if (typeof api.projectsList !== "function") {
-      // fallback: whatever router already knows
       this._activeLabelForProjectId = projectId;
       this._activeLabel = (router?.context?.projectLabel || "").toString().trim();
       return;
     }
 
-    // async refresh (non-blocking)
     this._activeLoading = api
       .projectsList()
       .then((res) => {
@@ -1037,7 +1057,6 @@ export default class MainHeader {
         const sh = (p.short ?? "").toString().trim();
         const nm = (p.name ?? "").toString().trim();
 
-        // Ziel: Projektnummer - Kurzbez (Fallbacks siehe Spec)
         let label = "";
         if (pn && sh) label = `${pn} - ${sh}`;
         else if (pn && !sh) label = pn;
@@ -1069,10 +1088,12 @@ export default class MainHeader {
   _setPrintSubmenu(key) {
     this._printActiveSubmenu = String(key || "").trim();
     if (this.elPrintSubmenuFirms) {
-      this.elPrintSubmenuFirms.style.display = this._printActiveSubmenu === "firms" ? "flex" : "none";
+      this.elPrintSubmenuFirms.style.display =
+        this._printActiveSubmenu === "firms" ? "flex" : "none";
     }
     if (this.elPrintSubmenuTodo) {
-      this.elPrintSubmenuTodo.style.display = this._printActiveSubmenu === "todo" ? "flex" : "none";
+      this.elPrintSubmenuTodo.style.display =
+        this._printActiveSubmenu === "todo" ? "flex" : "none";
     }
     if (this._printOpen && this._printActiveSubmenu) {
       const activeKey = this._printActiveSubmenu;
@@ -1224,9 +1245,7 @@ export default class MainHeader {
             const openMeeting = list.find((m) => Number(m?.is_closed) === 0) || null;
             openMeetingId = openMeeting?.id || null;
           }
-        } catch (_e) {
-          // ignore
-        }
+        } catch (_e) {}
       }
 
       const currentMeetingIsOpen =
@@ -1255,55 +1274,22 @@ export default class MainHeader {
   _applyPrintMenuState(state = null) {
     const s = state || this._printMenuState || {};
     const hasProject = !!s.hasProject;
+
     this._setMenuButtonEnabled(
       this.elPrintItemPreview,
       !!s.canPreviewProtocol,
       "Nur in der TopsView mit geladener offener Besprechung verfÃ¼gbar"
     );
-    this._setMenuButtonEnabled(
-      this.elPrintBranchFirms,
-      hasProject,
-      "Nur mit aktivem Projekt verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
-      this.elPrintItemFirmsOpen,
-      !!s.canOpenMeetingActions,
-      "Keine offene Besprechung verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
-      this.elPrintItemFirmsClosed,
-      !!s.canSelectClosedMeeting,
-      "Nur mit aktivem Projekt verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
-      this.elPrintBranchTodo,
-      hasProject,
-      "Nur mit aktivem Projekt verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
-      this.elPrintItemTodoOpen,
-      !!s.canOpenMeetingActions,
-      "Keine offene Besprechung verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
-      this.elPrintItemTodoClosed,
-      !!s.canSelectClosedMeeting,
-      "Nur mit aktivem Projekt verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
-      this.elPrintItemTopList,
-      hasProject,
-      "Nur mit aktivem Projekt verfÃ¼gbar"
-    );
-    this._setMenuButtonEnabled(
-      this.elPrintItemMeetings,
-      !!s.canNavigateMeetings,
-      "Nur mit aktivem Projekt verfÃ¼gbar"
-    );
+    this._setMenuButtonEnabled(this.elPrintBranchFirms, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintItemFirmsOpen, !!s.canOpenMeetingActions, "Keine offene Besprechung verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintItemFirmsClosed, !!s.canSelectClosedMeeting, "Nur mit aktivem Projekt verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintBranchTodo, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintItemTodoOpen, !!s.canOpenMeetingActions, "Keine offene Besprechung verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintItemTodoClosed, !!s.canSelectClosedMeeting, "Nur mit aktivem Projekt verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintItemTopList, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintItemMeetings, !!s.canNavigateMeetings, "Nur mit aktivem Projekt verfÃ¼gbar");
 
-    if (!hasProject) {
-      this._setPrintOpen(false);
-    }
+    if (!hasProject) this._setPrintOpen(false);
   }
 
   async _refreshPrintMenuState({ force = false } = {}) {
@@ -1329,32 +1315,19 @@ export default class MainHeader {
 
   _isItemActive(item) {
     if (!item || typeof item !== "object") return true;
-    const candidates = [
-      item.is_active,
-      item.isActive,
-      item.active,
-      item.enabled,
-      item.isEnabled,
-      item.status,
-    ];
+    const candidates = [item.is_active, item.isActive, item.active, item.enabled, item.isEnabled, item.status];
     for (const v of candidates) {
       const parsed = this._parseActiveValue(v);
       if (parsed !== null) return parsed;
     }
-    // Fallback-Regel: wenn kein Active-Feld vorhanden -> als aktiv behandeln.
     return true;
   }
 
   _hasActiveField(item) {
     if (!item || typeof item !== "object") return false;
-    return [
-      "is_active",
-      "isActive",
-      "active",
-      "enabled",
-      "isEnabled",
-      "status",
-    ].some((k) => Object.prototype.hasOwnProperty.call(item, k));
+    return ["is_active", "isActive", "active", "enabled", "isEnabled", "status"].some((k) =>
+      Object.prototype.hasOwnProperty.call(item, k)
+    );
   }
 
   _dedupeBy(list, keyFn) {
@@ -1471,13 +1444,10 @@ export default class MainHeader {
       firmsPool: this._lightFromCount(firmsActiveCount),
       peoplePool: this._lightFromCount(peopleActiveCount),
     };
-    const worstLight = this._worstLight([
-      lights.firmsAssigned,
-      lights.firmsPool,
-      lights.peoplePool,
-    ]);
-    const isReady = [lights.firmsAssigned, lights.firmsPool, lights.peoplePool]
-      .every((l) => this._lightRank(l) >= this._lightRank("yellow"));
+    const worstLight = this._worstLight([lights.firmsAssigned, lights.firmsPool, lights.peoplePool]);
+    const isReady = [lights.firmsAssigned, lights.firmsPool, lights.peoplePool].every(
+      (l) => this._lightRank(l) >= this._lightRank("yellow")
+    );
 
     return {
       firmsAssignedCount,
@@ -1560,9 +1530,7 @@ export default class MainHeader {
       this.elSetupBtn.disabled = !hasProject;
       this.elSetupBtn.style.opacity = hasProject ? "1" : "0.55";
       this.elSetupBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
-      this.elSetupBtn.title = hasProject
-        ? "Setup Ã¶ffnen"
-        : "Nur mit aktivem Projekt verfÃ¼gbar";
+      this.elSetupBtn.title = hasProject ? "Setup Ã¶ffnen" : "Nur mit aktivem Projekt verfÃ¼gbar";
     }
     if (!hasProject || !visible) {
       this._setSetupOpen(false);
@@ -1577,12 +1545,12 @@ export default class MainHeader {
     this.elPrintBtn.style.opacity = hasProject ? "1" : "0.55";
     this.elPrintBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
     this.elPrintBtn.title = hasProject
-      ? (isMeetingsQuickPrint
+      ? isMeetingsQuickPrint
         ? "In Protokolle-Ansicht: Drucken öffnet die PDF-Vorschau des markierten Protokolls."
-        : "Drucken-MenÃ¼ Ã¶ffnen")
+        : "Drucken-MenÃ¼ Ã¶ffnen"
       : "Nur mit aktivem Projekt verfÃ¼gbar";
     if (this.elPrintMenu) {
-      this.elPrintMenu.style.display = isMeetingsQuickPrint ? "none" : (this._printOpen ? "flex" : "none");
+      this.elPrintMenu.style.display = isMeetingsQuickPrint ? "none" : this._printOpen ? "flex" : "none";
     }
     if (isMeetingsQuickPrint) this._setPrintOpen(false);
     if (!hasProject) this._setPrintOpen(false);
@@ -1608,12 +1576,20 @@ export default class MainHeader {
     this._applyPrintMenuState(fallbackState);
   }
 
+  // ============================================================
+  // Trial: Fenster-Titel AN, Header-Anzeige AUS
+  // ============================================================
   async _refreshTrialInfo() {
     const api = window.bbmDb || {};
-    if (!this.elTrialInfo) return;
-    this.elTrialInfo.style.display = "none";
-    this.elTrialInfo.textContent = "";
+
+    // Header-Anzeige immer aus
+    if (this.elTrialInfo) {
+      this.elTrialInfo.textContent = "";
+      this.elTrialInfo.style.display = "none";
+    }
+
     if (typeof api.appSettingsGetMany !== "function") {
+      this._trialInfoText = "";
       document.title = this._baseWindowTitle;
       return;
     }
@@ -1628,14 +1604,15 @@ export default class MainHeader {
         }
         const data = res.data || {};
         const enabledRaw = String(data["trial.enabled"] || "").trim().toLowerCase();
-        const enabled =
-          enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes" || enabledRaw === "on";
+        const enabled = enabledRaw === "1" || enabledRaw === "true" || enabledRaw === "yes" || enabledRaw === "on";
         const limit = Math.max(0, Math.floor(Number(data["trial.daysLimit"] || 0) || 0));
         const firstStart = Math.floor(Number(data["trial.firstStartAt"] || 0) || 0);
+
         if (!enabled || limit <= 0 || firstStart <= 0) {
           this._trialInfoText = "";
           return;
         }
+
         const dayMs = 24 * 60 * 60 * 1000;
         const usedDays = Math.floor((Date.now() - firstStart) / dayMs) + 1;
         const remaining = Math.max(0, limit - usedDays + 1);
@@ -1643,16 +1620,44 @@ export default class MainHeader {
       } catch (_e) {
         this._trialInfoText = "";
       } finally {
-        document.title = this._trialInfoText
-          ? `${this._baseWindowTitle} - ${this._trialInfoText}`
-          : this._baseWindowTitle;
+        // ✅ nur Fenster-Titel setzen (Electron/Windows-Zeile)
+        document.title = this._trialInfoText ? `${this._baseWindowTitle} - ${this._trialInfoText}` : this._baseWindowTitle;
+
+        // ✅ Header bleibt aus
+        if (this.elTrialInfo) {
+          this.elTrialInfo.textContent = "";
+          this.elTrialInfo.style.display = "none";
+        }
+
         this._trialInfoLoading = null;
       }
     })();
   }
 
+  async _refreshBuildChannelBadge() {
+    if (!this.elDevBadge) return;
+    this.elDevBadge.style.display = "none";
+
+    const api = window.bbmDb || {};
+    if (typeof api.appGetBuildChannel !== "function") return;
+    if (this._buildChannelLoading) return;
+
+    this._buildChannelLoading = (async () => {
+      try {
+        const res = await api.appGetBuildChannel();
+        const ch = String(res?.ok ? res?.channel : "").trim().toUpperCase();
+        this._buildChannel = ch;
+        this.elDevBadge.style.display = ch === "DEV" ? "inline-flex" : "none";
+      } catch (_e) {
+        this._buildChannel = "";
+        this.elDevBadge.style.display = "none";
+      } finally {
+        this._buildChannelLoading = null;
+      }
+    })();
+  }
+
   refresh() {
-    // Center title only in TopsView
     const ui = this.router?.context?.ui || {};
     const isTopsView = !!ui.isTopsView;
     const pageTitle = (ui.pageTitle || "Protokoll").toString().trim();
@@ -1667,7 +1672,6 @@ export default class MainHeader {
       }
     }
 
-    // User/Company
     const settings = this.router?.context?.settings || {};
     const uName = (settings.user_name ?? "").toString().trim();
     const uComp = (settings.user_company ?? "").toString().trim();
@@ -1677,32 +1681,17 @@ export default class MainHeader {
     if (this.elRightInfo && this._isNewUi) {
       this.elRightInfo.style.display = "none";
     }
+
+    // ✅ Fenster-Titel Trial AN (Header AUS)
     this._refreshTrialInfo();
 
-    const logoSize = this._clampLogoNumber(
-      settings["header.logoSizePx"],
-      12,
-      48,
-      20
-    );
-    const logoPadLeft = this._clampLogoNumber(
-      settings["header.logoPadLeftPx"],
-      0,
-      40,
-      0
-    );
-    const logoPadTop = this._clampLogoNumber(
-      settings["header.logoPadTopPx"],
-      0,
-      20,
-      0
-    );
-    const logoPadRight = this._clampLogoNumber(
-      settings["header.logoPadRightPx"],
-      0,
-      80,
-      0
-    );
+    // ✅ DEV Badge
+    this._refreshBuildChannelBadge();
+
+    const logoSize = this._clampLogoNumber(settings["header.logoSizePx"], 12, 48, 20);
+    const logoPadLeft = this._clampLogoNumber(settings["header.logoPadLeftPx"], 0, 40, 0);
+    const logoPadTop = this._clampLogoNumber(settings["header.logoPadTopPx"], 0, 20, 0);
+    const logoPadRight = this._clampLogoNumber(settings["header.logoPadRightPx"], 0, 80, 0);
     const logoPos = this._normalizeLogoPosition(settings["header.logoPosition"], "left");
     const logoEnabled = this._parseBool(settings["header.logoEnabled"], true);
     const hasCustomLogo = !!String(settings["header.logoPath"] || "").trim();
@@ -1730,11 +1719,11 @@ export default class MainHeader {
     }
     this._applyLogoSource(settings).catch(() => {});
 
-    // Active: fallback sofort, dann async stabilisieren
     const pid = this.router?.currentProjectId || null;
     const fallback =
       (this._activeLabelForProjectId === pid && this._activeLabel) ||
-      (this.router?.context?.projectLabel || "");
+      this.router?.context?.projectLabel ||
+      "";
 
     if (this._isNewUi) {
       this._setActiveProjectBlock(fallback);
