@@ -1,4 +1,4 @@
-/* Print V2 â€“ Header styles (Version A) */
+/* Print V2 – Header styles (Version A) */
 
 .printV2Root .page {
   position: relative;
@@ -619,6 +619,17 @@
   z-index: 2;
 }
 
+/* Force colors into PDF output (Chromium/Electron) */
+.printV2Root {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* carried-over TOP + longtext edited later => blue in v2 print */
+.printV2Root .longText.isTouched {
+  color: #1565c0;
+}
+
 .printV2Root .v2VorabzugWatermark {
   position: fixed;
   top: 50%;
@@ -641,5 +652,12 @@
   .printV2Root .v2VorabzugWatermark {
     font-size: 88px;
     opacity: 0.08;
+  }
+
+  /* Force touched color in actual PDF print */
+  .printV2Root .longText.isTouched {
+    color: #1565c0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

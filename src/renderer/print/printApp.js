@@ -66,8 +66,13 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   );
   const isNewTop =
     top.isNewTop ?? (Number(top.is_carried_over ?? top.isCarriedOver ?? 0) !== 1);
-  const isHiddenTop = Number(top?.isHiddenTop ?? top?.is_hidden ?? top?.isHidden ?? 0) === 1
-    || Number(top?.frozen_is_hidden ?? top?.frozenIsHidden ?? 0) === 1;
+
+  // NEW: carried-over TOP whose longtext was edited later
+  const isTouched = Number(top.is_touched ?? top.isTouched ?? 0) === 1;
+
+  const isHiddenTop =
+    Number(top?.isHiddenTop ?? top?.is_hidden ?? top?.isHidden ?? 0) === 1 ||
+    Number(top?.frozen_is_hidden ?? top?.frozenIsHidden ?? 0) === 1;
   const title = String(top.title || "").trim() || "(ohne Bezeichnung)";
   const longtext =
     longtextOverride != null ? String(longtextOverride) : String(top.longtext || "").trim();
@@ -81,6 +86,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     numText,
     createdDate,
     isNewTop,
+    isTouched, // NEW
     isHiddenTop,
     title,
     longtext,
@@ -160,7 +166,14 @@ function _buildTopRowElement(row) {
   const tdText = _el("td", "colText");
   const txtBlock = _el("div", "txtBlock");
   txtBlock.appendChild(_el("div", "shortText", row.title));
-  if (row.longtext) txtBlock.appendChild(_el("div", "longText", row.longtext));
+
+  // CHANGED: add marker class for touched carried-over TOPs
+  if (row.longtext) {
+    const lt = _el("div", "longText", row.longtext);
+    if (!row.isNewTop && row.isTouched) lt.classList.add("isTouched");
+    txtBlock.appendChild(lt);
+  }
+
   tdText.appendChild(txtBlock);
 
   const tdMeta = _el("td", "colMeta");
@@ -296,11 +309,26 @@ function _applyV2VarsForMeasure(root, data) {
   const pagePadRightMm = Number(data?.v2Layout?.pagePadRightMm);
   const globalLogoBoxHeightMm = Number(data?.v2Layout?.globalLogoBoxHeightMm);
   const globalHeaderHeightMm = Number(data?.v2Layout?.globalHeaderHeightMm);
-  root.style.setProperty("--v2-pad-top", String(Number.isFinite(pagePadTopMm) ? pagePadTopMm : V2_LAYOUT.page.padTopMm) + "mm");
-  root.style.setProperty("--v2-pad-bottom", String(Number.isFinite(pagePadBottomMm) ? pagePadBottomMm : V2_LAYOUT.page.padBottomMm) + "mm");
-  root.style.setProperty("--v2-footer-reserve", String(Number.isFinite(footerReserveMm) ? footerReserveMm : 12) + "mm");
-  root.style.setProperty("--v2-pad-left", String(Number.isFinite(pagePadLeftMm) ? pagePadLeftMm : V2_LAYOUT.page.padXmm) + "mm");
-  root.style.setProperty("--v2-pad-right", String(Number.isFinite(pagePadRightMm) ? pagePadRightMm : V2_LAYOUT.page.padXmm) + "mm");
+  root.style.setProperty(
+    "--v2-pad-top",
+    String(Number.isFinite(pagePadTopMm) ? pagePadTopMm : V2_LAYOUT.page.padTopMm) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-pad-bottom",
+    String(Number.isFinite(pagePadBottomMm) ? pagePadBottomMm : V2_LAYOUT.page.padBottomMm) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-footer-reserve",
+    String(Number.isFinite(footerReserveMm) ? footerReserveMm : 12) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-pad-left",
+    String(Number.isFinite(pagePadLeftMm) ? pagePadLeftMm : V2_LAYOUT.page.padXmm) + "mm"
+  );
+  root.style.setProperty(
+    "--v2-pad-right",
+    String(Number.isFinite(pagePadRightMm) ? pagePadRightMm : V2_LAYOUT.page.padXmm) + "mm"
+  );
   root.style.setProperty("--v2-pad-x", String(V2_LAYOUT.page.padXmm) + "mm");
   root.style.setProperty("--v2-global-logo-box", String(V2_LAYOUT.global.logoBoxMm) + "mm");
   root.style.setProperty(
@@ -312,12 +340,12 @@ function _applyV2VarsForMeasure(root, data) {
     String(
       Number.isFinite(globalLogoBoxHeightMm)
         ? globalLogoBoxHeightMm
-        : (V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm)
+        : V2_LAYOUT.global.logoBoxHeightMm || V2_LAYOUT.global.logoBoxMm
     ) + "mm"
   );
   root.style.setProperty(
     "--v2-global-height",
-    String(Number.isFinite(globalHeaderHeightMm) ? globalHeaderHeightMm : (V2_LAYOUT.global.heightMm || 50)) + "mm"
+    String(Number.isFinite(globalHeaderHeightMm) ? globalHeaderHeightMm : V2_LAYOUT.global.heightMm || 50) + "mm"
   );
   root.style.setProperty("--v2-logo-gap", String(V2_LAYOUT.global.logoGapMm) + "mm");
   root.style.setProperty("--v2-global-gap-logo-line", String(V2_LAYOUT.global.gapLogoToLineMm) + "mm");
@@ -491,9 +519,7 @@ function _buildParticipantsIntroData(data) {
     const name = String(p?.name || "").trim();
     const role = String(p?.rolle || p?.role || "").trim();
     const firm = String(p?.firm || "").trim();
-    const mobileOrFunk = String(
-      p?.handy ?? p?.mobile ?? p?.funk ?? p?.mobil ?? p?.cell ?? ""
-    ).trim();
+    const mobileOrFunk = String(p?.handy ?? p?.mobile ?? p?.funk ?? p?.mobil ?? p?.cell ?? "").trim();
     const phoneFallback = String(p?.telefon ?? p?.phone ?? "").trim();
     const phone = mobileOrFunk || phoneFallback;
     const email = String(p?.email || "").trim();
@@ -555,23 +581,13 @@ function _buildParticipantsIntroElement(intro) {
       const tr = document.createElement("tr");
       const contactTd = _el("td", "v2PartColContact");
       const contactStack = _el("div", "v2PartContactStack");
-      contactStack.append(
-        _el("div", "v2PartContactRow", row.phone || "-"),
-        _el("div", "v2PartContactRow", row.email || "-")
-      );
+      contactStack.append(_el("div", "v2PartContactRow", row.phone || "-"), _el("div", "v2PartContactRow", row.email || "-"));
       contactTd.appendChild(contactStack);
-      tr.append(
-        _el("td", "v2PartColName", row.name || ""),
-        _el("td", "v2PartColRole", row.role || ""),
-        _el("td", "v2PartColFirm", row.firm || "")
-      );
+      tr.append(_el("td", "v2PartColName", row.name || ""), _el("td", "v2PartColRole", row.role || ""), _el("td", "v2PartColFirm", row.firm || ""));
       tr.appendChild(contactTd);
       const marksTd = _el("td", "v2PartColMarks");
       const marks = _el("div", "v2PartMarks");
-      marks.append(
-        _el("div", "v2PartMarkRow", row.presentMark || "-"),
-        _el("div", "v2PartMarkRow", row.distributionMark || "-")
-      );
+      marks.append(_el("div", "v2PartMarkRow", row.presentMark || "-"), _el("div", "v2PartMarkRow", row.distributionMark || "-"));
       marksTd.appendChild(marks);
       tr.appendChild(marksTd);
       tbody.appendChild(tr);
@@ -657,7 +673,7 @@ function _buildParticipantsIntroPlan({ intro, ctxFirst, ctxNext, firstCap, nextC
 
   while (idx < rows.length) {
     const cap = pageNo === 0 ? firstCap : nextCap;
-    const ctx = pageNo === 0 ? ctxFirst : (ctxNext || ctxFirst);
+    const ctx = pageNo === 0 ? ctxFirst : ctxNext || ctxFirst;
     const chunkRows = [];
     let lastGoodHeight = 0;
     while (idx < rows.length) {
@@ -708,7 +724,13 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
 
   const table = document.createElement("table");
   table.className =
-    type === "tops" ? "topsTable" : type === "firms" ? "firmsTable" : type === "firmsCards" ? "firmsCardsTable" : "todoTable";
+    type === "tops"
+      ? "topsTable"
+      : type === "firms"
+      ? "firmsTable"
+      : type === "firmsCards"
+      ? "firmsCardsTable"
+      : "todoTable";
   const colgroup = _buildColGroup(type);
   if (colgroup) table.appendChild(colgroup);
   const head = _buildTableHeadForMeasure(type);
@@ -860,7 +882,7 @@ function _paginateTops(data) {
     pageIndex += 1;
     const cap = pageIndex === 0 ? firstCap : nextCap;
     const introForPage = introChunks[pageIndex] || null;
-    const introHeight = introForPage ? (introHeights[pageIndex] || 0) : 0;
+    const introHeight = introForPage ? introHeights[pageIndex] || 0 : 0;
     currentPage = {
       header: { projectLabel, docLabel },
       intro: introForPage,
@@ -925,7 +947,6 @@ function _paginateTops(data) {
       const rowData = _buildTopRowData(item.top, text, item.ampelColor);
       const measure = rowMeasureCtx.measureRow(_buildTopRowElement(rowData));
       const rowHeight = measure.height;
-      const longLines = measure.longLines;
 
       if (rowHeight <= remaining) {
         addRow(rowData, rowHeight);
@@ -942,10 +963,7 @@ function _paginateTops(data) {
         continue;
       }
 
-      const allowedLines = Math.max(
-        MIN_LINES_PAGE_END,
-        Math.floor((remaining - item.baseHeight) / item.lineHeight)
-      );
+      const allowedLines = Math.max(MIN_LINES_PAGE_END, Math.floor((remaining - item.baseHeight) / item.lineHeight));
       const part1 = _findSplitText(rowMeasureCtx, rowData, allowedLines);
       if (!part1) {
         if (currentPage.table.rows.length) pushPage();
@@ -957,10 +975,7 @@ function _paginateTops(data) {
       const part2Text = text.slice(part1.length).trimStart();
       const part2Data = _buildTopRowData(item.top, part2Text, item.ampelColor);
       const part2Measure = rowMeasureCtx.measureRow(_buildTopRowElement(part2Data));
-      if (
-        part1Measure.longLines < MIN_LINES_PAGE_END ||
-        part2Measure.longLines < MIN_LINES_NEXT_PAGE
-      ) {
+      if (part1Measure.longLines < MIN_LINES_PAGE_END || part2Measure.longLines < MIN_LINES_NEXT_PAGE) {
         if (!currentPage.table.rows.length) {
           addRow(rowData, rowHeight);
           break;
@@ -993,7 +1008,7 @@ function _paginateTops(data) {
     if (!page?.intro) return 0;
     const cached = introHeights[idx];
     if (Number.isFinite(cached) && cached > 0) return cached;
-    const measureCtx = idx === 0 ? ctxFirst : (ctxNext || ctxFirst);
+    const measureCtx = idx === 0 ? ctxFirst : ctxNext || ctxFirst;
     return _measureIntroHeight(measureCtx, page.intro);
   };
   const rowsHeightAt = (page) => {
@@ -1083,7 +1098,7 @@ function _paginateGeneric({ rows, type, projectLabel, docLabel, data }) {
     pages.push(currentPage);
     currentPage = { header: { projectLabel, docLabel }, table: { type, rows: [] } };
     pageNo += 1;
-    remaining = pageNo === 1 ? ctx.maxBodyHeight : (ctxNext?.maxBodyHeight || ctx.maxBodyHeight);
+    remaining = pageNo === 1 ? ctx.maxBodyHeight : ctxNext?.maxBodyHeight || ctx.maxBodyHeight;
   };
 
   const rowHeightAt = (idx) => {

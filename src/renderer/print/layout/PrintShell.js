@@ -2,6 +2,7 @@ import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
 import { renderV2FullHeader } from "../v2/header/FullHeader.js";
 import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
+
 const APP_ICON_URL = new URL("../assets/bbm-icon.png", window.location.href).toString();
 
 function _el(tag, className, text) {
@@ -102,7 +103,26 @@ function _buildTopRow(row) {
   const tdText = _el("td", "colText");
   const txtBlock = _el("div", "txtBlock");
   txtBlock.appendChild(_el("div", "shortText", row.title));
-  if (row.longtext) txtBlock.appendChild(_el("div", "longText", row.longtext));
+
+  // IMPORTANT: final print DOM is built here (not in printApp.js)
+  // carried-over TOP + longtext edited later => mark and FORCE blue (PDF-safe)
+  if (row.longtext) {
+    const lt = _el("div", "longText", row.longtext);
+
+    const isTouched = Number(row?.isTouched ?? row?.is_touched ?? 0) === 1;
+    const isCarriedOver = !row.isNewTop;
+
+    if (isCarriedOver && isTouched) {
+      lt.classList.add("isTouched");
+      // Force the color for PDF output even if other CSS overrides or print engine optimizes colors
+      lt.style.color = "#1565c0";
+      lt.style.webkitPrintColorAdjust = "exact";
+      lt.style.printColorAdjust = "exact";
+    }
+
+    txtBlock.appendChild(lt);
+  }
+
   tdText.appendChild(txtBlock);
 
   const tdMeta = _el("td", "colMeta");
@@ -237,7 +257,6 @@ function _buildColGroup(type) {
   return colgroup;
 }
 
-
 function _applyV2Vars(root, data) {
   const pagePadTopMm = Number(data?.v2Layout?.pagePadTopMm);
   const pagePadBottomMm = Number(data?.v2Layout?.pagePadBottomMm);
@@ -306,13 +325,14 @@ function _buildTable(page) {
   }
   if (!(page.table?.rows || []).length) {
     const tr = document.createElement("tr");
-    const msg = type === "firms"
-      ? "Keine Firmen vorhanden."
-      : type === "firmsCards"
+    const msg =
+      type === "firms"
         ? "Keine Firmen vorhanden."
-      : type === "todo"
-        ? "Keine offenen ToDos vorhanden."
-        : "Keine Einträge vorhanden.";
+        : type === "firmsCards"
+          ? "Keine Firmen vorhanden."
+          : type === "todo"
+            ? "Keine offenen ToDos vorhanden."
+            : "Keine Einträge vorhanden.";
     const td = _el("td", "", msg);
     td.colSpan = type === "todo" ? 5 : type === "firms" ? 3 : 1;
     tr.appendChild(td);
@@ -472,6 +492,11 @@ function _buildSpineNote() {
 
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
+
+  // Force colors into PDF output (Chromium/Electron)
+  root.style.webkitPrintColorAdjust = "exact";
+  root.style.printColorAdjust = "exact";
+
   const showVorabzugWatermark =
     ["vorabzug", "preview"].includes(String(data?.mode || "").trim().toLowerCase());
   if (showVorabzugWatermark) {
