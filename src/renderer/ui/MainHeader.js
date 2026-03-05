@@ -574,6 +574,18 @@ export default class MainHeader {
     printMenu.append(itemPreview, firmsBranch.wrap, todoBranch.wrap, itemTopList, itemMeetingsClosed);
     printWrap.append(printBtn, printMenu);
 
+
+    const mailBtn = document.createElement("button");
+    mailBtn.type = "button";
+    mailBtn.textContent = "E-Mail senden";
+    applyActionTextButtonStyle(mailBtn);
+    mailBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (mailBtn.disabled) return;
+      this._openMailClient();
+    };
+
     printBtn.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -691,9 +703,9 @@ export default class MainHeader {
     };
 
     if (this._isNewUi) {
-      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, btnMeetings, printWrap);
+      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, btnMeetings, printWrap, mailBtn);
     } else {
-      actionWrap.append(btnMeetings, setupWrap, printWrap);
+      actionWrap.append(btnMeetings, setupWrap, printWrap, mailBtn);
     }
 
     const stickyNotice = document.createElement("div");
@@ -1755,4 +1767,18 @@ export default class MainHeader {
     }
     this.setStickyNotice(stickyFromContext);
   }
+
+  _openMailClient() {
+    const projectId = this.router?.currentProjectId || null;
+    const subject = projectId ? `Baubesprechung (Projekt ${projectId})` : "Baubesprechung";
+    const body = "Hallo,\n\n";
+    const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    try {
+      window.location.href = mailto;
+    } catch (err) {
+      console.error("[header] open mailto failed:", err);
+      alert("E-Mail konnte nicht geöffnet werden.");
+    }
+  }
+
 }

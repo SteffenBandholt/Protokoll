@@ -2688,22 +2688,7 @@ _renderIdleState() {
         });
       };
       wrap.appendChild(btnNew);
-
-      if (this._idleHasProtocols) {
-        const btnMail = document.createElement("button");
-        btnMail.textContent = "E-Mail senden";
-        btnMail.style.padding = "10px 16px";
-        btnMail.style.borderRadius = "10px";
-        btnMail.style.border = "1px solid rgba(0,0,0,0.2)";
-        btnMail.style.background = "#fff";
-        btnMail.style.boxShadow = "0 2px 10px rgba(0,0,0,0.08)";
-        btnMail.onclick = () => {
-          this._openMailClient();
-        };
-        wrap.appendChild(btnMail);
-      }
-
-      li.appendChild(wrap);
+li.appendChild(wrap);
       this.listEl.appendChild(li);
       this.listEl.style.paddingBottom = "16px";
     }
