@@ -718,25 +718,13 @@ export default class ProjectsView {
     if (this._startingProject) return false;
 
     this._startingProject = true;
-    this._setMsg("Lege Besprechung an...");
+    this._setMsg("Öffne Projekt...");
 
     try {
       this.router.currentProjectId = projectId;
       this.router.currentMeetingId = null;
 
       const api = window.bbmDb || {};
-      const hasCreate = typeof api.meetingsCreate === "function";
-
-      if (!hasCreate) {
-        this._flashMsg("meetingsCreate ist nicht verfügbar (Preload/IPC fehlt).", 9000);
-        // Ohne create geht’s nicht sinnvoll weiter.
-        // (Wenn du hier lieber MeetingsView willst, sag’s – aktuell bleibt er auf Projekte.)
-        return false;
-      }
-
-      // Defaults, falls meetingsListByProject fehlt/fehlschlägt:
-      let nextIndex = 1;
-      let dateISO = this._todayISO();
       let openMeeting = null;
 
       if (typeof api.meetingsListByProject === "function") {
@@ -744,20 +732,6 @@ export default class ProjectsView {
           const res = await api.meetingsListByProject(projectId);
           if (res?.ok) {
             const list = res.list || [];
-            const maxIdx = list.reduce((mx, x) => Math.max(mx, Number(x.meeting_index || 0)), 0);
-            nextIndex = (maxIdx || 0) + 1;
-
-            const last =
-              list
-                .slice()
-                .sort((a, b) => Number(b.meeting_index || 0) - Number(a.meeting_index || 0))[0] ||
-              null;
-
-            const lastDateISO = this._extractDateISOFromMeeting(last);
-            const minDateISO = lastDateISO ? this._addDaysISO(lastDateISO, 1) : null;
-
-            if (minDateISO && dateISO < minDateISO) dateISO = minDateISO;
-
             const openList = (list || []).filter((m) => Number(m.is_closed || 0) === 0);
             if (openList.length > 0) {
               openMeeting = openList
@@ -765,82 +739,23 @@ export default class ProjectsView {
                 .sort((a, b) => Number(b.meeting_index || 0) - Number(a.meeting_index || 0))[0];
             }
           }
-        } catch (_e) {
-          // ignore -> fallback values bleiben
+        } catch (errList) {
+          console.warn("[ProjectsView] meetingsListByProject failed:", errList);
         }
       }
 
-      if (openMeeting && openMeeting.id) {
-        this._setMsg("Öffne Besprechung...");
-        this.router.currentProjectId = projectId;
-        this.router.currentMeetingId = openMeeting.id;
-        let opened = false;
-        try {
-          await this.router.showTops(openMeeting.id, projectId);
-          opened = true;
-        } catch (_err) {
-          // ignore
-        }
-        if (opened) this._rememberLastProject(projectId);
-        return opened;
-      }
+      // ✅ Wichtig: Wenn kein offenes Protokoll existiert, trotzdem TopsView öffnen (Idle-State)
+      const meetingId = openMeeting?.id || null;
 
-      const modalRes = await this._openCreateMeetingModal({ dateISO });
-      if (!modalRes) return false;
-
-      const pickedISO = String(modalRes.dateISO || "").trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(pickedISO)) {
-        dateISO = pickedISO;
-      }
-
-      const keyword = String(modalRes.keyword || "").trim();
-      const editParticipants = modalRes.editParticipants !== false;
-      this._writeCreateMeetingEditParticipants(editParticipants);
-
-      const dd = this._isoToDDMMYYYY(dateISO);
-      const idx = `#${nextIndex}`;
-      const title = keyword ? `${idx} ${dd} - ${keyword}` : `${idx} ${dd}`;
-
-      const createRes = await api.meetingsCreate({ projectId, title });
-      if (!createRes?.ok) {
-        const msg = createRes?.error || "Besprechung anlegen fehlgeschlagen";
-        console.error("[ProjectsView] meetingsCreate failed", {
-          projectId,
-          dateISO,
-          keyword,
-          title,
-          error: msg,
-        });
-        alert("Besprechung konnte nicht angelegt werden.");
-        this._flashMsg(msg, 9000);
-        return false;
-      }
-
-      const mid = createRes?.meeting?.id || null;
-      if (!mid) {
-        this._flashMsg("Besprechung angelegt, aber keine ID erhalten.", 9000);
-        return false;
-      }
+      this._setMsg(meetingId ? "Öffne Besprechung..." : "Öffne Protokoll...");
 
       this.router.currentProjectId = projectId;
-      this.router.currentMeetingId = mid;
+      this.router.currentMeetingId = meetingId;
 
-      let opened = false;
-      try {
-        await this.router.showTops(mid, projectId);
-        opened = true;
-      } catch (_err) {
-        // ignore
-      }
-      if (opened && editParticipants && typeof this.router?.openParticipantsModal === "function") {
-        try {
-          await this.router.openParticipantsModal({ projectId, meetingId: mid });
-        } catch (errOpenParticipants) {
-          console.warn("[ProjectsView] openParticipantsModal failed:", errOpenParticipants);
-        }
-      }
-      if (opened) this._rememberLastProject(projectId);
-      return opened;
+      await this.router.showTops(meetingId, projectId);
+
+      this._rememberLastProject(projectId);
+      return true;
     } catch (err) {
       console.error("[ProjectsView] _createMeetingAndOpenTops failed:", err);
       this._flashMsg(err?.message || String(err), 9000);

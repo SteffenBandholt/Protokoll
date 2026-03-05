@@ -11,11 +11,17 @@ import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 
+const CREATE_MEETING_EDIT_PARTICIPANTS_KEY = "bbm.createMeeting.editParticipants";
+
 export default class TopsView {
   constructor({ router, projectId, meetingId }) {
     this.router = router;
     this.projectId = projectId;
     this.meetingId = meetingId;
+
+    // Create-Meeting Modal (reuse ProjectsView flow)
+    this._createMeetingModalEl = null;
+    this._createMeetingModalResolve = null;
 
     this.root = null;
     this.listEl = null;
@@ -131,6 +137,34 @@ export default class TopsView {
 
   _updateTopBarProtocolTitle() {
     if (!this.topsTitleEl) return;
+
+
+    // Idle (kein Protokoll aktiv)
+    if (!this.meetingId) {
+      const host = this.topsTitleEl;
+      host.innerHTML = "";
+      host.style.display = "flex";
+      host.style.flexDirection = "column";
+      host.style.alignItems = "flex-start";
+      host.style.gap = "1px";
+      host.style.lineHeight = "1.1";
+
+      const labelLine = document.createElement("div");
+      labelLine.textContent = "Protokoll";
+      labelLine.style.color = "#000";
+      labelLine.style.fontWeight = "600";
+      host.appendChild(labelLine);
+
+      const line1 = document.createElement("div");
+      line1.textContent = "kein Protokoll aktiv";
+      line1.style.color = "#616161";
+      line1.style.fontWeight = "700";
+      host.appendChild(line1);
+
+      host.title = "";
+      host.style.cursor = "default";
+      return;
+    }
     const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
     const parts = this._parseMeetingTitleParts();
     const meetingIndex = parts.meetingIndex;
@@ -196,6 +230,477 @@ export default class TopsView {
     const yyyy = String(d.getFullYear());
     return `${dd}.${mm}.${yyyy}`;
   }
+
+_protocolActive() {
+  return !!this.meetingId;
+}
+
+_enterIdleState() {
+  // Router-Kontext auf "kein Meeting" setzen (Projekt bleibt)
+  try {
+    if (this.router) {
+      this.router.currentProjectId = this.projectId || this.router.currentProjectId || null;
+      this.router.currentMeetingId = null;
+      this.router.lastTopsProjectId = this.router.currentProjectId || null;
+      this.router.lastTopsMeetingId = null;
+      if (typeof this.router.refreshHeader === "function") {
+        this.router.refreshHeader();
+      }
+    }
+  } catch (_e) {
+    // ignore
+  }
+
+  this.meetingId = null;
+  this.meetingMeta = null;
+  this.isReadOnly = false;
+
+  this.selectedTopId = null;
+  this.selectedTop = null;
+
+  this.items = [];
+  this.childrenCountByParent = new Map();
+
+  this._updateTopBarProtocolTitle();
+  this._applyProtocolUiState();
+}
+
+_applyProtocolUiState() {
+  const active = this._protocolActive();
+  const busy = !!this._busy;
+
+  const setDisabled = (btn, dis) => {
+    if (!btn) return;
+    btn.disabled = !!dis;
+    btn.style.opacity = btn.disabled ? "0.55" : "1";
+    btn.style.cursor = btn.disabled ? "default" : "pointer";
+  };
+
+  // Topbar Buttons
+  setDisabled(this.btnAmpelToggle, !active || busy);
+  setDisabled(this.btnLongToggle, !active || busy);
+  setDisabled(this.btnEndMeeting, !active || busy);
+
+  // Editbox / Create buttons
+  if (this.box) this.box.style.display = active ? "" : "none";
+  if (this.btnL1) setDisabled(this.btnL1, !active || busy);
+  if (this.btnChild) setDisabled(this.btnChild, !active || busy);
+
+  // Main content
+  if (!active) {
+    this._renderIdleMain();
+  }
+}
+
+_renderIdleMain() {
+  if (!this.listEl) return;
+  this.listEl.innerHTML = "";
+
+  const li = document.createElement("li");
+  li.style.listStyle = "none";
+  li.style.padding = "28px 12px";
+  li.style.display = "flex";
+  li.style.justifyContent = "center";
+
+  const wrap = document.createElement("div");
+  wrap.style.display = "flex";
+  wrap.style.flexDirection = "column";
+  wrap.style.alignItems = "center";
+  wrap.style.gap = "10px";
+  wrap.style.maxWidth = "520px";
+  wrap.style.width = "100%";
+
+  const btn = document.createElement("button");
+  btn.textContent = "Protokoll neu";
+  btn.style.padding = "10px 16px";
+  btn.style.borderRadius = "10px";
+  btn.style.border = "1px solid rgba(0,0,0,0.2)";
+  btn.style.background = "#fff";
+  btn.style.boxShadow = "0 2px 10px rgba(0,0,0,0.08)";
+  btn.onclick = () => this._startNewProtocolFlow();
+  wrap.appendChild(btn);
+
+  li.appendChild(wrap);
+  this.listEl.appendChild(li);
+}
+
+// ------------------------------------------------------------
+// Meeting-Start-Flow (wie ProjectsView: Modal Datum/Schlagwort + Teilnehmerliste)
+// ------------------------------------------------------------
+
+_todayISO() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+_addDaysISO(iso, days) {
+  const s = String(iso || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(`${s}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setDate(d.getDate() + Number(days || 0));
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+_isoToDDMMYYYY(iso) {
+  const s = String(iso || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  const y = s.slice(0, 4);
+  const m = s.slice(5, 7);
+  const d = s.slice(8, 10);
+  return `${d}.${m}.${y}`;
+}
+
+_extractDateISOFromMeeting(m) {
+  if (!m) return null;
+
+  const raw = m.meeting_date || m.meetingDate || m.date || m.created_at || m.createdAt || null;
+
+  if (raw) {
+    const s = String(raw).slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  }
+
+  const title = m.title ? String(m.title) : "";
+
+  const hitIso = title.match(/(\d{4}-\d{2}-\d{2})/);
+  if (hitIso && hitIso[1]) return hitIso[1];
+
+  const hitDE = title.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+  if (hitDE) {
+    const dd = hitDE[1];
+    const mm = hitDE[2];
+    const yyyy = hitDE[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  const hitDE2 = title.match(/(\d{2})\.(\d{2})\.(\d{2})/);
+  if (hitDE2) {
+    const dd = hitDE2[1];
+    const mm = hitDE2[2];
+    const yy = Number(hitDE2[3]);
+    const yyyy = yy <= 69 ? 2000 + yy : 1900 + yy;
+    return `${String(yyyy).padStart(4, "0")}-${mm}-${dd}`;
+  }
+
+  return null;
+}
+
+_readCreateMeetingEditParticipantsDefault() {
+  try {
+    const raw = String(window.localStorage?.getItem?.(CREATE_MEETING_EDIT_PARTICIPANTS_KEY) || "")
+      .trim()
+      .toLowerCase();
+    if (raw === "0" || raw === "false") return false;
+    if (raw === "1" || raw === "true") return true;
+  } catch (_e) {
+    // ignore
+  }
+  return true;
+}
+
+_writeCreateMeetingEditParticipants(value) {
+  try {
+    window.localStorage?.setItem?.(CREATE_MEETING_EDIT_PARTICIPANTS_KEY, value ? "1" : "0");
+  } catch (_e) {
+    // ignore
+  }
+}
+
+_closeCreateMeetingModal(result) {
+  if (this._createMeetingModalEl) {
+    try {
+      this._createMeetingModalEl.remove();
+    } catch (_) {}
+  }
+  this._createMeetingModalEl = null;
+
+  if (this._createMeetingModalResolve) {
+    const resolve = this._createMeetingModalResolve;
+    this._createMeetingModalResolve = null;
+    resolve(result || null);
+  }
+}
+
+_openCreateMeetingModal({ dateISO }) {
+  if (this._createMeetingModalEl) {
+    this._closeCreateMeetingModal(null);
+  }
+
+  return new Promise((resolve) => {
+    this._createMeetingModalResolve = resolve;
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.left = "0";
+    overlay.style.top = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "9999";
+    overlay.tabIndex = -1;
+
+    const box = document.createElement("div");
+    box.style.background = "#fff";
+    box.style.borderRadius = "10px";
+    box.style.border = "1px solid rgba(0,0,0,0.15)";
+    box.style.width = "min(560px, calc(100vw - 32px))";
+    box.style.maxHeight = "calc(100vh - 32px)";
+    box.style.display = "flex";
+    box.style.flexDirection = "column";
+    box.style.overflow = "hidden";
+    box.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "10px";
+    header.style.padding = "12px 16px";
+    header.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Protokoll anlegen";
+    title.style.fontWeight = "800";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.style.marginLeft = "auto";
+    btnClose.onclick = () => this._closeCreateMeetingModal(null);
+
+    header.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.flex = "1 1 auto";
+    body.style.minHeight = "0";
+    body.style.overflow = "auto";
+    body.style.padding = "12px 16px";
+
+    const labDate = document.createElement("label");
+    labDate.textContent = "Datum";
+    labDate.style.display = "block";
+    labDate.style.fontSize = "12px";
+    labDate.style.opacity = "0.8";
+    labDate.style.marginBottom = "4px";
+
+    const inpDate = document.createElement("input");
+    inpDate.type = "date";
+    inpDate.value = /^\d{4}-\d{2}-\d{2}$/.test(String(dateISO || "")) ? dateISO : "";
+    inpDate.style.width = "100%";
+    inpDate.style.boxSizing = "border-box";
+    inpDate.style.padding = "6px 8px";
+    inpDate.style.border = "1px solid #ddd";
+    inpDate.style.borderRadius = "6px";
+    inpDate.style.marginBottom = "10px";
+
+    const labKeyword = document.createElement("label");
+    labKeyword.textContent = "Schlagwort (optional)";
+    labKeyword.style.display = "block";
+    labKeyword.style.fontSize = "12px";
+    labKeyword.style.opacity = "0.8";
+    labKeyword.style.marginBottom = "4px";
+
+    const inpKeyword = document.createElement("input");
+    inpKeyword.type = "text";
+    inpKeyword.value = "";
+    inpKeyword.style.width = "100%";
+    inpKeyword.style.boxSizing = "border-box";
+    inpKeyword.style.padding = "6px 8px";
+    inpKeyword.style.border = "1px solid #ddd";
+    inpKeyword.style.borderRadius = "6px";
+
+    const participantsOptionRow = document.createElement("label");
+    participantsOptionRow.style.display = "flex";
+    participantsOptionRow.style.alignItems = "center";
+    participantsOptionRow.style.gap = "8px";
+    participantsOptionRow.style.marginTop = "12px";
+    participantsOptionRow.style.cursor = "pointer";
+
+    const chkEditParticipants = document.createElement("input");
+    chkEditParticipants.type = "checkbox";
+    chkEditParticipants.checked = this._readCreateMeetingEditParticipantsDefault();
+    chkEditParticipants.style.margin = "0";
+
+    const participantsOptionText = document.createElement("span");
+    participantsOptionText.textContent = "Teilnehmerliste bearbeiten";
+
+    participantsOptionRow.append(chkEditParticipants, participantsOptionText);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.justifyContent = "flex-end";
+    btnRow.style.gap = "8px";
+    btnRow.style.padding = "12px 16px";
+    btnRow.style.borderTop = "1px solid #e2e8f0";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.type = "button";
+    btnCancel.textContent = "Abbrechen";
+    applyPopupButtonStyle(btnCancel);
+
+    const btnCreate = document.createElement("button");
+    btnCreate.type = "button";
+    btnCreate.textContent = "Anlegen";
+    applyPopupButtonStyle(btnCreate, { variant: "primary" });
+
+    btnCancel.onclick = () => this._closeCreateMeetingModal(null);
+
+    const submitCreate = () =>
+      this._closeCreateMeetingModal({
+        dateISO: String(inpDate.value || "").trim(),
+        keyword: String(inpKeyword.value || "").trim(),
+        editParticipants: chkEditParticipants.checked,
+      });
+
+    btnCreate.onclick = submitCreate;
+
+    inpDate.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      submitCreate();
+    });
+    inpKeyword.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      submitCreate();
+    });
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) this._closeCreateMeetingModal(null);
+    });
+
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this._closeCreateMeetingModal(null);
+      }
+    });
+
+    btnRow.append(btnCancel, btnCreate);
+    body.append(labDate, inpDate, labKeyword, inpKeyword, participantsOptionRow);
+    box.append(header, body, btnRow);
+    overlay.appendChild(box);
+
+    document.body.appendChild(overlay);
+    this._createMeetingModalEl = overlay;
+    try {
+      overlay.focus();
+    } catch (_e) {
+      // ignore
+    }
+
+    try {
+      inpDate.focus();
+    } catch (_) {}
+  });
+}
+
+async _startNewProtocolFlow() {
+  if (this._busy) return;
+  if (!this.projectId) {
+    alert("Kein Projekt ausgewählt.");
+    return;
+  }
+
+  const api = window.bbmDb || {};
+  if (typeof api.meetingsCreate !== "function") {
+    alert("meetingsCreate ist nicht verfügbar (Preload/IPC fehlt).");
+    return;
+  }
+
+  this._setBusy(true);
+  try {
+    // Defaults aus vorhandenen Meetings ableiten
+    let nextIndex = 1;
+    let dateISO = this._todayISO();
+    let openMeeting = null;
+
+    if (typeof api.meetingsListByProject === "function") {
+      try {
+        const res = await api.meetingsListByProject(this.projectId);
+        if (res?.ok) {
+          const list = res.list || [];
+          const maxIdx = list.reduce((mx, x) => Math.max(mx, Number(x.meeting_index || 0)), 0);
+          nextIndex = (maxIdx || 0) + 1;
+
+          const last =
+            list
+              .slice()
+              .sort((a, b) => Number(b.meeting_index || 0) - Number(a.meeting_index || 0))[0] ||
+            null;
+
+          const lastDateISO = this._extractDateISOFromMeeting(last);
+          const minDateISO = lastDateISO ? this._addDaysISO(lastDateISO, 1) : null;
+          if (minDateISO && dateISO < minDateISO) dateISO = minDateISO;
+
+          const openList = (list || []).filter((m) => Number(m.is_closed || 0) === 0);
+          if (openList.length > 0) {
+            openMeeting = openList
+              .slice()
+              .sort((a, b) => Number(b.meeting_index || 0) - Number(a.meeting_index || 0))[0];
+          }
+        }
+      } catch (_e) {
+        // ignore
+      }
+    }
+
+    // Falls doch ein offenes Protokoll existiert, dieses öffnen
+    if (openMeeting?.id) {
+      await this.router.showTops(openMeeting.id, this.projectId);
+      return;
+    }
+
+    const modalRes = await this._openCreateMeetingModal({ dateISO });
+    if (!modalRes) return;
+
+    const pickedISO = String(modalRes.dateISO || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(pickedISO)) dateISO = pickedISO;
+
+    const keyword = String(modalRes.keyword || "").trim();
+    const editParticipants = modalRes.editParticipants !== false;
+    this._writeCreateMeetingEditParticipants(editParticipants);
+
+    const dd = this._isoToDDMMYYYY(dateISO);
+    const idx = `#${nextIndex}`;
+    const title = keyword ? `${idx} ${dd} - ${keyword}` : `${idx} ${dd}`;
+
+    const createRes = await api.meetingsCreate({ projectId: this.projectId, title });
+    if (!createRes?.ok) {
+      alert(createRes?.error || "Besprechung anlegen fehlgeschlagen");
+      return;
+    }
+
+    const mid = createRes?.meeting?.id || null;
+    if (!mid) {
+      alert("Besprechung angelegt, aber keine ID erhalten.");
+      return;
+    }
+
+    await this.router.showTops(mid, this.projectId);
+
+    if (editParticipants && typeof this.router?.openParticipantsModal === "function") {
+      try {
+        await this.router.openParticipantsModal({ projectId: this.projectId, meetingId: mid });
+      } catch (errOpenParticipants) {
+        console.warn("[TopsView] openParticipantsModal failed:", errOpenParticipants);
+      }
+    }
+  } finally {
+    this._setBusy(false);
+  }
+}
+
 
   _parseMeetingTitleParts() {
     const meetingIndexRaw = Number(this.meetingMeta?.meeting_index);
@@ -1683,7 +2188,8 @@ export default class TopsView {
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
             alert(`Hinweis beim Schließen:\n${res.warnings.join("\n")}`);
           }
-          await this.router.showProjects();
+          // Nach dem Schließen in TopsView bleiben (Idle-State)
+          this._enterIdleState();
           return;
         }
 
@@ -2545,9 +3051,23 @@ export default class TopsView {
   async load() {
     await this._loadAmpelSetting();
     await this._loadTextLimitsSetting();
+
+    if (!this.meetingId) {
+      // Idle: kein Protokoll aktiv
+      this.meetingMeta = null;
+      this.isReadOnly = false;
+      this.items = [];
+      this.selectedTopId = null;
+      this.selectedTop = null;
+      this._updateTopBarProtocolTitle();
+      this._applyProtocolUiState();
+      return;
+    }
+
     await this.reloadList(true);
     this._ensureProjectFirmsLoaded().catch(() => {});
     this.applyEditBoxState();
+    this._applyProtocolUiState();
   }
 
   _applyReadOnlyState() {
@@ -2981,6 +3501,18 @@ export default class TopsView {
   async reloadList(keepSelection) {
     const list = this.listEl;
     if (!list) return;
+    if (!this.meetingId) {
+      // Idle
+      this.meetingMeta = null;
+      this.isReadOnly = false;
+      this.items = [];
+      this.selectedTopId = null;
+      this.selectedTop = null;
+      if (list) list.innerHTML = "";
+      this._updateTopBarProtocolTitle();
+      this._applyProtocolUiState();
+      return;
+    }
 
     this._reloadSeq = (this._reloadSeq || 0) + 1;
     const seq = this._reloadSeq;
