@@ -3123,6 +3123,7 @@ export default class SettingsView {
         tabHead.style.display = "flex";
         tabHead.style.gap = "8px";
         tabHead.style.marginBottom = "10px";
+        tabHead.style.flexWrap = "wrap";
 
         const tabBtnPdf = document.createElement("button");
         tabBtnPdf.textContent = "PDF-Einstellungen";
@@ -3140,6 +3141,11 @@ export default class SettingsView {
         btnSeitenlayout.type = "button";
         btnSeitenlayout.textContent = "Seitenlayout";
         applyPopupButtonStyle(btnSeitenlayout);
+
+        const btnEmails = document.createElement("button");
+        btnEmails.type = "button";
+        btnEmails.textContent = "E-Mails";
+        applyPopupButtonStyle(btnEmails);
 
         const applyTabButtonBase = (btn) => {
           btn.style.padding = "6px 10px";
@@ -3170,10 +3176,12 @@ export default class SettingsView {
         applyTabButtonBase(tabBtnRoles);
         applyTabButtonBase(tabBtnPreRemarks);
         applyTabButtonBase(btnSeitenlayout);
+        applyTabButtonBase(btnEmails);
         applyHover(tabBtnPdf);
         applyHover(tabBtnLogos);
         applyHover(tabBtnRoles);
         applyHover(btnSeitenlayout);
+        applyHover(btnEmails);
         applyHover(tabBtnPreRemarks);
 
         const tabBody = document.createElement("div");
@@ -3186,7 +3194,7 @@ export default class SettingsView {
           if (activeTab === "logos") {
             this.settingsModalEl.style.width = "min(1280px, 95vw)";
           } else {
-            this.settingsModalEl.style.width = "min(624px, calc(100vw - 24px))";
+            this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
           }
         };
 
@@ -3259,10 +3267,22 @@ export default class SettingsView {
           if (ok === true) this._setMsg("Vorbemerkung gespeichert");
         };
 
-        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks, btnSeitenlayout);
+        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks, btnSeitenlayout, btnEmails);
         btnSeitenlayout.onclick = async () => {
           this._closeSettingsModal();
           await openPrintLayoutModal();
+        };
+
+        btnEmails.onclick = async () => {
+          const emailBox = document.createElement("div");
+          emailBox.style.padding = "4px 2px";
+          emailBox.textContent = "E-Mail-Einstellungen folgen hier (Platzhalter).";
+          this._closeSettingsModal();
+          this._openSettingsModal({
+            title: "E-Mails",
+            content: [emailBox],
+            closeOnly: true,
+          });
         };
 
         tabWrap.append(tabHead, tabBody);
@@ -3676,7 +3696,7 @@ export default class SettingsView {
       const isPrintSettingsPopup = titleNorm === "druckeinstellungen";
       const isLayoutPopup = titleNorm === "druck-layout";
       if (isPrintSettingsPopup) {
-        this.settingsModalEl.style.width = "min(624px, calc(100vw - 24px))";
+        this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
       } else if (isLayoutPopup) {
         this.settingsModalEl.style.width = "min(344px, calc(100vw - 24px))";
       } else if (isCompactPopup) {
