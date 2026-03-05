@@ -155,6 +155,8 @@ function registerSettingsIpc() {
         "user_city",
         "firm_role_order",
         "firm_role_labels",
+        "email_subject",
+        "email_body",
         "header.logoSizePx",
         "header.logoPadLeftPx",
         "header.logoPadTopPx",

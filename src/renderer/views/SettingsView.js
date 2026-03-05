@@ -276,6 +276,10 @@ export default class SettingsView {
     root.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== "Escape") return;
 
+      // Enter in Textarea soll einen Zeilenumbruch erzeugen (kein globales Save/Close)
+      const tag = (e.target?.tagName || "").toString().toUpperCase();
+      if (e.key === "Enter" && tag === "TEXTAREA") return;
+
       const delOpen = this.deleteConfirmOverlayEl?.style?.display === "flex";
       const renOpen = this.renameOverlayEl?.style?.display === "flex";
       const settingsOpen = this._settingsModalOpen;
@@ -3122,8 +3126,9 @@ export default class SettingsView {
         const tabHead = document.createElement("div");
         tabHead.style.display = "flex";
         tabHead.style.gap = "8px";
-        tabHead.style.marginBottom = "10px";
         tabHead.style.flexWrap = "wrap";
+        tabHead.style.rowGap = "8px";
+        tabHead.style.marginBottom = "10px";
 
         const tabBtnPdf = document.createElement("button");
         tabBtnPdf.textContent = "PDF-Einstellungen";
@@ -3233,6 +3238,168 @@ export default class SettingsView {
           });
         };
 
+
+        const openEmailsModal = async () => {
+          const api = window.bbmDb || {};
+
+          const SUBJECT_PLACEHOLDER =
+            "<Bezeichnung der ausgewählten Datei> - <Projektbezeichnung>";
+          const BODY_PLACEHOLDER =
+            "Sehr geehrte Damen und Herren,\n" +
+            "anbei erhalten Sie das neue Protokoll für das o.g. Projekt mit der Bitte um Beachtung und Veranlassung";
+
+          // Gespeicherte Werte laden (falls vorhanden)
+          let subjectValue = "";
+          let bodyValue = "";
+          if (typeof api.appSettingsGetMany === "function") {
+            try {
+              const res = await api.appSettingsGetMany(["email_subject", "email_body"]);
+              if (res?.ok) {
+                const data = res.data || {};
+                const s = String(data.email_subject ?? "");
+                const b = String(data.email_body ?? "");
+                if (s.trim()) subjectValue = s;
+                if (b.trim()) bodyValue = b;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          const emailsBox = document.createElement("div");
+          emailsBox.style.display = "grid";
+          emailsBox.style.gap = "12px";
+          emailsBox.style.padding = "6px";
+          emailsBox.style.justifyItems = "start";
+          emailsBox.style.fontFamily = "Calibri, Arial, sans-serif";
+
+          // Betreff
+          const subjectWrap = document.createElement("div");
+          subjectWrap.style.display = "grid";
+          subjectWrap.style.gap = "6px";
+
+          const subjectLabel = document.createElement("div");
+          subjectLabel.textContent = "Betreff";
+          subjectLabel.style.fontWeight = "700";
+          subjectLabel.style.color = "#1f2937";
+
+          const inpSubject = document.createElement("input");
+          inpSubject.type = "text";
+          inpSubject.value = subjectValue; // leer, wenn nichts gespeichert -> Placeholder sichtbar
+          inpSubject.placeholder = SUBJECT_PLACEHOLDER;
+          inpSubject.style.width = "17cm";
+          inpSubject.style.maxWidth = "100%";
+          inpSubject.style.boxSizing = "border-box";
+          inpSubject.style.padding = "8px 10px";
+          inpSubject.style.borderRadius = "10px";
+          inpSubject.style.border = "1px solid rgba(0,0,0,0.18)";
+          inpSubject.style.outline = "none";
+          inpSubject.style.fontFamily = "Calibri, Arial, sans-serif";
+
+          // Controlled input: State nur lokal, keine Persistenz
+          let subjectState = inpSubject.value || "";
+          inpSubject.addEventListener("input", () => {
+            subjectState = inpSubject.value || "";
+          });
+
+          subjectWrap.append(subjectLabel, inpSubject);
+
+          // Body
+          const bodyWrap = document.createElement("div");
+          bodyWrap.style.display = "grid";
+          bodyWrap.style.gap = "6px";
+
+          const bodyLabelRow = document.createElement("div");
+          bodyLabelRow.style.display = "flex";
+          bodyLabelRow.style.alignItems = "center";
+          bodyLabelRow.style.justifyContent = "space-between";
+          bodyLabelRow.style.width = "17cm";
+          bodyLabelRow.style.maxWidth = "100%";
+
+          const bodyLabel = document.createElement("div");
+          bodyLabel.textContent = "E-Mail Text";
+          bodyLabel.style.fontWeight = "700";
+          bodyLabel.style.color = "#1f2937";
+
+          const remainingBadge = document.createElement("div");
+          remainingBadge.style.fontSize = "12px";
+          remainingBadge.style.opacity = "0.85";
+          remainingBadge.style.userSelect = "none";
+
+          const inpBody = document.createElement("textarea");
+          inpBody.value = bodyValue; // leer, wenn nichts gespeichert -> Placeholder sichtbar
+          inpBody.placeholder = BODY_PLACEHOLDER;
+          inpBody.style.width = "17cm";
+          inpBody.style.height = "6cm";
+          inpBody.style.maxWidth = "100%";
+          inpBody.style.boxSizing = "border-box";
+          inpBody.style.padding = "8px 10px";
+          inpBody.style.borderRadius = "10px";
+          inpBody.style.border = "1px solid rgba(0,0,0,0.18)";
+          inpBody.style.outline = "none";
+          inpBody.style.resize = "none";
+          inpBody.style.fontFamily = "Calibri, Arial, sans-serif";
+          inpBody.maxLength = 300;
+
+          let bodyState = inpBody.value || "";
+          const syncRemaining = () => {
+            const len = (inpBody.value || "").length;
+            const rest = Math.max(0, 300 - len);
+            remainingBadge.textContent = `${rest} Zeichen übrig`;
+          };
+          syncRemaining();
+
+          inpBody.addEventListener("input", () => {
+            // maxLength greift i. d. R. bereits, aber zur Sicherheit:
+            if ((inpBody.value || "").length > 300) {
+              inpBody.value = (inpBody.value || "").slice(0, 300);
+            }
+            bodyState = inpBody.value || "";
+            syncRemaining();
+          });
+
+          bodyLabelRow.append(bodyLabel, remainingBadge);
+          bodyWrap.append(bodyLabelRow, inpBody);
+
+          emailsBox.append(subjectWrap, bodyWrap);
+
+          this._openSettingsModal({
+            title: "E-Mails",
+            content: [emailsBox],
+            closeOnly: false,
+            saveFn: async () => {
+              // Werte direkt aus den Feldern lesen (garantiert der aktuell sichtbare Text)
+              const rawSubject = String(inpSubject?.value ?? "");
+              const rawBody = String(inpBody?.value ?? "");
+              const tSubject = rawSubject.trim();
+              const tBody = rawBody.trim();
+
+              // Wenn leer -> zurücksetzen auf "" (Placeholder erscheint wieder)
+              const payload = {
+                email_subject: tSubject ? rawSubject : "",
+                email_body: tBody ? rawBody : "",
+              };
+
+              const saveApi = window.bbmDb || {};
+              if (typeof saveApi.appSettingsSetMany !== "function") {
+                alert("Settings-API fehlt (appSettingsSetMany).");
+                return false;
+              }
+
+              const res = await saveApi.appSettingsSetMany(payload);
+              if (!res?.ok) {
+                alert(res?.error || "Speichern fehlgeschlagen.");
+                return false;
+              }
+
+              // State aktualisieren (rein lokal)
+              subjectState = rawSubject;
+              bodyState = rawBody;
+              return true;
+            },
+          });
+        };
+
         const showTab = (next) => {
           activeTab = next;
           tabBody.innerHTML = "";
@@ -3274,15 +3441,8 @@ export default class SettingsView {
         };
 
         btnEmails.onclick = async () => {
-          const emailBox = document.createElement("div");
-          emailBox.style.padding = "4px 2px";
-          emailBox.textContent = "E-Mail-Einstellungen folgen hier (Platzhalter).";
           this._closeSettingsModal();
-          this._openSettingsModal({
-            title: "E-Mails",
-            content: [emailBox],
-            closeOnly: true,
-          });
+          await openEmailsModal();
         };
 
         tabWrap.append(tabHead, tabBody);
