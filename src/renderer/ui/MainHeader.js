@@ -579,11 +579,11 @@ export default class MainHeader {
     mailBtn.type = "button";
     mailBtn.textContent = "E-Mail senden";
     applyActionTextButtonStyle(mailBtn);
-    mailBtn.onclick = (e) => {
+    mailBtn.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (mailBtn.disabled) return;
-      this._openMailClient();
+      await this._openMailClient();
     };
 
     printBtn.onclick = async (e) => {
@@ -1768,9 +1768,66 @@ export default class MainHeader {
     this.setStickyNotice(stickyFromContext);
   }
 
-  _openMailClient() {
+  async _getCurrentProjectMailContext() {
     const projectId = this.router?.currentProjectId || null;
-    const subject = projectId ? `Baubesprechung (Projekt ${projectId})` : "Baubesprechung";
+    const clean = (v) => String(v || "").trim();
+    const splitProjectLabel = (label) => {
+      const raw = clean(label);
+      if (!raw) return { projectNumber: "", projectShortName: "" };
+      const parts = raw.split(" - ");
+      if (parts.length >= 2) {
+        return {
+          projectNumber: clean(parts.shift()),
+          projectShortName: clean(parts.join(" - ")),
+        };
+      }
+      return { projectNumber: "", projectShortName: raw };
+    };
+
+    if (!projectId) {
+      return splitProjectLabel(this.router?.context?.projectLabel || "");
+    }
+
+    const api = window.bbmDb || {};
+    if (typeof api.projectsList === "function") {
+      try {
+        const res = await api.projectsList();
+        if (res?.ok && Array.isArray(res.list)) {
+          const project = res.list.find((x) => x && x.id === projectId) || null;
+          if (project) {
+            const projectNumber = clean(project.project_number ?? project.projectNumber ?? "");
+            const projectShortName = clean(project.short ?? project.short_name ?? project.projectShortName ?? "");
+            if (projectNumber || projectShortName) {
+              return { projectNumber, projectShortName };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[header] project mail context fallback used:", err);
+      }
+    }
+
+    const fallbackLabel =
+      (this._activeLabelForProjectId === projectId && this._activeLabel) ||
+      this.router?.context?.projectLabel ||
+      "";
+    return splitProjectLabel(fallbackLabel);
+  }
+
+  _buildEmailSubject({ projectNumber, projectShortName, mailType } = {}) {
+    const clean = (v) => String(v || "").trim();
+    const numberPart = clean(projectNumber);
+    const shortNamePart = clean(projectShortName);
+    const typePart = clean(mailType);
+    const base = [numberPart, shortNamePart].filter(Boolean).join(" - ");
+    if (!typePart) return base;
+    return base ? `${base} - ${typePart} -` : `${typePart} -`;
+  }
+
+  async _openMailClient(mailType = "") {
+    const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();
+    const subject =
+      this._buildEmailSubject({ projectNumber, projectShortName, mailType }) || "Baubesprechung";
     const body = "Hallo,\n\n";
     const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     try {
