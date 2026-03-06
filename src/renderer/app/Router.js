@@ -826,6 +826,14 @@ export default class Router {
     }
   }
 
+  async autoPrintClosedMeeting({ projectId, meetingId } = {}) {
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printClosedMeetingDirect !== "function") {
+      throw new Error("PrintModal unterstützt keinen Direktdruck für geschlossene Protokolle.");
+    }
+    return await pm.printClosedMeetingDirect({ projectId, meetingId });
+  }
+
   async openTodoPrintPreview({ projectId, meetingId } = {}) {
     const pm = await this._ensurePrintModal();
     if (typeof pm?.openTodoPrintPreview !== "function") {
