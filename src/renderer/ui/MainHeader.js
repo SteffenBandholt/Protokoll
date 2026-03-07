@@ -1,4 +1,4 @@
-﻿// src/renderer/ui/MainHeader.js
+// src/renderer/ui/MainHeader.js
 //
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
@@ -1931,6 +1931,55 @@ export default class MainHeader {
     return base ? `${base} - ${typePart}` : typePart;
   }
 
+  async _getSelectedMeetingRecipients() {
+    const selectedMeeting =
+      this.router?.activeView?.getSelectedClosedMeetingForEmail?.() ||
+      this.router?.activeView?.getSelectedClosedMeeting?.() ||
+      null;
+    const meetingId = selectedMeeting?.id || null;
+    if (!meetingId) return [];
+
+    const api = window.bbmDb || {};
+    if (typeof api.meetingParticipantsList !== "function") return [];
+
+    try {
+      const res = await api.meetingParticipantsList({ meetingId });
+      const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res?.list) ? res.list : [];
+      if (!res?.ok || !rows.length) return [];
+
+      const seen = new Set();
+      const recipients = [];
+      for (const item of rows) {
+        const inDistribution = Number(
+          item?.isInDistribution ??
+          item?.is_in_distribution ??
+          item?.inDistribution ??
+          item?.in_distribution ??
+          0
+        ) === 1;
+        if (!inDistribution) continue;
+
+        const email = String(
+          item?.email ??
+          item?.email_raw ??
+          item?.mail ??
+          item?.e_mail ??
+          ""
+        ).trim();
+        if (!email) continue;
+
+        const key = email.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        recipients.push(email);
+      }
+      return recipients;
+    } catch (err) {
+      console.warn("[header] recipients lookup failed:", err);
+      return [];
+    }
+  }
+
   async _openMailClient(mailType = "") {
     const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();
     const emailTemplate = await this._getStoredEmailTemplate();
@@ -1964,7 +2013,9 @@ export default class MainHeader {
         "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
     }
 
-    const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const recipients = await this._getSelectedMeetingRecipients();
+    const toPart = recipients.length ? encodeURIComponent(recipients.join(",")) : "";
+    const mailto = `mailto:${toPart}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     try {
       window.location.href = mailto;
     } catch (err) {
