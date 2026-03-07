@@ -12,7 +12,7 @@ import { fireAndForget } from "../utils/async.js";
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 
 export default class TopsView {
-  constructor({ router, projectId, meetingId, readOnly = false }) {
+  constructor({ router, projectId, meetingId }) {
     this.router = router;
     this.projectId = projectId;
     this.meetingId = meetingId;
@@ -24,8 +24,7 @@ export default class TopsView {
     this.selectedTop = null;
 
     this.meetingMeta = null;
-    this.readOnlyFromMeetingsView = !!readOnly;
-    this.isReadOnly = !!readOnly;
+    this.isReadOnly = false;
 
     // Editbox buttons
     this.btnL1 = null;
@@ -408,7 +407,7 @@ _isoToDDMMYYYY(iso) {
       }
       if (res.meeting) {
         this.meetingMeta = res.meeting;
-        this.isReadOnly = this.readOnlyFromMeetingsView || (this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false);
+        this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
       }
       this._updateTopBarProtocolTitle();
       close();
@@ -1698,6 +1697,12 @@ _isoToDDMMYYYY(iso) {
     btnEndMeeting.onclick = async () => {
       if (this._busy) return;
 
+      const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
+      if (isClosedMeeting) {
+        await this._enterIdleAfterClose();
+        return;
+      }
+
       const defDate = this._computeNextMeetingDefaultDateIso();
       const promptRes = await this.router?.promptNextMeetingSettings?.({
         defaultDateIso: defDate,
@@ -2973,10 +2978,12 @@ async _enterIdleAfterClose() {
     }
 
     if (this.btnEndMeeting) {
-      // "Protokoll schließen" darf immer schließen (auch bei read-only),
-      // nur bei busy sperren.
       this.btnEndMeeting.disabled = busy;
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
+      this.btnEndMeeting.textContent = ro ? "Schließen" : "Protokoll schließen";
+      this.btnEndMeeting.title = ro
+        ? "Geschlossenes Protokoll verlassen"
+        : "Protokoll schließen";
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
@@ -3417,7 +3424,7 @@ async _enterIdleAfterClose() {
     }
 
     this.meetingMeta = res.meeting || null;
-    this.isReadOnly = this.readOnlyFromMeetingsView || (this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false);
+    this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
     this._updateTopBarProtocolTitle();
 
     const items = res.list || [];
