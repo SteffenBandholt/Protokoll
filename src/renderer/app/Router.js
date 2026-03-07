@@ -485,16 +485,19 @@ export default class Router {
     );
   }
 
-  async showTops(meetingId, projectId) {
+  async showTops(meetingId, projectId, options = {}) {
     const mod = await import("../views/TopsView.js");
     const V = mod.default;
+
+    const opts = options && typeof options === "object" ? options : {};
+    const readOnly = !!opts.readOnly;
 
     this.currentProjectId = projectId || this.currentProjectId || null;
     this.currentMeetingId = meetingId || null;
     this.lastTopsProjectId = this.currentProjectId || null;
     this.lastTopsMeetingId = this.currentMeetingId || null;
 
-    await this.show(new V({ router: this, meetingId, projectId }), {
+    await this.show(new V({ router: this, meetingId, projectId, readOnly }), {
       section: "meetings",
       isTopsView: true,
       pageTitle: "Protokoll",

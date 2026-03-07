@@ -4215,6 +4215,22 @@ export default class PrintModal {
     });
   }
 
+  async printClosedMeetingDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.projectId || this.router?.currentProjectId || null;
+    const effectiveMeetingId = meetingId || this.selectedMeetingId || null;
+    if (!effectiveProjectId) throw new Error("Projekt-Kontext fehlt.");
+    if (!effectiveMeetingId) throw new Error("Besprechung fehlt.");
+
+    await this._printMeeting({
+      projectId: effectiveProjectId,
+      meetingId: effectiveMeetingId,
+      allowOpen: false,
+      mode: "closed",
+      closeModalAfter: false,
+      preview: false,
+    });
+  }
+
   async _printMeeting({ projectId, meetingId, allowOpen, mode, closeModalAfter, preview } = {}) {
     if (this.printing) return;
 

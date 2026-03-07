@@ -31,8 +31,8 @@ export default class TopsView {
     this.btnChild = null;
 
     // Topbar buttons
-    this.btnEndMeeting = null; // "Protokoll schließen"
-    this.btnCloseMeeting = null; // "zurück"
+    this.btnEndMeeting = null; // "Protokoll beenden"
+    this.btnCloseMeeting = null; // "Schließen"
     this.btnLongToggle = null;
 
     this.btnAmpelToggle = null;
@@ -1687,9 +1687,9 @@ _isoToDDMMYYYY(iso) {
       b.style.flex = "0 0 auto";
     };
 
-    // "Protokoll schließen"
+    // "Protokoll beenden"
     const btnEndMeeting = document.createElement("button");
-    btnEndMeeting.textContent = "Protokoll schließen";
+    btnEndMeeting.textContent = "Protokoll beenden";
     btnEndMeeting.style.background = "#ef6c00";
     btnEndMeeting.style.color = "white";
     btnEndMeeting.style.border = "1px solid rgba(0,0,0,0.25)";
@@ -1774,6 +1774,17 @@ _isoToDDMMYYYY(iso) {
       };
 
       await attemptClose();
+    };
+
+    const btnCloseMeeting = document.createElement("button");
+    btnCloseMeeting.textContent = "Schließen";
+    btnCloseMeeting.style.background = "#fff";
+    btnCloseMeeting.style.color = "#222";
+    btnCloseMeeting.style.border = "1px solid rgba(0,0,0,0.25)";
+    styleBtnBase(btnCloseMeeting);
+    btnCloseMeeting.onclick = async () => {
+      if (this._busy) return;
+      await this._closeViewOnly();
     };
 
     // + Titel
@@ -1962,7 +1973,7 @@ _isoToDDMMYYYY(iso) {
     actionBtnsWrap.style.alignItems = "center";
     actionBtnsWrap.style.gap = "8px";
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
-    actionBtnsWrap.append(btnAmpelToggle, btnLongToggle, btnEndMeeting);
+    actionBtnsWrap.append(btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
 
     // Feldbezeichnungen rechts über Meta-Spalte (Platz immer reserviert)
     const topMeta = document.createElement("div");
@@ -2311,7 +2322,7 @@ _isoToDDMMYYYY(iso) {
     this.btnChild = btnChild;
 
     this.btnEndMeeting = btnEndMeeting;
-    this.btnCloseMeeting = null;
+    this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
     this.btnAmpelToggle = btnAmpelToggle;
 
@@ -2944,8 +2955,8 @@ async _createMeetingFromIdle() {
   }
 }
 
-async _enterIdleAfterClose() {
-  // Nach dem Schließen im TopsView bleiben und Idle anzeigen.
+aasync _enterIdleAfterClose() {
+  // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
   this.meetingId = null;
   this.meetingMeta = null;
   this.selectedTopId = null;
@@ -2956,6 +2967,37 @@ async _enterIdleAfterClose() {
   this._renderIdleState();
 }
 
+async _findOpenMeetingIdForProject() {
+  const pid = this.projectId || this.router?.currentProjectId || null;
+  const api = window.bbmDb || {};
+  if (!pid || typeof api.meetingsListByProject !== "function") return null;
+
+  try {
+    const res = await api.meetingsListByProject(pid);
+    if (!res?.ok) return null;
+    const list = Array.isArray(res.list) ? res.list : [];
+    const openMeeting = list.find((m) => Number(m?.is_closed) === 0);
+    return openMeeting?.id || null;
+  } catch (err) {
+    console.warn("[TopsView] _findOpenMeetingIdForProject failed:", err);
+    return null;
+  }
+}
+
+async _closeViewOnly() {
+  const pid = this.projectId || this.router?.currentProjectId || null;
+  const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
+
+  if (isClosedMeeting) {
+    const openMeetingId = await this._findOpenMeetingIdForProject();
+    if (openMeetingId) {
+      await this.router?.showTops?.(openMeetingId, pid);
+      return;
+    }
+  }
+
+  await this.router?.showProjects?.();
+}
   _applyReadOnlyState() {
     const ro = !!this.isReadOnly;
     const busy = !!this._busy;
@@ -2972,10 +3014,9 @@ async _enterIdleAfterClose() {
     }
 
     if (this.btnEndMeeting) {
-      // "Protokoll schließen" darf immer schließen (auch bei read-only),
-      // nur bei busy sperren.
-      this.btnEndMeeting.disabled = busy;
+      this.btnEndMeeting.disabled = ro || busy;
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
+      this.btnEndMeeting.style.display = ro ? "none" : "";
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;

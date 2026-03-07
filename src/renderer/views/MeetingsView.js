@@ -530,7 +530,7 @@ export default class MeetingsView {
 
         if (isDouble) {
           try {
-            const r = this.router?.showTops?.(m.id, this.projectId);
+            const r = this.router?.showTops?.(m.id, this.projectId, { readOnly: true });
             if (r && typeof r.catch === "function") {
               r.catch(() => {});
             }
@@ -552,7 +552,7 @@ export default class MeetingsView {
           this._selectClosedMeetingForPrint(m);
           return;
         }
-        this.router.showTops(m.id, this.projectId);
+        this.router.showTops(m.id, this.projectId, { readOnly: true });
       });
 
       list.appendChild(li);
