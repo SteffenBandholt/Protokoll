@@ -317,6 +317,14 @@ export default class MeetingsView {
     this.renderList();
   }
 
+  getSelectedClosedMeetingForEmail() {
+    const mid = this.selectedMeetingId || null;
+    if (!mid) return null;
+    const meeting = (this.meetings || []).find((m) => m && m.id === mid) || null;
+    if (!meeting || Number(meeting.is_closed) !== 1) return null;
+    return meeting;
+  }
+
   async _openSelectedPdfPreview() {
     if (this._printBusy) return;
 
