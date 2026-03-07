@@ -485,16 +485,19 @@ export default class Router {
     );
   }
 
-  async showTops(meetingId, projectId) {
+  async showTops(meetingId, projectId, options = {}) {
     const mod = await import("../views/TopsView.js");
     const V = mod.default;
+
+    const opts = options && typeof options === "object" ? options : {};
+    const readOnly = !!opts.readOnly;
 
     this.currentProjectId = projectId || this.currentProjectId || null;
     this.currentMeetingId = meetingId || null;
     this.lastTopsProjectId = this.currentProjectId || null;
     this.lastTopsMeetingId = this.currentMeetingId || null;
 
-    await this.show(new V({ router: this, meetingId, projectId }), {
+    await this.show(new V({ router: this, meetingId, projectId, readOnly }), {
       section: "meetings",
       isTopsView: true,
       pageTitle: "Protokoll",
@@ -824,14 +827,6 @@ export default class Router {
     } finally {
       await this.closePrintModal({ keepPreview: true });
     }
-  }
-
-  async autoPrintClosedMeeting({ projectId, meetingId } = {}) {
-    const pm = await this._ensurePrintModal();
-    if (typeof pm?.printClosedMeetingDirect !== "function") {
-      throw new Error("PrintModal unterstützt keinen Direktdruck für geschlossene Protokolle.");
-    }
-    return await pm.printClosedMeetingDirect({ projectId, meetingId });
   }
 
   async openTodoPrintPreview({ projectId, meetingId } = {}) {

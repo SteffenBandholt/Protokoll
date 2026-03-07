@@ -12,7 +12,7 @@ import { fireAndForget } from "../utils/async.js";
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 
 export default class TopsView {
-  constructor({ router, projectId, meetingId }) {
+  constructor({ router, projectId, meetingId, readOnly = false }) {
     this.router = router;
     this.projectId = projectId;
     this.meetingId = meetingId;
@@ -24,7 +24,8 @@ export default class TopsView {
     this.selectedTop = null;
 
     this.meetingMeta = null;
-    this.isReadOnly = false;
+    this.readOnlyFromMeetingsView = !!readOnly;
+    this.isReadOnly = !!readOnly;
 
     // Editbox buttons
     this.btnL1 = null;
@@ -407,7 +408,7 @@ _isoToDDMMYYYY(iso) {
       }
       if (res.meeting) {
         this.meetingMeta = res.meeting;
-        this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
+        this.isReadOnly = this.readOnlyFromMeetingsView || (this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false);
       }
       this._updateTopBarProtocolTitle();
       close();
@@ -1732,25 +1733,9 @@ _isoToDDMMYYYY(iso) {
 
         const res = await window.bbmDb.meetingsClose(closePayload);
         if (res?.ok) {
-          let closeNotice = "";
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
-            closeNotice = `Hinweis beim Schlieﬂen:
-${res.warnings.join("\n")}`;
+            alert(`Hinweis beim Schlie√üen:\n${res.warnings.join("\n")}`);
           }
-          try {
-            await this.router?.autoPrintClosedMeeting?.({
-              projectId: this.projectId,
-              meetingId: this.meetingId,
-            });
-          } catch (printErr) {
-            const msg = printErr?.message || printErr || "Unbekannter Fehler";
-            const base = closeNotice ? `${closeNotice}\n\n` : "";
-            alert(`${base}Protokoll wurde geschlossen, aber der PDF-Druck ist fehlgeschlagen:
-${msg}`);
-            await this._enterIdleAfterClose();
-            return;
-          }
-          if (closeNotice) alert(closeNotice);
           await this._enterIdleAfterClose();
           return;
         }
@@ -3432,7 +3417,7 @@ async _enterIdleAfterClose() {
     }
 
     this.meetingMeta = res.meeting || null;
-    this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
+    this.isReadOnly = this.readOnlyFromMeetingsView || (this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false);
     this._updateTopBarProtocolTitle();
 
     const items = res.list || [];
