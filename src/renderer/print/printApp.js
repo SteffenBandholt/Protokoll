@@ -443,7 +443,7 @@ function _collectProtocolFooterLines(settings) {
   const lineZipCity = [footerZip, footerCity].filter((v) => v).join(" ").trim();
   const lines = [linePlaceDate, footerName1, footerName2, footerRecorder, footerStreet, lineZipCity].filter((v) => v);
   if (lines.length) return lines;
-  return ["Keine Angaben - Einstellungen > Drucken > Protokoll-Fuss"];
+  return ["Keine Angaben - Projekt > Bearbeiten > Einstellungen"];
 }
 
 function _buildProtocolFooterElement(data) {

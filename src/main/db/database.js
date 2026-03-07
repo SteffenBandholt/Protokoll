@@ -602,6 +602,49 @@ function ensureProjectFirmsAndPersonsSchema(dbConn) {
 }
 
 // ✅ NEU: Kandidaten-Whitelist je Projekt
+
+function ensureProjectSettingsSchema(dbConn) {
+  if (!tableExists(dbConn, "project_settings")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS project_settings (
+        project_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        PRIMARY KEY (project_id, key),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+    `);
+    return;
+  }
+
+  const addCol = (name, sqlType) => {
+    if (!columnExists(dbConn, "project_settings", name)) {
+      dbConn.exec(`ALTER TABLE project_settings ADD COLUMN ${name} ${sqlType};`);
+    }
+  };
+
+  addCol("project_id", "TEXT");
+  addCol("key", "TEXT");
+  addCol("value", "TEXT");
+
+  if (!columnExists(dbConn, "project_settings", "created_at")) {
+    dbConn.exec(`
+      ALTER TABLE project_settings
+      ADD COLUMN created_at TEXT NOT NULL
+      DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+    `);
+  }
+  if (!columnExists(dbConn, "project_settings", "updated_at")) {
+    dbConn.exec(`
+      ALTER TABLE project_settings
+      ADD COLUMN updated_at TEXT NOT NULL
+      DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'));
+    `);
+  }
+}
+
 function ensureProjectCandidatesSchema(dbConn) {
   if (!tableExists(dbConn, "project_candidates")) {
     dbConn.exec(`
@@ -1068,6 +1111,7 @@ function ensureSchema(dbConn) {
   ensureProjectGlobalFirmsSchema(dbConn);
   ensureProjectFirmsAndPersonsSchema(dbConn);
 
+  ensureProjectSettingsSchema(dbConn);
   ensureProjectCandidatesSchema(dbConn);
   ensureMeetingParticipantsSchema(dbConn);
 

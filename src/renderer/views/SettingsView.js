@@ -2612,20 +2612,7 @@ export default class SettingsView {
 
     pdfSettingsBox.append(
       pdfSettingsTitle,
-      mkRow("Speicherort Protokolle", protocolsRow),
-      pdfHeaderTitle,
-      mkRow("Name des Protokolls", inpPdfProtocolTitle),
-      pdfFooterTitle,
-      pdfFooterCaption,
-      mkRow("Nutzerdaten uebernehmen", btnPdfFooterUseUserData),
-      mkRow("Ort (Ort, Datum)", inpPdfFooterPlace),
-      mkRow("Datum", inpPdfFooterDate),
-      mkRow("Name1", inpPdfFooterName1),
-      mkRow("Name2", inpPdfFooterName2),
-      mkRow("Protokollfuehrer", inpPdfFooterRecorder),
-      mkRow("Str./HsNr.", inpPdfFooterStreet),
-      mkRow("PLZ", inpPdfFooterZip),
-      mkRow("Ort (Adresse)", inpPdfFooterCity)
+      mkRow("Speicherort Protokolle", protocolsRow)
     );
 
     const logosBox = document.createElement("div");

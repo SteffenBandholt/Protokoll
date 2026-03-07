@@ -25,7 +25,7 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const city = String(settings["pdf.footerCity"] || "").trim();
   const hasAnyUserField = !!(name1 || name2 || street || zip || city);
   const userBox = headerUtils.el("div", "v2UserBox");
-  const userHint = "Nutzerdaten fehlen - Einstellungen > Drucken > Nutzerdaten";
+  const userHint = "Keine Angaben - Projekt > Bearbeiten > Einstellungen";
 
   if (!useUserData && !hasAnyUserField) {
     userBox.appendChild(headerUtils.el("div", "v2UserPlaceholder", userHint));

@@ -1,4 +1,4 @@
-﻿// src/main/main.js
+// src/main/main.js
 //
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
@@ -16,6 +16,7 @@ const { registerProjectFirmsIpc } = require("./ipc/projectFirmsIpc");
 const { registerParticipantsIpc } = require("./ipc/participantsIpc");
 const { registerPrintIpc } = require("./ipc/printIpc");
 const { registerSettingsIpc } = require("./ipc/settingsIpc");
+const { registerProjectSettingsIpc } = require("./ipc/projectSettingsIpc");
 const { registerEditorIpc } = require("./ipc/editorIpc");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
@@ -364,6 +365,7 @@ app.whenReady().then(async () => {
   registerParticipantsIpc();
   registerPrintIpc();
   registerSettingsIpc();
+  registerProjectSettingsIpc();
   registerEditorIpc({ getMainWindow: () => mainWindow });
 
   // ============================================================
@@ -568,7 +570,7 @@ app.whenReady().then(async () => {
   });
 
   console.log(
-    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, app:*"
+    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, app:*"
   );
 
   // Fenster erst danach (damit Renderer nichts "zu früh" invoken kann)
