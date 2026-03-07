@@ -2955,7 +2955,7 @@ async _createMeetingFromIdle() {
   }
 }
 
-aasync _enterIdleAfterClose() {
+async _enterIdleAfterClose() {
   // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
   this.meetingId = null;
   this.meetingMeta = null;
