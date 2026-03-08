@@ -4408,9 +4408,16 @@ export default class PrintModal {
         meetingIndex: meetingNr,
         meetingDate: meetingDateRaw || new Date(),
       });
+      const fallbackProtocolFileName = (() => {
+        const meetingDateDot = String(meetingDateStr || "").split("-").reverse().join(".");
+        const cleanShort = this._sanitizeFileSegment(projectShortName || "");
+        return cleanShort
+          ? `${projectNumber}_${cleanShort}_${protocolName}_#${meetingNr} - ${meetingDateDot}.pdf`
+          : `${projectNumber}_${protocolName}_#${meetingNr} - ${meetingDateDot}.pdf`;
+      })();
       const fn = isVorabzug
         ? this._sanitizeFileName(`BBM ${projectLabel || ""} ${meetingLabel}${suffix}`) + ".pdf"
-        : this._sanitizeFileName(protocolFileName || `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`) ;
+        : this._sanitizeFileName((protocolFileName || fallbackProtocolFileName).replace(/\.pdf$/i, "")) + ".pdf";
 
       const nextMeetingSettingsForPrint = {
         "print.nextMeeting.enabled": String(settings?.["print.nextMeeting.enabled"] ?? "").trim(),
