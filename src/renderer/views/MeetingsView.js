@@ -372,11 +372,8 @@ export default class MeetingsView {
     this.closedMeetings = this.meetings.filter((m) => Number(m.is_closed) === 1);
     this.openMeetingId =
       this.meetings.find((m) => Number(m.is_closed) === 0)?.id || null;
-    if (!this.meetings.some((m) => m.id === this.selectedMeetingId)) {
+    if (!this.closedMeetings.some((m) => m.id === this.selectedMeetingId)) {
       this.selectedMeetingId = null;
-    }
-    if (!this.printSelectionMode && !this.selectedMeetingId && this.openMeetingId) {
-      this.selectedMeetingId = this.openMeetingId;
     }
     this.renderList();
     this._updateBackButtonState();
@@ -397,7 +394,7 @@ export default class MeetingsView {
     }
 
     const term = (this.searchText || "").trim().toLowerCase();
-    const base = this.meetings || [];
+    const base = this.closedMeetings || [];
 
     if (!term) {
       this.filteredMeetings = base;
@@ -442,6 +439,12 @@ export default class MeetingsView {
     this.filteredMeetings = results;
     this.filterBusy = false;
     this.renderList();
+  }
+
+  getSelectedClosedMeetingForEmail() {
+    const mid = this.selectedMeetingId || null;
+    if (!mid) return null;
+    return (this.closedMeetings || []).find((m) => m && m.id === mid) || null;
   }
 
   async _openSelectedPdfPreview() {
@@ -568,7 +571,7 @@ export default class MeetingsView {
       return `#${idx} - ${raw}`;
     };
 
-    const base = this.meetings || [];
+    const base = this.closedMeetings || [];
     const visible = this.filterEnabled
       ? this.filteredMeetings || []
       : base;
@@ -601,26 +604,11 @@ export default class MeetingsView {
       const closed = Number(m.is_closed) === 1;
       const selectableInPrintMode = !this.printSelectionMode || closed;
       const displayTitle = formatMeetingLabel(m);
-      const isOpen = this.openMeetingId && m.id === this.openMeetingId;
+      const isOpen = false;
       li.textContent = "";
       const titleLine = document.createElement("div");
       titleLine.textContent = `${displayTitle}${closed ? " (geschlossen)" : ""}`;
       li.appendChild(titleLine);
-      if (isOpen) {
-        li.style.display = "flex";
-        li.style.flexDirection = "column";
-        li.style.justifyContent = "center";
-        const openLabel = document.createElement("div");
-        openLabel.textContent = "offen - in Bearbeitung";
-        openLabel.style.marginTop = "0";
-        openLabel.style.width = "100%";
-        openLabel.style.textAlign = "center";
-        openLabel.style.color = "#8bc34a";
-        openLabel.style.fontWeight = "600";
-        openLabel.style.fontSize = "inherit";
-        openLabel.style.lineHeight = "1.2";
-        li.appendChild(openLabel);
-      }
       if (closed) li.style.opacity = "0.75";
       if (this.printSelectionMode && !closed) li.style.opacity = "0.45";
       const isSelected = !this.printSelectionMode && this.selectedMeetingId && m.id === this.selectedMeetingId;

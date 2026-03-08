@@ -1,4 +1,4 @@
-﻿// src/renderer/ui/MainHeader.js
+// src/renderer/ui/MainHeader.js
 //
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
@@ -1814,22 +1814,255 @@ export default class MainHeader {
     return splitProjectLabel(fallbackLabel);
   }
 
-  _buildEmailSubject({ projectNumber, projectShortName, mailType } = {}) {
+  _formatEmailDate(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const direct = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (direct) return `${direct[3]}.${direct[2]}.${direct[1]}`;
+    const already = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (already) return raw;
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return "";
+    const dd = String(parsed.getDate()).padStart(2, "0");
+    const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(parsed.getFullYear());
+    return `${dd}.${mm}.${yyyy}`;
+  }
+
+  async _resolveProtocolTitleForEmail(projectId) {
+    const api = window.bbmDb || {};
+    try {
+      if (projectId && typeof api.projectSettingsGetMany === "function") {
+        const res = await api.projectSettingsGetMany({
+          projectId,
+          keys: ["pdf.protocolTitle"],
+        });
+        if (res?.ok) {
+          const title = String(res?.data?.["pdf.protocolTitle"] || "").trim();
+          if (title) return title;
+        }
+      }
+    } catch (_err) {
+      // ignore
+    }
+    const title = String(this.router?.context?.settings?.["pdf.protocolTitle"] || "").trim();
+    return title || "Protokoll";
+  }
+
+  async _getStoredEmailTemplate() {
+    const api = window.bbmDb || {};
+    const out = { subject: "", body: "" };
+    if (typeof api.appSettingsGetMany !== "function") return out;
+    try {
+      const res = await api.appSettingsGetMany(["email_subject", "email_body"]);
+      if (!res?.ok) return out;
+      const data = res.data || {};
+      out.subject = String(data.email_subject || "");
+      out.body = String(data.email_body || "");
+    } catch (_err) {
+      // ignore
+    }
+    return out;
+  }
+
+  _buildEmailTemplateContext({ projectNumber, projectShortName, protocolTitle, meeting } = {}) {
+    const clean = (v) => String(v || "").trim();
+    const idxRaw = meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+    const idx = clean(idxRaw);
+    const dateRaw =
+      meeting?.meeting_date ||
+      meeting?.meetingDate ||
+      meeting?.date ||
+      meeting?.created_at ||
+      meeting?.createdAt ||
+      "";
+    const date = this._formatEmailDate(dateRaw);
+    return {
+      projectNumber: clean(projectNumber),
+      projectShortName: clean(projectShortName),
+      protocolTitle: clean(protocolTitle) || "Protokoll",
+      meetingIndex: idx,
+      meetingDate: date,
+    };
+  }
+
+  _defaultMeetingEmailSubject(context = {}) {
+    const clean = (v) => String(v || "").trim();
+    const left = [clean(context.projectNumber), clean(context.projectShortName)].filter(Boolean).join(" - ");
+    let right = clean(context.protocolTitle) || "Protokoll";
+    if (clean(context.meetingIndex)) right += ` #${clean(context.meetingIndex)}`;
+    if (clean(context.meetingDate)) right += ` - ${clean(context.meetingDate)}`;
+    if (left && right) return `${left}  |  ${right}`;
+    return left || right;
+  }
+
+  _applyEmailSubjectTemplate(template, context = {}) {
+    const raw = String(template || "");
+    if (!raw.trim()) return this._defaultMeetingEmailSubject(context);
+    const replacements = {
+      '{projectNumber}': String(context.projectNumber || ''),
+      '{projectShortName}': String(context.projectShortName || ''),
+      '{protocolTitle}': String(context.protocolTitle || ''),
+      '{meetingIndex}': String(context.meetingIndex || ''),
+      '{meetingDate}': String(context.meetingDate || ''),
+    };
+    let out = raw;
+    Object.entries(replacements).forEach(([token, value]) => {
+      out = out.split(token).join(value);
+    });
+    out = out
+      .replace(/\s+\|\s+\|\s+/g, '  |  ')
+      .replace(/\s*\|\s*/g, '  |  ')
+      .replace(/\s{3,}/g, '  ')
+      .replace(/\s+-\s+-\s+/g, ' - ')
+      .replace(/\s+#\s+-/g, ' -')
+      .replace(/\|\s*$/g, '')
+      .trim();
+    return out || this._defaultMeetingEmailSubject(context);
+  }
+
+  _buildFallbackEmailSubject({ projectNumber, projectShortName, mailType } = {}) {
     const clean = (v) => String(v || "").trim();
     const numberPart = clean(projectNumber);
     const shortNamePart = clean(projectShortName);
     const typePart = clean(mailType);
     const base = [numberPart, shortNamePart].filter(Boolean).join(" - ");
     if (!typePart) return base;
-    return base ? `${base} - ${typePart} -` : `${typePart} -`;
+    return base ? `${base} - ${typePart}` : typePart;
+  }
+
+  async _getSelectedMeetingRecipients() {
+    const selectedMeeting =
+      this.router?.activeView?.getSelectedClosedMeetingForEmail?.() ||
+      this.router?.activeView?.getSelectedClosedMeeting?.() ||
+      null;
+    const meetingId = selectedMeeting?.id || null;
+    if (!meetingId) return [];
+
+    const api = window.bbmDb || {};
+    if (typeof api.meetingParticipantsList !== "function") return [];
+
+    const getRows = (res) =>
+      Array.isArray(res?.items) ? res.items : Array.isArray(res?.list) ? res.list : [];
+
+    const readEmail = (item) =>
+      String(
+        item?.email ??
+        item?.email_raw ??
+        item?.mail ??
+        item?.e_mail ??
+        item?.person_email ??
+        item?.personEmail ??
+        item?.participant_email ??
+        item?.participantEmail ??
+        ""
+      ).trim();
+
+    const hasDistributionField = (item) =>
+      item &&
+      (
+        Object.prototype.hasOwnProperty.call(item, "isInDistribution") ||
+        Object.prototype.hasOwnProperty.call(item, "is_in_distribution") ||
+        Object.prototype.hasOwnProperty.call(item, "inDistribution") ||
+        Object.prototype.hasOwnProperty.call(item, "in_distribution") ||
+        Object.prototype.hasOwnProperty.call(item, "send_email") ||
+        Object.prototype.hasOwnProperty.call(item, "sendEmail") ||
+        Object.prototype.hasOwnProperty.call(item, "email_enabled") ||
+        Object.prototype.hasOwnProperty.call(item, "emailEnabled")
+      );
+
+    const inDistribution = (item) =>
+      Number(
+        item?.isInDistribution ??
+        item?.is_in_distribution ??
+        item?.inDistribution ??
+        item?.in_distribution ??
+        item?.send_email ??
+        item?.sendEmail ??
+        item?.email_enabled ??
+        item?.emailEnabled ??
+        0
+      ) === 1;
+
+    try {
+      const res = await api.meetingParticipantsList({ meetingId });
+      const rows = getRows(res);
+      if (!res?.ok || !rows.length) return [];
+
+      const anyDistributionField = rows.some((item) => hasDistributionField(item));
+
+      const seen = new Set();
+      const recipients = [];
+
+      for (const item of rows) {
+        if (anyDistributionField && !inDistribution(item)) continue;
+
+        const email = readEmail(item);
+        if (!email) continue;
+
+        const key = email.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        recipients.push(email);
+      }
+
+      if (recipients.length) return recipients;
+
+      // Fallback: wenn kein Verteilerkennzeichen gepflegt ist oder nichts markiert wurde,
+      // dann alle Teilnehmer mit E-Mail aus der Teilnehmerliste übernehmen.
+      for (const item of rows) {
+        const email = readEmail(item);
+        if (!email) continue;
+
+        const key = email.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        recipients.push(email);
+      }
+
+      return recipients;
+    } catch (err) {
+      console.warn("[header] recipients lookup failed:", err);
+      return [];
+    }
   }
 
   async _openMailClient(mailType = "") {
     const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();
-    const subject =
-      this._buildEmailSubject({ projectNumber, projectShortName, mailType }) || "Baubesprechung";
-    const body = "Hallo,\n\n";
-    const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const emailTemplate = await this._getStoredEmailTemplate();
+    const selectedMeeting = this.router?.activeView?.getSelectedClosedMeetingForEmail?.() || null;
+    const projectId = this.router?.currentProjectId || this.router?.context?.projectId || null;
+    const protocolTitle = await this._resolveProtocolTitleForEmail(projectId);
+
+    if (!selectedMeeting && this.router?.activeView?.constructor?.name === "MeetingsView") {
+      alert("Bitte ein geschlossenes Protokoll in der Liste auswählen.");
+      return;
+    }
+
+    let subject = String(emailTemplate.subject || "").trim();
+    if (selectedMeeting) {
+      const templateContext = this._buildEmailTemplateContext({
+        projectNumber,
+        projectShortName,
+        protocolTitle,
+        meeting: selectedMeeting,
+      });
+      subject = this._applyEmailSubjectTemplate(subject, templateContext);
+    }
+    if (!subject) {
+      subject = this._buildFallbackEmailSubject({ projectNumber, projectShortName, mailType }) || "Protokoll";
+    }
+
+    let body = String(emailTemplate.body || "");
+    if (!body.trim()) {
+      body =
+        "Sehr geehrte Damen und Herren,\n\n" +
+        "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
+    }
+
+    const recipients = await this._getSelectedMeetingRecipients();
+    const toPart = recipients.length ? encodeURIComponent(recipients.join(",")) : "";
+    const mailto = `mailto:${toPart}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     try {
       window.location.href = mailto;
     } catch (err) {
@@ -1837,5 +2070,6 @@ export default class MainHeader {
       alert("E-Mail konnte nicht geöffnet werden.");
     }
   }
+
 
 }

@@ -1,4 +1,4 @@
-// src/renderer/views/SettingsView.js
+﻿// src/renderer/views/SettingsView.js
 //
 // Nutzerdaten werden in DB + appSettings gepflegt (DB ist Quelle beim Laden).
 // Persistenz: ueber window.bbmDb.userProfileGet/userProfileUpsert + appSettingsGetMany/appSettingsSetMany.
@@ -2612,7 +2612,20 @@ export default class SettingsView {
 
     pdfSettingsBox.append(
       pdfSettingsTitle,
-      mkRow("Speicherort Protokolle", protocolsRow)
+      mkRow("Speicherort Protokolle", protocolsRow),
+      pdfHeaderTitle,
+      mkRow("Name des Protokolls", inpPdfProtocolTitle),
+      pdfFooterTitle,
+      pdfFooterCaption,
+      mkRow("Nutzerdaten uebernehmen", btnPdfFooterUseUserData),
+      mkRow("Ort (Ort, Datum)", inpPdfFooterPlace),
+      mkRow("Datum", inpPdfFooterDate),
+      mkRow("Name1", inpPdfFooterName1),
+      mkRow("Name2", inpPdfFooterName2),
+      mkRow("Protokollfuehrer", inpPdfFooterRecorder),
+      mkRow("Str./HsNr.", inpPdfFooterStreet),
+      mkRow("PLZ", inpPdfFooterZip),
+      mkRow("Ort (Adresse)", inpPdfFooterCity)
     );
 
     const logosBox = document.createElement("div");
@@ -3230,10 +3243,10 @@ export default class SettingsView {
           const api = window.bbmDb || {};
 
           const SUBJECT_PLACEHOLDER =
-            "<Bezeichnung der ausgewählten Datei> - <Projektbezeichnung>";
+            "{projectNumber} - {projectShortName}  |  {protocolTitle} #{meetingIndex} - {meetingDate}";
           const BODY_PLACEHOLDER =
             "Sehr geehrte Damen und Herren,\n" +
-            "anbei erhalten Sie das neue Protokoll für das o.g. Projekt mit der Bitte um Beachtung und Veranlassung";
+            "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
 
           // Gespeicherte Werte laden (falls vorhanden)
           let subjectValue = "";
@@ -3289,7 +3302,14 @@ export default class SettingsView {
             subjectState = inpSubject.value || "";
           });
 
-          subjectWrap.append(subjectLabel, inpSubject);
+          const subjectHint = document.createElement("div");
+          subjectHint.textContent =
+            "Platzhalter: {projectNumber}, {projectShortName}, {protocolTitle}, {meetingIndex}, {meetingDate}";
+          subjectHint.style.fontSize = "12px";
+          subjectHint.style.opacity = "0.8";
+          subjectHint.style.color = "#374151";
+
+          subjectWrap.append(subjectLabel, inpSubject, subjectHint);
 
           // Body
           const bodyWrap = document.createElement("div");
