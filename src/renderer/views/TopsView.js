@@ -8,7 +8,6 @@ import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { fireAndForget } from "../utils/async.js";
-import { buildProtocolPdfFileName } from "../utils/pdfProtocolNaming.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 
@@ -223,101 +222,6 @@ export default class TopsView {
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const yyyy = String(d.getFullYear());
     return `${dd}.${mm}.${yyyy}`;
-  }
-
-  _defaultProtocolsDir() {
-    return "C:\\Downloads";
-  }
-
-  async _resolveProtocolsDir() {
-    const api = window.bbmDb || {};
-    let dir = String(this.router?.context?.settings?.["pdf.protocolsDir"] || "").trim();
-
-    if (!dir && typeof api.appSettingsGetMany === "function") {
-      try {
-        const res = await api.appSettingsGetMany(["pdf.protocolsDir"]);
-        if (res?.ok) dir = String(res?.data?.["pdf.protocolsDir"] || "").trim();
-      } catch (_err) {}
-    }
-
-    if (!dir) dir = this._defaultProtocolsDir();
-
-    if (this.router?.context) {
-      this.router.context.settings = {
-        ...(this.router.context.settings || {}),
-        "pdf.protocolsDir": dir,
-      };
-    }
-
-    return dir;
-  }
-
-  async _getProjectInfoForPdf(projectId) {
-    const api = window.bbmDb || {};
-    const pid = projectId || this.projectId || null;
-    if (!pid || typeof api.projectsList !== "function") {
-      return { number: "", name: "", short: "" };
-    }
-
-    try {
-      const res = await api.projectsList();
-      if (res?.ok) {
-        const project = (res.list || []).find((entry) => entry?.id === pid) || null;
-        if (project) {
-          return {
-            number: String(project?.project_number ?? project?.projectNumber ?? "").trim(),
-            name: String(project?.name ?? "").trim(),
-            short: String(project?.short ?? "").trim(),
-          };
-        }
-      }
-    } catch (_err) {}
-
-    return { number: "", name: "", short: "" };
-  }
-
-  async _getProtocolTitleForPdf(projectId) {
-    const api = window.bbmDb || {};
-    const pid = projectId || this.projectId || null;
-    if (!pid || typeof api.projectSettingsGetMany !== "function") return "Protokoll";
-
-    try {
-      const res = await api.projectSettingsGetMany({
-        projectId: pid,
-        keys: ["pdf.protocolTitle"],
-      });
-      if (res?.ok) {
-        const value = String(res?.data?.["pdf.protocolTitle"] || "").trim();
-        if (value) return value;
-      }
-    } catch (_err) {}
-
-    return "Protokoll";
-  }
-
-  async _buildProtocolFileNameForPdf() {
-    const meeting = this.meetingMeta || {};
-    const project = await this._getProjectInfoForPdf(this.projectId);
-    const protocolTitle = await this._getProtocolTitleForPdf(this.projectId);
-    const meetingIndex =
-      meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
-    const meetingDate =
-      meeting?.meeting_date ||
-      meeting?.meetingDate ||
-      meeting?.date ||
-      meeting?.updated_at ||
-      meeting?.updatedAt ||
-      meeting?.created_at ||
-      meeting?.createdAt ||
-      new Date();
-
-    return buildProtocolPdfFileName({
-      projectNumber: project.number || this.projectId || "",
-      projectShort: project.short || project.name || "",
-      protocolTitle,
-      meetingIndex,
-      meetingDate,
-    });
   }
 
   _parseMeetingTitleParts() {
@@ -1831,26 +1735,7 @@ _isoToDDMMYYYY(iso) {
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
             alert(`Hinweis beim Schließen:\n${res.warnings.join("\n")}`);
           }
-          
-          try {
-            if (window?.bbmPrint?.printPdf) {
-              const protocolsDir = await this._resolveProtocolsDir();
-              const fileName = await this._buildProtocolFileNameForPdf();
-              await window.bbmPrint.printPdf({
-                projectId: this.projectId,
-                meetingId: this.meetingId,
-                mode: "protocol",
-                baseDir: protocolsDir,
-                fileName,
-                overwrite: true,
-                autoSave: true,
-              });
-            }
-          } catch (err) {
-            console.warn("[autosave] PDF save failed:", err);
-          }
           await this._enterIdleAfterClose();
-
           return;
         }
 
@@ -2799,22 +2684,55 @@ _renderIdleState() {
       wrap.style.gap = "10px";
       wrap.style.maxWidth = "520px";
       wrap.style.width = "100%";
+      wrap.style.opacity = "0.95";
+
+      const img = document.createElement("img");
+      img.src = EMPTY_LEVEL1_HINT_PNG;
+      img.alt = "Hinweis Protokoll neu";
+      img.style.width = "220px";
+      img.style.maxWidth = "70%";
+      img.style.height = "auto";
+      img.style.objectFit = "contain";
+      wrap.appendChild(img);
 
       const btnNew = document.createElement("button");
+      btnNew.type = "button";
       btnNew.textContent = "Protokoll neu";
-      btnNew.style.padding = "10px 16px";
-      btnNew.style.borderRadius = "10px";
-      btnNew.style.border = "1px solid rgba(0,0,0,0.2)";
-      btnNew.style.background = "#fff";
-      btnNew.style.boxShadow = "0 2px 10px rgba(0,0,0,0.08)";
+      btnNew.style.display = "inline-flex";
+      btnNew.style.alignItems = "center";
+      btnNew.style.justifyContent = "center";
+      btnNew.style.border = "none";
+      btnNew.style.background = "transparent";
+      btnNew.style.color = "#111827";
+      btnNew.style.padding = "0 2px 2px";
+      btnNew.style.margin = "0";
+      btnNew.style.minHeight = "0";
+      btnNew.style.lineHeight = "1.25";
+      btnNew.style.fontSize = "14px";
+      btnNew.style.fontWeight = "700";
+      btnNew.style.borderRadius = "0";
+      btnNew.style.borderBottom = "2px solid currentColor";
+      btnNew.style.borderBottomColor = "currentColor";
+      btnNew.style.cursor = this._busy ? "default" : "pointer";
+      btnNew.style.whiteSpace = "nowrap";
+      btnNew.disabled = !!this._busy;
+      btnNew.onmouseenter = () => {
+        if (btnNew.disabled) return;
+        btnNew.style.borderBottomColor = "#ff8c00";
+      };
+      btnNew.onmouseleave = () => {
+        btnNew.style.borderBottomColor = "currentColor";
+      };
       btnNew.onclick = () => {
+        if (this._busy) return;
         this._createMeetingFromIdle().catch((e) => {
           console.error("[TopsView] _createMeetingFromIdle failed:", e);
           alert(e && e.message ? e.message : String(e));
         });
       };
       wrap.appendChild(btnNew);
-li.appendChild(wrap);
+
+      li.appendChild(wrap);
       this.listEl.appendChild(li);
       this.listEl.style.paddingBottom = "16px";
     }
