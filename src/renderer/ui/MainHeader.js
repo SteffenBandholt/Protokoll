@@ -4,6 +4,9 @@
 // CONTRACT-VERSION: 1.0.1
 //
 import { HEADER, POPOVER_MENU } from "./zIndex.js";
+import { buildMailPayload } from "../services/mail/buildMailPayload.js";
+import { findProtocolPdf } from "../services/mail/findProtocolPdf.js";
+import { sendMailPayload } from "../services/mail/sendMailPayload.js";
 
 export default class MainHeader {
   constructor({ router, version = "1.0", sidebarWidth = 220, padding = 12 } = {}) {
@@ -1980,6 +1983,7 @@ export default class MainHeader {
     }
   }
 
+  
   async _openMailClient(mailType = "") {
     const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();
     const emailTemplate = await this._getStoredEmailTemplate();
@@ -1990,6 +1994,40 @@ export default class MainHeader {
     if (!selectedMeeting && this.router?.activeView?.constructor?.name === "MeetingsView") {
       alert("Bitte ein geschlossenes Protokoll in der Liste auswählen.");
       return;
+    }
+
+    const api = window.bbmDb || {};
+    let project = null;
+    let settings = {};
+    try {
+      if (projectId && typeof api.projectsList === "function") {
+        const projectRes = await api.projectsList();
+        if (projectRes?.ok && Array.isArray(projectRes.list)) {
+          project = projectRes.list.find((item) => item && item.id === projectId) || null;
+        }
+      }
+    } catch (_err) {
+      // ignore project lookup fallback below
+    }
+
+    try {
+      if (typeof api.appSettingsGetMany === "function") {
+        const settingsRes = await api.appSettingsGetMany(["pdf.protocolsDir", "pdf.protocolTitle"]);
+        if (settingsRes?.ok && settingsRes.data) {
+          settings = settingsRes.data || {};
+        }
+      }
+    } catch (_err) {
+      // ignore settings lookup fallback below
+    }
+
+    if (!project) {
+      project = {
+        id: projectId || null,
+        project_number: projectNumber || "",
+        short: projectShortName || "",
+        name: projectShortName || "",
+      };
     }
 
     let subject = String(emailTemplate.subject || "").trim();
@@ -2003,21 +2041,59 @@ export default class MainHeader {
       subject = this._applyEmailSubjectTemplate(subject, templateContext);
     }
     if (!subject) {
-      subject = this._buildFallbackEmailSubject({ projectNumber, projectShortName, mailType }) || "Protokoll";
+      subject =
+        this._buildFallbackEmailSubject({ projectNumber, projectShortName, mailType }) || "Protokoll";
     }
 
     let body = String(emailTemplate.body || "");
     if (!body.trim()) {
       body =
-        "Sehr geehrte Damen und Herren,\n\n" +
+        "Sehr geehrte Damen und Herren\n\n" +
         "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
     }
 
     const recipients = await this._getSelectedMeetingRecipients();
-    const toPart = recipients.length ? encodeURIComponent(recipients.join(",")) : "";
-    const mailto = `mailto:${toPart}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    const payload = buildMailPayload({
+      to: recipients,
+      subject,
+      body,
+      projectId: projectId || null,
+      meetingId: selectedMeeting?.id || null,
+      projectNumber,
+      projectShortName,
+      protocolTitle,
+      meetingIndex:
+        selectedMeeting?.meeting_index ??
+        selectedMeeting?.meetingIndex ??
+        selectedMeeting?.index ??
+        selectedMeeting?.number ??
+        "",
+      meetingDate:
+        selectedMeeting?.meeting_date ||
+        selectedMeeting?.meetingDate ||
+        selectedMeeting?.date ||
+        "",
+    });
+
+    if (selectedMeeting) {
+      const pdf = findProtocolPdf({
+        meeting: selectedMeeting,
+        project,
+        settings: {
+          "pdf.protocolsDir": String(settings?.["pdf.protocolsDir"] || "").trim(),
+          "pdf.protocolTitle": String(settings?.["pdf.protocolTitle"] || protocolTitle || "").trim(),
+        },
+      });
+      if (pdf?.filePath) {
+        payload.attachments.push(pdf.filePath);
+        payload.protocolFilePath = pdf.filePath;
+        payload.protocolFileName = pdf.fileName || "";
+      }
+    }
+
     try {
-      window.location.href = mailto;
+      sendMailPayload(payload);
     } catch (err) {
       console.error("[header] open mailto failed:", err);
       alert("E-Mail konnte nicht geöffnet werden.");
