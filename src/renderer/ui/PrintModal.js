@@ -34,6 +34,7 @@ import {
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 import { OVERLAY_TOP } from "./zIndex.js";
+import { buildProtocolPdfFileName } from "../utils/protocolPdfNaming.js";
 
 export default class PrintModal {
   constructor({ router } = {}) {
@@ -4329,7 +4330,7 @@ export default class PrintModal {
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
       const protocolNameRaw = String(settings?.["pdf.protocolTitle"] || "").trim();
-      const protocolName = this._sanitizeFileSegment(protocolNameRaw || "Baubesprechung");
+      const protocolName = this._sanitizeFileSegment(protocolNameRaw || "Protokoll");
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -4342,6 +4343,12 @@ export default class PrintModal {
         meeting?.updatedAt ||
         null;
       const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
 
       const resP = await api.meetingParticipantsList({ meetingId });
       if (!resP?.ok) {
@@ -4384,11 +4391,16 @@ export default class PrintModal {
       });
 
       const suffix = isVorabzug ? " VORABZUG" : "";
+      const protocolFileName = buildProtocolPdfFileName({
+        projectNumber,
+        projectShortName,
+        protocolTitle: protocolName,
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw || new Date(),
+      });
       const fn = isVorabzug
         ? this._sanitizeFileName(`BBM ${projectLabel || ""} ${meetingLabel}${suffix}`) + ".pdf"
-        : this._sanitizeFileName(
-            `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`
-          ) + ".pdf";
+        : this._sanitizeFileName(protocolFileName || `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`) ;
 
       const nextMeetingSettingsForPrint = {
         "print.nextMeeting.enabled": String(settings?.["print.nextMeeting.enabled"] ?? "").trim(),

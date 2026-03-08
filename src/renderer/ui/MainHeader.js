@@ -4,9 +4,6 @@
 // CONTRACT-VERSION: 1.0.1
 //
 import { HEADER, POPOVER_MENU } from "./zIndex.js";
-import { buildMailPayload } from "../services/mail/buildMailPayload.js";
-import { findProtocolPdf } from "../services/mail/findProtocolPdf.js";
-import { sendMailPayload } from "../services/mail/sendMailPayload.js";
 
 export default class MainHeader {
   constructor({ router, version = "1.0", sidebarWidth = 220, padding = 12 } = {}) {
@@ -1945,30 +1942,62 @@ export default class MainHeader {
     const api = window.bbmDb || {};
     if (typeof api.meetingParticipantsList !== "function") return [];
 
+    const getRows = (res) =>
+      Array.isArray(res?.items) ? res.items : Array.isArray(res?.list) ? res.list : [];
+
+    const readEmail = (item) =>
+      String(
+        item?.email ??
+        item?.email_raw ??
+        item?.mail ??
+        item?.e_mail ??
+        item?.person_email ??
+        item?.personEmail ??
+        item?.participant_email ??
+        item?.participantEmail ??
+        ""
+      ).trim();
+
+    const hasDistributionField = (item) =>
+      item &&
+      (
+        Object.prototype.hasOwnProperty.call(item, "isInDistribution") ||
+        Object.prototype.hasOwnProperty.call(item, "is_in_distribution") ||
+        Object.prototype.hasOwnProperty.call(item, "inDistribution") ||
+        Object.prototype.hasOwnProperty.call(item, "in_distribution") ||
+        Object.prototype.hasOwnProperty.call(item, "send_email") ||
+        Object.prototype.hasOwnProperty.call(item, "sendEmail") ||
+        Object.prototype.hasOwnProperty.call(item, "email_enabled") ||
+        Object.prototype.hasOwnProperty.call(item, "emailEnabled")
+      );
+
+    const inDistribution = (item) =>
+      Number(
+        item?.isInDistribution ??
+        item?.is_in_distribution ??
+        item?.inDistribution ??
+        item?.in_distribution ??
+        item?.send_email ??
+        item?.sendEmail ??
+        item?.email_enabled ??
+        item?.emailEnabled ??
+        0
+      ) === 1;
+
     try {
       const res = await api.meetingParticipantsList({ meetingId });
-      const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res?.list) ? res.list : [];
+      const rows = getRows(res);
       if (!res?.ok || !rows.length) return [];
+
+      const anyDistributionField = rows.some((item) => hasDistributionField(item));
 
       const seen = new Set();
       const recipients = [];
-      for (const item of rows) {
-        const inDistribution = Number(
-          item?.isInDistribution ??
-          item?.is_in_distribution ??
-          item?.inDistribution ??
-          item?.in_distribution ??
-          0
-        ) === 1;
-        if (!inDistribution) continue;
 
-        const email = String(
-          item?.email ??
-          item?.email_raw ??
-          item?.mail ??
-          item?.e_mail ??
-          ""
-        ).trim();
+      for (const item of rows) {
+        if (anyDistributionField && !inDistribution(item)) continue;
+
+        const email = readEmail(item);
         if (!email) continue;
 
         const key = email.toLowerCase();
@@ -1976,6 +2005,21 @@ export default class MainHeader {
         seen.add(key);
         recipients.push(email);
       }
+
+      if (recipients.length) return recipients;
+
+      // Fallback: wenn kein Verteilerkennzeichen gepflegt ist oder nichts markiert wurde,
+      // dann alle Teilnehmer mit E-Mail aus der Teilnehmerliste übernehmen.
+      for (const item of rows) {
+        const email = readEmail(item);
+        if (!email) continue;
+
+        const key = email.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        recipients.push(email);
+      }
+
       return recipients;
     } catch (err) {
       console.warn("[header] recipients lookup failed:", err);
@@ -1983,7 +2027,6 @@ export default class MainHeader {
     }
   }
 
-  
   async _openMailClient(mailType = "") {
     const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();
     const emailTemplate = await this._getStoredEmailTemplate();
@@ -1994,40 +2037,6 @@ export default class MainHeader {
     if (!selectedMeeting && this.router?.activeView?.constructor?.name === "MeetingsView") {
       alert("Bitte ein geschlossenes Protokoll in der Liste auswählen.");
       return;
-    }
-
-    const api = window.bbmDb || {};
-    let project = null;
-    let settings = {};
-    try {
-      if (projectId && typeof api.projectsList === "function") {
-        const projectRes = await api.projectsList();
-        if (projectRes?.ok && Array.isArray(projectRes.list)) {
-          project = projectRes.list.find((item) => item && item.id === projectId) || null;
-        }
-      }
-    } catch (_err) {
-      // ignore project lookup fallback below
-    }
-
-    try {
-      if (typeof api.appSettingsGetMany === "function") {
-        const settingsRes = await api.appSettingsGetMany(["pdf.protocolsDir", "pdf.protocolTitle"]);
-        if (settingsRes?.ok && settingsRes.data) {
-          settings = settingsRes.data || {};
-        }
-      }
-    } catch (_err) {
-      // ignore settings lookup fallback below
-    }
-
-    if (!project) {
-      project = {
-        id: projectId || null,
-        project_number: projectNumber || "",
-        short: projectShortName || "",
-        name: projectShortName || "",
-      };
     }
 
     let subject = String(emailTemplate.subject || "").trim();
@@ -2041,59 +2050,21 @@ export default class MainHeader {
       subject = this._applyEmailSubjectTemplate(subject, templateContext);
     }
     if (!subject) {
-      subject =
-        this._buildFallbackEmailSubject({ projectNumber, projectShortName, mailType }) || "Protokoll";
+      subject = this._buildFallbackEmailSubject({ projectNumber, projectShortName, mailType }) || "Protokoll";
     }
 
     let body = String(emailTemplate.body || "");
     if (!body.trim()) {
       body =
-        "Sehr geehrte Damen und Herren\n\n" +
+        "Sehr geehrte Damen und Herren,\n\n" +
         "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
     }
 
     const recipients = await this._getSelectedMeetingRecipients();
-
-    const payload = buildMailPayload({
-      to: recipients,
-      subject,
-      body,
-      projectId: projectId || null,
-      meetingId: selectedMeeting?.id || null,
-      projectNumber,
-      projectShortName,
-      protocolTitle,
-      meetingIndex:
-        selectedMeeting?.meeting_index ??
-        selectedMeeting?.meetingIndex ??
-        selectedMeeting?.index ??
-        selectedMeeting?.number ??
-        "",
-      meetingDate:
-        selectedMeeting?.meeting_date ||
-        selectedMeeting?.meetingDate ||
-        selectedMeeting?.date ||
-        "",
-    });
-
-    if (selectedMeeting) {
-      const pdf = findProtocolPdf({
-        meeting: selectedMeeting,
-        project,
-        settings: {
-          "pdf.protocolsDir": String(settings?.["pdf.protocolsDir"] || "").trim(),
-          "pdf.protocolTitle": String(settings?.["pdf.protocolTitle"] || protocolTitle || "").trim(),
-        },
-      });
-      if (pdf?.filePath) {
-        payload.attachments.push(pdf.filePath);
-        payload.protocolFilePath = pdf.filePath;
-        payload.protocolFileName = pdf.fileName || "";
-      }
-    }
-
+    const toPart = recipients.length ? encodeURIComponent(recipients.join(",")) : "";
+    const mailto = `mailto:${toPart}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     try {
-      sendMailPayload(payload);
+      window.location.href = mailto;
     } catch (err) {
       console.error("[header] open mailto failed:", err);
       alert("E-Mail konnte nicht geöffnet werden.");
