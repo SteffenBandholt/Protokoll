@@ -316,14 +316,18 @@ body {
   align-items: stretch;
   width: 100%;
 }
-
+/* 
+   Das ist ein
+   mehrzeiliger Kommentar
+   folgend wird das Datum unter der topNumber eingestellt
+*/
 .nrDate {
-  font-size: 9pt;
+  font-size: 7pt;
   line-height: 1.1;
 }
-
+/* Das ist die Kennzeichnungseinstellung für ausgeblendete Tops */
 .nrHint {
-  font-size: 8.6pt;
+  font-size: 7pt;
   line-height: 1.1;
   color: #555;
 }
@@ -348,6 +352,21 @@ body {
 .lvl1Row.isNewTop .topNumber,
 .lvl1Row.isNewTop .lvl1Text {
   color: #1565c0;
+}
+
+.topRow.isImportant .topNumber,
+.topRow.isImportant .shortText,
+.topRow.isImportant .longText,
+.topRow .longText.isImportant,
+.lvl1Row.isImportant .topNumber,
+.lvl1Row.isImportant .lvl1Text,
+.topNumber.isImportant,
+.shortText.isImportant,
+.longText.isImportant,
+.lvl1Text.isImportant {
+  color: #c62828 !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .topsTable .shortText {

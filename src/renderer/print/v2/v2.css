@@ -662,3 +662,35 @@
     print-color-adjust: exact;
   }
 }
+
+.printV2Root .topRow.isImportant .topNumber,
+.printV2Root .topRow.isImportant .shortText,
+.printV2Root .topRow.isImportant .longText,
+.printV2Root .topRow .longText.isImportant,
+.printV2Root .lvl1Row.isImportant .topNumber,
+.printV2Root .lvl1Row.isImportant .lvl1Text,
+.printV2Root .topNumber.isImportant,
+.printV2Root .shortText.isImportant,
+.printV2Root .longText.isImportant,
+.printV2Root .lvl1Text.isImportant {
+  color: #c62828 !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  .printV2Root .topRow.isImportant .topNumber,
+  .printV2Root .topRow.isImportant .shortText,
+  .printV2Root .topRow.isImportant .longText,
+  .printV2Root .topRow .longText.isImportant,
+  .printV2Root .lvl1Row.isImportant .topNumber,
+  .printV2Root .lvl1Row.isImportant .lvl1Text,
+  .printV2Root .topNumber.isImportant,
+  .printV2Root .shortText.isImportant,
+  .printV2Root .longText.isImportant,
+  .printV2Root .lvl1Text.isImportant {
+    color: #c62828 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

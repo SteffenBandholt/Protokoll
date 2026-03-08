@@ -27,6 +27,16 @@ function _buildStarIcon() {
   return wrap;
 }
 
+function _applyImportantPrintColor(...els) {
+  for (const el of els) {
+    if (!el) continue;
+    el.classList.add("isImportant");
+    el.style.color = "#c62828";
+    el.style.webkitPrintColorAdjust = "exact";
+    el.style.printColorAdjust = "exact";
+  }
+}
+
 function _buildPageHeader({ projectLabel, docLabel, pageNo, totalPages }) {
   const header = _el("div", "pageHeader");
   const left = _el("div", "headerLeft", projectLabel || "Projekt: -");
@@ -72,6 +82,7 @@ function _buildTopRow(row) {
     const tr = document.createElement("tr");
     tr.className = "topRow lvl1Row";
     if (row.isNewTop) tr.classList.add("isNewTop");
+    if (row.isImportant) tr.classList.add("isImportant");
 
     const td = document.createElement("td");
     td.colSpan = 3;
@@ -79,11 +90,15 @@ function _buildTopRow(row) {
 
     const wrap = _el("div", "lvl1Wrap");
     const numBox = _el("div", "nrBox");
-    numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+    const topNumberEl = _el("div", "topNumber", row.numText);
+    const nrDateEl = _el("div", "nrDate", row.createdDate);
+    numBox.append(topNumberEl, nrDateEl);
     if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
     if (row.isNewTop) numBox.appendChild(_buildStarIcon());
 
-    wrap.append(numBox, _el("div", "lvl1Text", row.title));
+    const lvl1TextEl = _el("div", "lvl1Text", row.title);
+    wrap.append(numBox, lvl1TextEl);
+    if (row.isImportant) _applyImportantPrintColor(topNumberEl, lvl1TextEl);
     td.appendChild(wrap);
     tr.appendChild(td);
     return tr;
@@ -92,17 +107,22 @@ function _buildTopRow(row) {
   const tr = document.createElement("tr");
   tr.className = "topRow";
   if (row.isNewTop) tr.classList.add("isNewTop");
+  if (row.isImportant) tr.classList.add("isImportant");
 
   const tdNr = _el("td", "colNr");
   const numBox = _el("div", "nrBox");
-  numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+  const topNumberEl = _el("div", "topNumber", row.numText);
+  const nrDateEl = _el("div", "nrDate", row.createdDate);
+  numBox.append(topNumberEl, nrDateEl);
   if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
   if (row.isNewTop) numBox.appendChild(_buildStarIcon());
   tdNr.appendChild(numBox);
 
   const tdText = _el("td", "colText");
   const txtBlock = _el("div", "txtBlock");
-  txtBlock.appendChild(_el("div", "shortText", row.title));
+  const shortTextEl = _el("div", "shortText", row.title);
+  txtBlock.appendChild(shortTextEl);
+  if (row.isImportant) _applyImportantPrintColor(topNumberEl, shortTextEl);
 
   // IMPORTANT: final print DOM is built here (not in printApp.js)
   // carried-over TOP + longtext edited later => mark and FORCE blue (PDF-safe)
@@ -112,12 +132,16 @@ function _buildTopRow(row) {
     const isTouched = Number(row?.isTouched ?? row?.is_touched ?? 0) === 1;
     const isCarriedOver = !row.isNewTop;
 
-    if (isCarriedOver && isTouched) {
+    if (isCarriedOver && isTouched && !row.isImportant) {
       lt.classList.add("isTouched");
       // Force the color for PDF output even if other CSS overrides or print engine optimizes colors
       lt.style.color = "#1565c0";
       lt.style.webkitPrintColorAdjust = "exact";
       lt.style.printColorAdjust = "exact";
+    }
+
+    if (row.isImportant) {
+      _applyImportantPrintColor(lt);
     }
 
     txtBlock.appendChild(lt);

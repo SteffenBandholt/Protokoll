@@ -69,6 +69,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
 
   // NEW: carried-over TOP whose longtext was edited later
   const isTouched = Number(top.is_touched ?? top.isTouched ?? 0) === 1;
+  const isImportant = Number(top.is_important ?? top.isImportant ?? 0) === 1;
 
   const isHiddenTop =
     Number(top?.isHiddenTop ?? top?.is_hidden ?? top?.isHidden ?? 0) === 1 ||
@@ -87,6 +88,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     createdDate,
     isNewTop,
     isTouched, // NEW
+    isImportant,
     isHiddenTop,
     title,
     longtext,
