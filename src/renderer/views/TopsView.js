@@ -8,7 +8,7 @@ import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { fireAndForget } from "../utils/async.js";
-import { resolveProtocolsDir } from "../utils/pdfProtocolsDir.js";
+import { buildProtocolPdfFileName } from "../utils/pdfProtocolNaming.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 
@@ -223,6 +223,101 @@ export default class TopsView {
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const yyyy = String(d.getFullYear());
     return `${dd}.${mm}.${yyyy}`;
+  }
+
+  _defaultProtocolsDir() {
+    return "C:\\Downloads";
+  }
+
+  async _resolveProtocolsDir() {
+    const api = window.bbmDb || {};
+    let dir = String(this.router?.context?.settings?.["pdf.protocolsDir"] || "").trim();
+
+    if (!dir && typeof api.appSettingsGetMany === "function") {
+      try {
+        const res = await api.appSettingsGetMany(["pdf.protocolsDir"]);
+        if (res?.ok) dir = String(res?.data?.["pdf.protocolsDir"] || "").trim();
+      } catch (_err) {}
+    }
+
+    if (!dir) dir = this._defaultProtocolsDir();
+
+    if (this.router?.context) {
+      this.router.context.settings = {
+        ...(this.router.context.settings || {}),
+        "pdf.protocolsDir": dir,
+      };
+    }
+
+    return dir;
+  }
+
+  async _getProjectInfoForPdf(projectId) {
+    const api = window.bbmDb || {};
+    const pid = projectId || this.projectId || null;
+    if (!pid || typeof api.projectsList !== "function") {
+      return { number: "", name: "", short: "" };
+    }
+
+    try {
+      const res = await api.projectsList();
+      if (res?.ok) {
+        const project = (res.list || []).find((entry) => entry?.id === pid) || null;
+        if (project) {
+          return {
+            number: String(project?.project_number ?? project?.projectNumber ?? "").trim(),
+            name: String(project?.name ?? "").trim(),
+            short: String(project?.short ?? "").trim(),
+          };
+        }
+      }
+    } catch (_err) {}
+
+    return { number: "", name: "", short: "" };
+  }
+
+  async _getProtocolTitleForPdf(projectId) {
+    const api = window.bbmDb || {};
+    const pid = projectId || this.projectId || null;
+    if (!pid || typeof api.projectSettingsGetMany !== "function") return "Protokoll";
+
+    try {
+      const res = await api.projectSettingsGetMany({
+        projectId: pid,
+        keys: ["pdf.protocolTitle"],
+      });
+      if (res?.ok) {
+        const value = String(res?.data?.["pdf.protocolTitle"] || "").trim();
+        if (value) return value;
+      }
+    } catch (_err) {}
+
+    return "Protokoll";
+  }
+
+  async _buildProtocolFileNameForPdf() {
+    const meeting = this.meetingMeta || {};
+    const project = await this._getProjectInfoForPdf(this.projectId);
+    const protocolTitle = await this._getProtocolTitleForPdf(this.projectId);
+    const meetingIndex =
+      meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+    const meetingDate =
+      meeting?.meeting_date ||
+      meeting?.meetingDate ||
+      meeting?.date ||
+      meeting?.updated_at ||
+      meeting?.updatedAt ||
+      meeting?.created_at ||
+      meeting?.createdAt ||
+      new Date();
+
+    return buildProtocolPdfFileName({
+      projectNumber: project.number || this.projectId || "",
+      projectShort: project.short || project.name || "",
+      protocolTitle,
+      meetingIndex,
+      meetingDate,
+    });
   }
 
   _parseMeetingTitleParts() {
@@ -515,41 +610,6 @@ _isoToDDMMYYYY(iso) {
     return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(
       base.getDate()
     ).padStart(2, "0")}`;
-  }
-
-  async _autoSaveProtocolPdfOnClose() {
-    if (typeof window?.bbmPrint?.printPdf !== "function") return null;
-
-    const resolved = await resolveProtocolsDir({
-      settings: this.router?.context?.settings || null,
-      api: window.bbmDb || null,
-      router: this.router,
-      persistIfMissing: true,
-    });
-    const protocolsDir = String(resolved?.dir || "").trim();
-
-    const payload = {
-      projectId: this.projectId,
-      meetingId: this.meetingId,
-      mode: "protocol",
-      autoSave: true,
-      overwrite: true,
-    };
-
-    if (protocolsDir) payload.baseDir = protocolsDir;
-
-    console.log("[autosave] protocol pdf on close", {
-      projectId: this.projectId,
-      meetingId: this.meetingId,
-      mode: payload.mode,
-      baseDir: payload.baseDir || null,
-    });
-
-    const out = await window.bbmPrint.printPdf(payload);
-    if (!out?.ok) {
-      throw new Error(out?.error || "Protokoll-PDF konnte beim Schließen nicht gespeichert werden.");
-    }
-    return out;
   }
 
   async _loadAmpelSetting() {
@@ -1773,7 +1833,19 @@ _isoToDDMMYYYY(iso) {
           }
           
           try {
-            await this._autoSaveProtocolPdfOnClose();
+            if (window?.bbmPrint?.printPdf) {
+              const protocolsDir = await this._resolveProtocolsDir();
+              const fileName = await this._buildProtocolFileNameForPdf();
+              await window.bbmPrint.printPdf({
+                projectId: this.projectId,
+                meetingId: this.meetingId,
+                mode: "protocol",
+                baseDir: protocolsDir,
+                fileName,
+                overwrite: true,
+                autoSave: true,
+              });
+            }
           } catch (err) {
             console.warn("[autosave] PDF save failed:", err);
           }

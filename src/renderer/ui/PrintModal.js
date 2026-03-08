@@ -34,7 +34,7 @@ import {
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 import { OVERLAY_TOP } from "./zIndex.js";
-import { defaultProtocolsDir, resolveProtocolsDir } from "../utils/pdfProtocolsDir.js";
+import { buildProtocolPdfFileName } from "../utils/pdfProtocolNaming.js";
 
 export default class PrintModal {
   constructor({ router } = {}) {
@@ -396,17 +396,43 @@ export default class PrintModal {
   }
 
   _defaultProtocolsDir() {
-    return defaultProtocolsDir();
+    return "C:\\Downloads";
   }
 
   async _resolveProtocolsDir({ settings = null, api = null, persistIfMissing = false } = {}) {
-    const resolved = await resolveProtocolsDir({
-      settings,
-      api,
-      router: this.router,
-      persistIfMissing,
-    });
-    return { dir: resolved?.dir || this._defaultProtocolsDir(), settings: resolved?.settings || settings || {} };
+    const dbApi = api || window.bbmDb || {};
+    let resolvedSettings = settings || this.router?.context?.settings || {};
+    let dir = String(resolvedSettings?.["pdf.protocolsDir"] || "").trim();
+    let hadStoredValue = !!dir;
+
+    if (!dir && typeof dbApi.appSettingsGetMany === "function") {
+      const res = await dbApi.appSettingsGetMany(["pdf.protocolsDir"]);
+      if (res?.ok) {
+        const fromDb = String(res?.data?.["pdf.protocolsDir"] || "").trim();
+        if (fromDb) {
+          dir = fromDb;
+          hadStoredValue = true;
+          resolvedSettings = { ...resolvedSettings, "pdf.protocolsDir": dir };
+        }
+      }
+    }
+
+    if (!dir) {
+      dir = this._defaultProtocolsDir();
+      resolvedSettings = { ...resolvedSettings, "pdf.protocolsDir": dir };
+      if (!hadStoredValue && persistIfMissing && typeof dbApi.appSettingsSetMany === "function") {
+        await dbApi.appSettingsSetMany({ "pdf.protocolsDir": dir });
+      }
+    }
+
+    if (this.router?.context) {
+      this.router.context.settings = {
+        ...(this.router.context.settings || {}),
+        "pdf.protocolsDir": dir,
+      };
+    }
+
+    return { dir, settings: resolvedSettings };
   }
 
   async _refreshProtocolsDirLabel() {
@@ -1934,7 +1960,7 @@ export default class PrintModal {
   }
 
   _pdfCopyrightText() {
-    return "© 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
+    return "ï¿½ 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
   }
 
   _pdfCopyrightStyle() {
@@ -4304,7 +4330,6 @@ export default class PrintModal {
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
       const protocolNameRaw = String(settings?.["pdf.protocolTitle"] || "").trim();
-      const protocolName = this._sanitizeFileSegment(protocolNameRaw || "Baubesprechung");
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -4316,7 +4341,6 @@ export default class PrintModal {
         meeting?.updated_at ||
         meeting?.updatedAt ||
         null;
-      const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
 
       const resP = await api.meetingParticipantsList({ meetingId });
       if (!resP?.ok) {
@@ -4361,9 +4385,13 @@ export default class PrintModal {
       const suffix = isVorabzug ? " VORABZUG" : "";
       const fn = isVorabzug
         ? this._sanitizeFileName(`BBM ${projectLabel || ""} ${meetingLabel}${suffix}`) + ".pdf"
-        : this._sanitizeFileName(
-            `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`
-          ) + ".pdf";
+        : buildProtocolPdfFileName({
+            projectNumber,
+            projectShort: projectInfo.short || projectInfo.name || "",
+            protocolTitle: protocolNameRaw || "Protokoll",
+            meetingIndex: meetingNr,
+            meetingDate: meetingDateRaw || new Date(),
+          });
 
       const nextMeetingSettingsForPrint = {
         "print.nextMeeting.enabled": String(settings?.["print.nextMeeting.enabled"] ?? "").trim(),
