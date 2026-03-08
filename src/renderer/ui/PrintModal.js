@@ -15,7 +15,7 @@
 // INVARIANT (BBM): Print bleibt ueber bbmPrint.printPdf (print:toPdf).
 //
 // Erweiterung:
-// - printVorabzug({ projectId, meetingId }) erlaubt Vorabzug für OFFENE Besprechung
+// - printVorabzug({ projectId, meetingId }) erlaubt Vorabzug fÃ¼r OFFENE Besprechung
 // - openPrint({ projectId }) bleibt: Auswahl nur geschlossene Besprechungen
 //
 // WICHTIG (User-Req):
@@ -34,7 +34,6 @@ import {
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 import { OVERLAY_TOP } from "./zIndex.js";
-import { buildProtocolPdfFileName } from "../utils/pdfProtocolNaming.js";
 
 export default class PrintModal {
   constructor({ router } = {}) {
@@ -189,7 +188,7 @@ export default class PrintModal {
     nextMeetBox.style.marginTop = "12px";
 
     const nextMeetTitle = document.createElement("div");
-    nextMeetTitle.textContent = "Nächste Besprechung";
+    nextMeetTitle.textContent = "NÃ¤chste Besprechung";
     nextMeetTitle.style.fontWeight = "700";
     nextMeetTitle.style.marginBottom = "8px";
 
@@ -390,7 +389,7 @@ export default class PrintModal {
     if (this.hintEl) {
       this.hintEl.textContent =
         this.mode === "vorabzug"
-          ? "Hinweis: Vorabzug ist für offene Besprechungen gedacht."
+          ? "Hinweis: Vorabzug ist fÃ¼r offene Besprechungen gedacht."
           : "Hinweis: Es werden nur geschlossene Besprechungen angezeigt.";
     }
   }
@@ -448,7 +447,7 @@ export default class PrintModal {
   _applyState() {
     const busy = this.loading || this.printing;
 
-    // Im closed-Modal darf man wählen. Vorabzug wird ohne Modal gedruckt.
+    // Im closed-Modal darf man wÃ¤hlen. Vorabzug wird ohne Modal gedruckt.
     const isClosedMode = this.mode !== "vorabzug";
 
     if (this.selMeeting) {
@@ -628,7 +627,7 @@ export default class PrintModal {
       head.style.borderBottom = "1px solid #e2e8f0";
 
       const title = document.createElement("div");
-      title.textContent = "Nächste Besprechung";
+      title.textContent = "NÃ¤chste Besprechung";
       title.style.fontWeight = "800";
       title.style.fontSize = "16px";
       head.append(title);
@@ -638,7 +637,7 @@ export default class PrintModal {
       hint.style.opacity = "0.75";
       hint.textContent = hasSettingsApi
         ? "Wird auf der letzten Seite des Protokolls gedruckt."
-        : "Settings-API fehlt (IPC noch nicht aktiv). Druck läuft trotzdem.";
+        : "Settings-API fehlt (IPC noch nicht aktiv). Druck lÃ¤uft trotzdem.";
 
       const mkRow = (labelText, inputEl) => {
         const wrap = document.createElement("div");
@@ -705,7 +704,7 @@ export default class PrintModal {
 
       const btnOk = document.createElement("button");
       btnOk.type = "button";
-      btnOk.textContent = "Übernehmen";
+      btnOk.textContent = "Ãbernehmen";
       applyPopupButtonStyle(btnOk, { variant: "primary" });
 
       actions.append(btnCancel, btnOk);
@@ -840,6 +839,16 @@ export default class PrintModal {
     }
   }
 
+  async openExistingPdfPreview({ filePath, title } = {}) {
+    const raw = String(filePath || "").trim();
+    if (!raw) {
+      alert("PDF-Datei fehlt.");
+      return false;
+    }
+    this._openPreview({ filePath: raw, title: title || "Protokoll (Vorschau)" });
+    return true;
+  }
+
   _closePreview() {
     if (this.previewRoot) this.previewRoot.style.display = "none";
     if (this.previewFrame) this.previewFrame.src = "about:blank";
@@ -892,14 +901,14 @@ export default class PrintModal {
   // Public API
   // ============================================================
 
-  // Standard: Druck-Modal für geschlossene Besprechungen
+  // Standard: Druck-Modal fÃ¼r geschlossene Besprechungen
   async openPrint({ projectId } = {}) {
     this._ensureDom();
     this._setUiMode("closed");
 
     this.projectId = projectId || this.router?.currentProjectId || null;
     if (!this.projectId) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
 
@@ -932,7 +941,7 @@ export default class PrintModal {
     const mid = meetingId || this.router?.currentMeetingId || null;
 
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
     if (!mid) {
@@ -960,18 +969,18 @@ export default class PrintModal {
     });
   }
 
-  // Direkt-Vorschau für ein bestimmtes Protokoll (ohne Auswahl-Modal)
+  // Direkt-Vorschau fÃ¼r ein bestimmtes Protokoll (ohne Auswahl-Modal)
   async printMeetingPreview({ projectId, meetingId, mode } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
     const mid = meetingId || this.router?.currentMeetingId || null;
     const m = mode === "vorabzug" ? "vorabzug" : "closed";
 
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
     if (!mid) {
-      alert("Bitte zuerst eine Besprechung auswählen.");
+      alert("Bitte zuerst eine Besprechung auswÃ¤hlen.");
       return;
     }
 
@@ -1012,7 +1021,7 @@ export default class PrintModal {
   async _printFirmsPdf({ projectId, meetingId, preview = true } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
 
@@ -1305,7 +1314,7 @@ export default class PrintModal {
       maxLogoTopMm: 5,
     });
     const projectLine = headerTemplate.projectLine;
-    const meetingLine = `ToDo´s für ${headerTemplate.meetingLine}`;
+    const meetingLine = `ToDoÂ´s fÃ¼r ${headerTemplate.meetingLine}`;
     const pdfLogoHtml = headerTemplate.pdfLogoHtml;
     const pdfLogoTopMm = headerTemplate.pdfLogoTopMm;
     const pdfLogoHeightMm = headerTemplate.effectiveLogoHeightMm;
@@ -1549,17 +1558,17 @@ export default class PrintModal {
     const mid = meetingId || this.router?.currentMeetingId || null;
 
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
     if (!mid) {
-      alert("Bitte zuerst eine Besprechung auswählen.");
+      alert("Bitte zuerst eine Besprechung auswÃ¤hlen.");
       return;
     }
 
     const api = window.bbmDb || {};
     if (typeof api.topsListByProject !== "function") {
-      alert("topsListByProject ist nicht verfügbar (Preload/IPC fehlt).");
+      alert("topsListByProject ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -1611,13 +1620,13 @@ export default class PrintModal {
       const isClosed = Number(meeting?.is_closed) === 1;
       if (isClosed) {
         if (meeting?.todo_snapshot_error) {
-          alert(`${meeting.todo_snapshot_error}\nBitte Besprechung erneut schließen.`);
+          alert(`${meeting.todo_snapshot_error}\nBitte Besprechung erneut schlieÃen.`);
           return;
         }
         const snap = meeting?.todo_snapshot || null;
         const snapItems = Array.isArray(snap?.items) ? snap.items : null;
         if (!snapItems) {
-          alert("Kein ToDo-Snapshot vorhanden. Bitte Besprechung erneut schließen.");
+          alert("Kein ToDo-Snapshot vorhanden. Bitte Besprechung erneut schlieÃen.");
           return;
         }
         rows = snapItems;
@@ -1702,13 +1711,13 @@ export default class PrintModal {
     const pid = projectId || this.router?.currentProjectId || null;
     const mid = meetingId || null;
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
 
     const api = window.bbmDb || {};
     if (typeof api.topsListByMeeting !== "function") {
-      alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
+      alert("topsListByMeeting ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -1735,7 +1744,7 @@ export default class PrintModal {
       let meeting = null;
       if (mid) {
         if (typeof api.topsListByMeeting !== "function") {
-          alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
+          alert("topsListByMeeting ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
           return;
         }
         const resMeeting = await api.topsListByMeeting(mid);
@@ -1929,17 +1938,17 @@ export default class PrintModal {
     opt0.value = "";
     opt0.textContent =
       this.meetings.length > 0
-        ? "— geschlossene Besprechung wählen —"
-        : "— keine geschlossenen Besprechungen —";
+        ? "â geschlossene Besprechung wÃ¤hlen â"
+        : "â keine geschlossenen Besprechungen â";
     sel.appendChild(opt0);
 
     for (const m of this.meetings) {
       const opt = document.createElement("option");
       opt.value = m.id;
 
-      const idx = m.meeting_index != null ? `#${m.meeting_index}` : "#—";
+      const idx = m.meeting_index != null ? `#${m.meeting_index}` : "#â";
       const t = (m.title || "").toString().trim() || "(ohne Titel)";
-      opt.textContent = `${idx} – ${t}`;
+      opt.textContent = `${idx} â ${t}`;
       sel.appendChild(opt);
     }
 
@@ -1960,7 +1969,7 @@ export default class PrintModal {
   }
 
   _pdfCopyrightText() {
-    return "� 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
+    return "© 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
   }
 
   _pdfCopyrightStyle() {
@@ -2036,7 +2045,7 @@ export default class PrintModal {
     const v = String(s ?? "").trim();
     if (!v) return "";
     if (v.length <= n) return v;
-    return v.slice(0, Math.max(0, n - 1)) + "…";
+    return v.slice(0, Math.max(0, n - 1)) + "â¦";
   }
 
   _cut(s, n) {
@@ -2192,14 +2201,14 @@ export default class PrintModal {
   }
 
   _buildMeetingLabel(meeting) {
-    const idx = meeting?.meeting_index != null ? `#${meeting.meeting_index}` : "#—";
+    const idx = meeting?.meeting_index != null ? `#${meeting.meeting_index}` : "#â";
     const rawTitle = (meeting?.title || "").toString().trim();
 
     let date = null;
     let keyword = "";
 
     if (rawTitle) {
-      let t = rawTitle.replace(/^#\d+\s*(?:-|–)?\s*/i, "").trim();
+      let t = rawTitle.replace(/^#\d+\s*(?:-|â)?\s*/i, "").trim();
 
       const m = t.match(/^(\d{2}\.\d{2}\.\d{4})(?:\s*-\s*(.*))?$/);
       if (m) {
@@ -2211,7 +2220,7 @@ export default class PrintModal {
           date = dm[1];
           const after = t
             .slice(t.indexOf(dm[1]) + dm[1].length)
-            .replace(/^\s*[-–]\s*/, "");
+            .replace(/^\s*[-â]\s*/, "");
           keyword = after.trim();
         } else {
           keyword = t;
@@ -2230,11 +2239,11 @@ export default class PrintModal {
         meeting?.updatedAt ||
         null;
       const fmt = this._fmtDateYYYYMMDD(fallback);
-      if (fmt && fmt !== "—") date = fmt;
+      if (fmt && fmt !== "â") date = fmt;
     }
 
     if (keyword) {
-      keyword = keyword.replace(/^#\d+\b\s*(?:-|–)?\s*/i, "").trim();
+      keyword = keyword.replace(/^#\d+\b\s*(?:-|â)?\s*/i, "").trim();
     }
 
     let label = date ? `${idx} ${date}` : idx;
@@ -2671,15 +2680,15 @@ export default class PrintModal {
         }
       }
 
-      const timeOut = nextMeetingTimeRaw || "—";
-      const dateFallback = dateOut || "—";
+      const timeOut = nextMeetingTimeRaw || "â";
+      const dateFallback = dateOut || "â";
       const w = this._escapeHtml(weekday);
       const d = this._escapeHtml(dateFallback);
       const t = this._escapeHtml(timeOut);
       const extra = this._escapeHtml(nextMeetingExtraRaw);
       const place = this._escapeHtml(nextMeetingPlaceRaw);
 
-      let s = "Die nächste Besprechung findet am ";
+      let s = "Die nÃ¤chste Besprechung findet am ";
       if (w && d) {
         s += `${w}, den ${d} um ${t} Uhr`;
       } else {
@@ -4301,7 +4310,7 @@ export default class PrintModal {
 
       const isClosed = Number(meeting.is_closed) === 1;
       if (!allowOpen && !isClosed) {
-        alert("Diese Besprechung ist nicht geschlossen. Druck nur für geschlossene Besprechungen.");
+        alert("Diese Besprechung ist nicht geschlossen. Druck nur fÃ¼r geschlossene Besprechungen.");
         return;
       }
 
@@ -4330,6 +4339,7 @@ export default class PrintModal {
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
       const protocolNameRaw = String(settings?.["pdf.protocolTitle"] || "").trim();
+      const protocolName = this._sanitizeFileSegment(protocolNameRaw || "Baubesprechung");
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -4341,6 +4351,7 @@ export default class PrintModal {
         meeting?.updated_at ||
         meeting?.updatedAt ||
         null;
+      const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
 
       const resP = await api.meetingParticipantsList({ meetingId });
       if (!resP?.ok) {
@@ -4385,13 +4396,9 @@ export default class PrintModal {
       const suffix = isVorabzug ? " VORABZUG" : "";
       const fn = isVorabzug
         ? this._sanitizeFileName(`BBM ${projectLabel || ""} ${meetingLabel}${suffix}`) + ".pdf"
-        : buildProtocolPdfFileName({
-            projectNumber,
-            projectShort: projectInfo.short || projectInfo.name || "",
-            protocolTitle: protocolNameRaw || "Protokoll",
-            meetingIndex: meetingNr,
-            meetingDate: meetingDateRaw || new Date(),
-          });
+        : this._sanitizeFileName(
+            `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`
+          ) + ".pdf";
 
       const nextMeetingSettingsForPrint = {
         "print.nextMeeting.enabled": String(settings?.["print.nextMeeting.enabled"] ?? "").trim(),

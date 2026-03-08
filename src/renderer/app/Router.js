@@ -816,6 +816,20 @@ export default class Router {
     }
   }
 
+  async openStoredProtocolPreview({ filePath, title } = {}) {
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.openExistingPdfPreview !== "function") {
+      alert("PrintModal unterstützt keine gespeicherte PDF-Vorschau.");
+      return false;
+    }
+    try {
+      await pm.openExistingPdfPreview({ filePath, title: title || "Protokoll (Vorschau)" });
+      return true;
+    } finally {
+      await this.closePrintModal({ keepPreview: true });
+    }
+  }
+
   async openPrintVorabzug({ projectId, meetingId } = {}) {
     const pm = await this._ensurePrintModal();
     if (typeof pm?.printVorabzug !== "function") {

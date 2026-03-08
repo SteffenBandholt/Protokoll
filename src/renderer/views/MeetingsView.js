@@ -46,6 +46,133 @@ export default class MeetingsView {
     return "Druck";
   }
 
+  _formatProtocolDateForName(dateValue) {
+    const d = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return { dot: "", iso: "" };
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return {
+      dot: `${dd}.${mm}.${yyyy}`,
+      iso: `${yyyy}-${mm}-${dd}`,
+    };
+  }
+
+  _sanitizeProtocolFilePart(value) {
+    return String(value || "")
+      .replace(/[<>:"/\\|?*]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  async _loadProjectForStoredPdf() {
+    const api = window.bbmDb || {};
+    if (typeof api.projectsList !== "function") return null;
+    const res = await api.projectsList();
+    if (!res?.ok) return null;
+    const list = res.list || [];
+    return list.find((item) => item.id === this.projectId) || null;
+  }
+
+  async _loadProtocolSettingsForStoredPdf() {
+    const api = window.bbmDb || {};
+    let merged = { ...(this.router?.context?.settings || {}) };
+    if (typeof api.appSettingsGetMany === "function") {
+      const res = await api.appSettingsGetMany(["pdf.protocolsDir", "pdf.protocolTitle"]);
+      if (res?.ok && res.data) {
+        merged = { ...merged, ...(res.data || {}) };
+      }
+    }
+    return merged;
+  }
+
+  _buildExpectedProtocolFileNames({ project, protocolTitle, meeting }) {
+    const projectNumber = this._sanitizeProtocolFilePart(
+      project?.project_number ?? project?.projectNumber ?? project?.number ?? ""
+    );
+    const projectShort = this._sanitizeProtocolFilePart(project?.short || project?.name || "");
+    const protocolName = this._sanitizeProtocolFilePart(protocolTitle || "Baubesprechung");
+    const meetingIndex =
+      meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+    const dateParts = this._formatProtocolDateForName(
+      meeting?.meeting_date ||
+        meeting?.meetingDate ||
+        meeting?.date ||
+        meeting?.created_at ||
+        meeting?.createdAt ||
+        meeting?.updated_at ||
+        meeting?.updatedAt ||
+        ""
+    );
+
+    const candidates = [];
+    if (projectNumber && protocolName && meetingIndex && dateParts.iso) {
+      candidates.push(`${projectNumber}_${protocolName}_#${meetingIndex}-${dateParts.iso}.pdf`);
+    }
+    if (projectNumber && projectShort && protocolName && meetingIndex && dateParts.dot) {
+      candidates.push(
+        `${projectNumber}_${projectShort}_${protocolName}_#${meetingIndex} - ${dateParts.dot}.pdf`
+      );
+    }
+    return candidates;
+  }
+
+  async _openStoredProtocolPreview(meeting) {
+    const printApi = window.bbmPrint || {};
+    if (typeof printApi.findStoredProtocolPdf !== "function") {
+      return false;
+    }
+
+    const settings = await this._loadProtocolSettingsForStoredPdf();
+    const baseDir = String(settings?.["pdf.protocolsDir"] || "").trim();
+    if (!baseDir) {
+      alert("Speicherort Protokolle ist nicht gesetzt.");
+      return true;
+    }
+
+    const project = await this._loadProjectForStoredPdf();
+    if (!project) {
+      return false;
+    }
+
+    const protocolTitle = String(settings?.["pdf.protocolTitle"] || "").trim() || "Baubesprechung";
+    const meetingIndex =
+      meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+
+    const found = await printApi.findStoredProtocolPdf({
+      baseDir,
+      project: {
+        project_number: project?.project_number ?? project?.projectNumber ?? project?.number ?? "",
+        short: project?.short || "",
+        name: project?.name || "",
+      },
+      expectedFileNames: this._buildExpectedProtocolFileNames({
+        project,
+        protocolTitle,
+        meeting,
+      }),
+      meetingIndex,
+    });
+
+    if (!found?.ok || !found?.filePath) {
+      const details = found?.expectedFileNames?.length
+        ? `\nErwartet: ${found.expectedFileNames.join(" | ")}`
+        : "";
+      alert((found?.error || "PDF nicht gefunden.") + details + (found?.dir ? `\nOrdner: ${found.dir}` : ""));
+      return true;
+    }
+
+    if (typeof this.router?.openStoredProtocolPreview !== "function") {
+      return false;
+    }
+
+    await this.router.openStoredProtocolPreview({
+      filePath: found.filePath,
+      title: "Protokoll (Vorschau)",
+    });
+    return true;
+  }
+
   async _selectClosedMeetingForPrint(meeting) {
     if (!this.printSelectionMode) return;
     if (!meeting || Number(meeting.is_closed) !== 1) return;
@@ -361,6 +488,11 @@ export default class MeetingsView {
       }
       alert("PrintModal unterst\u00FCtzt keinen Vorabzug (openPrintVorabzug fehlt).");
       return false;
+    }
+
+    const handledStoredPdf = await this._openStoredProtocolPreview(meeting);
+    if (handledStoredPdf) {
+      return true;
     }
 
     if (typeof this.router?.openMeetingPrintPreview === "function") {

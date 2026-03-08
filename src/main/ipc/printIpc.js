@@ -108,17 +108,79 @@ async function _buildOutputPath({
 
   fs.mkdirSync(outDir, { recursive: true });
 
-  const finalPath = overwrite
+  return overwrite
     ? path.join(outDir, sanitizeFileName(fileName || "BBM.pdf"))
     : uniquePath(outDir, fileName || "BBM.pdf");
+}
 
-  console.log(
-    `[print:path] mode=${modeKey || "protocol"} targetDir=${String(effectiveTargetDir || "")} baseDir=${String(
-      outBaseDir || ""
-    )} outDir=${outDir} file=${path.basename(finalPath)}`
-  );
 
-  return finalPath;
+function findStoredProtocolPdf({
+  baseDir,
+  project,
+  expectedFileNames,
+  meetingIndex,
+} = {}) {
+  const normalizedBaseDir = String(baseDir || "").trim();
+  if (!normalizedBaseDir) {
+    return { ok: false, error: "Basisordner fehlt" };
+  }
+
+  const projectFolder = resolveProjectFolderName(project || {});
+  const protocolsDir = path.join(normalizedBaseDir, "bbm", projectFolder, "Protokolle");
+
+  if (!fs.existsSync(protocolsDir)) {
+    return {
+      ok: false,
+      error: "Protokollordner nicht gefunden",
+      dir: protocolsDir,
+      projectFolder,
+    };
+  }
+
+  const pdfFiles = fs
+    .readdirSync(protocolsDir, { withFileTypes: true })
+    .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => String(name || "").toLowerCase().endsWith(".pdf"));
+
+  const normalizedExpected = Array.isArray(expectedFileNames)
+    ? expectedFileNames.map((name) => sanitizeFileName(name)).filter(Boolean)
+    : [];
+
+  for (const expectedName of normalizedExpected) {
+    const candidate = path.join(protocolsDir, expectedName);
+    if (fs.existsSync(candidate)) {
+      return {
+        ok: true,
+        filePath: candidate,
+        dir: protocolsDir,
+        projectFolder,
+        matchedBy: "exact",
+      };
+    }
+  }
+
+  const marker = String(meetingIndex == null ? "" : `#${meetingIndex}`).trim().toLowerCase();
+  if (marker) {
+    const fallbackName = pdfFiles.find((name) => String(name).toLowerCase().includes(marker));
+    if (fallbackName) {
+      return {
+        ok: true,
+        filePath: path.join(protocolsDir, fallbackName),
+        dir: protocolsDir,
+        projectFolder,
+        matchedBy: "meetingIndex",
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    error: "Keine passende PDF gefunden",
+    dir: protocolsDir,
+    projectFolder,
+    expectedFileNames: normalizedExpected,
+  };
 }
 
 function attachPrintDebugPipes(win, jobId) {
@@ -286,6 +348,21 @@ function registerPrintIpc() {
       );
       const outPath = await printToPdf(payload || {});
       return { ok: true, filePath: outPath };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+
+  ipcMain.handle("protocol:findStoredPdf", async (_evt, payload) => {
+    try {
+      const p = payload || {};
+      return findStoredProtocolPdf({
+        baseDir: p.baseDir,
+        project: p.project || null,
+        expectedFileNames: p.expectedFileNames || [],
+        meetingIndex: p.meetingIndex,
+      });
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
     }

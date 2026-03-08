@@ -173,4 +173,5 @@ contextBridge.exposeInMainWorld("bbmDb", {
 
 contextBridge.exposeInMainWorld("bbmPrint", {
   printPdf: (data) => ipcRenderer.invoke("print:toPdf", data),
+  findStoredProtocolPdf: (data) => ipcRenderer.invoke("protocol:findStoredPdf", data),
 });
