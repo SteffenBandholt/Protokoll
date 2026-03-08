@@ -108,9 +108,17 @@ async function _buildOutputPath({
 
   fs.mkdirSync(outDir, { recursive: true });
 
-  return overwrite
+  const finalPath = overwrite
     ? path.join(outDir, sanitizeFileName(fileName || "BBM.pdf"))
     : uniquePath(outDir, fileName || "BBM.pdf");
+
+  console.log(
+    `[print:path] mode=${modeKey || "protocol"} targetDir=${String(effectiveTargetDir || "")} baseDir=${String(
+      outBaseDir || ""
+    )} outDir=${outDir} file=${path.basename(finalPath)}`
+  );
+
+  return finalPath;
 }
 
 function attachPrintDebugPipes(win, jobId) {

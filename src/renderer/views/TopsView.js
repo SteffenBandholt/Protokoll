@@ -8,6 +8,7 @@ import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { fireAndForget } from "../utils/async.js";
+import { resolveProtocolsDir } from "../utils/pdfProtocolsDir.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 
@@ -514,6 +515,41 @@ _isoToDDMMYYYY(iso) {
     return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, "0")}-${String(
       base.getDate()
     ).padStart(2, "0")}`;
+  }
+
+  async _autoSaveProtocolPdfOnClose() {
+    if (typeof window?.bbmPrint?.printPdf !== "function") return null;
+
+    const resolved = await resolveProtocolsDir({
+      settings: this.router?.context?.settings || null,
+      api: window.bbmDb || null,
+      router: this.router,
+      persistIfMissing: true,
+    });
+    const protocolsDir = String(resolved?.dir || "").trim();
+
+    const payload = {
+      projectId: this.projectId,
+      meetingId: this.meetingId,
+      mode: "protocol",
+      autoSave: true,
+      overwrite: true,
+    };
+
+    if (protocolsDir) payload.baseDir = protocolsDir;
+
+    console.log("[autosave] protocol pdf on close", {
+      projectId: this.projectId,
+      meetingId: this.meetingId,
+      mode: payload.mode,
+      baseDir: payload.baseDir || null,
+    });
+
+    const out = await window.bbmPrint.printPdf(payload);
+    if (!out?.ok) {
+      throw new Error(out?.error || "Protokoll-PDF konnte beim Schließen nicht gespeichert werden.");
+    }
+    return out;
   }
 
   async _loadAmpelSetting() {
@@ -1735,7 +1771,14 @@ _isoToDDMMYYYY(iso) {
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
             alert(`Hinweis beim Schließen:\n${res.warnings.join("\n")}`);
           }
+          
+          try {
+            await this._autoSaveProtocolPdfOnClose();
+          } catch (err) {
+            console.warn("[autosave] PDF save failed:", err);
+          }
           await this._enterIdleAfterClose();
+
           return;
         }
 

@@ -34,6 +34,7 @@ import {
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 import { OVERLAY_TOP } from "./zIndex.js";
+import { defaultProtocolsDir, resolveProtocolsDir } from "../utils/pdfProtocolsDir.js";
 
 export default class PrintModal {
   constructor({ router } = {}) {
@@ -395,43 +396,17 @@ export default class PrintModal {
   }
 
   _defaultProtocolsDir() {
-    return "C:\\Downloads";
+    return defaultProtocolsDir();
   }
 
   async _resolveProtocolsDir({ settings = null, api = null, persistIfMissing = false } = {}) {
-    const dbApi = api || window.bbmDb || {};
-    let resolvedSettings = settings || this.router?.context?.settings || {};
-    let dir = String(resolvedSettings?.["pdf.protocolsDir"] || "").trim();
-    let hadStoredValue = !!dir;
-
-    if (!dir && typeof dbApi.appSettingsGetMany === "function") {
-      const res = await dbApi.appSettingsGetMany(["pdf.protocolsDir"]);
-      if (res?.ok) {
-        const fromDb = String(res?.data?.["pdf.protocolsDir"] || "").trim();
-        if (fromDb) {
-          dir = fromDb;
-          hadStoredValue = true;
-          resolvedSettings = { ...resolvedSettings, "pdf.protocolsDir": dir };
-        }
-      }
-    }
-
-    if (!dir) {
-      dir = this._defaultProtocolsDir();
-      resolvedSettings = { ...resolvedSettings, "pdf.protocolsDir": dir };
-      if (!hadStoredValue && persistIfMissing && typeof dbApi.appSettingsSetMany === "function") {
-        await dbApi.appSettingsSetMany({ "pdf.protocolsDir": dir });
-      }
-    }
-
-    if (this.router?.context) {
-      this.router.context.settings = {
-        ...(this.router.context.settings || {}),
-        "pdf.protocolsDir": dir,
-      };
-    }
-
-    return { dir, settings: resolvedSettings };
+    const resolved = await resolveProtocolsDir({
+      settings,
+      api,
+      router: this.router,
+      persistIfMissing,
+    });
+    return { dir: resolved?.dir || this._defaultProtocolsDir(), settings: resolved?.settings || settings || {} };
   }
 
   async _refreshProtocolsDirLabel() {
