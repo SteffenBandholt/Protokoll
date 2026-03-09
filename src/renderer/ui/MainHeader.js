@@ -2027,6 +2027,297 @@ export default class MainHeader {
     }
   }
 
+  
+_formatEmailMeetingDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const direct = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (direct) return `${direct[3]}.${direct[2]}.${direct[1]}`;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return raw;
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(d.getFullYear());
+  return `${dd}.${mm}.${yyyy}`;
+}
+
+async _resolveProtocolTitleForEmail(projectId = null) {
+  const api = window.bbmDb || {};
+  try {
+    if (projectId && typeof api.projectSettingsGetMany === "function") {
+      const res = await api.projectSettingsGetMany({
+        projectId,
+        keys: ["pdf.protocolTitle"],
+      });
+      const value = String(res?.data?.["pdf.protocolTitle"] || "").trim();
+      if (res?.ok && value) return value;
+    }
+  } catch (_err) {
+    // ignore
+  }
+
+  try {
+    if (typeof api.appSettingsGetMany === "function") {
+      const res = await api.appSettingsGetMany(["pdf.protocolTitle"]);
+      const value = String(res?.data?.["pdf.protocolTitle"] || "").trim();
+      if (res?.ok && value) return value;
+    }
+  } catch (_err) {
+    // ignore
+  }
+
+  return "Baubesprechung";
+}
+
+async _getStoredEmailTemplate() {
+  const api = window.bbmDb || {};
+  const fallbackSubject = "{projectNumber} - {projectShortName}  |  {protocolTitle} #{meetingIndex} - {meetingDate}";
+  const fallbackBody =
+    "Sehr geehrte Damen und Herren,\n" +
+    "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
+
+  try {
+    if (typeof api.appSettingsGetMany === "function") {
+      const res = await api.appSettingsGetMany(["email_subject", "email_body"]);
+      if (res?.ok) {
+        const data = res.data || {};
+        const subject = String(data.email_subject ?? "").trim() || fallbackSubject;
+        const body = String(data.email_body ?? "") || fallbackBody;
+        return { subject, body };
+      }
+    }
+  } catch (_err) {
+    // ignore
+  }
+
+  return { subject: fallbackSubject, body: fallbackBody };
+}
+
+_buildEmailTemplateContext({ projectNumber, projectShortName, protocolTitle, meeting } = {}) {
+  const meetingIndex = String(
+    meeting?.meeting_index ??
+    meeting?.meetingIndex ??
+    meeting?.index ??
+    meeting?.number ??
+    ""
+  ).trim();
+
+  const meetingDate = this._formatEmailMeetingDate(
+    meeting?.meeting_date ||
+    meeting?.meetingDate ||
+    meeting?.date ||
+    meeting?.created_at ||
+    meeting?.createdAt ||
+    meeting?.updated_at ||
+    meeting?.updatedAt ||
+    ""
+  );
+
+  return {
+    projectNumber: String(projectNumber || "").trim(),
+    projectShortName: String(projectShortName || "").trim(),
+    protocolTitle: String(protocolTitle || "").trim(),
+    meetingIndex,
+    meetingDate,
+  };
+}
+
+_applyEmailSubjectTemplate(subjectTemplate, ctx = {}) {
+  const template = String(subjectTemplate || "").trim();
+  if (!template) return "";
+  const map = {
+    "{projectNumber}": String(ctx.projectNumber || ""),
+    "{projectShortName}": String(ctx.projectShortName || ""),
+    "{protocolTitle}": String(ctx.protocolTitle || ""),
+    "{meetingIndex}": String(ctx.meetingIndex || ""),
+    "{meetingDate}": String(ctx.meetingDate || ""),
+  };
+  let out = template;
+  for (const [needle, value] of Object.entries(map)) {
+    out = out.split(needle).join(value);
+  }
+  return out.trim();
+}
+
+_buildFallbackEmailSubject({ projectNumber, projectShortName, mailType } = {}) {
+  const left = [String(projectNumber || "").trim(), String(projectShortName || "").trim()]
+    .filter(Boolean)
+    .join(" - ");
+  const right = String(mailType || "").trim();
+  if (left && right) return `${left} - ${right}`;
+  return left || right || "Protokoll";
+}
+
+async _getSelectedMeetingRecipients() {
+  const selectedMeeting =
+    this.router?.activeView?.getSelectedClosedMeetingForEmail?.() ||
+    this.router?.activeView?.getSelectedClosedMeeting?.() ||
+    null;
+  const meetingId = selectedMeeting?.id || null;
+  if (!meetingId) return [];
+
+  const api = window.bbmDb || {};
+  if (typeof api.meetingParticipantsList !== "function") return [];
+
+  const readEmail = (item) =>
+    String(
+      item?.email ??
+      item?.email_raw ??
+      item?.mail ??
+      item?.e_mail ??
+      item?.person_email ??
+      item?.personEmail ??
+      item?.participant_email ??
+      item?.participantEmail ??
+      ""
+    ).trim();
+
+  const hasDistributionField = (item) =>
+    !!item &&
+    (
+      Object.prototype.hasOwnProperty.call(item, "isInDistribution") ||
+      Object.prototype.hasOwnProperty.call(item, "is_in_distribution") ||
+      Object.prototype.hasOwnProperty.call(item, "inDistribution") ||
+      Object.prototype.hasOwnProperty.call(item, "in_distribution") ||
+      Object.prototype.hasOwnProperty.call(item, "send_email") ||
+      Object.prototype.hasOwnProperty.call(item, "sendEmail") ||
+      Object.prototype.hasOwnProperty.call(item, "email_enabled") ||
+      Object.prototype.hasOwnProperty.call(item, "emailEnabled")
+    );
+
+  const isInDistribution = (item) =>
+    Number(
+      item?.isInDistribution ??
+      item?.is_in_distribution ??
+      item?.inDistribution ??
+      item?.in_distribution ??
+      item?.send_email ??
+      item?.sendEmail ??
+      item?.email_enabled ??
+      item?.emailEnabled ??
+      0
+    ) === 1;
+
+  try {
+    const res = await api.meetingParticipantsList({ meetingId });
+    const rows = Array.isArray(res?.items) ? res.items : Array.isArray(res?.list) ? res.list : [];
+    if (!res?.ok || !rows.length) return [];
+
+    const anyDistributionField = rows.some((item) => hasDistributionField(item));
+    const seen = new Set();
+    const out = [];
+
+    const addEmail = (email) => {
+      const key = String(email || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(String(email).trim());
+    };
+
+    for (const item of rows) {
+      if (anyDistributionField && !isInDistribution(item)) continue;
+      const email = readEmail(item);
+      if (!email) continue;
+      addEmail(email);
+    }
+
+    if (out.length) return out;
+
+    for (const item of rows) {
+      const email = readEmail(item);
+      if (!email) continue;
+      addEmail(email);
+    }
+
+    return out;
+  } catch (err) {
+    console.warn("[header] recipients lookup failed:", err);
+    return [];
+  }
+}
+
+async _buildRevealProtocolPdfPayload(selectedMeeting, projectId) {
+  if (!selectedMeeting || !projectId) return null;
+  const api = window.bbmDb || {};
+  if (typeof api.projectsList !== "function" || typeof api.appSettingsGetMany !== "function") return null;
+
+  try {
+    const [projectsRes, settingsRes] = await Promise.all([
+      api.projectsList(),
+      api.appSettingsGetMany(["pdf.protocolsDir", "pdf.protocolTitle"]),
+    ]);
+
+    if (!projectsRes?.ok || !Array.isArray(projectsRes.list) || !settingsRes?.ok) return null;
+
+    const project = projectsRes.list.find((x) => x && x.id === projectId) || null;
+    const baseDir = String(settingsRes?.data?.["pdf.protocolsDir"] || "").trim();
+    const protocolTitle =
+      String(settingsRes?.data?.["pdf.protocolTitle"] || "").trim() || "Baubesprechung";
+
+    if (!project || !baseDir) return null;
+
+    const cleanPart = (v) =>
+      String(v || "")
+        .replace(/[<>:"/\\|?*]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const formatDateParts = (value) => {
+      const d = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(d.getTime())) return { dot: "", iso: "" };
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      return { dot: `${dd}.${mm}.${yyyy}`, iso: `${yyyy}-${mm}-${dd}` };
+    };
+
+    const meetingIndex =
+      selectedMeeting?.meeting_index ??
+      selectedMeeting?.meetingIndex ??
+      selectedMeeting?.index ??
+      selectedMeeting?.number ??
+      "";
+
+    const dateParts = formatDateParts(
+      selectedMeeting?.meeting_date ||
+      selectedMeeting?.meetingDate ||
+      selectedMeeting?.date ||
+      selectedMeeting?.created_at ||
+      selectedMeeting?.createdAt ||
+      selectedMeeting?.updated_at ||
+      selectedMeeting?.updatedAt ||
+      ""
+    );
+
+    const expectedFileNames = [];
+    const numberPart = cleanPart(project?.project_number ?? project?.projectNumber ?? project?.number ?? "");
+    const shortPart = cleanPart(project?.short || project?.name || "");
+    const titlePart = cleanPart(protocolTitle);
+
+    if (numberPart && titlePart && meetingIndex && dateParts.iso) {
+      expectedFileNames.push(`${numberPart}_${titlePart}_#${meetingIndex}-${dateParts.iso}.pdf`);
+    }
+    if (numberPart && shortPart && titlePart && meetingIndex && dateParts.dot) {
+      expectedFileNames.push(`${numberPart}_${shortPart}_${titlePart}_#${meetingIndex} - ${dateParts.dot}.pdf`);
+    }
+
+    return {
+      baseDir,
+      project: {
+        project_number: project?.project_number ?? project?.projectNumber ?? project?.number ?? "",
+        short: project?.short || "",
+        name: project?.name || "",
+      },
+      expectedFileNames,
+      meetingIndex: String(meetingIndex || "").trim(),
+    };
+  } catch (err) {
+    console.warn("[header] prepare reveal payload failed:", err);
+    return null;
+  }
+}
+
+
   async _openMailClient(mailType = "") {
     const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();
     const emailTemplate = await this._getStoredEmailTemplate();
@@ -2056,20 +2347,30 @@ export default class MainHeader {
     let body = String(emailTemplate.body || "");
     if (!body.trim()) {
       body =
-        "Sehr geehrte Damen und Herren,\n\n" +
+        "Sehr geehrte Damen und Herren,\n" +
         "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
     }
 
     const recipients = await this._getSelectedMeetingRecipients();
     const toPart = recipients.length ? encodeURIComponent(recipients.join(",")) : "";
+    const revealPayload = await this._buildRevealProtocolPdfPayload(selectedMeeting, projectId);
+
     const mailto = `mailto:${toPart}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     try {
       window.location.href = mailto;
+      if (revealPayload && window.bbmShell?.revealProtocolPdf) {
+        setTimeout(() => {
+          try {
+            window.bbmShell.revealProtocolPdf(revealPayload);
+          } catch (_err) {
+            // ignore
+          }
+        }, 250);
+      }
     } catch (err) {
       console.error("[header] open mailto failed:", err);
       alert("E-Mail konnte nicht geöffnet werden.");
     }
   }
-
 
 }

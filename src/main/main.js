@@ -404,6 +404,57 @@ app.whenReady().then(async () => {
   });
 
   // ✅ App beenden (ohne Confirm) – über IPC
+
+
+ipcMain.handle("shell:revealProtocolPdf", async (_event, payload) => {
+  try {
+    const baseDir = String(payload?.baseDir || "").trim();
+    const project = payload?.project || {};
+    const expectedFileNames = Array.isArray(payload?.expectedFileNames) ? payload.expectedFileNames : [];
+    const meetingIndex = String(payload?.meetingIndex || "").trim();
+
+    if (!baseDir) return { ok: false, error: "Basisordner fehlt." };
+
+    const preview = buildStoragePreviewPaths({ baseDir, project });
+    const protocolsDir = String(preview?.protocolsDir || "").trim();
+    if (!protocolsDir || !fs.existsSync(protocolsDir)) {
+      return { ok: false, error: "Protokollordner nicht gefunden." };
+    }
+
+    const files = fs
+      .readdirSync(protocolsDir, { withFileTypes: true })
+      .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
+      .map((entry) => entry.name)
+      .filter((name) => String(name || "").toLowerCase().endsWith(".pdf"));
+
+    const lowerMap = new Map(files.map((name) => [String(name).toLowerCase(), name]));
+
+    let matched = "";
+    for (const expected of expectedFileNames) {
+      const hit = lowerMap.get(String(expected || "").toLowerCase());
+      if (hit) {
+        matched = hit;
+        break;
+      }
+    }
+
+    if (!matched && meetingIndex) {
+      const markerText = `#${meetingIndex}`.toLowerCase();
+      matched = files.find((name) => String(name || "").toLowerCase().includes(markerText)) || "";
+    }
+
+    if (matched) {
+      shell.showItemInFolder(path.join(protocolsDir, matched));
+      return { ok: true, matched: true, fileName: matched, dir: protocolsDir };
+    }
+
+    shell.openPath(protocolsDir);
+    return { ok: true, matched: false, dir: protocolsDir };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
   ipcMain.handle("app:quit", () => {
     try {
       try {
