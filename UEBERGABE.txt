@@ -124,6 +124,20 @@ Dateinamen enthalten:
 - Protokollnummer
 - Datum
 
+Wichtiger Hinweis zum Drucksystem:
+
+Die produktive PDF-Erzeugung läuft aktuell über PrintModal.js
+und window.bbmPrint.printPdf().
+
+Der Ordner src/renderer/print/v2/ ist vorhanden, aber derzeit
+nicht produktiv verdrahtet.
+
+Ohne ausdrücklichen Refactor-Auftrag gilt:
+Altlogik verwenden, print/v2 nicht aktivieren.
+
+
+
+
 ============================================================
 ENDE
 ============================================================

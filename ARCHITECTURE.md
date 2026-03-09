@@ -36,7 +36,6 @@ printIpc.js
 ============================================================
 Drucklogik
 ============================================================
-
 Dokumenttypen:
 
 - Protokoll
@@ -74,6 +73,133 @@ Neuer TOP:
 
 - blau
 - Stern
+
+# Textbaustein für ARCHITECTURE.md
+
+============================================================
+DRUCKARCHITEKTUR (STAND AKTUELL)
+============================================================
+
+Produktiver Druckpfad
+
+Die aktuelle PDF-Erzeugung läuft vollständig über die Altlogik in PrintModal.js.
+
+Dokumenttypen:
+
+- Protokoll
+- Firmenliste
+- ToDo-Liste
+
+Ablauf
+
+Renderer:
+PrintModal.js
+
+→ ruft
+
+window.bbmPrint.printPdf(...)
+
+→ IPC:
+src/main/ipc/printIpc.js
+
+→ tatsächliche PDF-Erzeugung
+
+Hauptfunktionen
+
+_printMeeting()    → Protokoll
+_printFirmsPdf()   → Firmenliste
+_printTodoPdf()    → ToDo-Liste
+
+Alle drei Funktionen rufen am Ende dieselbe Druckschnittstelle auf:
+
+window.bbmPrint.printPdf()
+
+============================================================
+AUTOMATISCHER DRUCKWORKFLOW
+============================================================
+
+Beim Klick auf
+
+"Protokoll beenden"
+
+werden automatisch drei PDFs nacheinander erzeugt:
+
+1. Protokoll → Projektordner
+2. Firmenliste → Projektordner / Listen
+3. ToDo-Liste → Projektordner / Listen
+
+Dieser Ablauf wird aktuell über die bestehende Altlogik gesteuert.
+
+Wichtig:
+
+- keine Vorschau
+- direkter Dateidruck
+- feste Reihenfolge
+
+============================================================
+MANUELLER DRUCK
+============================================================
+
+Über den Header:
+
+"Drucken"
+
+werden Vorschauen erzeugt für:
+
+- Protokoll
+- Firmenliste
+- ToDo-Liste
+
+Diese laufen ebenfalls über PrintModal.
+
+============================================================
+PRINT/V2
+============================================================
+
+Im Repository existiert ein neuer Ansatz:
+
+src/renderer/print/v2/
+
+Dieser enthält eine geplante vereinheitlichte Druckpipeline für Layout und Rendering.
+
+Aktueller Status:
+
+- nicht produktiv angebunden
+- wird aktuell von keinem Workflow verwendet
+
+Die bestehende Anwendung nutzt ausschließlich die Altlogik über PrintModal.
+
+============================================================
+LANGFRISTIGE ZIELRICHTUNG
+============================================================
+
+Langfristig könnte die Ausgabeerzeugung schrittweise auf die print/v2-Pipeline umgestellt werden.
+
+Dabei sollte gelten:
+
+- Workflow/Trigger bleiben getrennt von Rendering
+- Rendering erfolgt über eine gemeinsame Pipeline
+- Dokumenttypen werden über Parameter gesteuert
+  (z. B. protocol, firms, todo)
+
+Dieser Umbau ist aktuell nicht umgesetzt.
+
+============================================================
+WICHTIG FÜR ÄNDERUNGEN
+============================================================
+
+Bei Anpassungen am Drucksystem gilt:
+
+- Änderungen zuerst im bestehenden PrintModal-Workflow prüfen
+- print/v2 nur verwenden, wenn bewusst ein Refactor geplant ist
+- automatische PDF-Erzeugung bei "Protokoll beenden" darf nicht beschädigt werden
+
+
+
+
+
+
+
 
 ============================================================
 ZIEL
