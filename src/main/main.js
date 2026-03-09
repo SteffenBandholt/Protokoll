@@ -403,58 +403,117 @@ app.whenReady().then(async () => {
     }
   });
 
-  // ✅ App beenden (ohne Confirm) – über IPC
 
 
-ipcMain.handle("shell:revealProtocolPdf", async (_event, payload) => {
+ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
   try {
-    const baseDir = String(payload?.baseDir || "").trim();
-    const project = payload?.project || {};
-    const expectedFileNames = Array.isArray(payload?.expectedFileNames) ? payload.expectedFileNames : [];
-    const meetingIndex = String(payload?.meetingIndex || "").trim();
-
-    if (!baseDir) return { ok: false, error: "Basisordner fehlt." };
-
-    const preview = buildStoragePreviewPaths({ baseDir, project });
-    const protocolsDir = String(preview?.protocolsDir || "").trim();
-    if (!protocolsDir || !fs.existsSync(protocolsDir)) {
-      return { ok: false, error: "Protokollordner nicht gefunden." };
+    if (process.platform !== "win32") {
+      return { ok: false, error: "Outlook-Entwurf ist nur unter Windows verfügbar." };
     }
 
-    const files = fs
-      .readdirSync(protocolsDir, { withFileTypes: true })
-      .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
-      .map((entry) => entry.name)
-      .filter((name) => String(name || "").toLowerCase().endsWith(".pdf"));
+    const to = Array.isArray(payload?.to)
+      ? payload.to.map((v) => String(v || "").trim()).filter(Boolean)
+      : String(payload?.to || "")
+          .split(/[;,]/)
+          .map((v) => String(v || "").trim())
+          .filter(Boolean);
 
-    const lowerMap = new Map(files.map((name) => [String(name).toLowerCase(), name]));
+    const subject = String(payload?.subject || "").trim();
+    const body = String(payload?.body || "");
+    const attachmentPath = String(payload?.attachmentPath || "").trim();
 
-    let matched = "";
-    for (const expected of expectedFileNames) {
-      const hit = lowerMap.get(String(expected || "").toLowerCase());
-      if (hit) {
-        matched = hit;
-        break;
+    if (!attachmentPath) {
+      return { ok: false, error: "Anhangspfad fehlt." };
+    }
+    if (!fs.existsSync(attachmentPath)) {
+      return { ok: false, error: "Anhang nicht gefunden." };
+    }
+
+    const tempDir = app.getPath("temp");
+    const scriptPath = path.join(tempDir, `bbm_outlook_draft_${Date.now()}.ps1`);
+    const script = [
+      'param(',
+      '  [string]$To = "",',
+      '  [string]$Subject = "",',
+      '  [string]$Body = "",',
+      '  [string]$AttachmentPath = ""',
+      ')',
+      '$ErrorActionPreference = "Stop"',
+      '$outlook = New-Object -ComObject Outlook.Application',
+      '$mail = $outlook.CreateItem(0)',
+      'if ($To) { $mail.To = $To }',
+      'if ($Subject) { $mail.Subject = $Subject }',
+      'if ($Body) { $mail.Body = $Body }',
+      'if ($AttachmentPath -and (Test-Path -LiteralPath $AttachmentPath)) {',
+      '  [void]$mail.Attachments.Add($AttachmentPath)',
+      '}',
+      '$mail.Display()',
+      ''
+    ].join("\r\n");
+
+    fs.writeFileSync(scriptPath, script, "utf8");
+
+    const args = [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-STA",
+      "-File",
+      scriptPath,
+      "-To",
+      to.join("; "),
+      "-Subject",
+      subject,
+      "-Body",
+      body,
+      "-AttachmentPath",
+      attachmentPath,
+    ];
+
+    const result = await new Promise((resolve) => {
+      let stderr = "";
+      let settled = false;
+      const child = spawn("powershell.exe", args, {
+        windowsHide: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+
+      child.on("error", (err) => {
+        if (settled) return;
+        settled = true;
+        resolve({ ok: false, error: err?.message || String(err) });
+      });
+
+      if (child.stderr) {
+        child.stderr.on("data", (chunk) => {
+          stderr += String(chunk || "");
+        });
       }
+
+      child.on("close", (code) => {
+        if (settled) return;
+        settled = true;
+        if (Number(code) === 0) {
+          resolve({ ok: true });
+        } else {
+          resolve({ ok: false, error: stderr.trim() || `PowerShell exit ${code}` });
+        }
+      });
+    });
+
+    try {
+      fs.unlinkSync(scriptPath);
+    } catch (_err) {
+      // ignore
     }
 
-    if (!matched && meetingIndex) {
-      const markerText = `#${meetingIndex}`.toLowerCase();
-      matched = files.find((name) => String(name || "").toLowerCase().includes(markerText)) || "";
-    }
-
-    if (matched) {
-      shell.showItemInFolder(path.join(protocolsDir, matched));
-      return { ok: true, matched: true, fileName: matched, dir: protocolsDir };
-    }
-
-    shell.openPath(protocolsDir);
-    return { ok: true, matched: false, dir: protocolsDir };
+    return result;
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
   }
 });
 
+  // ✅ App beenden (ohne Confirm) – über IPC
   ipcMain.handle("app:quit", () => {
     try {
       try {
