@@ -106,7 +106,10 @@ async function _buildOutputPath({
     outDir = path.join(outBaseDir, "bbm", projectFolder, modeFolder);
   }
 
-  fs.mkdirSync(outDir, { recursive: true });
+  const normalizedOutDir = path.resolve(String(outDir || "").trim() || outBaseDir);
+  if (!fs.existsSync(normalizedOutDir)) {
+    fs.mkdirSync(normalizedOutDir, { recursive: true });
+  }
 
   return overwrite
     ? path.join(outDir, sanitizeFileName(fileName || "BBM.pdf"))

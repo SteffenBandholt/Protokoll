@@ -1004,14 +1004,9 @@ export default class PrintModal {
     });
   }
 
-  // Firmenliste: Vorschau mit PDF (Preview-Modal)
+  // Firmenliste: Vorschau mit PDF (keine Save-UX)
   async openFirmsPrintPreview({ projectId, meetingId } = {}) {
     await this._printFirmsPdf({ projectId, meetingId, preview: true });
-  }
-
-  // Firmenliste: direkt als PDF im Projektordner speichern
-  async printFirmsDirect({ projectId, meetingId } = {}) {
-    await this._printFirmsPdf({ projectId, meetingId, preview: false });
   }
 
   // ToDo-Liste: Vorschau mit PDF (gleiches Preview-Modal)
@@ -1022,6 +1017,32 @@ export default class PrintModal {
   // Top-Liste(alle): Vorschau mit PDF (gleiches Preview-Modal)
   async openTopListAllPreview({ projectId, meetingId } = {}) {
     await this._printTopListAllPdf({ projectId, meetingId, preview: true });
+  }
+
+  async printFirmsDirect({ projectId, meetingId } = {}) {
+    await this._printFirmsPdf({ projectId, meetingId, preview: false });
+  }
+
+  async printTodoDirect({ projectId, meetingId } = {}) {
+    await this._printTodoPdf({ projectId, meetingId, preview: false });
+  }
+
+  _formatDateForDisplay(value) {
+    const iso = this._formatDateForFile(value);
+    const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return String(iso || "").trim();
+    return `${m[3]}.${m[2]}.${m[1]}`;
+  }
+
+  _buildListPdfFileName({ projectNumber, projectShortName, listLabel, meetingIndex, meetingDate } = {}) {
+    const parts = [
+      this._sanitizeFileSegment(projectNumber || ""),
+      this._sanitizeFileSegment(projectShortName || ""),
+      this._sanitizeFileSegment(listLabel || ""),
+      `Stand #${String(meetingIndex || "").trim() || "?"}`,
+      this._formatDateForDisplay(meetingDate || new Date()),
+    ].filter(Boolean);
+    return this._sanitizeFileName(parts.join(" - ")) + ".pdf";
   }
 
   async _printFirmsPdf({ projectId, meetingId, preview = true } = {}) {
@@ -1200,40 +1221,47 @@ export default class PrintModal {
         })
       );
 
-      const projectLabel = await this._getProjectLabelWithNumber(pid);
       const projectInfo = await this._getProjectInfo(pid);
-      const projectNumber =
-        projectInfo?.number ||
-        projectInfo?.project_number ||
-        projectInfo?.projectNumber ||
-        "";
+      const projectNumber = projectInfo.number || (pid || "");
       const projectShortName =
         projectInfo?.short ||
         projectInfo?.short_name ||
         projectInfo?.projectShortName ||
         projectInfo?.name ||
         "";
-      const standDate = this._formatDateForFile(new Date()).split("-").reverse().join(".");
-      const fileBase = [
-        String(projectNumber || "").trim(),
-        String(projectShortName || "").trim(),
-        "Firmenliste Stand " + standDate,
-      ]
-        .filter(Boolean)
-        .join(" - ");
-      const fn = this._sanitizeFileName(fileBase || `Firmenliste Stand ${standDate}`) + ".pdf";
+      let meeting = null;
+      if (meetingId && typeof api.topsListByMeeting === "function") {
+        try {
+          const meetingRes = await api.topsListByMeeting(meetingId);
+          if (meetingRes?.ok) meeting = meetingRes?.meeting || null;
+        } catch (_e) {
+          // ignore
+        }
+      }
+      const meetingNr =
+        meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+      const meetingDateRaw =
+        meeting?.meeting_date ||
+        meeting?.meetingDate ||
+        meeting?.date ||
+        meeting?.created_at ||
+        meeting?.createdAt ||
+        meeting?.updated_at ||
+        meeting?.updatedAt ||
+        new Date();
+      const fn = this._buildListPdfFileName({
+        projectNumber,
+        projectShortName,
+        listLabel: "Firmenliste",
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw,
+      });
       const out = await window.bbmPrint.printPdf({
         mode: "firms",
         projectId: pid,
         meetingId: meetingId || null,
         fileName: fn,
-        ...(preview
-          ? { targetDir: "temp" }
-          : {
-              baseDir: protocolsDir,
-              projectNumber,
-              overwrite: true,
-            }),
+        ...(preview ? { targetDir: "temp" } : { baseDir: protocolsDir, projectNumber, overwrite: true }),
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
@@ -1666,9 +1694,14 @@ export default class PrintModal {
         rows = this._buildTodoRowsLive({ tops: res?.list || [], meeting });
       }
 
-      const projectLabel = await this._getProjectLabelWithNumber(pid);
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -1680,9 +1713,13 @@ export default class PrintModal {
         meeting?.updated_at ||
         meeting?.updatedAt ||
         null;
-      const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
-      const fileName =
-        this._sanitizeFileName(`${projectNumber}_ToDo_#${meetingNr}-${meetingDateStr}`) + ".pdf";
+      const fileName = this._buildListPdfFileName({
+        projectNumber,
+        projectShortName,
+        listLabel: "ToDo-Liste",
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw || new Date(),
+      });
 
       const pdfLogoDefaults = {
         enabled: true,

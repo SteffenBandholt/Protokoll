@@ -746,17 +746,37 @@ export default class Router {
       return false;
     }
 
+    const testMeetingId =
+      state?.returnContext?.meetingId ||
+      this.currentMeetingId ||
+      selectedMeetingId;
+
     try {
+      const pm = await this._ensurePrintModal();
       if (state.printKind === "todo") {
-        await this.openTodoPrintPreview({
-          projectId: effectiveProjectId,
-          meetingId: selectedMeetingId,
-        });
+        if (typeof pm?.printTodoDirect === "function") {
+          await pm.printTodoDirect({
+            projectId: effectiveProjectId,
+            meetingId: testMeetingId,
+          });
+        } else {
+          await this.openTodoPrintPreview({
+            projectId: effectiveProjectId,
+            meetingId: testMeetingId,
+          });
+        }
       } else {
-        await this.printFirmsDirect({
-          projectId: effectiveProjectId,
-          meetingId: selectedMeetingId,
-        });
+        if (typeof pm?.printFirmsDirect === "function") {
+          await pm.printFirmsDirect({
+            projectId: effectiveProjectId,
+            meetingId: testMeetingId,
+          });
+        } else {
+          await this.openFirmsPrintPreview({
+            projectId: effectiveProjectId,
+            meetingId: testMeetingId,
+          });
+        }
       }
     } finally {
       const returnContext = state.returnContext || null;
@@ -886,26 +906,6 @@ export default class Router {
       await pm.openFirmsPrintPreview({ projectId: effectiveProjectId, meetingId: meetingId || null });
     } finally {
       await this.closePrintModal({ keepPreview: true });
-    }
-  }
-
-  async printFirmsDirect({ projectId, meetingId } = {}) {
-    const effectiveProjectId = projectId || this.currentProjectId || null;
-    if (!effectiveProjectId) {
-      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
-      return;
-    }
-    this.currentProjectId = effectiveProjectId;
-    if (meetingId) this.currentMeetingId = meetingId;
-    const pm = await this._ensurePrintModal();
-    if (typeof pm?.printFirmsDirect !== "function") {
-      alert("PrintModal unterst\u00fctzt keine Firmenliste.");
-      return;
-    }
-    try {
-      await pm.printFirmsDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
-    } finally {
-      await this.closePrintModal({ keepPreview: false });
     }
   }
 
