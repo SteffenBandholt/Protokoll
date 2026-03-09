@@ -1004,9 +1004,14 @@ export default class PrintModal {
     });
   }
 
-  // Firmenliste: Vorschau mit PDF (keine Save-UX)
+  // Firmenliste: Vorschau mit PDF (Preview-Modal)
   async openFirmsPrintPreview({ projectId, meetingId } = {}) {
     await this._printFirmsPdf({ projectId, meetingId, preview: true });
+  }
+
+  // Firmenliste: direkt als PDF im Projektordner speichern
+  async printFirmsDirect({ projectId, meetingId } = {}) {
+    await this._printFirmsPdf({ projectId, meetingId, preview: false });
   }
 
   // ToDo-Liste: Vorschau mit PDF (gleiches Preview-Modal)
@@ -1196,13 +1201,39 @@ export default class PrintModal {
       );
 
       const projectLabel = await this._getProjectLabelWithNumber(pid);
-      const fn = this._sanitizeFileName(`BBM ${projectLabel || ""} Firmenliste`) + ".pdf";
+      const projectInfo = await this._getProjectInfo(pid);
+      const projectNumber =
+        projectInfo?.number ||
+        projectInfo?.project_number ||
+        projectInfo?.projectNumber ||
+        "";
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
+      const standDate = this._formatDateForFile(new Date()).split("-").reverse().join(".");
+      const fileBase = [
+        String(projectNumber || "").trim(),
+        String(projectShortName || "").trim(),
+        "Firmenliste Stand " + standDate,
+      ]
+        .filter(Boolean)
+        .join(" - ");
+      const fn = this._sanitizeFileName(fileBase || `Firmenliste Stand ${standDate}`) + ".pdf";
       const out = await window.bbmPrint.printPdf({
         mode: "firms",
         projectId: pid,
         meetingId: meetingId || null,
         fileName: fn,
-        ...(preview ? { targetDir: "temp" } : {}),
+        ...(preview
+          ? { targetDir: "temp" }
+          : {
+              baseDir: protocolsDir,
+              projectNumber,
+              overwrite: true,
+            }),
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");

@@ -753,7 +753,7 @@ export default class Router {
           meetingId: selectedMeetingId,
         });
       } else {
-        await this.openFirmsPrintPreview({
+        await this.printFirmsDirect({
           projectId: effectiveProjectId,
           meetingId: selectedMeetingId,
         });
@@ -886,6 +886,26 @@ export default class Router {
       await pm.openFirmsPrintPreview({ projectId: effectiveProjectId, meetingId: meetingId || null });
     } finally {
       await this.closePrintModal({ keepPreview: true });
+    }
+  }
+
+  async printFirmsDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    if (meetingId) this.currentMeetingId = meetingId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printFirmsDirect !== "function") {
+      alert("PrintModal unterst\u00fctzt keine Firmenliste.");
+      return;
+    }
+    try {
+      await pm.printFirmsDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
     }
   }
 

@@ -525,8 +525,8 @@ export default class MainHeader {
     const firmsBranch = mkSubmenuBranch("Firmenliste", "firms");
     const itemFirmsOpen = mkPrintItem("Offene Besprechung", async (state) => {
       if (!state.openMeetingId) return;
-      if (typeof this.router?.openFirmsPrintPreview !== "function") return;
-      await this.router.openFirmsPrintPreview({
+      if (typeof this.router?.printFirmsDirect !== "function") return;
+      await this.router.printFirmsDirect({
         projectId: state.projectId,
         meetingId: state.openMeetingId,
       });
