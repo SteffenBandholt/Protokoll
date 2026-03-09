@@ -1730,10 +1730,21 @@ _isoToDDMMYYYY(iso) {
           console.warn("[tops] purgeTrashedByMeeting error before close:", err);
         }
 
+        const currentMeetingId = this.meetingId;
+        const currentProjectId = this.projectId || this.router?.currentProjectId || null;
         const res = await window.bbmDb.meetingsClose(closePayload);
         if (res?.ok) {
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
             alert(`Hinweis beim Schließen:\n${res.warnings.join("\n")}`);
+          }
+          try {
+            await this.router?.printClosedMeetingDirect?.({
+              projectId: currentProjectId,
+              meetingId: currentMeetingId,
+            });
+          } catch (printErr) {
+            console.error("[tops] printClosedMeetingDirect failed after close:", printErr);
+            alert(printErr?.message || "Protokoll konnte nach dem Schließen nicht als PDF gespeichert werden.");
           }
           await this._enterIdleAfterClose();
           return;
