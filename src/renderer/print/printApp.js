@@ -120,7 +120,7 @@ function _buildTopRowElement(row) {
     const numBox = _el("div", "nrBox");
     numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
     if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-    if (row.isNewTop) {
+    if (row.isNewTop || row.isTouched) {
       const star = _el("div", "newStar");
       star.innerHTML = `
         <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
@@ -149,7 +149,7 @@ function _buildTopRowElement(row) {
   const numBox = _el("div", "nrBox");
   numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
   if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-  if (row.isNewTop) {
+  if (row.isNewTop || row.isTouched) {
     const star = _el("div", "newStar");
     star.innerHTML = `
       <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
