@@ -1717,6 +1717,8 @@ _isoToDDMMYYYY(iso) {
       };
 
       const attemptClose = async () => {
+        const projIdForPrint = this.projectId || this.router?.currentProjectId || null;
+        const meetingIdForPrint = this.meetingId;
         try {
           if (typeof window.bbmDb?.topsPurgeTrashedByMeeting === "function") {
             const purgeRes = await window.bbmDb.topsPurgeTrashedByMeeting({
@@ -1735,6 +1737,44 @@ _isoToDDMMYYYY(iso) {
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
             alert(`Hinweis beim Schließen:\n${res.warnings.join("\n")}`);
           }
+
+          // Reihenfolge: Protokoll -> Firmenliste -> ToDo-Liste (alles Datei-Druck, keine Vorschau)
+          try {
+            if (typeof this.router?.printClosedMeetingDirect === "function") {
+              await this.router.printClosedMeetingDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+            }
+          } catch (err) {
+            console.warn("[tops] Protokoll-PDF nach Schließen fehlgeschlagen:", err);
+            alert("Protokoll-PDF konnte nach dem Schließen nicht erzeugt werden.");
+          }
+
+          try {
+            if (typeof this.router?.printFirmsDirect === "function") {
+              await this.router.printFirmsDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+            }
+          } catch (err) {
+            console.warn("[tops] Firmenliste-PDF nach Schließen fehlgeschlagen:", err);
+            alert("Firmenliste-PDF konnte nach dem Schließen nicht erzeugt werden.");
+          }
+
+          try {
+            if (typeof this.router?.printTodoDirect === "function") {
+              await this.router.printTodoDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+            }
+          } catch (err) {
+            console.warn("[tops] ToDo-PDF nach Schließen fehlgeschlagen:", err);
+            alert("ToDo-PDF konnte nach dem Schließen nicht erzeugt werden.");
+          }
+
           await this._enterIdleAfterClose();
           return;
         }
@@ -4234,5 +4274,4 @@ async _closeViewOnly() {
     this._gapPopupOverlay = overlay;
   }
 }
-
 

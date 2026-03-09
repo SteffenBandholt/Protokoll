@@ -929,6 +929,26 @@ export default class Router {
     }
   }
 
+  async printTodoDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    if (meetingId) this.currentMeetingId = meetingId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printTodoDirect !== "function") {
+      alert("PrintModal unterst\u00fctzt keine ToDo-Liste.");
+      return;
+    }
+    try {
+      await pm.printTodoDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
+    }
+  }
+
   async _ensureHelpModal() {
     if (this._helpModal) return this._helpModal;
     if (this._helpModalLoading) return await this._helpModalLoading;
