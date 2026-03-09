@@ -1,7 +1,15 @@
-Übergabeprotokoll
-BBM – Übergabe / Einstieg
+BBM – Projektübergabe / Einstieg
 
-Diese Datei zuerst lesen.
+ZUERST LESEN.
+
+Diese Datei enthält:
+- Projektüberblick
+- wichtige Workflows
+- wichtige Dateien
+- Drucklogik
+- Regeln für Änderungen
+
+Für technische Strukturfragen danach ARCHITECTURE.md lesen.
 
 ============================================================
 1. PROJEKT
@@ -9,11 +17,11 @@ Diese Datei zuerst lesen.
 
 Electron-Anwendung für Besprechungsmanagement.
 
-Wichtige Funktionen:
+Funktionen:
 
 - Projekte verwalten
 - Besprechungen führen
-- TOPs (Tagesordnungspunkte) bearbeiten
+- TOPs (Tagesordnungspunkte)
 - Protokolle erzeugen
 - Firmenlisten erzeugen
 - ToDo-Listen erzeugen
@@ -21,25 +29,25 @@ Wichtige Funktionen:
 PDF-Ausgaben werden im Projektordner gespeichert.
 
 ============================================================
-2. WICHTIGE REGELN
+2. CODEX-REGELN
 ============================================================
 
-Alle Codex-Prompts sind Deutsch.
+Prompts: Deutsch.
+
+Standardmodell:
+
+gpt-5.1-codex-max
+Reasoning: medium
 
 Codex soll:
 
 - NICHT das gesamte Repository lesen
-- nur ausdrücklich genannte Dateien öffnen
+- nur explizit genannte Dateien öffnen
 - Änderungen direkt im Repo durchführen
 - keine Code-Snippets oder Diffs ausgeben
 
-Standardmodell:
-
-gpt-5.1-codex-max  
-Reasoning: medium
-
 ============================================================
-3. WICHTIGE FUNKTIONEN
+3. WICHTIGE WORKFLOWS
 ============================================================
 
 Header → Drucken
@@ -67,32 +75,34 @@ Beim Klick auf "Protokoll beenden":
 3. Rückkehr in Idle-Status
 
 ============================================================
-5. DATEISTRUKTUR (wichtig)
+5. WICHTIGE DATEIEN
 ============================================================
 
 Renderer:
 
-src/renderer/ui/MainHeader.js
-src/renderer/ui/PrintModal.js
-src/renderer/views/TopsView.js
+src/renderer/ui/MainHeader.js  
+src/renderer/ui/PrintModal.js  
+src/renderer/views/TopsView.js  
 
 Routing:
 
-src/renderer/app/Router.js
+src/renderer/app/Router.js  
 
 Main-Prozess:
 
-src/main/ipc/printIpc.js
+src/main/ipc/printIpc.js  
 
 ============================================================
 6. TOP-LOGIK
 ============================================================
 
 Neuer TOP:
+
 - blau
 - Stern
 
 Übernommener TOP mit geändertem Langtext:
+
 - Langtext blau
 - Stern
 
