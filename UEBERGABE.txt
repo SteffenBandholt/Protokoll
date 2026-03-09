@@ -1,7 +1,119 @@
 Übergabeprotokoll
+BBM – Übergabe / Einstieg
 
-- Stand: Branch `feature/pdf-v2-rebuild`, alle Änderungen committed (Menü Druck, V2 Vorbemerkung/Logotext, Footer-Reserve). Arbeitsverzeichnis sauber.
-- Schwächen / offen: keine Tests gelaufen (siehe Notiz); visuelle Überprüfung der Drucksachen wäre sinnvoll.
-- Noch zu tun: ggf. Druck-Layout/Popup/Dropdown prüfen, Top-Liste im Druckmenü testen, Footer-Reserve-Default im Popup validieren.
-- Git-Handling: Weiter auf `feature/pdf-v2-rebuild` arbeiten. Neue Änderungen mit `git add` + `git commit -m "..."`. Für größere Aufgaben ggfs. neue Sub-Branches.
-- Bitte beim nächsten Start erwähnen: letzter Commit `Footer-Reserve default`, Fokus v2-Druck/Settings/MainHeader, um direkt weiterzumachen.
+Diese Datei zuerst lesen.
+
+============================================================
+1. PROJEKT
+============================================================
+
+Electron-Anwendung für Besprechungsmanagement.
+
+Wichtige Funktionen:
+
+- Projekte verwalten
+- Besprechungen führen
+- TOPs (Tagesordnungspunkte) bearbeiten
+- Protokolle erzeugen
+- Firmenlisten erzeugen
+- ToDo-Listen erzeugen
+
+PDF-Ausgaben werden im Projektordner gespeichert.
+
+============================================================
+2. WICHTIGE REGELN
+============================================================
+
+Alle Codex-Prompts sind Deutsch.
+
+Codex soll:
+
+- NICHT das gesamte Repository lesen
+- nur ausdrücklich genannte Dateien öffnen
+- Änderungen direkt im Repo durchführen
+- keine Code-Snippets oder Diffs ausgeben
+
+Standardmodell:
+
+gpt-5.1-codex-max  
+Reasoning: medium
+
+============================================================
+3. WICHTIGE FUNKTIONEN
+============================================================
+
+Header → Drucken
+
+- Protokoll
+- Firmenliste
+- ToDo-Liste
+
+Logik:
+
+Offene Besprechung
+→ Vorschau
+
+Geschlossene Besprechung
+→ PDF-Datei im Projektordner
+
+============================================================
+4. PROTOKOLL BEENDEN
+============================================================
+
+Beim Klick auf "Protokoll beenden":
+
+1. Meeting wird geschlossen
+2. Protokoll-PDF wird erzeugt
+3. Rückkehr in Idle-Status
+
+============================================================
+5. DATEISTRUKTUR (wichtig)
+============================================================
+
+Renderer:
+
+src/renderer/ui/MainHeader.js
+src/renderer/ui/PrintModal.js
+src/renderer/views/TopsView.js
+
+Routing:
+
+src/renderer/app/Router.js
+
+Main-Prozess:
+
+src/main/ipc/printIpc.js
+
+============================================================
+6. TOP-LOGIK
+============================================================
+
+Neuer TOP:
+- blau
+- Stern
+
+Übernommener TOP mit geändertem Langtext:
+- Langtext blau
+- Stern
+
+============================================================
+7. DRUCKAUSGABEN
+============================================================
+
+Protokoll → Projektordner
+
+Firmenliste → Projektordner / Listen
+
+ToDo-Liste → Projektordner / Listen
+
+Dateinamen enthalten:
+
+- Projektnummer
+- Kurzbezeichnung
+- Dokumenttyp
+- Protokollnummer
+- Datum
+
+============================================================
+ENDE
+============================================================
