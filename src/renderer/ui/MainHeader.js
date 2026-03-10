@@ -2716,7 +2716,7 @@ async _openMailClient(mailType = "", options = {}) {
   }
 
   async _generateEmailAttachmentsForMeeting({ projectId, meetingId }) {
-    const results = { protocol: "", firms: "", todo: "" };
+    const results = { protocol: "", firms: "", todo: "", tops: "" };
     try {
       if (typeof this.router?.printClosedMeetingDirect === "function") {
         const r = await this.router.printClosedMeetingDirect({ projectId, meetingId });
@@ -2741,6 +2741,14 @@ async _openMailClient(mailType = "", options = {}) {
     } catch (err) {
       console.warn("[header] printTodoDirect for mail failed:", err);
     }
+    try {
+      if (typeof this.router?.printTopListAllDirect === "function") {
+        const r = await this.router.printTopListAllDirect({ projectId, meetingId });
+        if (r?.filePath) results.tops = r.filePath;
+      }
+    } catch (err) {
+      console.warn("[header] printTopListAllDirect for mail failed:", err);
+    }
     return results;
   }
 
@@ -2759,6 +2767,7 @@ async _openMailClient(mailType = "", options = {}) {
       { key: "protocol", label: "Protokoll", path: attachmentsFound.protocol || "", selected: true },
       { key: "firms", label: "Firmenliste", path: attachmentsFound.firms || "", selected: true },
       { key: "todo", label: "ToDo-Liste", path: attachmentsFound.todo || "", selected: true },
+      { key: "tops", label: "Top-Liste", path: attachmentsFound.tops || "", selected: true },
     ];
 
     const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();

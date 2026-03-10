@@ -1183,6 +1183,10 @@ export default class PrintModal {
     return await this._printTodoPdf({ projectId, meetingId, preview: false });
   }
 
+  async printTopListAllDirect({ projectId, meetingId } = {}) {
+    return await this._printTopListAllPdf({ projectId, meetingId, preview: false });
+  }
+
   _formatDateForDisplay(value) {
     const iso = this._formatDateForFile(value);
     const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -1999,6 +2003,12 @@ export default class PrintModal {
       const projectLabel = await this._getProjectLabelWithNumber(pid);
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -2010,11 +2020,13 @@ export default class PrintModal {
         meeting?.updated_at ||
         meeting?.updatedAt ||
         null;
-      const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
-      const fileName = meetingNr
-        ? this._sanitizeFileName(`${projectNumber}_TopListe-alle_#${meetingNr}-${meetingDateStr}`) +
-          ".pdf"
-        : this._sanitizeFileName(`${projectNumber}_TopListe-alle_${meetingDateStr}`) + ".pdf";
+      const fileName = this._buildListPdfFileName({
+        projectNumber,
+        projectShortName,
+        listLabel: "Top-Liste",
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw || new Date(),
+      });
 
       const pdfLogoDefaults = {
         enabled: true,
@@ -2070,6 +2082,7 @@ export default class PrintModal {
       if (preview) {
         this._openPreview({ filePath: out.filePath, title: "Top-Liste (alle)" });
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] Top-Liste(alle) Vorschau fehlgeschlagen", err);
       alert("Top-Liste(alle)-Vorschau konnte nicht erzeugt werden.");
@@ -4564,6 +4577,24 @@ export default class PrintModal {
 
       // Projektnummer/Label: direkt aus DB holen
       const pid = projectId || meeting.project_id || this.router?.currentProjectId || null;
+      if (pid && typeof api.projectSettingsGetMany === "function") {
+        try {
+          const projectSettingsRes = await api.projectSettingsGetMany({
+            projectId: pid,
+            keys: ["pdf.protocolTitle"],
+          });
+          if (projectSettingsRes?.ok) {
+            const projectProtocolTitle = String(
+              projectSettingsRes?.data?.["pdf.protocolTitle"] || ""
+            ).trim();
+            if (projectProtocolTitle) {
+              settings = { ...settings, "pdf.protocolTitle": projectProtocolTitle };
+            }
+          }
+        } catch (_err) {
+          // ignore and keep global fallback
+        }
+      }
       const projectLabel = await this._getProjectLabelWithNumber(pid);
       const meetingLabel = this._buildMeetingLabel(meeting);
       const projectInfo = await this._getProjectInfo(pid);
@@ -4712,10 +4743,6 @@ export default class PrintModal {
     }
   }
 }
-
-
-
-
 
 
 

@@ -1746,6 +1746,7 @@ _isoToDDMMYYYY(iso) {
             protocol: { ok: false, filePath: "" },
             firms: { ok: false, filePath: "" },
             todo: { ok: false, filePath: "" },
+            tops: { ok: false, filePath: "" },
           };
 
           try {
@@ -1786,14 +1787,29 @@ _isoToDDMMYYYY(iso) {
               printResults.todo.filePath = r?.filePath || r?.path || "";
             }
           } catch (err) {
-            console.warn("[tops] ToDo-PDF nach Schließen fehlgeschlagen:", err);
-            alert("ToDo-PDF konnte nach dem Schließen nicht erzeugt werden.");
+            console.warn("[tops] ToDo-PDF nach Schlie?en fehlgeschlagen:", err);
+            alert("ToDo-PDF konnte nach dem Schlie?en nicht erzeugt werden.");
+          }
+
+          try {
+            if (typeof this.router?.printTopListAllDirect === "function") {
+              const r = await this.router.printTopListAllDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+              printResults.tops.ok = r?.ok !== false;
+              printResults.tops.filePath = r?.filePath || r?.path || "";
+            }
+          } catch (err) {
+            console.warn("[tops] Top-Liste-PDF nach Schlie?en fehlgeschlagen:", err);
+            alert("Top-Liste-PDF konnte nach dem Schlie?en nicht erzeugt werden.");
           }
 
           const allPrinted =
             printResults.protocol.ok !== false &&
             printResults.firms.ok !== false &&
-            printResults.todo.ok !== false;
+            printResults.todo.ok !== false &&
+            printResults.tops.ok !== false;
 
           this._lastClosedMeetingForEmail = res?.meeting
             ? { ...res.meeting, id: res.meeting.id || meetingIdForPrint }
@@ -2870,6 +2886,7 @@ async _openSendMailAfterClose({ printResults, meeting }) {
     { key: "protocol", label: "Protokoll", path: printResults?.protocol?.filePath || "" },
     { key: "firms", label: "Firmenliste", path: printResults?.firms?.filePath || "" },
     { key: "todo", label: "ToDo-Liste", path: printResults?.todo?.filePath || "" },
+    { key: "tops", label: "Top-Liste", path: printResults?.tops?.filePath || "" },
   ];
 
   // fallback: versuche gespeichertes Protokoll zu finden, falls Pfad fehlt

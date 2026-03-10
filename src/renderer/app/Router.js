@@ -971,6 +971,27 @@ export default class Router {
     }
   }
 
+  async printTopListAllDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    if (meetingId) this.currentMeetingId = meetingId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printTopListAllDirect !== "function") {
+      alert("PrintModal unterst\u00fctzt keine Top-Liste.");
+      return;
+    }
+    try {
+      const res = await pm.printTopListAllDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
+      return res;
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
+    }
+  }
+
   async _ensureHelpModal() {
     if (this._helpModal) return this._helpModal;
     if (this._helpModalLoading) return await this._helpModalLoading;
