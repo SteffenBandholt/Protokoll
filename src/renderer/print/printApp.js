@@ -254,8 +254,14 @@ function _buildGenericRowElement(row) {
       _el("div", "", "Vorname"),
       _el("div", "", "Nachname"),
       _el("div", "", "Funktion/Rolle"),
-      _el("div", "", "E-Mail"),
-      _el("div", "", "Telefon")
+      (() => {
+        const contactHead = _el("div", "firmPeopleContactHead");
+        contactHead.append(
+          _el("div", "firmPeopleContactHeadLine", "Telefon"),
+          _el("div", "firmPeopleContactHeadLine", "E-Mail")
+        );
+        return contactHead;
+      })()
     );
     people.appendChild(head);
 
@@ -272,12 +278,16 @@ function _buildGenericRowElement(row) {
       };
       for (const p of list) {
         const line = _el("div", "firmPeopleRow");
+        const contact = _el("div", "firmPeopleContact");
+        contact.append(
+          _el("div", "firmPeopleContactLine", p?.phone || ""),
+          _el("div", "firmPeopleContactLine", p?.email || "")
+        );
         line.append(
           _el("div", "", wrapByChars(p?.first_name || "", 10)),
           _el("div", "", wrapByChars(p?.last_name || "", 12)),
           _el("div", "", p?.role_text || ""),
-          _el("div", "", p?.email || ""),
-          _el("div", "", p?.phone || "")
+          contact
         );
         people.appendChild(line);
       }

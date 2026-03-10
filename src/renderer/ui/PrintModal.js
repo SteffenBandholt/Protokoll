@@ -4207,8 +4207,10 @@ export default class PrintModal {
             <div class="personRow">
               <div class="pName">${this._escapeHtml(name)}</div>
               <div class="pRole">${this._escapeHtml(rolle)}</div>
-              <div class="pFunk">${this._escapeHtml(funkP)}</div>
-              <div class="pEmail">${this._escapeHtml(emailP)}</div>
+              <div class="pContact">
+                <div class="pFunk">${this._escapeHtml(funkP)}</div>
+                <div class="pEmail">${this._escapeHtml(emailP)}</div>
+              </div>
             </div>
           `;
         })
@@ -4405,7 +4407,7 @@ export default class PrintModal {
     }
     .personRow {
       display: grid;
-      grid-template-columns: 25% calc(25% - 15mm) 25% calc(25% + 15mm);
+      grid-template-columns: 25% calc(25% - 15mm) calc(50% + 15mm);
       gap: 2mm;
       align-items: start;
       text-align: left;
@@ -4416,6 +4418,10 @@ export default class PrintModal {
       text-align: left;
     }
     .pName { font-weight: 600; }
+    .pContact {
+      display: grid;
+      gap: 0.6mm;
+    }
 
     .empty {
       padding: 3mm 2mm;
@@ -4743,7 +4749,6 @@ export default class PrintModal {
     }
   }
 }
-
 
 
 
