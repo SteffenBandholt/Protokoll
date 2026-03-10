@@ -2304,31 +2304,32 @@ async _openMailClient(mailType = "", options = {}) {
     }
   };
 
+  // Dedup attachments
+  const uniqAttachments = [];
+  const seenAtt = new Set();
+  for (const a of attachments) {
+    const key = String(a || "").trim().toLowerCase();
+    if (!key) continue;
+    if (seenAtt.has(key)) continue;
+    seenAtt.add(key);
+    uniqAttachments.push(String(a || "").trim());
+  }
+
   if (forceMailto) {
+    attachments.length = 0;
+    attachments.push(...uniqAttachments);
     sendViaMailto();
     return;
   }
 
-  if (attachments.length && window.bbmMail?.createOutlookDraft) {
+  if (uniqAttachments.length && window.bbmMail?.createOutlookDraft) {
     try {
       const draftRes = await window.bbmMail.createOutlookDraft({
         to: recipients,
         subject,
         body,
-        attachments,
-      });
-      if (draftRes?.ok) return;
-      console.warn("[header] Outlook draft failed, fallback to mailto:", draftRes?.error || draftRes);
-    } catch (err) {
-      console.warn("[header] Outlook draft failed, fallback to mailto:", err);
-    }
-  } else if (attachments[0] && window.bbmMail?.createOutlookDraft) {
-    try {
-      const draftRes = await window.bbmMail.createOutlookDraft({
-        to: recipients,
-        subject,
-        body,
-        attachmentPath: attachments[0] || "",
+        attachments: uniqAttachments,
+        attachmentPath: uniqAttachments[0] || "",
       });
       if (draftRes?.ok) return;
       console.warn("[header] Outlook draft failed, fallback to mailto:", draftRes?.error || draftRes);
@@ -2337,6 +2338,8 @@ async _openMailClient(mailType = "", options = {}) {
     }
   }
 
+  attachments.length = 0;
+  attachments.push(...uniqAttachments);
   sendViaMailto();
 }
 

@@ -1020,11 +1020,11 @@ export default class PrintModal {
   }
 
   async printFirmsDirect({ projectId, meetingId } = {}) {
-    await this._printFirmsPdf({ projectId, meetingId, preview: false });
+    return await this._printFirmsPdf({ projectId, meetingId, preview: false });
   }
 
   async printTodoDirect({ projectId, meetingId } = {}) {
-    await this._printTodoPdf({ projectId, meetingId, preview: false });
+    return await this._printTodoPdf({ projectId, meetingId, preview: false });
   }
 
   _formatDateForDisplay(value) {
@@ -1277,6 +1277,7 @@ export default class PrintModal {
       } else {
         alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] Firmenliste Vorschau fehlgeschlagen", err);
       alert("Vorschau konnte nicht erzeugt werden.");
@@ -1768,6 +1769,7 @@ export default class PrintModal {
       } else {
         alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] ToDo Vorschau fehlgeschlagen", err);
       alert("ToDo-Vorschau konnte nicht erzeugt werden.");
@@ -4300,7 +4302,7 @@ export default class PrintModal {
     if (!effectiveProjectId) throw new Error("Projekt-Kontext fehlt.");
     if (!effectiveMeetingId) throw new Error("Besprechung fehlt.");
 
-    await this._printMeeting({
+    return await this._printMeeting({
       projectId: effectiveProjectId,
       meetingId: effectiveMeetingId,
       allowOpen: false,
@@ -4531,6 +4533,7 @@ export default class PrintModal {
       if (closeModalAfter) {
         this.close();
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] _printMeeting failed", {
         projectId,
@@ -4551,11 +4554,6 @@ export default class PrintModal {
     }
   }
 }
-
-
-
-
-
 
 
 

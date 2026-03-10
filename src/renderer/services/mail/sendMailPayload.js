@@ -10,9 +10,12 @@ export function sendMailPayload(payload) {
   if (attachments.length) {
     const hint =
       "\n\n---\n" +
-      "PDF-Datei für den Versand:\n" +
+      "Anhaenge fuer den Versand:\n" +
       attachments.join("\n");
-    if (!body.includes("PDF-Datei für den Versand:")) {
+    if (
+      !body.includes("PDF-Datei f\u00fcr den Versand:") &&
+      !body.includes("Anhaenge fuer den Versand:")
+    ) {
       body += hint;
     }
   }
