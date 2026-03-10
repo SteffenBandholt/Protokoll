@@ -308,15 +308,18 @@ export default class FirmsPoolView {
     }
 
     let meetingId = r.currentMeetingId || null;
-    if (!meetingId && typeof window?.bbmDb?.meetingsListByProject === "function") {
+    if (typeof window?.bbmDb?.meetingsListByProject === "function") {
       const res = await window.bbmDb.meetingsListByProject(pid);
-      if (res?.ok && Array.isArray(res.list) && res.list.length) {
-        meetingId = res.list[0]?.id || null;
+      const list = res?.ok && Array.isArray(res.list) ? res.list : [];
+      const openMeeting = list.find((m) => Number(m?.is_closed || 0) === 0) || null;
+      const currentMeeting = list.find((m) => String(m?.id || "") === String(meetingId || "")) || null;
+      if (!currentMeeting || Number(currentMeeting?.is_closed || 0) === 1) {
+        meetingId = openMeeting?.id || null;
       }
     }
 
     if (!meetingId) {
-      alert("Keine Besprechung vorhanden. Bitte zuerst ein Protokoll anlegen.");
+      await r.showTops(null, pid);
       return;
     }
 
