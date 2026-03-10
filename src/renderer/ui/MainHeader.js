@@ -2606,6 +2606,7 @@ async _openMailClient(mailType = "", options = {}) {
     content.style.display = "grid";
     content.style.gridTemplateColumns = "1fr 1fr";
     content.style.gap = "14px";
+    content.style.minWidth = "0";
     content.style.overflow = "auto";
 
     // Empfänger
@@ -2645,9 +2646,7 @@ async _openMailClient(mailType = "", options = {}) {
 
     recActions.append(
       mkRecAction("Alle", () => applyRecipientSelection(allRecipients)),
-      mkRecAction("Keine", () => applyRecipientSelection([])),
-      mkRecAction("Nur Verteiler", () => applyRecipientSelection(distRecipients)),
-      mkRecAction("Ohne", () => applyRecipientSelection([]))
+      mkRecAction("Keine", () => applyRecipientSelection([]))
     );
 
     const recList = document.createElement("div");
@@ -2730,22 +2729,30 @@ async _openMailClient(mailType = "", options = {}) {
     const subjectLabel = document.createElement("div");
     subjectLabel.textContent = "Betreff";
     subjectLabel.style.fontWeight = "700";
+    subjectLabel.style.gridColumn = "1 / -1";
 
     const subjectInput = document.createElement("input");
     subjectInput.type = "text";
     subjectInput.value = baseSubject;
     subjectInput.style.width = "100%";
+    subjectInput.style.maxWidth = "100%";
+    subjectInput.style.boxSizing = "border-box";
     subjectInput.style.padding = "8px";
+    subjectInput.style.gridColumn = "1 / -1";
 
     const bodyLabel = document.createElement("div");
     bodyLabel.textContent = "Mailtext";
     bodyLabel.style.fontWeight = "700";
+    bodyLabel.style.gridColumn = "1 / -1";
 
     const bodyInput = document.createElement("textarea");
     bodyInput.value = baseBody;
     bodyInput.style.width = "100%";
+    bodyInput.style.maxWidth = "100%";
+    bodyInput.style.boxSizing = "border-box";
     bodyInput.style.minHeight = "180px";
     bodyInput.style.padding = "8px";
+    bodyInput.style.gridColumn = "1 / -1";
 
     content.append(recWrap, attWrap, subjectLabel, subjectInput, bodyLabel, bodyInput);
     content.style.gridTemplateColumns = "1fr 1fr";
@@ -2762,10 +2769,6 @@ async _openMailClient(mailType = "", options = {}) {
     btnCancel.textContent = "Abbrechen";
     btnCancel.style.padding = "8px 12px";
 
-    const btnFallback = document.createElement("button");
-    btnFallback.type = "button";
-    btnFallback.textContent = "Fallback anzeigen";
-    btnFallback.style.padding = "8px 12px";
 
     const btnSend = document.createElement("button");
     btnSend.type = "button";
@@ -2785,9 +2788,8 @@ async _openMailClient(mailType = "", options = {}) {
     const collectAttachments = () =>
       attachments.filter((a) => a.selected && a.path).map((a) => a.path);
 
-    const send = async (forceMailto) => {
+    const send = async () => {
       btnSend.disabled = true;
-      btnFallback.disabled = true;
       try {
         await this._openMailClient("", {
           recipients: selectedRecipients,
@@ -2795,7 +2797,6 @@ async _openMailClient(mailType = "", options = {}) {
           body: bodyInput.value,
           attachments: collectAttachments(),
           meeting,
-          forceMailto,
         });
       } catch (err) {
         console.error("[header] send mail failed:", err);
@@ -2804,13 +2805,12 @@ async _openMailClient(mailType = "", options = {}) {
       }
     };
 
-    btnSend.onclick = () => send(false);
-    btnFallback.onclick = () => send(true);
+    btnSend.onclick = () => send();
     btnCancel.onclick = () => {
       closeOverlay();
     };
 
-    actions.append(btnCancel, btnFallback, btnSend);
+    actions.append(btnCancel, btnSend);
 
     card.append(title, content, actions);
     overlay.appendChild(card);

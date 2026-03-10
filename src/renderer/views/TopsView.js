@@ -2835,83 +2835,7 @@ getSelectedClosedMeetingForEmail() {
 }
 
 async _maybePromptSendAfterClose({ printResults, meeting }) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.background = "rgba(0,0,0,0.35)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "12000";
-    overlay.tabIndex = -1;
-
-    const card = document.createElement("div");
-    applyPopupCardStyle(card);
-    card.style.width = "min(420px, 92vw)";
-    card.style.display = "flex";
-    card.style.flexDirection = "column";
-    card.style.gap = "12px";
-    card.style.padding = "16px";
-
-    const title = document.createElement("div");
-    title.textContent = "Protokoll versenden";
-    title.style.fontWeight = "700";
-    title.style.fontSize = "16px";
-
-    const text = document.createElement("div");
-    text.textContent = "Protokoll, Firmenliste und ToDo-Liste wurden gespeichert.\n\nProtokoll versenden?";
-    text.style.whiteSpace = "pre-wrap";
-    text.style.lineHeight = "1.4";
-
-    const actions = document.createElement("div");
-    actions.style.display = "flex";
-    actions.style.justifyContent = "flex-end";
-    actions.style.gap = "10px";
-
-    const btnNo = document.createElement("button");
-    btnNo.type = "button";
-    btnNo.textContent = "Nein";
-    applyPopupButtonStyle(btnNo, { variant: "neutral" });
-
-    const btnYes = document.createElement("button");
-    btnYes.type = "button";
-    btnYes.textContent = "Ja";
-    applyPopupButtonStyle(btnYes, { variant: "primary" });
-
-    const closeOverlay = () => {
-      try {
-        overlay.remove();
-      } catch (_e) {
-        // ignore
-      }
-    };
-
-    btnNo.onclick = async () => {
-      closeOverlay();
-      await this._enterIdleAfterClose();
-      resolve();
-    };
-
-    btnYes.onclick = async () => {
-      closeOverlay();
-      try {
-        await this._openSendMailAfterClose({ printResults, meeting });
-      } finally {
-        resolve();
-      }
-    };
-
-    actions.append(btnNo, btnYes);
-    card.append(title, text, actions);
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
-    try {
-      overlay.focus();
-    } catch (_e) {
-      // ignore
-    }
-  });
+  await this._openSendMailAfterClose({ printResults, meeting });
 }
 
 async _openSendMailAfterClose({ printResults, meeting }) {
@@ -3025,9 +2949,7 @@ async _openSendMailAfterClose({ printResults, meeting }) {
 
   recActions.append(
     mkRecAction("Alle", () => applyRecipientSelection(allRecipients)),
-    mkRecAction("Keine", () => applyRecipientSelection([])),
-    mkRecAction("Nur Verteiler", () => applyRecipientSelection(distRecipients)),
-    mkRecAction("Ohne", () => applyRecipientSelection([]))
+    mkRecAction("Keine", () => applyRecipientSelection([]))
   );
 
   const recList = document.createElement("div");
@@ -3110,22 +3032,30 @@ async _openSendMailAfterClose({ printResults, meeting }) {
   const subjectLabel = document.createElement("div");
   subjectLabel.textContent = "Betreff";
   subjectLabel.style.fontWeight = "700";
+  subjectLabel.style.gridColumn = "1 / -1";
 
   const subjectInput = document.createElement("input");
   subjectInput.type = "text";
   subjectInput.value = baseSubject;
   subjectInput.style.width = "100%";
+  subjectInput.style.maxWidth = "100%";
+  subjectInput.style.boxSizing = "border-box";
   subjectInput.style.padding = "8px";
+  subjectInput.style.gridColumn = "1 / -1";
 
   const bodyLabel = document.createElement("div");
   bodyLabel.textContent = "Mailtext";
   bodyLabel.style.fontWeight = "700";
+  bodyLabel.style.gridColumn = "1 / -1";
 
   const bodyInput = document.createElement("textarea");
   bodyInput.value = baseBody;
   bodyInput.style.width = "100%";
+  bodyInput.style.maxWidth = "100%";
+  bodyInput.style.boxSizing = "border-box";
   bodyInput.style.minHeight = "180px";
   bodyInput.style.padding = "8px";
+  bodyInput.style.gridColumn = "1 / -1";
 
   content.append(recWrap, attWrap);
   content.append(subjectLabel, subjectInput, bodyLabel, bodyInput);
@@ -3143,10 +3073,6 @@ async _openSendMailAfterClose({ printResults, meeting }) {
   btnCancel.textContent = "Abbrechen";
   applyPopupButtonStyle(btnCancel, { variant: "neutral" });
 
-  const btnFallback = document.createElement("button");
-  btnFallback.type = "button";
-  btnFallback.textContent = "Fallback anzeigen";
-  applyPopupButtonStyle(btnFallback, { variant: "neutral" });
 
   const btnSend = document.createElement("button");
   btnSend.type = "button";
@@ -3182,31 +3108,13 @@ async _openSendMailAfterClose({ printResults, meeting }) {
     }
   };
 
-  btnFallback.onclick = async () => {
-    btnFallback.disabled = true;
-    try {
-      await headerHelper._openMailClient("", {
-        recipients: selectedRecipients,
-        subject: subjectInput.value,
-        body: bodyInput.value,
-        attachments: collectAttachments(),
-        meeting: meetingRef,
-        forceMailto: true,
-      });
-    } catch (err) {
-      console.error("[tops] mailto fallback failed:", err);
-    } finally {
-      closeOverlay();
-      await this._enterIdleAfterClose();
-    }
-  };
 
   btnCancel.onclick = async () => {
     closeOverlay();
     await this._enterIdleAfterClose();
   };
 
-  actions.append(btnCancel, btnFallback, btnSend);
+  actions.append(btnCancel, btnSend);
 
   card.append(title, content, actions);
   overlay.appendChild(card);

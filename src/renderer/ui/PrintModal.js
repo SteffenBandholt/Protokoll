@@ -1261,7 +1261,7 @@ export default class PrintModal {
         projectId: pid,
         meetingId: meetingId || null,
         fileName: fn,
-        ...(preview ? { targetDir: "temp" } : { baseDir: protocolsDir, projectNumber, overwrite: true }),
+        ...(preview ? { targetDir: "temp" } : { baseDir: protocolsDir, projectNumber, overwrite: true, silent: true }),
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
@@ -1751,6 +1751,7 @@ export default class PrintModal {
         baseDir: protocolsDir,
         projectNumber,
         overwrite: true,
+        ...(!preview ? { silent: true } : {}),
         ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
@@ -1895,6 +1896,7 @@ export default class PrintModal {
         baseDir: protocolsDir,
         projectNumber,
         overwrite: true,
+        ...(!preview ? { silent: true } : {}),
         ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
@@ -4505,6 +4507,7 @@ export default class PrintModal {
               baseDir: protocolsDir,
               projectNumber,
               overwrite: true,
+              silent: true,
             }),
       });
       if (!out?.ok) {
@@ -4546,7 +4549,6 @@ export default class PrintModal {
     }
   }
 }
-
 
 
 

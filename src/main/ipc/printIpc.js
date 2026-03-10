@@ -228,7 +228,8 @@ async function printToPdf(payload = {}) {
     overwrite: payload.overwrite,
   });
 
-  const debug = !!payload.debug || !app.isPackaged;
+  const silent = !!payload.silent;
+  const debug = !silent && (!!payload.debug || !app.isPackaged);
 
   const win = createPrintWindow({ debug });
   attachPrintDebugPipes(win, jobId);
