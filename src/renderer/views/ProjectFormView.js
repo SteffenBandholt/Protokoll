@@ -929,7 +929,7 @@ export default class ProjectFormView {
     const inpFooterCity = mkInput("Ort");
 
     inpFooterPlace.value = String(data["pdf.footerPlace"] || "");
-    inpFooterDate.value = String(data["pdf.footerDate"] || "");
+    inpFooterDate.value = String(data["pdf.footerDate"] || "").trim() || this._todayDe();
     inpFooterName1.value = String(data["pdf.footerName1"] || "");
     inpFooterName2.value = String(data["pdf.footerName2"] || "");
     inpFooterRecorder.value = String(data["pdf.footerRecorder"] || "");
@@ -988,10 +988,12 @@ export default class ProjectFormView {
     btnSave.textContent = "Speichern";
     applyPopupButtonStyle(btnSave, { variant: "primary" });
     btnSave.onclick = async () => {
+      const footerDate = String(inpFooterDate.value || "").trim() || this._todayDe();
+      inpFooterDate.value = footerDate;
       const patch = {
         "pdf.protocolTitle": String(inpProtocolTitle.value || "").trim(),
         "pdf.footerPlace": String(inpFooterPlace.value || "").trim(),
-        "pdf.footerDate": String(inpFooterDate.value || "").trim(),
+        "pdf.footerDate": footerDate,
         "pdf.footerName1": String(inpFooterName1.value || "").trim(),
         "pdf.footerName2": String(inpFooterName2.value || "").trim(),
         "pdf.footerRecorder": String(inpFooterRecorder.value || "").trim(),
