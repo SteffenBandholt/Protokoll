@@ -1764,8 +1764,6 @@ export default class PrintModal {
 
       if (preview) {
         this._openPreview({ filePath: out.filePath, title: "ToDo (Vorschau)" });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
       return out;
     } catch (err) {
@@ -1906,8 +1904,6 @@ export default class PrintModal {
 
       if (preview) {
         this._openPreview({ filePath: out.filePath, title: "Top-Liste (alle)" });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
     } catch (err) {
       console.error("[PrintModal] Top-Liste(alle) Vorschau fehlgeschlagen", err);
@@ -4524,8 +4520,6 @@ export default class PrintModal {
         }
         const title = isVorabzug ? "Vorabzug (Vorschau)" : "Protokoll (Vorschau)";
         this._openPreview({ filePath: out.filePath, title });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
 
       if (closeModalAfter) {
@@ -4552,7 +4546,6 @@ export default class PrintModal {
     }
   }
 }
-
 
 
 

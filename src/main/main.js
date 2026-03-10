@@ -452,9 +452,19 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
       '  [string]$To = "",',
       '  [string]$Subject = "",',
       '  [string]$Body = "",',
-      '  [string[]]$Attachments = @()',
+      '  [string]$AttachmentsBase64 = ""',
       ')',
       '$ErrorActionPreference = "Stop"',
+      '$Attachments = @()',
+      'if ($AttachmentsBase64) {',
+      '  $attachmentsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($AttachmentsBase64))',
+      '  $parsedAttachments = ConvertFrom-Json -InputObject $attachmentsJson',
+      '  if ($parsedAttachments -is [System.Array]) {',
+      '    $Attachments = @($parsedAttachments | ForEach-Object { [string]$_ })',
+      '  } elseif ($parsedAttachments) {',
+      '    $Attachments = @([string]$parsedAttachments)',
+      '  }',
+      '}',
       '$outlook = New-Object -ComObject Outlook.Application',
       '$mail = $outlook.CreateItem(0)',
       'if ($To) { $mail.To = $To }',
@@ -486,10 +496,9 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
       subject,
       "-Body",
       body,
+      "-AttachmentsBase64",
+      Buffer.from(JSON.stringify(dedup), "utf8").toString("base64"),
     ];
-    for (const att of dedup) {
-      args.push("-Attachments", att);
-    }
 
     const result = await new Promise((resolve) => {
       let stderr = "";
