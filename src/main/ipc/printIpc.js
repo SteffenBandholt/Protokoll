@@ -222,6 +222,52 @@ function listStoredFirmsPdfs({ baseDir, project } = {}) {
   return { ok: true, dir: listsDir, projectFolder, files };
 }
 
+function listStoredProjectPdfs({ baseDir, project, kind } = {}) {
+  const normalizedBaseDir = String(baseDir || "").trim();
+  const kindKey = String(kind || "").trim().toLowerCase();
+  if (!normalizedBaseDir) {
+    return { ok: false, error: "Basisordner fehlt" };
+  }
+
+  const projectFolder = resolveProjectFolderName(project || {});
+  const targetDir = kindKey === "protocol"
+    ? path.join(normalizedBaseDir, "bbm", projectFolder, "Protokolle")
+    : path.join(normalizedBaseDir, "bbm", projectFolder, "Listen");
+
+  if (!fs.existsSync(targetDir)) {
+    return { ok: true, dir: targetDir, projectFolder, files: [] };
+  }
+
+  const matcher = (name) => {
+    const normalized = String(name || "").toLowerCase();
+    if (!normalized.endsWith(".pdf")) return false;
+    if (kindKey === "protocol") return true;
+    if (kindKey === "firms") return normalized.includes("firmenliste");
+    if (kindKey === "todo") return normalized.includes("todo-liste");
+    if (kindKey === "topsall") return normalized.includes("topliste-alle");
+    return false;
+  };
+
+  const files = fs
+    .readdirSync(targetDir, { withFileTypes: true })
+    .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
+    .map((entry) => entry.name)
+    .filter(matcher)
+    .map((name) => {
+      const filePath = path.join(targetDir, name);
+      let mtimeMs = 0;
+      try {
+        mtimeMs = Number(fs.statSync(filePath)?.mtimeMs || 0);
+      } catch (_err) {
+        mtimeMs = 0;
+      }
+      return { fileName: name, filePath, mtimeMs };
+    })
+    .sort((a, b) => Number(b?.mtimeMs || 0) - Number(a?.mtimeMs || 0));
+
+  return { ok: true, dir: targetDir, projectFolder, files };
+}
+
 function attachPrintDebugPipes(win, jobId) {
   win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
     const lvl = ["LOG", "WARN", "ERROR", "DEBUG"][level] || String(level);
@@ -414,6 +460,19 @@ function registerPrintIpc() {
       return listStoredFirmsPdfs({
         baseDir: p.baseDir,
         project: p.project || null,
+      });
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("print:listStoredProjectPdfs", async (_evt, payload) => {
+    try {
+      const p = payload || {};
+      return listStoredProjectPdfs({
+        baseDir: p.baseDir,
+        project: p.project || null,
+        kind: p.kind || "",
       });
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };

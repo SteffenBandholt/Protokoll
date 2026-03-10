@@ -532,41 +532,22 @@ export default class MainHeader {
     });
 
     const itemFirms = mkPrintItem("Firmenliste", async (state) => {
-      await this._openStoredFirmsPdfSelectionPopup({ projectId: state.projectId });
+      await this._openStoredProjectPdfSelectionPopup({ projectId: state.projectId, kind: "firms" });
     });
 
-    const todoBranch = mkSubmenuBranch("ToDo-Liste", "todo");
-    const itemTodoOpen = mkPrintItem("Offene Besprechung", async (state) => {
-      if (!state.openMeetingId) return;
-      if (typeof this.router?.openTodoPrintPreview !== "function") return;
-      await this.router.openTodoPrintPreview({
-        projectId: state.projectId,
-        meetingId: state.openMeetingId,
-      });
+    const itemTodo = mkPrintItem("ToDo-Liste", async (state) => {
+      await this._openStoredProjectPdfSelectionPopup({ projectId: state.projectId, kind: "todo" });
     });
-    const itemTodoClosed = mkPrintItem("Geschlossene Besprechungen", async (state) => {
-      if (typeof this.router?.openMeetingsForPrintSelection !== "function") return;
-      await this.router.openMeetingsForPrintSelection({
-        projectId: state.projectId,
-        printKind: "todo",
-      });
-    });
-    todoBranch.submenu.append(itemTodoOpen, itemTodoClosed);
 
     const itemTopList = mkPrintItem("Top-Liste", async (state) => {
-      if (typeof this.router?.openTopListAllPrintPreview !== "function") return;
-      await this.router.openTopListAllPrintPreview({
-        projectId: state.projectId,
-        meetingId: state.currentMeetingId || null,
-      });
+      await this._openStoredProjectPdfSelectionPopup({ projectId: state.projectId, kind: "topsall" });
     });
 
-    const itemMeetingsClosed = mkPrintItem("Protokolle (geschlossen)", async (state) => {
-      if (typeof this.router?.showMeetings !== "function") return;
-      await this.router.showMeetings(state.projectId);
+    const itemMeetingsClosed = mkPrintItem("Protokolle", async (state) => {
+      await this._openStoredProjectPdfSelectionPopup({ projectId: state.projectId, kind: "protocol" });
     });
 
-    printMenu.append(itemPreview, itemFirms, todoBranch.wrap, itemTopList, itemMeetingsClosed);
+    printMenu.append(itemPreview, itemFirms, itemTodo, itemTopList, itemMeetingsClosed);
     printWrap.append(printBtn, printMenu);
 
 
@@ -866,15 +847,15 @@ export default class MainHeader {
     this.elPrintItemHeaderTest = null;
     this.elPrintItemTopList = null;
     this.elPrintBranchFirms = itemFirms;
-    this.elPrintBranchTodo = todoBranch.trigger;
+    this.elPrintBranchTodo = itemTodo;
     this.elPrintBranchFirmsWrap = null;
-    this.elPrintBranchTodoWrap = todoBranch.wrap;
+    this.elPrintBranchTodoWrap = null;
     this.elPrintSubmenuFirms = null;
-    this.elPrintSubmenuTodo = todoBranch.submenu;
+    this.elPrintSubmenuTodo = null;
     this.elPrintItemFirmsOpen = null;
     this.elPrintItemFirmsClosed = null;
-    this.elPrintItemTodoOpen = itemTodoOpen;
-    this.elPrintItemTodoClosed = itemTodoClosed;
+    this.elPrintItemTodoOpen = null;
+    this.elPrintItemTodoClosed = null;
     this.elPrintItemTopList = itemTopList;
     this.elPrintItemMeetings = itemMeetingsClosed;
     this.elActionProjectFirmsBtn = btnProjectFirms;
@@ -1379,10 +1360,8 @@ export default class MainHeader {
     );
     this._setMenuButtonEnabled(this.elPrintBranchFirms, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
     this._setMenuButtonEnabled(this.elPrintBranchTodo, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
-    this._setMenuButtonEnabled(this.elPrintItemTodoOpen, !!s.canOpenMeetingActions, "Keine offene Besprechung verfÃ¼gbar");
-    this._setMenuButtonEnabled(this.elPrintItemTodoClosed, !!s.canSelectClosedMeeting, "Nur mit aktivem Projekt verfÃ¼gbar");
     this._setMenuButtonEnabled(this.elPrintItemTopList, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
-    this._setMenuButtonEnabled(this.elPrintItemMeetings, !!s.canNavigateMeetings, "Nur mit aktivem Projekt verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintItemMeetings, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
 
     if (!hasProject) this._setPrintOpen(false);
   }
@@ -2499,14 +2478,15 @@ async _openMailClient(mailType = "", options = {}) {
     });
   }
 
-  async _openStoredFirmsPdfSelectionPopup({ projectId } = {}) {
+  async _openStoredProjectPdfSelectionPopup({ projectId, kind } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
+    const kindKey = String(kind || "").trim().toLowerCase();
     if (!pid) {
       alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
-    if (typeof window?.bbmPrint?.listStoredFirmsPdfs !== "function") {
-      alert("Gespeicherte Firmenlisten sind nicht verfügbar.");
+    if (typeof window?.bbmPrint?.listStoredProjectPdfs !== "function") {
+      alert("Gespeicherte PDFs sind nicht verfügbar.");
       return;
     }
 
@@ -2536,8 +2516,9 @@ async _openMailClient(mailType = "", options = {}) {
       return { projectNumber: "", projectName: raw };
     };
     const projectLabelParts = splitProjectLabel(this.router?.context?.projectLabel || "");
-    const listRes = await window.bbmPrint.listStoredFirmsPdfs({
+    const listRes = await window.bbmPrint.listStoredProjectPdfs({
       baseDir,
+      kind: kindKey,
       project: {
         project_number: projectInfo.projectNumber || projectLabelParts.projectNumber || "",
         name: projectLabelParts.projectName || "",
@@ -2546,24 +2527,13 @@ async _openMailClient(mailType = "", options = {}) {
     });
 
     if (!listRes?.ok) {
-      alert(listRes?.error || "Gespeicherte Firmenlisten konnten nicht geladen werden.");
+      alert(listRes?.error || "Gespeicherte PDFs konnten nicht geladen werden.");
       return;
     }
 
     const files = Array.isArray(listRes?.files) ? listRes.files : [];
-    const normalizedProjectName = String(projectLabelParts.projectName || projectInfo.projectShortName || "").trim();
-    const normalizedProjectNumber = String(projectInfo.projectNumber || projectLabelParts.projectNumber || "").trim();
-    let projectNameWithoutNumber = normalizedProjectName;
-    if (normalizedProjectNumber) {
-      const prefix = `${normalizedProjectNumber} - `;
-      if (projectNameWithoutNumber.startsWith(prefix)) {
-        projectNameWithoutNumber = projectNameWithoutNumber.slice(prefix.length).trim();
-      }
-    }
-    const titleSuffix =
-      [normalizedProjectNumber, projectNameWithoutNumber]
-        .filter(Boolean)
-        .join(" - ") || "aktuelles Projekt";
+    const closedMeetings = kindKey === "protocol" ? await this._fetchClosedMeetings(pid) : [];
+    const popupTitle = this._getStoredPdfPopupTitle(kindKey);
 
     return await new Promise((resolve) => {
       const overlay = document.createElement("div");
@@ -2588,7 +2558,7 @@ async _openMailClient(mailType = "", options = {}) {
       card.style.gap = "10px";
 
       const title = document.createElement("div");
-      title.textContent = "Firmenliste";
+      title.textContent = popupTitle;
       title.style.fontWeight = "700";
       title.style.fontSize = "16px";
 
@@ -2601,7 +2571,7 @@ async _openMailClient(mailType = "", options = {}) {
 
       if (!files.length) {
         const empty = document.createElement("div");
-        empty.textContent = "Keine gespeicherten Firmenlisten-PDFs gefunden.";
+        empty.textContent = this._getStoredPdfEmptyText(kindKey);
         empty.style.opacity = "0.75";
         empty.style.padding = "8px 2px";
         listEl.appendChild(empty);
@@ -2623,7 +2593,7 @@ async _openMailClient(mailType = "", options = {}) {
           btn.style.textAlign = "left";
 
           const nameEl = document.createElement("div");
-          nameEl.textContent = this._formatStoredFirmsPdfListEntry(item);
+          nameEl.textContent = this._formatStoredProjectPdfListEntry(item, kindKey, closedMeetings);
           nameEl.style.fontWeight = "700";
           nameEl.style.wordBreak = "break-word";
 
@@ -2632,7 +2602,7 @@ async _openMailClient(mailType = "", options = {}) {
             const pm = new PrintModal({ router: this.router });
             await pm.openExistingPdfPreview({
               filePath: item?.filePath,
-              title: "Firmenliste (Vorschau)",
+              title: `${popupTitle} (Vorschau)`,
             });
           };
 
@@ -2671,24 +2641,73 @@ async _openMailClient(mailType = "", options = {}) {
     });
   }
 
-  _formatStoredFirmsPdfMeta(item = {}) {
-    const filePath = String(item?.filePath || "").trim();
-    const mtimeMs = Number(item?.mtimeMs || 0);
-    const stamp = mtimeMs > 0 ? new Date(mtimeMs).toLocaleString("de-DE") : "";
-    return [stamp ? `Geändert: ${stamp}` : "", filePath].filter(Boolean).join(" | ");
+  _getStoredPdfPopupTitle(kind = "") {
+    if (kind === "todo") return "ToDo-Liste";
+    if (kind === "topsall") return "Top-Liste";
+    if (kind === "protocol") return "Protokolle";
+    return "Firmenliste";
   }
 
-  _formatStoredFirmsPdfListEntry(item = {}) {
+  _getStoredPdfEmptyText(kind = "") {
+    if (kind === "todo") return "Keine gespeicherten ToDo-Listen-PDFs gefunden.";
+    if (kind === "topsall") return "Keine gespeicherten Top-Listen-PDFs gefunden.";
+    if (kind === "protocol") return "Keine gespeicherten Protokoll-PDFs gefunden.";
+    return "Keine gespeicherten Firmenlisten-PDFs gefunden.";
+  }
+
+  _formatStoredProjectPdfListEntry(item = {}, kind = "", meetings = []) {
     const fileName = String(item?.fileName || "").trim();
-    const match = fileName.match(/stand\s*#\s*(\d+)\s*-\s*(\d{2}\.\d{2}\.\d{4})/i);
+    const match = fileName.match(/#\s*(\d+)\s*[-_ ]?\s*(\d{2}\.\d{2}\.\d{4}|\d{4}-\d{2}-\d{2})/i);
+    let meetingLabel = "";
+    let meetingIndex = "";
     if (match) {
-      return `#${match[1]} - ${match[2]}`;
+      meetingIndex = String(match[1] || "").trim();
+      const dateLabel = /^\d{4}-\d{2}-\d{2}$/.test(match[2]) ? this._formatEmailDate(match[2]) : match[2];
+      meetingLabel = `#${meetingIndex} - ${dateLabel}`;
     }
-    const alt = fileName.match(/#\s*(\d+).*?(\d{2}\.\d{2}\.\d{4})/i);
-    if (alt) {
-      return `#${alt[1]} - ${alt[2]}`;
+    if (kind === "protocol") {
+      const protocolKeyword =
+        this._extractProtocolKeywordFromMeetings(meetingIndex, meetings) ||
+        this._extractProtocolKeywordFromFileName(fileName);
+      return [meetingLabel, protocolKeyword].filter(Boolean).join(" - ") || fileName;
     }
-    return fileName || String(item?.filePath || "").trim();
+    return meetingLabel || fileName || String(item?.filePath || "").trim();
+  }
+
+  _extractProtocolKeywordFromMeetings(meetingIndex = "", meetings = []) {
+    const idx = String(meetingIndex || "").trim();
+    if (!idx) return "";
+    const meeting = (Array.isArray(meetings) ? meetings : []).find((m) => {
+      const value =
+        m?.meeting_index ??
+        m?.meetingIndex ??
+        m?.index ??
+        m?.number ??
+        m?.meetingNumber ??
+        "";
+      return String(value || "").trim() === idx;
+    });
+    return this._extractMeetingKeyword(meeting);
+  }
+
+  _extractMeetingKeyword(meeting = null) {
+    const clean = (v) => String(v || "").trim();
+    let keyword = clean(meeting?.title || "");
+    keyword = keyword.replace(/^#\s*\d+\s*[-–—:]?\s*/i, "").trim();
+    return keyword;
+  }
+
+  _extractProtocolKeywordFromFileName(fileName = "") {
+    const base = String(fileName || "").replace(/\.pdf$/i, "").trim();
+    const hashIndex = base.lastIndexOf("_#");
+    if (hashIndex <= 0) return "";
+    const prefix = base.slice(0, hashIndex);
+    const parts = prefix.split("_").map((p) => String(p || "").trim()).filter(Boolean);
+    if (parts.length < 2) return "";
+    const keyword = String(parts[parts.length - 1] || "").trim();
+    if (!keyword) return "";
+    if (/^(protokoll|baubesprechung)$/i.test(keyword)) return "";
+    return keyword;
   }
 
   async _generateEmailAttachmentsForMeeting({ projectId, meetingId }) {
