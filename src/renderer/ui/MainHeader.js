@@ -66,6 +66,12 @@ export default class MainHeader {
     this._printMenuStateLoading = null;
     this._printResizeHandler = null;
 
+    // mail menu
+    this.elMailBtn = null;
+    this.elMailMenu = null;
+    this._mailOpen = false;
+    this._mailDocMouseDown = null;
+
     // logo
     this.elLogoGroup = null;
     this.elLogoWrap = null;
@@ -576,15 +582,83 @@ export default class MainHeader {
     printWrap.append(printBtn, printMenu);
 
 
+    const mailWrap = document.createElement("div");
+    mailWrap.style.position = "relative";
+    mailWrap.style.display = "inline-flex";
+    mailWrap.style.alignItems = "center";
+
     const mailBtn = document.createElement("button");
     mailBtn.type = "button";
     mailBtn.textContent = "E-Mail senden";
     applyActionTextButtonStyle(mailBtn);
+
+    const mailMenu = document.createElement("div");
+    mailMenu.style.position = "absolute";
+    mailMenu.style.top = "calc(100% + 4px)";
+    mailMenu.style.right = "0";
+    mailMenu.style.minWidth = "240px";
+    mailMenu.style.display = "none";
+    mailMenu.style.flexDirection = "column";
+    mailMenu.style.gap = "0";
+    mailMenu.style.padding = "4px";
+    mailMenu.style.border = "1px solid var(--card-border)";
+    mailMenu.style.borderRadius = "8px";
+    mailMenu.style.background = "var(--card-bg)";
+    mailMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
+    mailMenu.style.zIndex = String(POPOVER_MENU);
+
+    const mkMailItem = (label, onPick) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.textContent = label;
+      item.style.display = "block";
+      item.style.width = "100%";
+      item.style.textAlign = "left";
+      item.style.border = "none";
+      item.style.background = "transparent";
+      item.style.color = "var(--text-main)";
+      item.style.padding = "8px 10px";
+      item.style.borderRadius = "6px";
+      item.style.minHeight = "30px";
+      item.style.cursor = "pointer";
+      item.onmouseenter = () => {
+        if (item.disabled) return;
+        item.style.background = "var(--btn-outline-hover-bg)";
+      };
+      item.onmouseleave = () => {
+        if (item.disabled) return;
+        item.style.background = "transparent";
+      };
+      item.onclick = async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (item.disabled) return;
+        this._setMailOpen(false);
+        if (typeof onPick !== "function") return;
+        try {
+          await onPick();
+        } catch (err) {
+          console.error("[header] mail action failed:", err);
+        }
+      };
+      return item;
+    };
+
+    const mailItemQuick = mkMailItem("Aktuelles Protokoll senden", async () => {
+      await this._openMailClient();
+    });
+    const mailItemSendFile = mkMailItem("Datei an Teilnehmer senden", async () => {
+      await this._openMailFileFlow();
+    });
+    mailMenu.append(mailItemQuick, mailItemSendFile);
+    this.elMailBtn = mailBtn;
+    this.elMailMenu = mailMenu;
+
     mailBtn.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
       if (mailBtn.disabled) return;
-      await this._openMailClient();
+      this._setMailOpen(!this._mailOpen);
     };
 
     printBtn.onclick = async (e) => {
@@ -616,6 +690,19 @@ export default class MainHeader {
       this._setPrintOpen(false);
     };
     document.addEventListener("mousedown", this._printDocMouseDown, true);
+
+    if (this._mailDocMouseDown) {
+      document.removeEventListener("mousedown", this._mailDocMouseDown, true);
+      this._mailDocMouseDown = null;
+    }
+    this._mailDocMouseDown = (e) => {
+      if (!this._mailOpen) return;
+      if (mailWrap.contains(e.target)) return;
+      this._setMailOpen(false);
+    };
+    document.addEventListener("mousedown", this._mailDocMouseDown, true);
+
+    mailWrap.append(mailBtn, mailMenu);
 
     if (this._printResizeHandler) {
       window.removeEventListener("resize", this._printResizeHandler);
@@ -704,9 +791,9 @@ export default class MainHeader {
     };
 
     if (this._isNewUi) {
-      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, btnMeetings, printWrap, mailBtn);
+      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, btnMeetings, printWrap, mailWrap);
     } else {
-      actionWrap.append(btnMeetings, setupWrap, printWrap, mailBtn);
+      actionWrap.append(btnMeetings, setupWrap, printWrap, mailWrap);
     }
 
     const stickyNotice = document.createElement("div");
@@ -1179,6 +1266,15 @@ export default class MainHeader {
       return;
     }
     this._setSetupOpen(false);
+  }
+
+  _setMailOpen(open) {
+    this._mailOpen = !!open;
+    if (this.elMailMenu) this.elMailMenu.style.display = this._mailOpen ? "flex" : "none";
+    if (this._mailOpen) {
+      this._setPrintOpen(false);
+      this._setSetupOpen(false);
+    }
   }
 
   _setMenuButtonEnabled(btn, enabled, disabledTitle = "") {
@@ -1868,10 +1964,10 @@ async _resolveProtocolTitleForEmail(projectId = null) {
   return "Baubesprechung";
 }
 
-async _getStoredEmailTemplate() {
-  const api = window.bbmDb || {};
-  const out = { subject: "", body: "" };
-  if (typeof api.appSettingsGetMany !== "function") return out;
+  async _getStoredEmailTemplate() {
+    const api = window.bbmDb || {};
+    const out = { subject: "", body: "" };
+    if (typeof api.appSettingsGetMany !== "function") return out;
 
   try {
     const res = await api.appSettingsGetMany(["email_subject", "email_body"]);
@@ -2243,6 +2339,483 @@ async _openMailClient(mailType = "", options = {}) {
 
   sendViaMailto();
 }
+
+  async _openMailFileFlow() {
+    this._setMailOpen(false);
+    const projectId = this.router?.currentProjectId || null;
+    if (!projectId) {
+      alert("Bitte zuerst ein Projekt auswählen.");
+      return;
+    }
+    const meeting = await this._promptMeetingSelection(projectId);
+    if (!meeting) return;
+    await this._openMailSendModal({ projectId, meeting });
+  }
+
+  async _fetchClosedMeetings(projectId) {
+    const api = window.bbmDb || {};
+    if (typeof api.meetingsListByProject !== "function") return [];
+    try {
+      const res = await api.meetingsListByProject(projectId);
+      const list = Array.isArray(res?.list) ? res.list : [];
+      return list.filter((m) => Number(m?.is_closed) === 1 || String(m?.status || "").toLowerCase() === "closed");
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  _formatMeetingListEntry(meeting) {
+    const clean = (v) => String(v || "").trim();
+    const idxRaw =
+      meeting?.meeting_index ??
+      meeting?.meetingIndex ??
+      meeting?.index ??
+      meeting?.number ??
+      meeting?.meetingNumber ??
+      "";
+    const idx = clean(idxRaw) ? `#${clean(idxRaw)}` : "";
+    const dateRaw =
+      meeting?.meeting_date ||
+      meeting?.meetingDate ||
+      meeting?.date ||
+      meeting?.created_at ||
+      meeting?.createdAt ||
+      "";
+    const dateTxt = this._formatEmailDate(dateRaw) || "";
+    let keyword = clean(meeting?.title || "");
+    keyword = keyword.replace(/^#\s*\d+\s*[-–—:]?\s*/i, "").trim();
+    const parts = [idx, dateTxt].filter(Boolean);
+    let label = parts.join(" · ");
+    if (keyword) label = label ? `${label} · ${keyword}` : keyword;
+    return label || "Protokoll";
+  }
+
+  async _promptMeetingSelection(projectId) {
+    const meetings = await this._fetchClosedMeetings(projectId);
+    if (!meetings.length) {
+      alert("Keine geschlossenen Protokolle gefunden.");
+      return null;
+    }
+
+    return await new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.style.position = "fixed";
+      overlay.style.inset = "0";
+      overlay.style.background = "rgba(0,0,0,0.45)";
+      overlay.style.display = "flex";
+      overlay.style.alignItems = "center";
+      overlay.style.justifyContent = "center";
+      overlay.style.zIndex = "12500";
+      overlay.tabIndex = -1;
+
+      const card = document.createElement("div");
+      card.style.width = "min(520px, 92vw)";
+      card.style.maxHeight = "80vh";
+      card.style.background = "#fff";
+      card.style.borderRadius = "10px";
+      card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.25)";
+      card.style.display = "flex";
+      card.style.flexDirection = "column";
+      card.style.padding = "14px";
+      card.style.gap = "10px";
+
+      const title = document.createElement("div");
+      title.textContent = "Protokoll auswählen";
+      title.style.fontWeight = "700";
+      title.style.fontSize = "16px";
+
+      const listEl = document.createElement("div");
+      listEl.style.display = "flex";
+      listEl.style.flexDirection = "column";
+      listEl.style.gap = "6px";
+      listEl.style.overflow = "auto";
+      listEl.style.maxHeight = "50vh";
+
+      let selectedId = null;
+
+      meetings
+        .slice()
+        .sort((a, b) => (Number(b?.meeting_index || 0) || 0) - (Number(a?.meeting_index || 0) || 0))
+        .forEach((m) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = this._formatMeetingListEntry(m);
+          btn.style.display = "flex";
+          btn.style.justifyContent = "space-between";
+          btn.style.alignItems = "center";
+          btn.style.border = "1px solid var(--card-border)";
+          btn.style.background = "var(--card-bg)";
+          btn.style.borderRadius = "6px";
+          btn.style.padding = "10px 12px";
+          btn.style.cursor = "pointer";
+          btn.onclick = () => {
+            selectedId = m.id || m.meeting_id || null;
+            Array.from(listEl.children).forEach((c) => (c.style.outline = ""));
+            btn.style.outline = "2px solid var(--accent, #2563eb)";
+          };
+          btn.ondblclick = () => {
+            selectedId = m.id || m.meeting_id || null;
+            finish();
+          };
+          listEl.appendChild(btn);
+        });
+
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.justifyContent = "flex-end";
+      actions.style.gap = "8px";
+
+      const btnCancel = document.createElement("button");
+      btnCancel.type = "button";
+      btnCancel.textContent = "Abbrechen";
+      btnCancel.style.padding = "8px 12px";
+      btnCancel.onclick = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      const btnOk = document.createElement("button");
+      btnOk.type = "button";
+      btnOk.textContent = "Weiter";
+      btnOk.style.padding = "8px 12px";
+      btnOk.style.background = "#2563eb";
+      btnOk.style.color = "#fff";
+      btnOk.style.border = "none";
+      btnOk.style.borderRadius = "6px";
+      btnOk.onclick = () => finish();
+
+      actions.append(btnCancel, btnOk);
+      card.append(title, listEl, actions);
+      overlay.appendChild(card);
+      document.body.appendChild(overlay);
+      try {
+        overlay.focus();
+      } catch (_e) {}
+
+      const cleanup = () => {
+        try {
+          overlay.remove();
+        } catch (_e) {}
+      };
+
+      const finish = () => {
+        if (!selectedId) {
+          const first = meetings[0];
+          selectedId = first?.id || first?.meeting_id || null;
+        }
+        const meeting = meetings.find((m) => (m.id || m.meeting_id) === selectedId) || null;
+        cleanup();
+        resolve(meeting);
+      };
+    });
+  }
+
+  async _generateEmailAttachmentsForMeeting({ projectId, meetingId }) {
+    const results = { protocol: "", firms: "", todo: "" };
+    try {
+      if (typeof this.router?.printClosedMeetingDirect === "function") {
+        const r = await this.router.printClosedMeetingDirect({ projectId, meetingId });
+        if (r?.filePath) results.protocol = r.filePath;
+      }
+    } catch (err) {
+      console.warn("[header] printClosedMeetingDirect for mail failed:", err);
+    }
+    try {
+      if (typeof this.router?.printFirmsDirect === "function") {
+        const r = await this.router.printFirmsDirect({ projectId, meetingId });
+        if (r?.filePath) results.firms = r.filePath;
+      }
+    } catch (err) {
+      console.warn("[header] printFirmsDirect for mail failed:", err);
+    }
+    try {
+      if (typeof this.router?.printTodoDirect === "function") {
+        const r = await this.router.printTodoDirect({ projectId, meetingId });
+        if (r?.filePath) results.todo = r.filePath;
+      }
+    } catch (err) {
+      console.warn("[header] printTodoDirect for mail failed:", err);
+    }
+    return results;
+  }
+
+  async _openMailSendModal({ projectId, meeting }) {
+    const meetingId = meeting?.id || meeting?.meeting_id || null;
+    if (!meetingId) return;
+
+    const recOptions = await this._getMeetingRecipientOptions(meetingId);
+    const allRecipients = recOptions.all || [];
+    const distRecipients =
+      (recOptions.anyDistributionField && recOptions.distribution.length ? recOptions.distribution : allRecipients) || [];
+    let selectedRecipients = [...distRecipients];
+
+    const attachmentsFound = await this._generateEmailAttachmentsForMeeting({ projectId, meetingId });
+    const attachments = [
+      { key: "protocol", label: "Protokoll", path: attachmentsFound.protocol || "", selected: true },
+      { key: "firms", label: "Firmenliste", path: attachmentsFound.firms || "", selected: true },
+      { key: "todo", label: "ToDo-Liste", path: attachmentsFound.todo || "", selected: true },
+    ];
+
+    const { projectNumber, projectShortName } = await this._getCurrentProjectMailContext();
+    const protocolTitle = await this._resolveProtocolTitleForEmail(projectId);
+    const emailTemplate = await this._getStoredEmailTemplate();
+    const templateContext = this._buildEmailTemplateContext({
+      projectNumber,
+      projectShortName,
+      protocolTitle,
+      meeting,
+    });
+    const baseSubject =
+      this._applyEmailSubjectTemplate(emailTemplate.subject || "", templateContext) ||
+      this._buildFallbackEmailSubject({ projectNumber, projectShortName, mailType: "" }) ||
+      this._defaultMeetingEmailSubject(templateContext);
+    const baseBody =
+      (emailTemplate.body || "").trim() ||
+      "Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.45)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "12600";
+    overlay.tabIndex = -1;
+
+    const card = document.createElement("div");
+    card.style.width = "min(760px, 94vw)";
+    card.style.maxHeight = "90vh";
+    card.style.background = "#fff";
+    card.style.borderRadius = "10px";
+    card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.28)";
+    card.style.display = "grid";
+    card.style.gridTemplateRows = "auto 1fr auto";
+    card.style.rowGap = "14px";
+    card.style.padding = "16px";
+
+    const title = document.createElement("div");
+    title.textContent = "Datei an Teilnehmer senden";
+    title.style.fontWeight = "700";
+    title.style.fontSize = "16px";
+
+    const content = document.createElement("div");
+    content.style.display = "grid";
+    content.style.gridTemplateColumns = "1fr 1fr";
+    content.style.gap = "14px";
+    content.style.overflow = "auto";
+
+    // Empfänger
+    const recWrap = document.createElement("div");
+    recWrap.style.display = "flex";
+    recWrap.style.flexDirection = "column";
+    recWrap.style.gap = "8px";
+
+    const recTitle = document.createElement("div");
+    recTitle.textContent = "Empfänger";
+    recTitle.style.fontWeight = "700";
+
+    const recActions = document.createElement("div");
+    recActions.style.display = "flex";
+    recActions.style.flexWrap = "wrap";
+    recActions.style.gap = "6px";
+
+    const mkRecAction = (label, handler) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      btn.style.padding = "4px 8px";
+      btn.style.border = "1px solid var(--card-border)";
+      btn.style.background = "var(--card-bg)";
+      btn.style.borderRadius = "6px";
+      btn.style.cursor = "pointer";
+      btn.onclick = handler;
+      return btn;
+    };
+
+    const applyRecipientSelection = (list) => {
+      selectedRecipients = [...list];
+      Array.from(recList.querySelectorAll("input[type=checkbox]")).forEach((cb) => {
+        cb.checked = selectedRecipients.includes(cb.value);
+      });
+    };
+
+    recActions.append(
+      mkRecAction("Alle", () => applyRecipientSelection(allRecipients)),
+      mkRecAction("Keine", () => applyRecipientSelection([])),
+      mkRecAction("Nur Verteiler", () => applyRecipientSelection(distRecipients)),
+      mkRecAction("Ohne", () => applyRecipientSelection([]))
+    );
+
+    const recList = document.createElement("div");
+    recList.style.display = "flex";
+    recList.style.flexDirection = "column";
+    recList.style.gap = "4px";
+    recList.style.maxHeight = "220px";
+    recList.style.overflow = "auto";
+
+    const mkRecRow = (email) => {
+      const row = document.createElement("label");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "6px";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.value = email;
+      cb.checked = selectedRecipients.includes(email);
+      cb.onchange = () => {
+        if (cb.checked) {
+          if (!selectedRecipients.includes(email)) selectedRecipients.push(email);
+        } else {
+          selectedRecipients = selectedRecipients.filter((x) => x !== email);
+        }
+      };
+      const text = document.createElement("span");
+      text.textContent = email;
+      row.append(cb, text);
+      return row;
+    };
+
+    const uniqueAll = Array.from(new Set(allRecipients));
+    if (uniqueAll.length) {
+      uniqueAll.forEach((mail) => recList.appendChild(mkRecRow(mail)));
+    } else {
+      const hint = document.createElement("div");
+      hint.textContent = "Keine Empfänger gefunden.";
+      hint.style.opacity = "0.7";
+      recList.appendChild(hint);
+    }
+
+    recWrap.append(recTitle, recActions, recList);
+
+    // Anhänge
+    const attWrap = document.createElement("div");
+    attWrap.style.display = "flex";
+    attWrap.style.flexDirection = "column";
+    attWrap.style.gap = "8px";
+
+    const attTitle = document.createElement("div");
+    attTitle.textContent = "Anhänge";
+    attTitle.style.fontWeight = "700";
+
+    const attList = document.createElement("div");
+    attList.style.display = "flex";
+    attList.style.flexDirection = "column";
+    attList.style.gap = "6px";
+
+    attachments.forEach((att) => {
+      const row = document.createElement("label");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.gap = "6px";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = true;
+      cb.onchange = () => {
+        att.selected = cb.checked;
+      };
+      att.selected = true;
+      const text = document.createElement("span");
+      text.textContent = att.label + (att.path ? "" : " (Pfad wird ggf. neu erzeugt)");
+      row.append(cb, text);
+      attList.appendChild(row);
+    });
+
+    attWrap.append(attTitle, attList);
+
+    // Betreff / Text
+    const subjectLabel = document.createElement("div");
+    subjectLabel.textContent = "Betreff";
+    subjectLabel.style.fontWeight = "700";
+
+    const subjectInput = document.createElement("input");
+    subjectInput.type = "text";
+    subjectInput.value = baseSubject;
+    subjectInput.style.width = "100%";
+    subjectInput.style.padding = "8px";
+
+    const bodyLabel = document.createElement("div");
+    bodyLabel.textContent = "Mailtext";
+    bodyLabel.style.fontWeight = "700";
+
+    const bodyInput = document.createElement("textarea");
+    bodyInput.value = baseBody;
+    bodyInput.style.width = "100%";
+    bodyInput.style.minHeight = "180px";
+    bodyInput.style.padding = "8px";
+
+    content.append(recWrap, attWrap, subjectLabel, subjectInput, bodyLabel, bodyInput);
+    content.style.gridTemplateColumns = "1fr 1fr";
+    content.style.gridTemplateRows = "auto auto auto auto";
+    content.style.gridAutoFlow = "row";
+
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.justifyContent = "flex-end";
+    actions.style.gap = "10px";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.type = "button";
+    btnCancel.textContent = "Abbrechen";
+    btnCancel.style.padding = "8px 12px";
+
+    const btnFallback = document.createElement("button");
+    btnFallback.type = "button";
+    btnFallback.textContent = "Fallback anzeigen";
+    btnFallback.style.padding = "8px 12px";
+
+    const btnSend = document.createElement("button");
+    btnSend.type = "button";
+    btnSend.textContent = "Mit Outlook / Mailprogramm öffnen";
+    btnSend.style.padding = "8px 12px";
+    btnSend.style.background = "#2563eb";
+    btnSend.style.color = "#fff";
+    btnSend.style.border = "none";
+    btnSend.style.borderRadius = "6px";
+
+    const closeOverlay = () => {
+      try {
+        overlay.remove();
+      } catch (_e) {}
+    };
+
+    const collectAttachments = () =>
+      attachments.filter((a) => a.selected && a.path).map((a) => a.path);
+
+    const send = async (forceMailto) => {
+      btnSend.disabled = true;
+      btnFallback.disabled = true;
+      try {
+        await this._openMailClient("", {
+          recipients: selectedRecipients,
+          subject: subjectInput.value,
+          body: bodyInput.value,
+          attachments: collectAttachments(),
+          meeting,
+          forceMailto,
+        });
+      } catch (err) {
+        console.error("[header] send mail failed:", err);
+      } finally {
+        closeOverlay();
+      }
+    };
+
+    btnSend.onclick = () => send(false);
+    btnFallback.onclick = () => send(true);
+    btnCancel.onclick = () => {
+      closeOverlay();
+    };
+
+    actions.append(btnCancel, btnFallback, btnSend);
+
+    card.append(title, content, actions);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    try {
+      overlay.focus();
+    } catch (_e) {}
+  }
 
 
 }
