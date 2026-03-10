@@ -14,7 +14,8 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   left.appendChild(headerUtils.el("div", "v2ProjectName", headerUtils.projectNameLine(data?.project)));
   left.appendChild(headerUtils.el("div", "v2ProtocolTitle", titleText));
   if (listStandLine) {
-    left.appendChild(headerUtils.el("div", "v2ListStand", listStandLine));
+    const lines = String(listStandLine).split("\n");
+    lines.forEach((ln) => left.appendChild(headerUtils.el("div", "v2ListStand", ln)));
   }
 
   const right = headerUtils.el("div", "v2HeaderRight");
