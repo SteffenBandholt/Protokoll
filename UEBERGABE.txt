@@ -1,143 +1,68 @@
-BBM – Projektübergabe / Einstieg
+# UEBERGABE.txt
 
-ZUERST LESEN.
+Ziel dieser App:
 
-Diese Datei enthält:
-- Projektüberblick
-- wichtige Workflows
-- wichtige Dateien
-- Drucklogik
-- Regeln für Änderungen
+Erstellung und Verteilung von Baubesprechungsprotokollen.
 
-Für technische Strukturfragen danach ARCHITECTURE.md lesen.
+---
 
-============================================================
-1. PROJEKT
-============================================================
+# Hauptfunktionen
 
-Electron-Anwendung für Besprechungsmanagement.
+1. Protokollerstellung
+2. PDF-Erzeugung
+3. Verteilung per E-Mail
 
-Funktionen:
+---
 
-- Projekte verwalten
-- Besprechungen führen
-- TOPs (Tagesordnungspunkte)
-- Protokolle erzeugen
-- Firmenlisten erzeugen
-- ToDo-Listen erzeugen
+# Entwicklungsstrategie
 
-PDF-Ausgaben werden im Projektordner gespeichert.
+Bei Änderungen gilt:
 
-============================================================
-2. CODEX-REGELN
-============================================================
+1. Diagnose
+2. Fehlerstelle identifizieren
+3. minimalen Fix umsetzen
 
-Prompts: Deutsch.
+Keine spekulativen Änderungen.
 
-Standardmodell:
+---
 
-gpt-5.1-codex-max
-Reasoning: medium
+# Codex-Arbeitsweise
 
 Codex soll:
 
-- NICHT das gesamte Repository lesen
-- nur explizit genannte Dateien öffnen
-- Änderungen direkt im Repo durchführen
-- keine Code-Snippets oder Diffs ausgeben
+- konkrete Fehlerstellen identifizieren
+- minimal korrigieren
+- bestehende Funktionen weiterverwenden
 
-============================================================
-3. WICHTIGE WORKFLOWS
-============================================================
+Codex soll nicht:
 
-Header → Drucken
+- alternative Architekturen bauen
+- große Refactorings durchführen
+- unnötige Dateien ändern
 
-- Protokoll
-- Firmenliste
-- ToDo-Liste
+---
 
-Logik:
+# Modellwahl
 
-Offene Besprechung
-→ Vorschau
+Standard:
 
-Geschlossene Besprechung
-→ PDF-Datei im Projektordner
+gpt-5.1-codex-max
 
-============================================================
-4. PROTOKOLL BEENDEN
-============================================================
+Begründung:
 
-Beim Klick auf "Protokoll beenden":
+- höchste Zuverlässigkeit
+- weniger Fehlversuche
+- bessere Codeanalyse
 
-1. Meeting wird geschlossen
-2. Protokoll-PDF wird erzeugt
-3. Rückkehr in Idle-Status
+Tokenverbrauch ist zweitrangig.
 
-============================================================
-5. WICHTIGE DATEIEN
-============================================================
+---
 
-Renderer:
+# Debugstrategie
 
-src/renderer/ui/MainHeader.js  
-src/renderer/ui/PrintModal.js  
-src/renderer/views/TopsView.js  
+Wenn eine Änderung nicht wirkt:
 
-Routing:
-
-src/renderer/app/Router.js  
-
-Main-Prozess:
-
-src/main/ipc/printIpc.js  
-
-============================================================
-6. TOP-LOGIK
-============================================================
-
-Neuer TOP:
-
-- blau
-- Stern
-
-Übernommener TOP mit geändertem Langtext:
-
-- Langtext blau
-- Stern
-
-============================================================
-7. DRUCKAUSGABEN
-============================================================
-
-Protokoll → Projektordner
-
-Firmenliste → Projektordner / Listen
-
-ToDo-Liste → Projektordner / Listen
-
-Dateinamen enthalten:
-
-- Projektnummer
-- Kurzbezeichnung
-- Dokumenttyp
-- Protokollnummer
-- Datum
-
-Wichtiger Hinweis zum Drucksystem:
-
-Die produktive PDF-Erzeugung läuft aktuell über PrintModal.js
-und window.bbmPrint.printPdf().
-
-Der Ordner src/renderer/print/v2/ ist vorhanden, aber derzeit
-nicht produktiv verdrahtet.
-
-Ohne ausdrücklichen Refactor-Auftrag gilt:
-Altlogik verwenden, print/v2 nicht aktivieren.
-
-
-
-
-============================================================
-ENDE
-============================================================
+1. aktive Datei prüfen
+2. Rückgabepfad verfolgen
+3. erste Verluststelle identifizieren
+4. nur diese Stelle ändern

@@ -1274,8 +1274,6 @@ export default class PrintModal {
 
       if (preview) {
         this._openPreview({ filePath: out.filePath, title: "Firmenliste (Vorschau)" });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
       return out;
     } catch (err) {
@@ -4554,7 +4552,6 @@ export default class PrintModal {
     }
   }
 }
-
 
 
 
