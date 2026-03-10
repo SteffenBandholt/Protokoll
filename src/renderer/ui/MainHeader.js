@@ -627,7 +627,12 @@ export default class MainHeader {
       e.preventDefault();
       e.stopPropagation();
       if (mailBtn.disabled) return;
-      this._setMailOpen(!this._mailOpen);
+      this._setMailOpen(false);
+      try {
+        await this._openMailFileFlow();
+      } catch (err) {
+        console.error("[header] mail direct action failed:", err);
+      }
     };
 
     printBtn.onclick = async (e) => {
@@ -671,7 +676,7 @@ export default class MainHeader {
     };
     document.addEventListener("mousedown", this._mailDocMouseDown, true);
 
-    mailWrap.append(mailBtn, mailMenu);
+    mailWrap.append(mailBtn);
 
     if (this._printResizeHandler) {
       window.removeEventListener("resize", this._printResizeHandler);
@@ -2388,7 +2393,7 @@ async _openMailClient(mailType = "", options = {}) {
       card.style.gap = "10px";
 
       const title = document.createElement("div");
-      title.textContent = "Protokoll auswählen";
+      title.textContent = "zunächst Protokoll auswählen";
       title.style.fontWeight = "700";
       title.style.fontSize = "16px";
 
