@@ -174,6 +174,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
 contextBridge.exposeInMainWorld("bbmPrint", {
   printPdf: (data) => ipcRenderer.invoke("print:toPdf", data),
   findStoredProtocolPdf: (data) => ipcRenderer.invoke("protocol:findStoredPdf", data),
+  listStoredFirmsPdfs: (data) => ipcRenderer.invoke("firms:listStoredPdfs", data),
 });
 contextBridge.exposeInMainWorld("bbmMail", {
   createOutlookDraft: (payload) => ipcRenderer.invoke("mail:createOutlookDraft", payload),

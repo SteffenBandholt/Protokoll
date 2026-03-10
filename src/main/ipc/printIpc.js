@@ -186,6 +186,42 @@ function findStoredProtocolPdf({
   };
 }
 
+function listStoredFirmsPdfs({ baseDir, project } = {}) {
+  const normalizedBaseDir = String(baseDir || "").trim();
+  if (!normalizedBaseDir) {
+    return { ok: false, error: "Basisordner fehlt" };
+  }
+
+  const projectFolder = resolveProjectFolderName(project || {});
+  const listsDir = path.join(normalizedBaseDir, "bbm", projectFolder, "Listen");
+
+  if (!fs.existsSync(listsDir)) {
+    return { ok: true, dir: listsDir, projectFolder, files: [] };
+  }
+
+  const files = fs
+    .readdirSync(listsDir, { withFileTypes: true })
+    .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => {
+      const normalized = String(name || "").toLowerCase();
+      return normalized.endsWith(".pdf") && normalized.includes("firmenliste");
+    })
+    .map((name) => {
+      const filePath = path.join(listsDir, name);
+      let mtimeMs = 0;
+      try {
+        mtimeMs = Number(fs.statSync(filePath)?.mtimeMs || 0);
+      } catch (_err) {
+        mtimeMs = 0;
+      }
+      return { fileName: name, filePath, mtimeMs };
+    })
+    .sort((a, b) => Number(b?.mtimeMs || 0) - Number(a?.mtimeMs || 0));
+
+  return { ok: true, dir: listsDir, projectFolder, files };
+}
+
 function attachPrintDebugPipes(win, jobId) {
   win.webContents.on("console-message", (_event, level, message, line, sourceId) => {
     const lvl = ["LOG", "WARN", "ERROR", "DEBUG"][level] || String(level);
@@ -366,6 +402,18 @@ function registerPrintIpc() {
         project: p.project || null,
         expectedFileNames: p.expectedFileNames || [],
         meetingIndex: p.meetingIndex,
+      });
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("firms:listStoredPdfs", async (_evt, payload) => {
+    try {
+      const p = payload || {};
+      return listStoredFirmsPdfs({
+        baseDir: p.baseDir,
+        project: p.project || null,
       });
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };

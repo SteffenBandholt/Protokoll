@@ -1009,6 +1009,162 @@ export default class PrintModal {
     await this._printFirmsPdf({ projectId, meetingId, preview: true });
   }
 
+  async openStoredFirmsPdfSelection({ projectId } = {}) {
+    try {
+      const pid = projectId || this.router?.currentProjectId || null;
+      if (!pid) {
+        alert("Bitte zuerst ein Projekt auswählen.");
+        return;
+      }
+
+      const api = window.bbmDb || {};
+      if (typeof window?.bbmPrint?.listStoredFirmsPdfs !== "function") {
+        alert("Gespeicherte Firmenlisten sind nicht verfügbar.");
+        return;
+      }
+
+      if (this.router) this.router.currentProjectId = pid;
+      this.projectId = pid;
+
+      let settings = this.router?.context?.settings || {};
+      const dirResolved = await this._resolveProtocolsDir({ settings, api, persistIfMissing: true });
+      settings = dirResolved.settings || settings;
+      const baseDir = String(dirResolved.dir || "").trim();
+      const projectInfo = await this._getProjectInfo(pid);
+      const projectLabel = await this._getProjectLabelWithNumber(pid);
+
+      const listRes = await window.bbmPrint.listStoredFirmsPdfs({
+        baseDir,
+        project: {
+          project_number: projectInfo.number || "",
+          name: projectInfo.name || "",
+          short: projectInfo.short || "",
+        },
+      });
+      if (!listRes?.ok) {
+        alert(listRes?.error || "Gespeicherte Firmenlisten konnten nicht geladen werden.");
+        return;
+      }
+
+      await new Promise((resolve) => {
+        const overlay = createPopupOverlay();
+        overlay.classList.add("bbm-print-overlay");
+        overlay.setAttribute("data-bbm-print-overlay", "stored-firms");
+
+        const closeOverlay = () => {
+          try {
+            overlay.remove();
+          } catch (_e) {
+            // ignore
+          }
+          resolve();
+        };
+
+        registerPopupCloseHandlers(overlay, () => closeOverlay());
+        overlay.addEventListener("mousedown", (e) => {
+          if (e.target === overlay) closeOverlay();
+        });
+
+        const card = document.createElement("div");
+        stylePopupCard(card, { width: "760px" });
+        card.style.maxWidth = "calc(100vw - 28px)";
+        card.style.maxHeight = "calc(100vh - 28px)";
+        card.style.padding = "16px";
+        card.style.display = "grid";
+        card.style.gridTemplateRows = "auto auto 1fr auto";
+        card.style.rowGap = "12px";
+
+        const title = document.createElement("div");
+        title.textContent = "Firmenliste";
+        title.style.fontWeight = "800";
+        title.style.fontSize = "16px";
+
+        const subtitle = document.createElement("div");
+        subtitle.textContent = `Vorhandene Firmenlisten-PDFs für ${projectLabel}`;
+        subtitle.style.opacity = "0.8";
+        subtitle.style.lineHeight = "1.4";
+
+        const listWrap = document.createElement("div");
+        listWrap.style.display = "flex";
+        listWrap.style.flexDirection = "column";
+        listWrap.style.gap = "8px";
+        listWrap.style.minHeight = "120px";
+        listWrap.style.maxHeight = "60vh";
+        listWrap.style.overflow = "auto";
+
+        const files = Array.isArray(listRes?.files) ? listRes.files : [];
+        if (!files.length) {
+          const empty = document.createElement("div");
+          empty.textContent = "Keine gespeicherten Firmenlisten-PDFs gefunden.";
+          empty.style.opacity = "0.75";
+          empty.style.padding = "8px 2px";
+          listWrap.appendChild(empty);
+        } else {
+          files.forEach((item) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.style.display = "flex";
+            btn.style.flexDirection = "column";
+            btn.style.alignItems = "flex-start";
+            btn.style.gap = "4px";
+            btn.style.width = "100%";
+            btn.style.padding = "10px 12px";
+            btn.style.textAlign = "left";
+            btn.style.border = "1px solid var(--card-border)";
+            btn.style.borderRadius = "8px";
+            btn.style.background = "var(--card-bg)";
+            btn.style.cursor = "pointer";
+
+            const fileName = document.createElement("div");
+            fileName.textContent = String(item?.fileName || item?.filePath || "").trim();
+            fileName.style.fontWeight = "700";
+            fileName.style.wordBreak = "break-word";
+
+            const meta = document.createElement("div");
+            meta.textContent = this._formatStoredPdfMeta(item);
+            meta.style.opacity = "0.75";
+            meta.style.fontSize = "12px";
+            meta.style.wordBreak = "break-word";
+
+            btn.onclick = async () => {
+              await this.openExistingPdfPreview({
+                filePath: item?.filePath,
+                title: "Firmenliste (Vorschau)",
+              });
+            };
+
+            btn.append(fileName, meta);
+            listWrap.appendChild(btn);
+          });
+        }
+
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.justifyContent = "flex-end";
+        actions.style.gap = "10px";
+
+        const btnClose = document.createElement("button");
+        btnClose.type = "button";
+        btnClose.textContent = "Schließen";
+        applyPopupButtonStyle(btnClose, { variant: "neutral" });
+        btnClose.onclick = () => closeOverlay();
+
+        actions.appendChild(btnClose);
+        card.append(title, subtitle, listWrap, actions);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        try {
+          overlay.focus();
+        } catch (_e) {
+          // ignore
+        }
+      });
+    } catch (err) {
+      console.error("[PrintModal] openStoredFirmsPdfSelection failed:", err);
+      alert(err?.message || String(err) || "Gespeicherte Firmenlisten konnten nicht geöffnet werden.");
+    }
+  }
+
   // ToDo-Liste: Vorschau mit PDF (gleiches Preview-Modal)
   async openTodoPrintPreview({ projectId, meetingId } = {}) {
     await this._printTodoPdf({ projectId, meetingId, preview: true });
@@ -1032,6 +1188,13 @@ export default class PrintModal {
     const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!m) return String(iso || "").trim();
     return `${m[3]}.${m[2]}.${m[1]}`;
+  }
+
+  _formatStoredPdfMeta(item = {}) {
+    const filePath = String(item?.filePath || "").trim();
+    const mtimeMs = Number(item?.mtimeMs || 0);
+    const stamp = mtimeMs > 0 ? new Date(mtimeMs).toLocaleString("de-DE") : "";
+    return [stamp ? `Geändert: ${stamp}` : "", filePath].filter(Boolean).join(" | ");
   }
 
   _buildListPdfFileName({ projectNumber, projectShortName, listLabel, meetingIndex, meetingDate } = {}) {
@@ -4549,8 +4712,6 @@ export default class PrintModal {
     }
   }
 }
-
-
 
 
 

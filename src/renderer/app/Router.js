@@ -889,6 +889,25 @@ export default class Router {
     }
   }
 
+  async openStoredFirmsPdfSelection({ projectId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.openStoredFirmsPdfSelection !== "function") {
+      alert("PrintModal unterst\u00fctzt keine gespeicherten Firmenlisten.");
+      return;
+    }
+    try {
+      await pm.openStoredFirmsPdfSelection({ projectId: effectiveProjectId });
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
+    }
+  }
+
   async printClosedMeetingDirect({ projectId, meetingId } = {}) {
     const effectiveProjectId = projectId || this.currentProjectId || null;
     if (!effectiveProjectId) {
