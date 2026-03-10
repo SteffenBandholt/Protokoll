@@ -421,11 +421,27 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
     const subject = String(payload?.subject || "").trim();
     const body = String(payload?.body || "");
     const attachmentPath = String(payload?.attachmentPath || "").trim();
+    const attachmentsArr = Array.isArray(payload?.attachments)
+      ? payload.attachments.map((v) => String(v || "").trim()).filter(Boolean)
+      : [];
+    const allAttachments = [];
+    if (attachmentsArr.length) allAttachments.push(...attachmentsArr);
+    if (attachmentPath) allAttachments.push(attachmentPath);
 
-    if (!attachmentPath) {
+    const dedup = [];
+    const seen = new Set();
+    for (const a of allAttachments) {
+      const key = a.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      dedup.push(a);
+    }
+
+    if (!dedup.length) {
       return { ok: false, error: "Anhangspfad fehlt." };
     }
-    if (!fs.existsSync(attachmentPath)) {
+    const missing = dedup.find((p) => !fs.existsSync(p));
+    if (missing) {
       return { ok: false, error: "Anhang nicht gefunden." };
     }
 
@@ -436,7 +452,7 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
       '  [string]$To = "",',
       '  [string]$Subject = "",',
       '  [string]$Body = "",',
-      '  [string]$AttachmentPath = ""',
+      '  [string[]]$Attachments = @()',
       ')',
       '$ErrorActionPreference = "Stop"',
       '$outlook = New-Object -ComObject Outlook.Application',
@@ -444,8 +460,12 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
       'if ($To) { $mail.To = $To }',
       'if ($Subject) { $mail.Subject = $Subject }',
       'if ($Body) { $mail.Body = $Body }',
-      'if ($AttachmentPath -and (Test-Path -LiteralPath $AttachmentPath)) {',
-      '  [void]$mail.Attachments.Add($AttachmentPath)',
+      'if ($Attachments) {',
+      '  foreach ($att in $Attachments) {',
+      '    if ($att -and (Test-Path -LiteralPath $att)) {',
+      '      [void]$mail.Attachments.Add($att)',
+      '    }',
+      '  }',
       '}',
       '$mail.Display()',
       ''
@@ -466,9 +486,10 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
       subject,
       "-Body",
       body,
-      "-AttachmentPath",
-      attachmentPath,
     ];
+    for (const att of dedup) {
+      args.push("-Attachments", att);
+    }
 
     const result = await new Promise((resolve) => {
       let stderr = "";
