@@ -64,6 +64,15 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   const createdDate = _formatDateIso(
     top.top_created_at ?? top.topCreatedAt ?? top.created_at ?? top.createdAt ?? ""
   );
+  const changedDate = _formatDateIso(
+    top.updated_at ??
+      top.updatedAt ??
+      top.changed_at ??
+      top.changedAt ??
+      top.longtext_changed_at ??
+      top.longtextChangedAt ??
+      ""
+  );
   const isNewTop =
     top.isNewTop ?? (Number(top.is_carried_over ?? top.isCarriedOver ?? 0) !== 1);
 
@@ -75,8 +84,11 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     Number(top?.isHiddenTop ?? top?.is_hidden ?? top?.isHidden ?? 0) === 1 ||
     Number(top?.frozen_is_hidden ?? top?.frozenIsHidden ?? 0) === 1;
   const title = String(top.title || "").trim() || "(ohne Bezeichnung)";
-  const longtext =
+  let longtext =
     longtextOverride != null ? String(longtextOverride) : String(top.longtext || "").trim();
+  if (!isNewTop && isTouched && changedDate) {
+    longtext = `${longtext}${longtext ? "\n" : ""}(Text geändert ${changedDate})`;
+  }
   const status = String(top.status || "").trim();
   const due = _formatDateIso(top.due_date || top.dueDate || "");
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
@@ -86,6 +98,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     level,
     numText,
     createdDate,
+    changedDate,
     isNewTop,
     isTouched, // NEW
     isImportant,
@@ -120,20 +133,14 @@ function _buildTopRowElement(row) {
     const numBox = _el("div", "nrBox");
     numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
     if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-    if (row.isNewTop || row.isTouched) {
-      const star = _el("div", "newStar");
-      star.innerHTML = `
-        <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-          <polygon
-            points="50,7 61,36 92,36 66,54 76,84 50,66 24,84 34,54 8,36 39,36"
-            fill="#fbc02d"
-            stroke="#111"
-            stroke-width="6"
-          />
-        </svg>
-      `.trim();
-      numBox.appendChild(star);
+    if (!row.isNewTop && row.changedDate) {
+      const hint = _el("div", "nrHint", `(Text geändert\n${row.changedDate})`);
+      hint.style.whiteSpace = "pre";
+      hint.style.color = "#000000";
+      hint.style.fontSize = "7pt";
+      numBox.appendChild(hint);
     }
+    // Stern im PDF weggelassen, Flag reicht
 
     wrap.append(numBox, _el("div", "lvl1Text", row.title));
     td.appendChild(wrap);
@@ -149,20 +156,14 @@ function _buildTopRowElement(row) {
   const numBox = _el("div", "nrBox");
   numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
   if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-  if (row.isNewTop || row.isTouched) {
-    const star = _el("div", "newStar");
-    star.innerHTML = `
-      <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
-        <polygon
-          points="50,7 61,36 92,36 66,54 76,84 50,66 24,84 34,54 8,36 39,36"
-          fill="#fbc02d"
-          stroke="#111"
-          stroke-width="6"
-        />
-      </svg>
-    `.trim();
-    numBox.appendChild(star);
+  if (!row.isNewTop && row.changedDate) {
+    const hint = _el("div", "nrHint", `(Text geändert\n${row.changedDate})`);
+    hint.style.whiteSpace = "pre";
+    hint.style.color = "#000000";
+    hint.style.fontSize = "7pt";
+    numBox.appendChild(hint);
   }
+  // Stern im PDF weggelassen, Flag reicht
   tdNr.appendChild(numBox);
 
   const tdText = _el("td", "colText");

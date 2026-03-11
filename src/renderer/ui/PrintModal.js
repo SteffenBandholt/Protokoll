@@ -2772,9 +2772,36 @@ export default class PrintModal {
         const level = Number(t.level || 1);
         const isLevel1 = level === 1;
         const isImportant = Number(t.is_important ?? t.isImportant ?? 0) === 1;
-        const isOld = Number(t.is_carried_over ?? t.isCarriedOver ?? 0) === 1;
-        const isTouched = Number(t.is_touched ?? t.isTouched ?? 0) === 1;
+        const parseFlag = (v) => {
+          if (v === true || v === false) return v;
+          if (typeof v === "string") {
+            const s = v.trim().toLowerCase();
+            return s === "1" || s === "true";
+          }
+          const n = Number(v);
+          return Number.isFinite(n) ? n === 1 : false;
+        };
+
+        const isOld = parseFlag(
+          t.is_carried_over ?? t.isCarriedOver ?? t.frozen_is_carried_over ?? t.frozenIsCarriedOver
+        );
+        const isTouched = parseFlag(
+          t.is_touched ?? t.isTouched ?? t.frozen_is_touched ?? t.frozenIsTouched
+        );
         const isDone = shouldGrayTopForMeeting(t, meeting);
+        const changedRaw =
+          t.updated_at ??
+          t.updatedAt ??
+          t.changed_at ??
+          t.changedAt ??
+          t.frozen_changed_at ??
+          t.frozenChangedAt ??
+          t.longtext_changed_at ??
+          t.longtextChangedAt ??
+          t.created_at ??
+          t.createdAt ??
+          null;
+        const changedDate = changedRaw ? this._fmtDateYYYYMMDD(changedRaw) : "";
 
         const shouldMark = !isOld || (isOld && isTouched);
         const shortBlue = shouldMark;
@@ -2797,7 +2824,10 @@ export default class PrintModal {
         const createdDate = this._fmtDateYYYYMMDD(createdAtRaw);
 
         const shortText = this._truncate(t.title || "(ohne Bezeichnung)", 50);
-        const longTextRaw = t.longtext != null ? String(t.longtext) : "";
+        let longTextRaw = t.longtext != null ? String(t.longtext) : "";
+        if (isOld && isTouched && changedDate) {
+          longTextRaw = `${longTextRaw}${longTextRaw ? "\n" : ""}(Text geändert ${changedDate})`;
+        }
         const longText = this._truncate(
           longTextRaw.replace(/\r?\n/g, " ").replace(/ +/g, " "),
           250
@@ -2831,6 +2861,13 @@ export default class PrintModal {
             <td class="colNr">
               <div class="nr">${num}</div>
               <div class="nrDate">${this._escapeHtml(createdDate)}</div>
+              ${
+                isOld && changedDate
+                  ? `<div class="nrChanged">(${
+                      changedDate ? `Text geändert\n${this._escapeHtml(changedDate)}` : "Text geändert"
+                    })</div>`
+                  : ""
+              }
             </td>
 
             <td class="colText">
@@ -2838,6 +2875,8 @@ export default class PrintModal {
                 <div class="txtStar ${hasStar ? "" : "empty"}">${hasStar ? starSvg : ""}</div>
                 <div class="txtBlock">
                   <div class="short" style="color:${shortColor};">${this._escapeHtml(shortText)}</div>
+
+
                   <div class="long" style="color:${longColor};">${this._escapeHtml(longText)}</div>
                 </div>
               </div>
@@ -3211,6 +3250,15 @@ export default class PrintModal {
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+    .colNr .nrChanged {
+      font-size: 7.0pt;
+      line-height: 1.2;
+      margin-top: 0.5mm;
+      color: #1565c0;
+      font-variant-numeric: tabular-nums;
+      white-space: pre;
+      display: block;
+    }
 
     .textWrap {
       display: flex;
@@ -3237,6 +3285,26 @@ export default class PrintModal {
     .txtBlock {
       min-width: 0;
       flex: 1 1 auto;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #c62828;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #555;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #555;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #555;
     }
 
     .short {
@@ -3579,6 +3647,20 @@ export default class PrintModal {
         const isTouched = Number(t.is_touched ?? t.isTouched ?? 0) === 1;
         const isDone = isDoneStatus(t.status);
 
+        const changedRaw =
+          t.updated_at ??
+          t.updatedAt ??
+          t.changed_at ??
+          t.changedAt ??
+          t.frozen_changed_at ??
+          t.frozenChangedAt ??
+          t.longtext_changed_at ??
+          t.longtextChangedAt ??
+          t.created_at ??
+          t.createdAt ??
+          null;
+        const changedDate = changedRaw ? this._fmtDateYYYYMMDD(changedRaw) : "";
+
         const shouldMark = !isOld || (isOld && isTouched);
         const BLUE = "#1565c0";
         const RED = "#c62828";
@@ -3629,6 +3711,13 @@ export default class PrintModal {
             <td class="colNr">
               <div class="nr">${num}</div>
               <div class="nrDate">${this._escapeHtml(createdDate)}</div>
+              ${
+                isOld && isTouched
+                  ? `<div class="nrChanged">(${
+                      changedDate ? `geändert ${this._escapeHtml(changedDate)}` : "geändert"
+                    })</div>`
+                  : ""
+              }
             </td>
 
             <td class="colText">
@@ -4749,7 +4838,5 @@ export default class PrintModal {
     }
   }
 }
-
-
 
 

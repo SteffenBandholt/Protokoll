@@ -3949,10 +3949,43 @@ async _closeViewOnly() {
       const isMarked = this._markTopIds && this._markTopIds.has(top.id);
 
       const isImportant = Number(top.is_important) === 1;
-      const isOld = Number(top.is_carried_over) === 1;
-      const isTouched = Number(top.is_touched) === 1;
+      const parseFlag = (v) => {
+        if (v === true || v === false) return v;
+        if (typeof v === "string") {
+          const s = v.trim().toLowerCase();
+          return s === "1" || s === "true";
+        }
+        const n = Number(v);
+        return Number.isFinite(n) ? n === 1 : false;
+      };
+
+      const isOld = parseFlag(
+        top.is_carried_over ??
+          top.isCarriedOver ??
+          top.frozen_is_carried_over ??
+          top.frozenIsCarriedOver
+      );
+      const isTouched = parseFlag(
+        top.is_touched ??
+          top.isTouched ??
+          top.frozen_is_touched ??
+          top.frozenIsTouched
+      );
       const isLevel1 = Number(top.level) === 1;
       const isDone = shouldGrayTopForMeeting(top, meeting);
+      const changedRaw =
+        top.updated_at ??
+        top.updatedAt ??
+        top.changed_at ??
+        top.changedAt ??
+        top.frozen_changed_at ??
+        top.frozenChangedAt ??
+        top.longtext_changed_at ??
+        top.longtextChangedAt ??
+        top.created_at ??
+        top.createdAt ??
+        null;
+      const changedDate = changedRaw ? this._formatDue(changedRaw) : "";
 
       const topIdKey = String(top.id);
       const isCollapsed = isLevel1 && this.level1Collapsed.has(topIdKey);
@@ -4036,12 +4069,31 @@ async _closeViewOnly() {
         numBlock.appendChild(btnToggle);
       }
 
+            const numWrap = document.createElement("div");
+      numWrap.style.display = "flex";
+      numWrap.style.flexDirection = "column";
+      numWrap.style.lineHeight = "1.05";
+
       const numLabel = document.createElement("span");
       numLabel.textContent = `${num}.`;
-      numBlock.appendChild(numLabel);
+      numWrap.appendChild(numLabel);
 
-      const shouldShowStar = !isOld || isTouched;
-      if (shouldShowStar) {
+      // Hinweis unter Nummer, danach Stern (Flag bleibt auch nach Kopie sichtbar)
+      if (isOld && changedDate) {
+        const hint = document.createElement("span");
+        hint.textContent =
+          changedDate && changedDate !== "-"
+            ? `(Text geändert\n${changedDate})`
+            : "(Text geändert)";
+        hint.style.fontSize = "7pt";
+        hint.style.opacity = "0.85";
+        hint.style.color = "#000000";
+        hint.style.lineHeight = "1.1";
+        hint.style.whiteSpace = "pre";
+        numWrap.appendChild(hint);
+      }
+
+      if (!isOld && !isTouched) {
         const star = document.createElement("span");
         star.textContent = "★";
         star.title = !isOld ? "Neuer TOP" : "Übernommener, geänderter TOP";
@@ -4049,11 +4101,12 @@ async _closeViewOnly() {
         star.style.color = "#fbc02d";
         star.style.fontSize = isLevel1 ? `${Math.max(fontSizes.l1 - 1, 12)}px` : `${Math.max(fontSizes.l24 - 1, 12)}px`;
         star.style.lineHeight = "1";
-        star.style.marginLeft = "2px";
-        numBlock.appendChild(star);
+        star.style.marginLeft = "0px";
+        numWrap.appendChild(star);
       }
 
-      const textCol = document.createElement("div");
+      numBlock.appendChild(numWrap);
+const textCol = document.createElement("div");
       textCol.style.display = "flex";
       textCol.style.flexDirection = "column";
       textCol.style.gap = "4px";
@@ -4070,17 +4123,19 @@ async _closeViewOnly() {
 
       textCol.append(shortLine);
 
-      if (this.showLongtextInList) {
-        const lt = top.longtext ? String(top.longtext) : "";
-        if (lt) {
-          const longDiv = document.createElement("div");
-          longDiv.textContent = this._clampStr(lt, this._longMax());
-          longDiv.style.fontSize = `${fontSizes.long}px`;
-          longDiv.style.opacity = "0.85";
-          longDiv.style.whiteSpace = "pre-wrap";
-          longDiv.style.color = longColor;
-          textCol.append(longDiv);
-        }
+      let lt = top.longtext ? String(top.longtext) : "";
+      if (isOld && isTouched && changedDate) {
+        lt = `${lt}${lt ? "\n" : ""}(Text geändert ${changedDate})`;
+      }
+
+      if (this.showLongtextInList && lt) {
+        const longDiv = document.createElement("div");
+        longDiv.textContent = this._clampStr(lt, this._longMax());
+        longDiv.style.fontSize = `${fontSizes.long}px`;
+        longDiv.style.opacity = "0.85";
+        longDiv.style.whiteSpace = "pre-wrap";
+        longDiv.style.color = longColor;
+        textCol.append(longDiv);
       }
 
       let metaCol = null;
