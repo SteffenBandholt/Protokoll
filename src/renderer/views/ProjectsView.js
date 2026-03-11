@@ -434,8 +434,6 @@ export default class ProjectsView {
   }
 
   async openCreateProject() {
-    if (this.loading || this._startingProject) return false;
-
     this.router.currentProjectId = null;
     this.router.currentMeetingId = null;
 

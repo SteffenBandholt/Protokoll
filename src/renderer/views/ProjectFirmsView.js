@@ -563,12 +563,9 @@ const taFirmNotes = document.createElement("textarea");
     const btnImportPersonsCsv = document.createElement("button");
     btnImportPersonsCsv.textContent = "Import Kontakt (CSV)";
     applyPopupButtonStyle(btnImportPersonsCsv);
-    btnImportPersonsCsv.disabled = true;
-    btnImportPersonsCsv.style.opacity = "0.55";
     btnImportPersonsCsv.onclick = () => {
       if (this._isReadOnly()) return;
       if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
-      if (!this._hasFirmSelectedSaved()) return;
       this._openProjectPersonImportModal();
     };
 
@@ -1986,9 +1983,8 @@ const taFirmNotes = document.createElement("textarea");
         this.btnImportCsv.style.opacity = can ? "1" : "0.55";
       }
       if (this.btnImportPersonsCsv) {
-        const canImportPersons = okProj && !isSaving && !ro && this._hasFirmSelectedSaved();
-        this.btnImportPersonsCsv.disabled = !canImportPersons;
-        this.btnImportPersonsCsv.style.opacity = canImportPersons ? "1" : "0.55";
+        this.btnImportPersonsCsv.disabled = false;
+        this.btnImportPersonsCsv.style.opacity = "1";
       }
     }
 

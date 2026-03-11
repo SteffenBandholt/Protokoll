@@ -226,11 +226,8 @@ export default class FirmsView {
 
     const btnImportPersonsCsv = document.createElement("button");
     btnImportPersonsCsv.textContent = "Import Kontakt (CSV)";
-    btnImportPersonsCsv.disabled = true;
-    btnImportPersonsCsv.style.opacity = "0.55";
     btnImportPersonsCsv.onclick = async () => {
       if (this.savingFirm || this.savingPerson) return;
-      if (!this._hasFirmSelectedSaved()) return;
       this._openPersonImportModal();
     };
 
@@ -1502,10 +1499,6 @@ const taFirmNotes = document.createElement("textarea");
       const canNewPerson = !this.savingFirm && !this.savingPerson && this._hasFirmSelectedSaved();
       this.btnNewPerson.disabled = !canNewPerson;
       this.btnNewPerson.style.opacity = canNewPerson ? "1" : "0.55";
-      if (this.btnImportPersonsCsv) {
-        this.btnImportPersonsCsv.disabled = !canNewPerson;
-        this.btnImportPersonsCsv.style.opacity = canNewPerson ? "1" : "0.55";
-      }
     }
 
     if (!this._hasFirmSelected()) {
@@ -1616,10 +1609,6 @@ const taFirmNotes = document.createElement("textarea");
       const canNewPerson = !isSaving && this._hasFirmSelectedSaved();
       this.btnNewPerson.disabled = !canNewPerson;
       this.btnNewPerson.style.opacity = canNewPerson ? "1" : "0.55";
-      if (this.btnImportPersonsCsv) {
-        this.btnImportPersonsCsv.disabled = !canNewPerson;
-        this.btnImportPersonsCsv.style.opacity = canNewPerson ? "1" : "0.55";
-      }
     }
   }
 

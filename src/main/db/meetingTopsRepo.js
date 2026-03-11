@@ -327,6 +327,9 @@ function listJoinedByMeeting(meetingId) {
   const riSel = _hasCol(db, "responsible_id") ? "mt.responsible_id" : "NULL AS responsible_id";
   const rlSel = _hasCol(db, "responsible_label") ? "mt.responsible_label" : "NULL AS responsible_label";
 
+  // Änderungszeitpunkt (optional)
+  const updatedSel = _hasCol(db, "updated_at") ? "mt.updated_at" : "NULL AS updated_at";
+
   // TOP angelegt am (optional, aus tops.created_at)
   const topCreatedSel = _hasTopCol(db, "created_at")
     ? "t.created_at AS top_created_at"
@@ -356,6 +359,7 @@ function listJoinedByMeeting(meetingId) {
         mt.is_carried_over,
         ${impSel} AS is_important,
         ${touchedSel} AS is_touched,
+        ${updatedSel},
         ${completedSel} AS completed_in_meeting_id,
 
         ${rkSel},
@@ -552,7 +556,7 @@ function carryOverFromMeeting(arg1, arg2) {
   // Wichtig: übernehmen
   if (hasImp) selectParts.push("is_important");
 
-  // Touched: IM NEUEN MEETING IMMER 0 (sonst wären übernommene sofort blau)
+  // Touched: im neuen Meeting wieder 0 (Flag kommt über changed_at/updated_at)
   if (hasTouched) selectParts.push("0 AS is_touched");
   if (hasCompleted) selectParts.push("completed_in_meeting_id");
 
