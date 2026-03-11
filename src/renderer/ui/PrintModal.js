@@ -6,7 +6,7 @@
 // PDF-Druck Phase 1.2 (Layout/Optik):
 // - nur geschlossene Besprechungen (Standard-Modal)
 // - Spalten: Datum (TOP angelegt) | Nr | TOP (Kurz+Lang) | Meta (Status/Due/Ampel + Verantw.)
-// - Spalten?berschrift auf JEDER Seite (thead table-header-group)
+// - Spaltenüberschrift auf JEDER Seite (thead table-header-group)
 // - Ampel in Meta-Spalte, rechts
 // - Stern (4.5mm, gelb mit schwarzem Rand) vor dem Kurztext, Kurz+Lang bleiben in Flucht
 // - Level 1: hellgrau, KEINE Meta (kein Status/Due/Verantw/Ampel), kein "Linien-Gefrickel"
@@ -15,7 +15,7 @@
 // INVARIANT (BBM): Print bleibt ueber bbmPrint.printPdf (print:toPdf).
 //
 // Erweiterung:
-// - printVorabzug({ projectId, meetingId }) erlaubt Vorabzug fÃ¼r OFFENE Besprechung
+// - printVorabzug({ projectId, meetingId }) erlaubt Vorabzug für OFFENE Besprechung
 // - openPrint({ projectId }) bleibt: Auswahl nur geschlossene Besprechungen
 //
 // WICHTIG (User-Req):
@@ -150,7 +150,7 @@ export default class PrintModal {
     };
 
     const btnClose = document.createElement("button");
-    btnClose.textContent = "Schlie?en";
+    btnClose.textContent = "Schließen";
     applyPopupButtonStyle(btnClose);
     btnClose.onclick = () => this.close();
 
@@ -189,7 +189,7 @@ export default class PrintModal {
     nextMeetBox.style.marginTop = "12px";
 
     const nextMeetTitle = document.createElement("div");
-    nextMeetTitle.textContent = "NÃ¤chste Besprechung";
+    nextMeetTitle.textContent = "Nächste Besprechung";
     nextMeetTitle.style.fontWeight = "700";
     nextMeetTitle.style.marginBottom = "8px";
 
@@ -328,7 +328,7 @@ export default class PrintModal {
     title.style.fontSize = "16px";
 
     const btnClose = document.createElement("button");
-    btnClose.textContent = "Schliessen";
+    btnClose.textContent = "Schließen";
     applyPopupButtonStyle(btnClose);
     btnClose.style.marginLeft = "auto";
     btnClose.onclick = () => this._closePreview();
@@ -390,7 +390,7 @@ export default class PrintModal {
     if (this.hintEl) {
       this.hintEl.textContent =
         this.mode === "vorabzug"
-          ? "Hinweis: Vorabzug ist fÃ¼r offene Besprechungen gedacht."
+          ? "Hinweis: Vorabzug ist für offene Besprechungen gedacht."
           : "Hinweis: Es werden nur geschlossene Besprechungen angezeigt.";
     }
   }
@@ -448,7 +448,7 @@ export default class PrintModal {
   _applyState() {
     const busy = this.loading || this.printing;
 
-    // Im closed-Modal darf man wÃ¤hlen. Vorabzug wird ohne Modal gedruckt.
+    // Im closed-Modal darf man wählen. Vorabzug wird ohne Modal gedruckt.
     const isClosedMode = this.mode !== "vorabzug";
 
     if (this.selMeeting) {
@@ -628,7 +628,7 @@ export default class PrintModal {
       head.style.borderBottom = "1px solid #e2e8f0";
 
       const title = document.createElement("div");
-      title.textContent = "NÃ¤chste Besprechung";
+      title.textContent = "Nächste Besprechung";
       title.style.fontWeight = "800";
       title.style.fontSize = "16px";
       head.append(title);
@@ -638,7 +638,7 @@ export default class PrintModal {
       hint.style.opacity = "0.75";
       hint.textContent = hasSettingsApi
         ? "Wird auf der letzten Seite des Protokolls gedruckt."
-        : "Settings-API fehlt (IPC noch nicht aktiv). Druck lÃ¤uft trotzdem.";
+        : "Settings-API fehlt (IPC noch nicht aktiv). Druck läuft trotzdem.";
 
       const mkRow = (labelText, inputEl) => {
         const wrap = document.createElement("div");
@@ -705,7 +705,7 @@ export default class PrintModal {
 
       const btnOk = document.createElement("button");
       btnOk.type = "button";
-      btnOk.textContent = "Ãbernehmen";
+      btnOk.textContent = "Übernehmen";
       applyPopupButtonStyle(btnOk, { variant: "primary" });
 
       actions.append(btnCancel, btnOk);
@@ -902,14 +902,14 @@ export default class PrintModal {
   // Public API
   // ============================================================
 
-  // Standard: Druck-Modal fÃ¼r geschlossene Besprechungen
+  // Standard: Druck-Modal für geschlossene Besprechungen
   async openPrint({ projectId } = {}) {
     this._ensureDom();
     this._setUiMode("closed");
 
     this.projectId = projectId || this.router?.currentProjectId || null;
     if (!this.projectId) {
-      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
+      alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
 
@@ -942,11 +942,11 @@ export default class PrintModal {
     const mid = meetingId || this.router?.currentMeetingId || null;
 
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
+      alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
     if (!mid) {
-      alert("Bitte zuerst eine Besprechung ?ffnen.");
+      alert("Bitte zuerst eine Besprechung öffnen.");
       return;
     }
 
@@ -970,18 +970,18 @@ export default class PrintModal {
     });
   }
 
-  // Direkt-Vorschau fÃ¼r ein bestimmtes Protokoll (ohne Auswahl-Modal)
+  // Direkt-Vorschau für ein bestimmtes Protokoll (ohne Auswahl-Modal)
   async printMeetingPreview({ projectId, meetingId, mode } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
     const mid = meetingId || this.router?.currentMeetingId || null;
     const m = mode === "vorabzug" ? "vorabzug" : "closed";
 
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
+      alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
     if (!mid) {
-      alert("Bitte zuerst eine Besprechung auswÃ¤hlen.");
+      alert("Bitte zuerst eine Besprechung auswählen.");
       return;
     }
 
@@ -1215,7 +1215,7 @@ export default class PrintModal {
   async _printFirmsPdf({ projectId, meetingId, preview = true } = {}) {
     const pid = projectId || this.router?.currentProjectId || null;
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
+      alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
 
@@ -1540,7 +1540,7 @@ export default class PrintModal {
       maxLogoTopMm: 5,
     });
     const projectLine = headerTemplate.projectLine;
-    const meetingLine = `ToDoÂ´s fÃ¼r ${headerTemplate.meetingLine}`;
+    const meetingLine = `ToDo´s für ${headerTemplate.meetingLine}`;
     const pdfLogoHtml = headerTemplate.pdfLogoHtml;
     const pdfLogoTopMm = headerTemplate.pdfLogoTopMm;
     const pdfLogoHeightMm = headerTemplate.effectiveLogoHeightMm;
@@ -1784,17 +1784,17 @@ export default class PrintModal {
     const mid = meetingId || this.router?.currentMeetingId || null;
 
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
+      alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
     if (!mid) {
-      alert("Bitte zuerst eine Besprechung auswÃ¤hlen.");
+      alert("Bitte zuerst eine Besprechung auswählen.");
       return;
     }
 
     const api = window.bbmDb || {};
     if (typeof api.topsListByProject !== "function") {
-      alert("topsListByProject ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
+      alert("topsListByProject ist nicht verfügbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -1846,13 +1846,13 @@ export default class PrintModal {
       const isClosed = Number(meeting?.is_closed) === 1;
       if (isClosed) {
         if (meeting?.todo_snapshot_error) {
-          alert(`${meeting.todo_snapshot_error}\nBitte Besprechung erneut schlieÃen.`);
+          alert(`${meeting.todo_snapshot_error}\nBitte Besprechung erneut schließen.`);
           return;
         }
         const snap = meeting?.todo_snapshot || null;
         const snapItems = Array.isArray(snap?.items) ? snap.items : null;
         if (!snapItems) {
-          alert("Kein ToDo-Snapshot vorhanden. Bitte Besprechung erneut schlieÃen.");
+          alert("Kein ToDo-Snapshot vorhanden. Bitte Besprechung erneut schließen.");
           return;
         }
         rows = snapItems;
@@ -1946,13 +1946,13 @@ export default class PrintModal {
     const pid = projectId || this.router?.currentProjectId || null;
     const mid = meetingId || null;
     if (!pid) {
-      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
+      alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
 
     const api = window.bbmDb || {};
     if (typeof api.topsListByMeeting !== "function") {
-      alert("topsListByMeeting ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
+      alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
       return;
     }
 
@@ -1979,7 +1979,7 @@ export default class PrintModal {
       let meeting = null;
       if (mid) {
         if (typeof api.topsListByMeeting !== "function") {
-          alert("topsListByMeeting ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
+          alert("topsListByMeeting ist nicht verfügbar (Preload/IPC fehlt).");
           return;
         }
         const resMeeting = await api.topsListByMeeting(mid);
@@ -2181,7 +2181,7 @@ export default class PrintModal {
     opt0.value = "";
     opt0.textContent =
       this.meetings.length > 0
-        ? "â geschlossene Besprechung wÃ¤hlen â"
+        ? "â geschlossene Besprechung wählen â"
         : "â keine geschlossenen Besprechungen â";
     sel.appendChild(opt0);
 
@@ -2931,7 +2931,7 @@ export default class PrintModal {
       const extra = this._escapeHtml(nextMeetingExtraRaw);
       const place = this._escapeHtml(nextMeetingPlaceRaw);
 
-      let s = "Die nÃ¤chste Besprechung findet am ";
+      let s = "Die nächste Besprechung findet am ";
       if (w && d) {
         s += `${w}, den ${d} um ${t} Uhr`;
       } else {
@@ -4559,7 +4559,7 @@ export default class PrintModal {
 
       const isClosed = Number(meeting.is_closed) === 1;
       if (!allowOpen && !isClosed) {
-        alert("Diese Besprechung ist nicht geschlossen. Druck nur fÃ¼r geschlossene Besprechungen.");
+        alert("Diese Besprechung ist nicht geschlossen. Druck nur für geschlossene Besprechungen.");
         return;
       }
 

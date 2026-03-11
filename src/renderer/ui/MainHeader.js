@@ -363,14 +363,14 @@ export default class MainHeader {
     });
     const itemCandidates = mkSetupItem("Personalpool", async (projectId) => {
       if (typeof this.router?.openCandidatesModal !== "function") {
-        alert("Personalpool ist nicht verfÃ¼gbar.");
+        alert("Personalpool ist nicht verfügbar.");
         return;
       }
       try {
         await this.router.openCandidatesModal({ projectId });
       } catch (err) {
         console.error("[header] setup Personalpool failed:", err);
-        alert("Personalpool konnte nicht geÃ¶ffnet werden.");
+        alert("Personalpool konnte nicht geöffnet werden.");
       }
     });
     setupMenu.append(itemProjectFirms, itemFirmsPool, itemCandidates);
@@ -789,7 +789,7 @@ export default class MainHeader {
 
     const stickyNoticeClose = document.createElement("button");
     stickyNoticeClose.type = "button";
-    stickyNoticeClose.textContent = "SchlieÃŸen";
+    stickyNoticeClose.textContent = "Schließen";
     stickyNoticeClose.style.padding = "4px 8px";
     stickyNoticeClose.style.borderRadius = "8px";
     stickyNoticeClose.style.border = "1px solid #d9b94b";
@@ -1361,12 +1361,12 @@ export default class MainHeader {
     this._setMenuButtonEnabled(
       this.elPrintItemPreview,
       !!s.canPreviewProtocol,
-      "Nur in der TopsView mit geladener offener Besprechung verfÃ¼gbar"
+      "Nur in der TopsView mit geladener offener Besprechung verfügbar"
     );
-    this._setMenuButtonEnabled(this.elPrintBranchFirms, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
-    this._setMenuButtonEnabled(this.elPrintBranchTodo, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
-    this._setMenuButtonEnabled(this.elPrintItemTopList, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
-    this._setMenuButtonEnabled(this.elPrintItemMeetings, hasProject, "Nur mit aktivem Projekt verfÃ¼gbar");
+    this._setMenuButtonEnabled(this.elPrintBranchFirms, hasProject, "Nur mit aktivem Projekt verfügbar");
+    this._setMenuButtonEnabled(this.elPrintBranchTodo, hasProject, "Nur mit aktivem Projekt verfügbar");
+    this._setMenuButtonEnabled(this.elPrintItemTopList, hasProject, "Nur mit aktivem Projekt verfügbar");
+    this._setMenuButtonEnabled(this.elPrintItemMeetings, hasProject, "Nur mit aktivem Projekt verfügbar");
 
     if (!hasProject) this._setPrintOpen(false);
   }
@@ -1585,8 +1585,8 @@ export default class MainHeader {
   _applyHeaderActionState() {
     const hasProject = !!this.router?.currentProjectId;
     const hasMeeting = !!this.router?.currentMeetingId;
-    const projectDisabledTitle = "Nur mit aktivem Projekt verfÃ¼gbar";
-    const participantsDisabledTitle = "Nur mit geÃ¶ffneter Besprechung verfÃ¼gbar";
+    const projectDisabledTitle = "Nur mit aktivem Projekt verfügbar";
+    const participantsDisabledTitle = "Nur mit geöffneter Besprechung verfügbar";
     this._setMenuButtonEnabled(this.elActionProjectFirmsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionFirmsPoolBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionMeetingsBtn, hasProject, projectDisabledTitle);
@@ -1609,7 +1609,7 @@ export default class MainHeader {
       this.elSetupBtn.disabled = !hasProject;
       this.elSetupBtn.style.opacity = hasProject ? "1" : "0.55";
       this.elSetupBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
-      this.elSetupBtn.title = hasProject ? "Setup Ã¶ffnen" : "Nur mit aktivem Projekt verfÃ¼gbar";
+      this.elSetupBtn.title = hasProject ? "Setup öffnen" : "Nur mit aktivem Projekt verfügbar";
     }
     if (!hasProject || !visible) {
       this._setSetupOpen(false);
@@ -1626,8 +1626,8 @@ export default class MainHeader {
     this.elPrintBtn.title = hasProject
       ? isMeetingsQuickPrint
         ? "In Protokolle-Ansicht: Drucken öffnet die PDF-Vorschau des markierten Protokolls."
-        : "Drucken-MenÃ¼ Ã¶ffnen"
-      : "Nur mit aktivem Projekt verfÃ¼gbar";
+        : "Drucken-Menü öffnen"
+      : "Nur mit aktivem Projekt verfügbar";
     if (this.elPrintMenu) {
       this.elPrintMenu.style.display = isMeetingsQuickPrint ? "none" : this._printOpen ? "flex" : "none";
     }
