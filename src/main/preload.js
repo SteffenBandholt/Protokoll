@@ -180,3 +180,7 @@ contextBridge.exposeInMainWorld("bbmPrint", {
 contextBridge.exposeInMainWorld("bbmMail", {
   createOutlookDraft: (payload) => ipcRenderer.invoke("mail:createOutlookDraft", payload),
 });
+contextBridge.exposeInMainWorld("bbmProjectTransfer", {
+  exportProject: (payload) => ipcRenderer.invoke("projectTransfer:export", payload),
+  importProject: (filePath) => ipcRenderer.invoke("projectTransfer:import", filePath),
+});

@@ -602,6 +602,72 @@ export default class ProjectsView {
 
     grid.appendChild(createTile);
 
+    const runImportFlow = async () => {
+      try {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".zip";
+        fileInput.style.display = "none";
+        fileInput.onchange = async () => {
+          const file = fileInput.files?.[0];
+          const filePath = file?.path || "";
+          if (!filePath) return;
+          try {
+            const res = await window.bbmProjectTransfer?.importProject(filePath);
+            if (!res?.ok) {
+              this._flashMsg(res?.error || "Import fehlgeschlagen.", 8000);
+              return;
+            }
+            this._flashMsg("Projekt importiert.", 4000);
+            await this.reloadProjects();
+          } catch (errImport) {
+            console.error("[ProjectsView] Projektimport failed:", errImport);
+            this._flashMsg("Import fehlgeschlagen.", 8000);
+          }
+        };
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        setTimeout(() => {
+          try {
+            document.body.removeChild(fileInput);
+          } catch (_e) {
+            // ignore
+          }
+        }, 1000);
+      } catch (err) {
+        console.error("[ProjectsView] runImportFlow failed:", err);
+        this._flashMsg("Import konnte nicht gestartet werden.", 8000);
+      }
+    };
+
+    // Projekt importieren Kachel
+    const importTile = mkTile();
+    importTile.style.background = "var(--card-bg)";
+    importTile.style.borderStyle = "dashed";
+
+    const importTitle = document.createElement("div");
+    importTitle.textContent = "Projekt importieren";
+    importTitle.style.fontWeight = "800";
+    importTitle.style.fontSize = "16px";
+    importTitle.style.marginBottom = "6px";
+
+    const importHint = document.createElement("div");
+    importHint.textContent = "ZIP auswählen und wiederherstellen";
+    importHint.style.opacity = "0.8";
+    importHint.style.fontSize = "12px";
+
+    importTile.append(importTitle, importHint);
+
+    importTile.addEventListener("click", runImportFlow);
+    importTile.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      e.stopPropagation();
+      runImportFlow();
+    });
+
+    grid.appendChild(importTile);
+
     // Projektkacheln
     for (const p of this.projects || []) {
       const tile = mkTile();
@@ -691,7 +757,72 @@ export default class ProjectsView {
         openProject();
       });
 
-      tile.append(btnEdit, pnLine, title, subtitle);
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
+      actions.style.marginTop = "10px";
+
+      const btnArchive = document.createElement("button");
+      btnArchive.type = "button";
+      btnArchive.textContent = "Archiv";
+      btnArchive.style.padding = "6px 10px";
+      btnArchive.style.borderRadius = "8px";
+      btnArchive.style.border = "1px solid #ddd";
+      btnArchive.style.background = "#f3f3f3";
+      btnArchive.style.cursor = "pointer";
+      btnArchive.style.fontSize = "12px";
+      btnArchive.addEventListener("click", async (e) => {
+        stop(e);
+        if (this.loading || this._startingProject) return;
+        try {
+          const api = window.bbmDb || {};
+          if (typeof api.projectsArchive !== "function") {
+            this._flashMsg("Archive-IPC fehlt.", 7000);
+            return;
+          }
+          const res = await api.projectsArchive({ projectId: p?.id });
+          if (!res?.ok) {
+            this._flashMsg(res?.error || "Archivieren fehlgeschlagen.", 8000);
+            return;
+          }
+          this._flashMsg("Projekt archiviert.", 4000);
+          await this.reloadProjects();
+        } catch (errArch) {
+          console.error("[ProjectsView] archive failed:", errArch);
+          this._flashMsg("Archivieren fehlgeschlagen.", 8000);
+        }
+      });
+
+      const btnExport = document.createElement("button");
+      btnExport.type = "button";
+      btnExport.textContent = "Export";
+      btnExport.style.padding = "6px 10px";
+      btnExport.style.borderRadius = "8px";
+      btnExport.style.border = "1px solid #ddd";
+      btnExport.style.background = "#eef7ff";
+      btnExport.style.cursor = "pointer";
+      btnExport.style.fontSize = "12px";
+      btnExport.addEventListener("click", async (e) => {
+        stop(e);
+        if (this.loading || this._startingProject) return;
+        try {
+          const res = await window.bbmProjectTransfer?.exportProject({ projectId: p?.id });
+          if (!res?.ok) {
+            this._flashMsg(res?.error || "Export fehlgeschlagen.", 8000);
+            return;
+          }
+          this._flashMsg("Export abgeschlossen.", 4000);
+          this.projects = (this.projects || []).filter((x) => x.id !== p.id);
+          this._renderGrid();
+        } catch (errExp) {
+          console.error("[ProjectsView] export failed:", errExp);
+          this._flashMsg("Export fehlgeschlagen.", 8000);
+        }
+      });
+
+      actions.append(btnArchive, btnExport);
+
+      tile.append(btnEdit, pnLine, title, subtitle, actions);
       grid.appendChild(tile);
     }
 
