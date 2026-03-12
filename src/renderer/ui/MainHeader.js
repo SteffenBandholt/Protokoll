@@ -560,6 +560,8 @@ export default class MainHeader {
     mailBtn.type = "button";
     mailBtn.textContent = "E-Mail senden";
     applyActionTextButtonStyle(mailBtn);
+    mailBtn.disabled = true; // initial: keine Projekt-Kontext -> deaktiviert
+    mailBtn.style.opacity = "0.6";
 
     const mailMenu = document.createElement("div");
     mailMenu.style.position = "absolute";
@@ -1587,6 +1589,13 @@ export default class MainHeader {
     const hasMeeting = !!this.router?.currentMeetingId;
     const projectDisabledTitle = "Nur mit aktivem Projekt verfügbar";
     const participantsDisabledTitle = "Nur mit geöffneter Besprechung verfügbar";
+    // Mail-Button folgt der Projekt-Logik
+    if (this.elMailBtn) {
+      this.elMailBtn.disabled = !hasProject;
+      this.elMailBtn.style.opacity = hasProject ? "1" : "0.6";
+      this.elMailBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
+      this.elMailBtn.title = hasProject ? "E-Mail senden" : projectDisabledTitle;
+    }
     this._setMenuButtonEnabled(this.elActionProjectFirmsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionFirmsPoolBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionMeetingsBtn, hasProject, projectDisabledTitle);
