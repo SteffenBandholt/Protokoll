@@ -1,6 +1,7 @@
 # ARCHITECTURE.md
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 Dieses Dokument beschreibt die aktuelle Architektur der App.
 
 ---
@@ -49,6 +50,8 @@ print/v2 enthält Layout-Komponenten, die teilweise vom Renderer genutzt werden 
 
 Erzeugt werden:
 =======
+=======
+>>>>>>> Stashed changes
 Vor Änderungen an Workflow, Druck, Routing oder TOP-Logik diese Datei lesen.
 
 Für Arbeitsregeln gilt AGENTS.md.
@@ -86,12 +89,16 @@ printIpc.js
 Drucklogik
 ============================================================
 Dokumenttypen:
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 
 - Protokoll
 - Firmenliste
 - ToDo-Liste
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 Speicherorte:
 
@@ -122,6 +129,8 @@ Bei Fehlern immer zuerst prüfen:
 - welcher Renderer die Ausgabe erzeugt
 - wo der Rückgabepfad endet
 =======
+=======
+>>>>>>> Stashed changes
 Regeln:
 
 Offene Besprechung
@@ -280,5 +289,9 @@ ZIEL
 
 Änderungen sollen möglichst lokal erfolgen.
 
+<<<<<<< Updated upstream
+Keine Änderungen an globaler Drucklogik ohne Auftrag.
+>>>>>>> Stashed changes
+=======
 Keine Änderungen an globaler Drucklogik ohne Auftrag.
 >>>>>>> Stashed changes

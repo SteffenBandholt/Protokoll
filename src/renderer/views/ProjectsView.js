@@ -444,7 +444,11 @@ export default class ProjectsView {
   }
 
   async openProjectById(projectId) {
-    if (this.loading || this._startingProject) return false;
+    if (this.loading) return false;
+    if (this._startingProject) {
+      // Safety net: falls der Start-Flag hängengeblieben ist, freigeben und neu versuchen.
+      this._startingProject = false;
+    }
 
     const wanted = String(projectId ?? "").trim();
     if (!wanted) {
@@ -745,8 +749,6 @@ export default class ProjectsView {
       };
 
       tile.addEventListener("click", (e) => {
-        if (e?.target?.closest && e.target.closest(".bbm-btn-edit")) return;
-        if (e?.target?.closest && e.target.closest("button")) return;
         openProject();
       });
 
@@ -757,72 +759,7 @@ export default class ProjectsView {
         openProject();
       });
 
-      const actions = document.createElement("div");
-      actions.style.display = "flex";
-      actions.style.gap = "8px";
-      actions.style.marginTop = "10px";
-
-      const btnArchive = document.createElement("button");
-      btnArchive.type = "button";
-      btnArchive.textContent = "Archiv";
-      btnArchive.style.padding = "6px 10px";
-      btnArchive.style.borderRadius = "8px";
-      btnArchive.style.border = "1px solid #ddd";
-      btnArchive.style.background = "#f3f3f3";
-      btnArchive.style.cursor = "pointer";
-      btnArchive.style.fontSize = "12px";
-      btnArchive.addEventListener("click", async (e) => {
-        stop(e);
-        if (this.loading || this._startingProject) return;
-        try {
-          const api = window.bbmDb || {};
-          if (typeof api.projectsArchive !== "function") {
-            this._flashMsg("Archive-IPC fehlt.", 7000);
-            return;
-          }
-          const res = await api.projectsArchive({ projectId: p?.id });
-          if (!res?.ok) {
-            this._flashMsg(res?.error || "Archivieren fehlgeschlagen.", 8000);
-            return;
-          }
-          this._flashMsg("Projekt archiviert.", 4000);
-          await this.reloadProjects();
-        } catch (errArch) {
-          console.error("[ProjectsView] archive failed:", errArch);
-          this._flashMsg("Archivieren fehlgeschlagen.", 8000);
-        }
-      });
-
-      const btnExport = document.createElement("button");
-      btnExport.type = "button";
-      btnExport.textContent = "Export";
-      btnExport.style.padding = "6px 10px";
-      btnExport.style.borderRadius = "8px";
-      btnExport.style.border = "1px solid #ddd";
-      btnExport.style.background = "#eef7ff";
-      btnExport.style.cursor = "pointer";
-      btnExport.style.fontSize = "12px";
-      btnExport.addEventListener("click", async (e) => {
-        stop(e);
-        if (this.loading || this._startingProject) return;
-        try {
-          const res = await window.bbmProjectTransfer?.exportProject({ projectId: p?.id });
-          if (!res?.ok) {
-            this._flashMsg(res?.error || "Export fehlgeschlagen.", 8000);
-            return;
-          }
-          this._flashMsg("Export abgeschlossen.", 4000);
-          this.projects = (this.projects || []).filter((x) => x.id !== p.id);
-          this._renderGrid();
-        } catch (errExp) {
-          console.error("[ProjectsView] export failed:", errExp);
-          this._flashMsg("Export fehlgeschlagen.", 8000);
-        }
-      });
-
-      actions.append(btnArchive, btnExport);
-
-      tile.append(btnEdit, pnLine, title, subtitle, actions);
+      tile.append(btnEdit, pnLine, title, subtitle);
       grid.appendChild(tile);
     }
 
@@ -848,6 +785,7 @@ export default class ProjectsView {
   async _createMeetingAndOpenTops(projectId, projectObj) {
     if (this._startingProject) return false;
 
+    let result = false;
     this._startingProject = true;
     this._setMsg("Öffne Projekt...");
 
@@ -856,45 +794,77 @@ export default class ProjectsView {
       this.router.currentMeetingId = null;
 
       const api = window.bbmDb || {};
-      let openMeeting = null;
+      if (typeof api.meetingsCreate !== "function") {
+        this._flashMsg("meetingsCreate ist nicht verfügbar (Preload/IPC fehlt).", 9000);
+        return false;
+      }
 
+      // Dialog zum Anlegen des Protokolls (Datum/Schlagwort/Teilnehmer-Option)
+      const modalRes = await this._openCreateMeetingModal({ dateISO: this._todayISO() });
+      if (!modalRes) return false; // abgebrochen
+
+      let dateISO = String(modalRes.dateISO || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) dateISO = this._todayISO();
+      const keyword = String(modalRes.keyword || "").trim();
+      const editParticipants = modalRes.editParticipants !== false;
+      this._writeCreateMeetingEditParticipants(editParticipants);
+
+      // nächsten Index ermitteln
+      let nextIndex = 1;
       if (typeof api.meetingsListByProject === "function") {
         try {
           const res = await api.meetingsListByProject(projectId);
           if (res?.ok) {
             const list = res.list || [];
-            const openList = (list || []).filter((m) => Number(m.is_closed || 0) === 0);
-            if (openList.length > 0) {
-              openMeeting = openList
-                .slice()
-                .sort((a, b) => Number(b.meeting_index || 0) - Number(a.meeting_index || 0))[0];
-            }
+            const maxIdx = list.reduce((mx, x) => Math.max(mx, Number(x.meeting_index || 0)), 0);
+            nextIndex = (maxIdx || 0) + 1;
           }
         } catch (errList) {
           console.warn("[ProjectsView] meetingsListByProject failed:", errList);
         }
       }
 
-      // ✅ Wichtig: Wenn kein offenes Protokoll existiert, trotzdem TopsView öffnen (Idle-State)
-      const meetingId = openMeeting?.id || null;
+      const dd = this._isoToDDMMYYYY(dateISO);
+      const idx = `#${nextIndex}`;
+      const title = keyword ? `${idx} ${dd} - ${keyword}` : `${idx} ${dd}`;
 
-      this._setMsg(meetingId ? "Öffne Besprechung..." : "Öffne Protokoll...");
+      this._setMsg("Protokoll wird angelegt...");
+      const createRes = await api.meetingsCreate({ projectId, title });
+      if (!createRes?.ok || !createRes.meeting?.id) {
+        this._flashMsg(createRes?.error || "Besprechung konnte nicht angelegt werden.", 9000);
+        return false;
+      }
+
+      const meetingId = createRes.meeting.id;
 
       this.router.currentProjectId = projectId;
       this.router.currentMeetingId = meetingId;
 
+      this._setMsg("Öffne Protokoll...");
+
       await this.router.showTops(meetingId, projectId);
 
       this._rememberLastProject(projectId);
-      return true;
+      result = true;
+
+      // optional Teilnehmer direkt öffnen
+      if (editParticipants && typeof this.router.openParticipantsModal === "function") {
+        try {
+          await this.router.openParticipantsModal({ projectId, meetingId });
+        } catch (errParticipants) {
+          console.warn("[ProjectsView] openParticipantsModal failed:", errParticipants);
+        }
+      }
     } catch (err) {
       console.error("[ProjectsView] _createMeetingAndOpenTops failed:", err);
       this._flashMsg(err?.message || String(err), 9000);
-      return false;
+      result = false;
     } finally {
       this._startingProject = false;
       this._setMsg("");
     }
+
+    return result;
   }
 
   destroy() {
