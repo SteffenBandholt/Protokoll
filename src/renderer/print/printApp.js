@@ -84,11 +84,8 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     Number(top?.isHiddenTop ?? top?.is_hidden ?? top?.isHidden ?? 0) === 1 ||
     Number(top?.frozen_is_hidden ?? top?.frozenIsHidden ?? 0) === 1;
   const title = String(top.title || "").trim() || "(ohne Bezeichnung)";
-  let longtext =
+  const longtext =
     longtextOverride != null ? String(longtextOverride) : String(top.longtext || "").trim();
-  if (!isNewTop && isTouched && changedDate) {
-    longtext = `${longtext}${longtext ? "\n" : ""}(Text geändert ${changedDate})`;
-  }
   const status = String(top.status || "").trim();
   const due = _formatDateIso(top.due_date || top.dueDate || "");
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
@@ -133,13 +130,7 @@ function _buildTopRowElement(row) {
     const numBox = _el("div", "nrBox");
     numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
     if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-    if (!row.isNewTop && row.changedDate) {
-      const hint = _el("div", "nrHint", `(Text geändert\n${row.changedDate})`);
-      hint.style.whiteSpace = "pre";
-      hint.style.color = "#000000";
-      hint.style.fontSize = "7pt";
-      numBox.appendChild(hint);
-    }
+    // Hinweis "(Text geändert ...)" in v2 Druck nicht anzeigen
     // Stern im PDF weggelassen, Flag reicht
 
     wrap.append(numBox, _el("div", "lvl1Text", row.title));
@@ -156,13 +147,7 @@ function _buildTopRowElement(row) {
   const numBox = _el("div", "nrBox");
   numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
   if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-  if (!row.isNewTop && row.changedDate) {
-    const hint = _el("div", "nrHint", `(Text geändert\n${row.changedDate})`);
-    hint.style.whiteSpace = "pre";
-    hint.style.color = "#000000";
-    hint.style.fontSize = "7pt";
-    numBox.appendChild(hint);
-  }
+  // Hinweis "(Text geändert ...)" in v2 Druck nicht anzeigen
   // Stern im PDF weggelassen, Flag reicht
   tdNr.appendChild(numBox);
 

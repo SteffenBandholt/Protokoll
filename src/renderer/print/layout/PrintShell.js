@@ -94,13 +94,7 @@ function _buildTopRow(row) {
     const nrDateEl = _el("div", "nrDate", row.createdDate);
     numBox.append(topNumberEl, nrDateEl);
     if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-    if (!row.isNewTop && row.changedDate) {
-      const hint = _el("div", "nrHint", `(Text geändert\n${row.changedDate || ""})`);
-      hint.style.whiteSpace = "pre";
-      hint.style.color = "#000000";
-      hint.style.fontSize = "7pt";
-      numBox.appendChild(hint);
-    }
+    // Hinweis "(Text geändert ...)" im v2-Druck unterdrückt
 
     const lvl1TextEl = _el("div", "lvl1Text", row.title);
     wrap.append(numBox, lvl1TextEl);
@@ -121,13 +115,7 @@ function _buildTopRow(row) {
   const nrDateEl = _el("div", "nrDate", row.createdDate);
   numBox.append(topNumberEl, nrDateEl);
   if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-  if (!row.isNewTop && row.changedDate) {
-    const hint = _el("div", "nrHint", `(Text geändert\n${row.changedDate || ""})`);
-    hint.style.whiteSpace = "pre";
-    hint.style.color = "#000000";
-    hint.style.fontSize = "7pt";
-    numBox.appendChild(hint);
-  }
+  // Hinweis "(Text geändert ...)" im v2-Druck unterdrückt
   tdNr.appendChild(numBox);
 
   const tdText = _el("td", "colText");
