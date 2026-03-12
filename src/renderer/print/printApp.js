@@ -1218,6 +1218,19 @@ async function handleInit(payload) {
     }
 
     const data = res.data || {};
+    // Version/Channel für PDF-Fußnote bereitstellen (falls nicht im Payload enthalten)
+    if (!data.appVersion && window.bbmDb?.appGetVersion) {
+      try {
+        const vRes = await window.bbmDb.appGetVersion();
+        if (vRes?.ok) data.appVersion = vRes.version || "";
+      } catch (_e) {}
+    }
+    if (!data.buildChannel && window.bbmDb?.appGetBuildChannel) {
+      try {
+        const chRes = await window.bbmDb.appGetBuildChannel();
+        if (chRes?.ok) data.buildChannel = chRes.channel || "";
+      } catch (_e) {}
+    }
     if (document.fonts && document.fonts.ready) {
       try {
         await document.fonts.ready;

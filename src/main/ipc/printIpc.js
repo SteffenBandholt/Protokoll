@@ -419,6 +419,9 @@ function registerPrintIpc() {
         meetingId: p.meetingId,
         settingsOverride: p.settingsOverride || null,
       });
+      // Version/Channel für PDF-Footer mitgeben
+      data.appVersion = app.getVersion ? app.getVersion() : "";
+      data.buildChannel = app.isPackaged ? "STABLE" : "DEV";
       return { ok: true, data };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };

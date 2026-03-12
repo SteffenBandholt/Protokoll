@@ -509,16 +509,23 @@ function _buildPreRemarks(page) {
   return wrap;
 }
 
-function _buildSpineNote() {
+function _buildSpineNote(data = {}) {
   const wrap = _el("div", "pdfSpineNote");
   const icon = document.createElement("img");
   icon.className = "pdfSpineNoteIcon";
   icon.src = APP_ICON_URL;
   icon.alt = "";
+  const year = new Date().getFullYear();
+  const versionRaw = String(data?.appVersion || "").trim();
+  const versionText = versionRaw ? `v${versionRaw}` : "";
+  const channel = String(data?.buildChannel || "").trim();
+  const channelText = channel ? channel.toUpperCase() : "";
   const text = _el(
     "span",
     "pdfSpineNoteText",
-    "© v0.1.2 - BBM 2026   |   erstellt mit Baubesprechungsmanager    -    Testversion    - nicht freigegeben"
+    [ "©", versionText, `BBM ${year}`, "erstellt mit Baubesprechungsmanager", channelText ]
+      .filter(Boolean)
+      .join("   |   ")
   );
   wrap.append(icon, text);
   return wrap;
@@ -558,7 +565,7 @@ export function renderPrint({ pages, data } = {}) {
     const pageEl = _el("div", "page");
     const pageNo = Number(page?.header?.pageNo || 0);
     if (pageNo === 1) {
-      pageEl.appendChild(_buildSpineNote());
+      pageEl.appendChild(_buildSpineNote(data));
     }
     if (pageNo === 1) {
       pageEl.appendChild(renderV2GlobalHeader({ data }));
