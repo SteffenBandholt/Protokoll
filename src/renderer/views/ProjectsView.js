@@ -706,12 +706,15 @@ export default class ProjectsView {
       btnEdit.style.position = "absolute";
       btnEdit.style.top = "10px";
       btnEdit.style.right = "10px";
-      btnEdit.style.padding = "4px 8px";
-      btnEdit.style.borderRadius = "8px";
-      btnEdit.style.border = "1px solid #ddd";
-      btnEdit.style.background = "#f3f3f3";
+      btnEdit.style.padding = "0";
+      btnEdit.style.border = "none";
+      btnEdit.style.background = "transparent";
+      btnEdit.style.color = "#0b61ff"; // kräftiges, leuchtendes Blau
       btnEdit.style.cursor = "pointer";
       btnEdit.style.fontSize = "12px";
+      btnEdit.style.textDecoration = "underline";
+      btnEdit.style.fontWeight = "600";
+      btnEdit.style.letterSpacing = "0.15px";
       btnEdit.style.zIndex = "5";
       btnEdit.style.pointerEvents = "auto";
 
