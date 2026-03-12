@@ -442,7 +442,11 @@ export default class ProjectsView {
   }
 
   async openProjectById(projectId) {
-    if (this.loading || this._startingProject) return false;
+    if (this.loading) return false;
+    if (this._startingProject) {
+      // Safety net: falls der Start-Flag hängengeblieben ist, freigeben und neu versuchen.
+      this._startingProject = false;
+    }
 
     const wanted = String(projectId ?? "").trim();
     if (!wanted) {
@@ -600,6 +604,72 @@ export default class ProjectsView {
 
     grid.appendChild(createTile);
 
+    const runImportFlow = async () => {
+      try {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.accept = ".zip";
+        fileInput.style.display = "none";
+        fileInput.onchange = async () => {
+          const file = fileInput.files?.[0];
+          const filePath = file?.path || "";
+          if (!filePath) return;
+          try {
+            const res = await window.bbmProjectTransfer?.importProject(filePath);
+            if (!res?.ok) {
+              this._flashMsg(res?.error || "Import fehlgeschlagen.", 8000);
+              return;
+            }
+            this._flashMsg("Projekt importiert.", 4000);
+            await this.reloadProjects();
+          } catch (errImport) {
+            console.error("[ProjectsView] Projektimport failed:", errImport);
+            this._flashMsg("Import fehlgeschlagen.", 8000);
+          }
+        };
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        setTimeout(() => {
+          try {
+            document.body.removeChild(fileInput);
+          } catch (_e) {
+            // ignore
+          }
+        }, 1000);
+      } catch (err) {
+        console.error("[ProjectsView] runImportFlow failed:", err);
+        this._flashMsg("Import konnte nicht gestartet werden.", 8000);
+      }
+    };
+
+    // Projekt importieren Kachel
+    const importTile = mkTile();
+    importTile.style.background = "var(--card-bg)";
+    importTile.style.borderStyle = "dashed";
+
+    const importTitle = document.createElement("div");
+    importTitle.textContent = "Projekt importieren";
+    importTitle.style.fontWeight = "800";
+    importTitle.style.fontSize = "16px";
+    importTitle.style.marginBottom = "6px";
+
+    const importHint = document.createElement("div");
+    importHint.textContent = "ZIP auswählen und wiederherstellen";
+    importHint.style.opacity = "0.8";
+    importHint.style.fontSize = "12px";
+
+    importTile.append(importTitle, importHint);
+
+    importTile.addEventListener("click", runImportFlow);
+    importTile.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      e.stopPropagation();
+      runImportFlow();
+    });
+
+    grid.appendChild(importTile);
+
     // Projektkacheln
     for (const p of this.projects || []) {
       const tile = mkTile();
@@ -677,8 +747,6 @@ export default class ProjectsView {
       };
 
       tile.addEventListener("click", (e) => {
-        if (e?.target?.closest && e.target.closest(".bbm-btn-edit")) return;
-        if (e?.target?.closest && e.target.closest("button")) return;
         openProject();
       });
 
@@ -715,6 +783,7 @@ export default class ProjectsView {
   async _createMeetingAndOpenTops(projectId, projectObj) {
     if (this._startingProject) return false;
 
+    let result = false;
     this._startingProject = true;
     this._setMsg("Öffne Projekt...");
 
@@ -723,45 +792,93 @@ export default class ProjectsView {
       this.router.currentMeetingId = null;
 
       const api = window.bbmDb || {};
-      let openMeeting = null;
+      if (typeof api.meetingsCreate !== "function") {
+        this._flashMsg("meetingsCreate ist nicht verfügbar (Preload/IPC fehlt).", 9000);
+        // Fallback: trotzdem TopsView im Idle-State öffnen
+        await this.router.showTops(null, projectId);
+        this._rememberLastProject(projectId);
+        return true;
+      }
 
+      // Dialog zum Anlegen des Protokolls (Datum/Schlagwort/Teilnehmer-Option)
+      const modalRes = await this._openCreateMeetingModal({ dateISO: this._todayISO() });
+      if (!modalRes) return false; // abgebrochen
+
+      let dateISO = String(modalRes.dateISO || "").slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) dateISO = this._todayISO();
+      const keyword = String(modalRes.keyword || "").trim();
+      const editParticipants = modalRes.editParticipants !== false;
+      this._writeCreateMeetingEditParticipants(editParticipants);
+
+      // nächsten Index ermitteln
+      let nextIndex = 1;
       if (typeof api.meetingsListByProject === "function") {
         try {
           const res = await api.meetingsListByProject(projectId);
           if (res?.ok) {
             const list = res.list || [];
-            const openList = (list || []).filter((m) => Number(m.is_closed || 0) === 0);
-            if (openList.length > 0) {
-              openMeeting = openList
-                .slice()
-                .sort((a, b) => Number(b.meeting_index || 0) - Number(a.meeting_index || 0))[0];
-            }
+            const maxIdx = list.reduce((mx, x) => Math.max(mx, Number(x.meeting_index || 0)), 0);
+            nextIndex = (maxIdx || 0) + 1;
           }
         } catch (errList) {
           console.warn("[ProjectsView] meetingsListByProject failed:", errList);
         }
       }
 
-      // ✅ Wichtig: Wenn kein offenes Protokoll existiert, trotzdem TopsView öffnen (Idle-State)
-      const meetingId = openMeeting?.id || null;
+      const dd = this._isoToDDMMYYYY(dateISO);
+      const idx = `#${nextIndex}`;
+      const title = keyword ? `${idx} ${dd} - ${keyword}` : `${idx} ${dd}`;
 
-      this._setMsg(meetingId ? "Öffne Besprechung..." : "Öffne Protokoll...");
+      this._setMsg("Protokoll wird angelegt...");
+      let meetingId = null;
+      try {
+        const createRes = await api.meetingsCreate({ projectId, title });
+        if (!createRes?.ok || !createRes.meeting?.id) {
+          this._flashMsg(createRes?.error || "Besprechung konnte nicht angelegt werden.", 9000);
+        } else {
+          meetingId = createRes.meeting.id;
+        }
+      } catch (errCreate) {
+        console.error("[ProjectsView] meetingsCreate threw", errCreate);
+        this._flashMsg(errCreate?.message || String(errCreate), 9000);
+      }
+
+      // Wenn Anlage fehlgeschlagen: TopsView trotzdem im Idle-State öffnen
+      if (!meetingId) {
+        this._setMsg("Öffne Protokoll...");
+        await this.router.showTops(null, projectId);
+        this._rememberLastProject(projectId);
+        return false;
+      }
 
       this.router.currentProjectId = projectId;
       this.router.currentMeetingId = meetingId;
 
+      this._setMsg("Öffne Protokoll...");
+
       await this.router.showTops(meetingId, projectId);
 
       this._rememberLastProject(projectId);
-      return true;
+      result = true;
+
+      // optional Teilnehmer direkt öffnen
+      if (editParticipants && typeof this.router.openParticipantsModal === "function") {
+        try {
+          await this.router.openParticipantsModal({ projectId, meetingId });
+        } catch (errParticipants) {
+          console.warn("[ProjectsView] openParticipantsModal failed:", errParticipants);
+        }
+      }
     } catch (err) {
       console.error("[ProjectsView] _createMeetingAndOpenTops failed:", err);
       this._flashMsg(err?.message || String(err), 9000);
-      return false;
+      result = false;
     } finally {
       this._startingProject = false;
       this._setMsg("");
     }
+
+    return result;
   }
 
   destroy() {

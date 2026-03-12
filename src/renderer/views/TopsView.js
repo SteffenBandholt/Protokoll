@@ -1860,6 +1860,36 @@ _isoToDDMMYYYY(iso) {
       };
 
       await attemptClose();
+
+      // Nach erfolgreichem Schließen: automatische Druckläufe (Protokoll, Firmenliste, ToDo-Liste, Top-Liste)
+      try {
+        const projectId = this.projectId || this.router?.currentProjectId || null;
+        const meetingId = this.meetingId || this.router?.currentMeetingId || null;
+        const pm = typeof this.router?._ensurePrintModal === "function" ? await this.router._ensurePrintModal() : null;
+
+        if (pm && projectId && meetingId) {
+          // Protokoll
+          if (typeof pm.printClosedMeetingDirect === "function") {
+            await pm.printClosedMeetingDirect({ projectId, meetingId });
+          }
+          // Firmenliste
+          if (typeof pm._printFirmsPdf === "function") {
+            await pm._printFirmsPdf({ projectId, meetingId, preview: false });
+          }
+          // ToDo-Liste
+          if (typeof pm._printTodoPdf === "function") {
+            await pm._printTodoPdf({ projectId, meetingId, preview: false });
+          }
+          // Top-Liste (alle)
+          if (typeof pm._printTopListAllPdf === "function") {
+            await pm._printTopListAllPdf({ projectId, meetingId, preview: false });
+          }
+        }
+      } catch (errPrint) {
+        console.error("[TopsView] auto-print after close failed:", errPrint);
+      }
+
+      await this._enterIdleAfterClose();
     };
 
     const btnCloseMeeting = document.createElement("button");

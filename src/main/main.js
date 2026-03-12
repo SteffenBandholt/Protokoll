@@ -18,6 +18,7 @@ const { registerPrintIpc } = require("./ipc/printIpc");
 const { registerSettingsIpc } = require("./ipc/settingsIpc");
 const { registerProjectSettingsIpc } = require("./ipc/projectSettingsIpc");
 const { registerEditorIpc } = require("./ipc/editorIpc");
+const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -367,6 +368,7 @@ app.whenReady().then(async () => {
   registerSettingsIpc();
   registerProjectSettingsIpc();
   registerEditorIpc({ getMainWindow: () => mainWindow });
+  registerProjectTransferIpc();
 
   // ============================================================
   // ✅ Build Channel IPCs
@@ -710,7 +712,7 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
   });
 
   console.log(
-    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, app:*"
+    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, projectTransfer, app:*"
   );
 
   // Fenster erst danach (damit Renderer nichts "zu früh" invoken kann)
