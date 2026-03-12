@@ -4651,13 +4651,3 @@ async _closeViewOnly() {
     this._gapPopupOverlay = overlay;
   }
 }
-<<<<<<< Updated upstream
-=======
-
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes

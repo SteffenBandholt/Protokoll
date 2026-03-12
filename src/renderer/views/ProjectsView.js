@@ -796,7 +796,10 @@ export default class ProjectsView {
       const api = window.bbmDb || {};
       if (typeof api.meetingsCreate !== "function") {
         this._flashMsg("meetingsCreate ist nicht verfügbar (Preload/IPC fehlt).", 9000);
-        return false;
+        // Fallback: trotzdem TopsView im Idle-State öffnen
+        await this.router.showTops(null, projectId);
+        this._rememberLastProject(projectId);
+        return true;
       }
 
       // Dialog zum Anlegen des Protokolls (Datum/Schlagwort/Teilnehmer-Option)
@@ -829,13 +832,26 @@ export default class ProjectsView {
       const title = keyword ? `${idx} ${dd} - ${keyword}` : `${idx} ${dd}`;
 
       this._setMsg("Protokoll wird angelegt...");
-      const createRes = await api.meetingsCreate({ projectId, title });
-      if (!createRes?.ok || !createRes.meeting?.id) {
-        this._flashMsg(createRes?.error || "Besprechung konnte nicht angelegt werden.", 9000);
-        return false;
+      let meetingId = null;
+      try {
+        const createRes = await api.meetingsCreate({ projectId, title });
+        if (!createRes?.ok || !createRes.meeting?.id) {
+          this._flashMsg(createRes?.error || "Besprechung konnte nicht angelegt werden.", 9000);
+        } else {
+          meetingId = createRes.meeting.id;
+        }
+      } catch (errCreate) {
+        console.error("[ProjectsView] meetingsCreate threw", errCreate);
+        this._flashMsg(errCreate?.message || String(errCreate), 9000);
       }
 
-      const meetingId = createRes.meeting.id;
+      // Wenn Anlage fehlgeschlagen: TopsView trotzdem im Idle-State öffnen
+      if (!meetingId) {
+        this._setMsg("Öffne Protokoll...");
+        await this.router.showTops(null, projectId);
+        this._rememberLastProject(projectId);
+        return false;
+      }
 
       this.router.currentProjectId = projectId;
       this.router.currentMeetingId = meetingId;
