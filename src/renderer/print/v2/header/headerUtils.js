@@ -155,6 +155,8 @@ function _resolveHeaderTitle({ data, settings, meeting, modeLabel } = {}) {
 function _listStandLine({ data, meeting } = {}) {
   const mode = String(data?.mode || "").trim();
   if (!(mode === "firms" || mode === "todo" || mode === "topsAll" || mode === "protocol")) return "";
+  // In der v2-Vollkopfzeile sollen für Protokoll/Vorabzug keine Nummer-/Datumszeilen angezeigt werden.
+  if (mode === "protocol" || mode === "preview") return "";
 
   const meetingIndex =
     meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
