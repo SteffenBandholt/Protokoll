@@ -1624,7 +1624,9 @@ _isoToDDMMYYYY(iso) {
   _updateTopBarMetaLabels() {
     if (!this.topMetaEl) return;
 
-    const on = !!this.showLongtextInList;
+    const hasMeeting = !!this.meetingId;
+    const hasTops = hasMeeting && Array.isArray(this.items) && this.items.length > 0;
+    const on = !!this.showLongtextInList && hasTops;
 
     // ✅ Platz immer reservieren -> keine Sprünge
     this.topMetaEl.style.visibility = on ? "visible" : "hidden";
