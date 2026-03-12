@@ -134,29 +134,6 @@ export default class ProjectFormView {
   _setBusy(on) {
     this.busy = !!on;
 
-    try {
-      if (this.router) {
-        this.router.context = this.router.context || {};
-        this.router.context.ui = this.router.context.ui || {};
-        this.router.context.ui.stickyNotice = this.busy
-          ? "Debug: Projektformular ist gesperrt (busy=true)."
-          : "";
-        this.router.refreshHeader?.();
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("bbm:sticky-notice", {
-          detail: {
-            message: this.busy
-              ? "Debug: Projektformular ist gesperrt (busy=true)."
-              : "",
-          },
-        })
-      );
-    } catch (_e) {
-      // ignore
-    }
-
     const dis = this.busy;
 
     const els = [
@@ -324,6 +301,20 @@ export default class ProjectFormView {
         return;
       }
       alert("Export abgeschlossen.");
+      // Nach Export: Projektformular schließen, da das Projekt in der DB entfernt wird
+      if (this.isModal) {
+        this._closeModal();
+        if (typeof this.onClose === "function") {
+          try {
+            this.onClose();
+          } catch (_e) {}
+        }
+      }
+      if (this.router) {
+        this.router.currentProjectId = null;
+        this.router.currentMeetingId = null;
+        await this.router.showProjects();
+      }
     } catch (err) {
       alert(err?.message || "Export fehlgeschlagen.");
     } finally {
