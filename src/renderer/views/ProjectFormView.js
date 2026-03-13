@@ -56,7 +56,6 @@ export default class ProjectFormView {
     this.btnSave = null;
     this.btnClose = null;
     this.btnArchive = null;
-    this.btnExport = null;
     this.btnFirmsPdf = null;
     this.btnSettings = null;
     this.projectSettingsOverlayEl = null;
@@ -166,7 +165,6 @@ export default class ProjectFormView {
     if (this.btnSave) this.btnSave.style.cursor = dis ? "default" : "pointer";
     if (this.btnClose) this.btnClose.style.cursor = dis ? "default" : "pointer";
     if (this.btnArchive) this.btnArchive.style.cursor = dis ? "default" : "pointer";
-    if (this.btnExport) this.btnExport.style.cursor = dis ? "default" : "pointer";
     if (this.btnSettings) this.btnSettings.style.cursor = dis ? "default" : "pointer";
     if (this.btnModalCancel) this.btnModalCancel.style.cursor = dis ? "default" : "pointer";
     if (this.btnModalClose) this.btnModalClose.style.cursor = dis ? "default" : "pointer";
@@ -275,48 +273,6 @@ export default class ProjectFormView {
       }
 
       await this.router.showProjects();
-    } finally {
-      this._setMsg("");
-      this._setBusy(false);
-    }
-  }
-
-  async _exportProject() {
-    if (this.busy) return;
-    if (!this.projectId) {
-      alert("Bitte zuerst das Projekt speichern.");
-      return;
-    }
-    if (typeof window.bbmProjectTransfer?.exportProject !== "function") {
-      alert("Export ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
-      return;
-    }
-
-    this._setBusy(true);
-    this._setMsg("Exportiere...");
-    try {
-      const res = await window.bbmProjectTransfer.exportProject({ projectId: this.projectId });
-      if (!res?.ok) {
-        alert(res?.error || "Export fehlgeschlagen.");
-        return;
-      }
-      alert("Export abgeschlossen.");
-      // Nach Export: Projektformular schließen, da das Projekt in der DB entfernt wird
-      if (this.isModal) {
-        this._closeModal();
-        if (typeof this.onClose === "function") {
-          try {
-            this.onClose();
-          } catch (_e) {}
-        }
-      }
-      if (this.router) {
-        this.router.currentProjectId = null;
-        this.router.currentMeetingId = null;
-        await this.router.showProjects();
-      }
-    } catch (err) {
-      alert(err?.message || "Export fehlgeschlagen.");
     } finally {
       this._setMsg("");
       this._setBusy(false);
@@ -1079,11 +1035,6 @@ export default class ProjectFormView {
     btnArchive.textContent = "Archiv";
     applyPopupButtonStyle(btnArchive, { variant: "danger" });
 
-    const btnExport = document.createElement("button");
-    btnExport.type = "button";
-    btnExport.textContent = "Export";
-    applyPopupButtonStyle(btnExport);
-
     btnSave.onclick = () => this._save();
     btnClose.onclick = () => this._closeToProjects();
     btnSettings.onclick = () => this._openProjectSettingsModal();
@@ -1096,16 +1047,14 @@ export default class ProjectFormView {
       await this.router?.openFirmsPrintPreview?.({ projectId: this.projectId });
     };
     btnArchive.onclick = () => this._archive();
-    btnExport.onclick = () => this._exportProject();
 
-    btnRow.append(btnSave, btnSettings, btnFirmsPdf, btnClose, btnArchive, btnExport);
+    btnRow.append(btnSave, btnSettings, btnFirmsPdf, btnClose, btnArchive);
 
     this.btnSave = btnSave;
     this.btnFirmsPdf = btnFirmsPdf;
     this.btnSettings = btnSettings;
     this.btnClose = btnClose;
     this.btnArchive = btnArchive;
-    this.btnExport = btnExport;
 
     return btnRow;
   }
@@ -1121,11 +1070,6 @@ export default class ProjectFormView {
     btnArchive.type = "button";
     btnArchive.textContent = "Archiv";
     applyPopupButtonStyle(btnArchive, { variant: "danger" });
-
-    const btnExport = document.createElement("button");
-    btnExport.type = "button";
-    btnExport.textContent = "Export";
-    applyPopupButtonStyle(btnExport);
 
     const btnCancel = document.createElement("button");
     btnCancel.type = "button";
@@ -1143,18 +1087,16 @@ export default class ProjectFormView {
     applyPopupButtonStyle(btnSave, { variant: "primary" });
 
     btnArchive.onclick = () => this._archive();
-    btnExport.onclick = () => this._exportProject();
     btnCancel.onclick = () => this._handleModalClose();
     btnSettings.onclick = () => this._openProjectSettingsModal();
     btnSave.onclick = () => this._save();
 
-    btnRow.append(btnArchive, btnExport, btnSettings, btnCancel, btnSave);
+    btnRow.append(btnArchive, btnSettings, btnCancel, btnSave);
 
     this.btnArchive = btnArchive;
     this.btnSettings = btnSettings;
     this.btnModalCancel = btnCancel;
     this.btnSave = btnSave;
-    this.btnExport = btnExport;
 
     return btnRow;
   }

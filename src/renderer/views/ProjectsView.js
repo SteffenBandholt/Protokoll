@@ -30,6 +30,15 @@ export default class ProjectsView {
     this._createMeetingModalResolve = null;
     this._projectFormModal = null;
     this._projectFormPrevProjectId = null;
+
+    this._transferModalEl = null;
+    this._transferModalBodyEl = null;
+    this._transferModalStatusEl = null;
+    this._transferModalCloseBtn = null;
+    this._transferModalFooterCloseBtn = null;
+    this._transferModalButtons = [];
+    this._transferBusy = false;
+    this._transferMode = "menu";
   }
 
   _cleanupProjectFormModal() {
@@ -393,6 +402,407 @@ export default class ProjectsView {
     });
   }
 
+  _setTransferStatus(text) {
+    if (!this._transferModalStatusEl) return;
+    this._transferModalStatusEl.textContent = String(text || "");
+  }
+
+  _syncTransferButtonsBusy() {
+    const dis = !!this._transferBusy;
+    for (const btn of this._transferModalButtons || []) {
+      if (!btn) continue;
+      btn.disabled = dis;
+      btn.style.opacity = dis ? "0.7" : "1";
+      btn.style.cursor = dis ? "default" : "pointer";
+    }
+    if (this._transferModalCloseBtn) {
+      this._transferModalCloseBtn.disabled = dis;
+      this._transferModalCloseBtn.style.opacity = dis ? "0.7" : "1";
+      this._transferModalCloseBtn.style.cursor = dis ? "default" : "pointer";
+    }
+    if (this._transferModalFooterCloseBtn) {
+      this._transferModalFooterCloseBtn.disabled = dis;
+      this._transferModalFooterCloseBtn.style.opacity = dis ? "0.7" : "1";
+      this._transferModalFooterCloseBtn.style.cursor = dis ? "default" : "pointer";
+    }
+  }
+
+  _registerTransferButton(btn) {
+    if (!btn) return;
+    this._transferModalButtons.push(btn);
+    this._syncTransferButtonsBusy();
+  }
+
+  _resetTransferButtons() {
+    this._transferModalButtons = [];
+  }
+
+  _setTransferBusy(on) {
+    this._transferBusy = !!on;
+    this._syncTransferButtonsBusy();
+  }
+
+  _closeTransferModal({ force = false } = {}) {
+    if (!force && this._transferBusy) return;
+    if (this._transferModalEl) {
+      try {
+        this._transferModalEl.remove();
+      } catch (_e) {
+        // ignore
+      }
+    }
+    this._transferModalEl = null;
+    this._transferModalBodyEl = null;
+    this._transferModalStatusEl = null;
+    this._transferModalCloseBtn = null;
+    this._transferModalFooterCloseBtn = null;
+    this._transferModalButtons = [];
+    this._transferBusy = false;
+    this._transferMode = "menu";
+  }
+
+  async _runTransferImport() {
+    if (this._transferBusy) return;
+    if (typeof window.bbmProjectTransfer?.importProject !== "function") {
+      this._flashMsg("Import ist nicht verfuegbar (Preload/IPC fehlt).", 8000);
+      return;
+    }
+
+    try {
+      const fileInput = document.createElement("input");
+      fileInput.type = "file";
+      fileInput.accept = ".zip";
+      fileInput.style.display = "none";
+
+      fileInput.onchange = async () => {
+        const file = fileInput.files?.[0];
+        const filePath = file?.path || "";
+        if (!filePath) return;
+
+        this._setTransferBusy(true);
+        this._setTransferStatus("Importiere...");
+        this._setMsg("Importiere...");
+
+        try {
+          const res = await window.bbmProjectTransfer.importProject(filePath);
+          if (!res?.ok) {
+            this._flashMsg(res?.error || "Import fehlgeschlagen.", 8000);
+            return;
+          }
+          this._flashMsg("Projekt importiert.", 4000);
+          await this.reloadProjects();
+        } catch (err) {
+          console.error("[ProjectsView] transfer import failed:", err);
+          this._flashMsg("Import fehlgeschlagen.", 8000);
+        } finally {
+          this._setTransferStatus("");
+          this._setTransferBusy(false);
+          this._setMsg("");
+        }
+      };
+
+      document.body.appendChild(fileInput);
+      fileInput.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(fileInput);
+        } catch (_e) {
+          // ignore
+        }
+      }, 1000);
+    } catch (err) {
+      console.error("[ProjectsView] _runTransferImport failed:", err);
+      this._flashMsg("Import konnte nicht gestartet werden.", 8000);
+    }
+  }
+
+  async _runTransferExportForProject(projectId) {
+    if (this._transferBusy) return;
+    if (!projectId) return;
+    if (typeof window.bbmProjectTransfer?.exportProject !== "function") {
+      this._flashMsg("Export ist nicht verfuegbar (Preload/IPC fehlt).", 8000);
+      return;
+    }
+
+    this._setTransferBusy(true);
+    this._setTransferStatus("Exportiere...");
+    this._setMsg("Exportiere...");
+
+    try {
+      const res = await window.bbmProjectTransfer.exportProject({ projectId });
+      if (!res?.ok) {
+        this._flashMsg(res?.error || "Export fehlgeschlagen.", 8000);
+        return;
+      }
+      this._flashMsg("Export abgeschlossen.", 4000);
+      await this.reloadProjects();
+    } catch (err) {
+      console.error("[ProjectsView] transfer export failed:", err);
+      this._flashMsg("Export fehlgeschlagen.", 8000);
+    } finally {
+      this._setTransferStatus("");
+      this._setTransferBusy(false);
+      this._setMsg("");
+    }
+  }
+
+  async _runTransferExportAll() {
+    if (this._transferBusy) return;
+    const hasBulkExport = typeof window.bbmProjectTransfer?.exportAllProjects === "function";
+    const hasSingleExport = typeof window.bbmProjectTransfer?.exportProject === "function";
+    if (!hasBulkExport && !hasSingleExport) {
+      this._flashMsg("Export ist nicht verfuegbar (Preload/IPC fehlt).", 8000);
+      return;
+    }
+
+    const list = Array.isArray(this.projects) ? this.projects.filter((p) => !!p?.id) : [];
+    if (!list.length) {
+      this._flashMsg("Keine Projekte zum Export vorhanden.", 5000);
+      return;
+    }
+
+    this._setTransferBusy(true);
+    this._setTransferStatus("Exportiere alle...");
+    this._setMsg("Exportiere alle...");
+
+    try {
+      if (hasBulkExport) {
+        const bulkRes = await window.bbmProjectTransfer.exportAllProjects();
+        if (!bulkRes?.ok) {
+          this._flashMsg(bulkRes?.error || "Export (Alle) fehlgeschlagen.", 8000);
+          await this.reloadProjects();
+          return;
+        }
+        this._flashMsg("Alle Projekte exportiert.", 5000);
+        await this.reloadProjects();
+        return;
+      }
+
+      let okCount = 0;
+      for (const p of list) {
+        const res = await window.bbmProjectTransfer.exportProject({ projectId: p.id });
+        if (!res?.ok) {
+          const label = this._labelFull(p);
+          this._flashMsg(`${label}: ${res?.error || "Export fehlgeschlagen."}`, 9000);
+          await this.reloadProjects();
+          return;
+        }
+        okCount += 1;
+      }
+
+      this._flashMsg(`${okCount} Projekt(e) exportiert.`, 5000);
+      await this.reloadProjects();
+    } catch (err) {
+      console.error("[ProjectsView] transfer export all failed:", err);
+      this._flashMsg("Export (Alle) fehlgeschlagen.", 8000);
+    } finally {
+      this._setTransferStatus("");
+      this._setTransferBusy(false);
+      this._setMsg("");
+    }
+  }
+
+  _renderTransferExportSelection() {
+    if (!this._transferModalBodyEl) return;
+    this._transferMode = "export";
+    this._transferModalBodyEl.innerHTML = "";
+    this._resetTransferButtons();
+
+    const hint = document.createElement("div");
+    hint.textContent = "Export: Projekt auswaehlen.";
+    hint.style.fontSize = "12px";
+    hint.style.opacity = "0.8";
+    hint.style.marginBottom = "10px";
+
+    const list = document.createElement("div");
+    list.style.display = "grid";
+    list.style.gap = "8px";
+
+    const mkBtn = (text, onClick, { primary = false } = {}) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = text;
+      applyPopupButtonStyle(btn, primary ? { variant: "primary" } : undefined);
+      btn.style.textAlign = "left";
+      btn.onclick = onClick;
+      this._registerTransferButton(btn);
+      return btn;
+    };
+
+    list.appendChild(
+      mkBtn("Alle", async () => {
+        await this._runTransferExportAll();
+      }, { primary: true })
+    );
+
+    for (const p of this.projects || []) {
+      const label = this._labelFull(p);
+      const pn = this._getProjectNumber(p);
+      const txt = pn ? `${label} (Nr.: ${pn})` : label;
+      list.appendChild(
+        mkBtn(txt, async () => {
+          await this._runTransferExportForProject(p?.id || null);
+        })
+      );
+    }
+
+    const footer = document.createElement("div");
+    footer.style.marginTop = "10px";
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+
+    const btnBack = document.createElement("button");
+    btnBack.type = "button";
+    btnBack.textContent = "Zurueck";
+    applyPopupButtonStyle(btnBack);
+    btnBack.onclick = () => this._renderTransferMenu();
+    this._registerTransferButton(btnBack);
+
+    footer.appendChild(btnBack);
+    this._transferModalBodyEl.append(hint, list, footer);
+    this._syncTransferButtonsBusy();
+  }
+
+  _renderTransferMenu() {
+    if (!this._transferModalBodyEl) return;
+    this._transferMode = "menu";
+    this._transferModalBodyEl.innerHTML = "";
+    this._resetTransferButtons();
+
+    const hint = document.createElement("div");
+    hint.textContent = "Waehle eine Aktion:";
+    hint.style.fontSize = "12px";
+    hint.style.opacity = "0.8";
+    hint.style.marginBottom = "10px";
+
+    const actions = document.createElement("div");
+    actions.style.display = "grid";
+    actions.style.gap = "8px";
+
+    const btnImport = document.createElement("button");
+    btnImport.type = "button";
+    btnImport.textContent = "Import";
+    applyPopupButtonStyle(btnImport, { variant: "primary" });
+    btnImport.onclick = async () => {
+      await this._runTransferImport();
+    };
+    this._registerTransferButton(btnImport);
+
+    const btnExport = document.createElement("button");
+    btnExport.type = "button";
+    btnExport.textContent = "Export";
+    applyPopupButtonStyle(btnExport);
+    btnExport.onclick = () => this._renderTransferExportSelection();
+    this._registerTransferButton(btnExport);
+
+    actions.append(btnImport, btnExport);
+    this._transferModalBodyEl.append(hint, actions);
+    this._syncTransferButtonsBusy();
+  }
+
+  _openTransferModal() {
+    if (this._transferModalEl) return;
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.left = "0";
+    overlay.style.top = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "9999";
+    overlay.tabIndex = -1;
+
+    const box = document.createElement("div");
+    box.style.background = "#fff";
+    box.style.borderRadius = "10px";
+    box.style.border = "1px solid rgba(0,0,0,0.15)";
+    box.style.width = "min(320px, calc(100vw - 32px))";
+    box.style.maxHeight = "calc(100vh - 32px)";
+    box.style.display = "flex";
+    box.style.flexDirection = "column";
+    box.style.overflow = "hidden";
+    box.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "10px";
+    header.style.padding = "12px 16px";
+    header.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Projekt-Transfer";
+    title.style.fontWeight = "800";
+
+    const status = document.createElement("div");
+    status.style.marginLeft = "auto";
+    status.style.fontSize = "12px";
+    status.style.opacity = "0.85";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.onclick = () => this._closeTransferModal();
+
+    header.append(title, status, btnClose);
+
+    const body = document.createElement("div");
+    body.style.flex = "1 1 auto";
+    body.style.minHeight = "0";
+    body.style.overflow = "auto";
+    body.style.padding = "12px 16px";
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.gap = "8px";
+    footer.style.padding = "10px 16px";
+    footer.style.borderTop = "1px solid #e2e8f0";
+
+    const btnFooterClose = document.createElement("button");
+    btnFooterClose.type = "button";
+    btnFooterClose.textContent = "Schließen";
+    applyPopupButtonStyle(btnFooterClose);
+    btnFooterClose.onclick = () => this._closeTransferModal();
+    footer.appendChild(btnFooterClose);
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) this._closeTransferModal();
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this._closeTransferModal();
+      }
+    });
+
+    box.append(header, body, footer);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    this._transferModalEl = overlay;
+    this._transferModalBodyEl = body;
+    this._transferModalStatusEl = status;
+    this._transferModalCloseBtn = btnClose;
+    this._transferModalFooterCloseBtn = btnFooterClose;
+    this._transferBusy = false;
+    this._transferMode = "menu";
+    this._resetTransferButtons();
+
+    this._renderTransferMenu();
+    this._syncTransferButtonsBusy();
+    try {
+      overlay.focus();
+    } catch (_e) {
+      // ignore
+    }
+  }
+
   // ------------------------------------------------------------
   // Lifecycle
   // ------------------------------------------------------------
@@ -531,6 +941,9 @@ export default class ProjectsView {
     } finally {
       this.loading = false;
       this._renderGrid();
+      if (this._transferModalEl && this._transferMode === "export") {
+        this._renderTransferExportSelection();
+      }
     }
   }
 
@@ -604,71 +1017,38 @@ export default class ProjectsView {
 
     grid.appendChild(createTile);
 
-    const runImportFlow = async () => {
-      try {
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = ".zip";
-        fileInput.style.display = "none";
-        fileInput.onchange = async () => {
-          const file = fileInput.files?.[0];
-          const filePath = file?.path || "";
-          if (!filePath) return;
-          try {
-            const res = await window.bbmProjectTransfer?.importProject(filePath);
-            if (!res?.ok) {
-              this._flashMsg(res?.error || "Import fehlgeschlagen.", 8000);
-              return;
-            }
-            this._flashMsg("Projekt importiert.", 4000);
-            await this.reloadProjects();
-          } catch (errImport) {
-            console.error("[ProjectsView] Projektimport failed:", errImport);
-            this._flashMsg("Import fehlgeschlagen.", 8000);
-          }
-        };
-        document.body.appendChild(fileInput);
-        fileInput.click();
-        setTimeout(() => {
-          try {
-            document.body.removeChild(fileInput);
-          } catch (_e) {
-            // ignore
-          }
-        }, 1000);
-      } catch (err) {
-        console.error("[ProjectsView] runImportFlow failed:", err);
-        this._flashMsg("Import konnte nicht gestartet werden.", 8000);
-      }
+    const openProjectTransfer = async () => {
+      if (this.loading || this._startingProject) return;
+      this._openTransferModal();
     };
 
-    // Projekt importieren Kachel
-    const importTile = mkTile();
-    importTile.style.background = "var(--card-bg)";
-    importTile.style.borderStyle = "dashed";
+    // Projekt-Transfer Kachel
+    const transferTile = mkTile();
+    transferTile.style.background = "var(--card-bg)";
+    transferTile.style.borderStyle = "dashed";
 
-    const importTitle = document.createElement("div");
-    importTitle.textContent = "Projekt importieren";
-    importTitle.style.fontWeight = "800";
-    importTitle.style.fontSize = "16px";
-    importTitle.style.marginBottom = "6px";
+    const transferTitle = document.createElement("div");
+    transferTitle.textContent = "Projekt-Transfer";
+    transferTitle.style.fontWeight = "800";
+    transferTitle.style.fontSize = "16px";
+    transferTitle.style.marginBottom = "6px";
 
-    const importHint = document.createElement("div");
-    importHint.textContent = "ZIP auswählen und wiederherstellen";
-    importHint.style.opacity = "0.8";
-    importHint.style.fontSize = "12px";
+    const transferHint = document.createElement("div");
+    transferHint.textContent = "Import und Export zentral";
+    transferHint.style.opacity = "0.8";
+    transferHint.style.fontSize = "12px";
 
-    importTile.append(importTitle, importHint);
+    transferTile.append(transferTitle, transferHint);
 
-    importTile.addEventListener("click", runImportFlow);
-    importTile.addEventListener("keydown", (e) => {
+    transferTile.addEventListener("click", openProjectTransfer);
+    transferTile.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
       e.stopPropagation();
-      runImportFlow();
+      openProjectTransfer();
     });
 
-    grid.appendChild(importTile);
+    grid.appendChild(transferTile);
 
     // Projektkacheln
     for (const p of this.projects || []) {
@@ -941,6 +1321,7 @@ export default class ProjectsView {
     }
 
     this._closeCreateMeetingModal(null);
+    this._closeTransferModal({ force: true });
 
     if (this._projectFormModal) {
       try {
