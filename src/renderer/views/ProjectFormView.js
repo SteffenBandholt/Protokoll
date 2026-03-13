@@ -56,7 +56,10 @@ export default class ProjectFormView {
     this.btnSave = null;
     this.btnClose = null;
     this.btnArchive = null;
+    this.btnExport = null;
     this.btnFirmsPdf = null;
+    this.btnSettings = null;
+    this.projectSettingsOverlayEl = null;
   }
 
   _setMsg(t) {
@@ -131,29 +134,6 @@ export default class ProjectFormView {
   _setBusy(on) {
     this.busy = !!on;
 
-    try {
-      if (this.router) {
-        this.router.context = this.router.context || {};
-        this.router.context.ui = this.router.context.ui || {};
-        this.router.context.ui.stickyNotice = this.busy
-          ? "Debug: Projektformular ist gesperrt (busy=true)."
-          : "";
-        this.router.refreshHeader?.();
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("bbm:sticky-notice", {
-          detail: {
-            message: this.busy
-              ? "Debug: Projektformular ist gesperrt (busy=true)."
-              : "",
-          },
-        })
-      );
-    } catch (_e) {
-      // ignore
-    }
-
     const dis = this.busy;
 
     const els = [
@@ -171,6 +151,7 @@ export default class ProjectFormView {
       this.btnSave,
       this.btnClose,
       this.btnFirmsPdf,
+      this.btnSettings,
       this.btnArchive,
       this.btnModalCancel,
       this.btnModalClose,
@@ -185,6 +166,8 @@ export default class ProjectFormView {
     if (this.btnSave) this.btnSave.style.cursor = dis ? "default" : "pointer";
     if (this.btnClose) this.btnClose.style.cursor = dis ? "default" : "pointer";
     if (this.btnArchive) this.btnArchive.style.cursor = dis ? "default" : "pointer";
+    if (this.btnExport) this.btnExport.style.cursor = dis ? "default" : "pointer";
+    if (this.btnSettings) this.btnSettings.style.cursor = dis ? "default" : "pointer";
     if (this.btnModalCancel) this.btnModalCancel.style.cursor = dis ? "default" : "pointer";
     if (this.btnModalClose) this.btnModalClose.style.cursor = dis ? "default" : "pointer";
 
@@ -194,6 +177,12 @@ export default class ProjectFormView {
       this.btnFirmsPdf.disabled = !canPrint;
       this.btnFirmsPdf.style.opacity = canPrint ? "1" : "0.5";
       this.btnFirmsPdf.style.cursor = canPrint ? "pointer" : "default";
+    }
+    if (this.btnSettings) {
+      const canSettings = !!this.projectId && !this.busy;
+      this.btnSettings.disabled = !canSettings;
+      this.btnSettings.style.opacity = canSettings ? "1" : "0.5";
+      this.btnSettings.style.cursor = canSettings ? "pointer" : "default";
     }
     if (this.btnArchive) {
       const canArchive = !!this.projectId && !this.busy;
@@ -286,6 +275,48 @@ export default class ProjectFormView {
       }
 
       await this.router.showProjects();
+    } finally {
+      this._setMsg("");
+      this._setBusy(false);
+    }
+  }
+
+  async _exportProject() {
+    if (this.busy) return;
+    if (!this.projectId) {
+      alert("Bitte zuerst das Projekt speichern.");
+      return;
+    }
+    if (typeof window.bbmProjectTransfer?.exportProject !== "function") {
+      alert("Export ist nicht verfÃ¼gbar (Preload/IPC fehlt).");
+      return;
+    }
+
+    this._setBusy(true);
+    this._setMsg("Exportiere...");
+    try {
+      const res = await window.bbmProjectTransfer.exportProject({ projectId: this.projectId });
+      if (!res?.ok) {
+        alert(res?.error || "Export fehlgeschlagen.");
+        return;
+      }
+      alert("Export abgeschlossen.");
+      // Nach Export: Projektformular schließen, da das Projekt in der DB entfernt wird
+      if (this.isModal) {
+        this._closeModal();
+        if (typeof this.onClose === "function") {
+          try {
+            this.onClose();
+          } catch (_e) {}
+        }
+      }
+      if (this.router) {
+        this.router.currentProjectId = null;
+        this.router.currentMeetingId = null;
+        await this.router.showProjects();
+      }
+    } catch (err) {
+      alert(err?.message || "Export fehlgeschlagen.");
     } finally {
       this._setMsg("");
       this._setBusy(false);
@@ -474,7 +505,7 @@ export default class ProjectFormView {
     applyWidthFromMaxLength(inpProjectNumber, { fallback: 10, min: 9, max: 14 });
 
     const inpShort = mkInp("text");
-    inpShort.placeholder = "verantw. im Protokoll";
+   // inpShort.placeholder = "verantw. im Protokoll";
     inpShort.style.fontSize = "11px";
     inpShort.maxLength = 20;
     applyWidthFromMaxLength(inpShort, { fallback: 20, min: 16, max: 24 });
@@ -737,6 +768,286 @@ export default class ProjectFormView {
   }
 
 
+  _todayDe() {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, "0");
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(now.getFullYear());
+    return `${dd}.${mm}.${yyyy}`;
+  }
+
+  _projectPrintSettingKeys() {
+    return [
+      "pdf.protocolTitle",
+      "pdf.footerPlace",
+      "pdf.footerDate",
+      "pdf.footerName1",
+      "pdf.footerName2",
+      "pdf.footerRecorder",
+      "pdf.footerStreet",
+      "pdf.footerZip",
+      "pdf.footerCity",
+      "pdf.footerUseUserData",
+    ];
+  }
+
+  _closeProjectSettingsModal() {
+    if (this.projectSettingsOverlayEl) {
+      try {
+        this.projectSettingsOverlayEl.remove();
+      } catch (_e) {}
+    }
+    this.projectSettingsOverlayEl = null;
+  }
+
+  async _openProjectSettingsModal() {
+    if (this.busy) return;
+    if (!this.projectId) {
+      alert("Bitte zuerst das Projekt speichern.");
+      return;
+    }
+    if (this.projectSettingsOverlayEl) return;
+
+    const api = window.bbmDb || {};
+    if (
+      typeof api.projectSettingsGetMany !== "function" ||
+      typeof api.projectSettingsSetMany !== "function"
+    ) {
+      alert("Projekt-Einstellungen sind nicht verfuegbar.");
+      return;
+    }
+
+    const keys = this._projectPrintSettingKeys();
+    const settingsRes = await api.projectSettingsGetMany({ projectId: this.projectId, keys });
+    if (!settingsRes?.ok) {
+      alert(settingsRes?.error || "Projekt-Einstellungen konnten nicht geladen werden.");
+      return;
+    }
+    const data = settingsRes.data || {};
+
+    let profile = {};
+    if (typeof api.userProfileGet === "function") {
+      try {
+        const profileRes = await api.userProfileGet();
+        if (profileRes?.ok) profile = profileRes.data || profileRes.profile || {};
+      } catch (_e) {}
+    }
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.left = "0";
+    overlay.style.top = "0";
+    overlay.style.width = "100vw";
+    overlay.style.height = "100vh";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "10020";
+    overlay.tabIndex = -1;
+
+    const modal = document.createElement("div");
+    modal.style.background = "#fff";
+    modal.style.borderRadius = "10px";
+    modal.style.border = "1px solid rgba(0,0,0,0.15)";
+    modal.style.width = "min(760px, calc(100vw - 32px))";
+    modal.style.maxHeight = "calc(100vh - 32px)";
+    modal.style.display = "flex";
+    modal.style.flexDirection = "column";
+    modal.style.overflow = "hidden";
+    modal.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)";
+
+    const head = document.createElement("div");
+    head.style.display = "flex";
+    head.style.alignItems = "center";
+    head.style.gap = "10px";
+    head.style.padding = "12px 16px";
+    head.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Projekt-Einstellungen";
+    title.style.fontWeight = "800";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.style.marginLeft = "auto";
+    btnClose.onclick = () => this._closeProjectSettingsModal();
+    head.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.padding = "14px 16px";
+    body.style.overflow = "auto";
+    body.style.display = "grid";
+    body.style.gap = "12px";
+
+    const mkInput = (placeholder = "") => {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = placeholder;
+      input.style.width = "100%";
+      input.style.boxSizing = "border-box";
+      input.style.padding = "8px 10px";
+      input.style.border = "1px solid #d1d5db";
+      input.style.borderRadius = "8px";
+      input.style.fontSize = "13px";
+      return input;
+    };
+    const mkRow = (labelText, fieldEl) => {
+      const wrap = document.createElement("div");
+      wrap.style.display = "grid";
+      wrap.style.gridTemplateColumns = "220px minmax(0, 1fr)";
+      wrap.style.gap = "10px";
+      wrap.style.alignItems = "center";
+      const lab = document.createElement("div");
+      lab.textContent = labelText;
+      lab.style.fontSize = "13px";
+      lab.style.fontWeight = "600";
+      wrap.append(lab, fieldEl);
+      return wrap;
+    };
+    const section = document.createElement("div");
+    section.style.border = "1px solid #e5e7eb";
+    section.style.borderRadius = "10px";
+    section.style.padding = "12px";
+    section.style.display = "grid";
+    section.style.gap = "10px";
+
+    const sectionTitle = document.createElement("div");
+    sectionTitle.textContent = "Protokoll";
+    sectionTitle.style.fontWeight = "700";
+    const inpProtocolTitle = mkInput("Protokoll");
+    inpProtocolTitle.value = String(data["pdf.protocolTitle"] || "");
+
+    const footerSection = document.createElement("div");
+    footerSection.style.border = "1px solid #e5e7eb";
+    footerSection.style.borderRadius = "10px";
+    footerSection.style.padding = "12px";
+    footerSection.style.display = "grid";
+    footerSection.style.gap = "10px";
+
+    const footerTitle = document.createElement("div");
+    footerTitle.textContent = "Protokoll-Fuss (PDF)";
+    footerTitle.style.fontWeight = "700";
+    const footerCaption = document.createElement("div");
+    footerCaption.textContent = "Aufgestellt:";
+    footerCaption.style.fontWeight = "600";
+    footerCaption.style.fontSize = "13px";
+
+    const btnTakeUser = document.createElement("button");
+    btnTakeUser.type = "button";
+    btnTakeUser.textContent = "Nutzerdaten uebernehmen";
+    applyPopupButtonStyle(btnTakeUser);
+
+    const inpFooterPlace = mkInput("Ort");
+    const inpFooterDate = mkInput("dd.mm.yyyy");
+    const inpFooterName1 = mkInput("Name 1");
+    const inpFooterName2 = mkInput("Name 2");
+    const inpFooterRecorder = mkInput("Protokollfuehrer");
+    const inpFooterStreet = mkInput("Str./HsNr.");
+    const inpFooterZip = mkInput("PLZ");
+    const inpFooterCity = mkInput("Ort");
+
+    inpFooterPlace.value = String(data["pdf.footerPlace"] || "");
+    inpFooterDate.value = String(data["pdf.footerDate"] || "").trim() || this._todayDe();
+    inpFooterName1.value = String(data["pdf.footerName1"] || "");
+    inpFooterName2.value = String(data["pdf.footerName2"] || "");
+    inpFooterRecorder.value = String(data["pdf.footerRecorder"] || "");
+    inpFooterStreet.value = String(data["pdf.footerStreet"] || "");
+    inpFooterZip.value = String(data["pdf.footerZip"] || "");
+    inpFooterCity.value = String(data["pdf.footerCity"] || "");
+
+    btnTakeUser.onclick = () => {
+      const city = String(profile.city || profile.user_city || "").trim();
+      const name1 = String(profile.name1 || profile.user_name1 || "").trim();
+      const name2 = String(profile.name2 || profile.user_name2 || "").trim();
+      const street = String(profile.street || profile.user_street || "").trim();
+      const zip = String(profile.zip || profile.user_zip || "").trim();
+      inpFooterPlace.value = city;
+      inpFooterDate.value = this._todayDe();
+      inpFooterName1.value = name1;
+      inpFooterName2.value = name2;
+      inpFooterRecorder.value = name1;
+      inpFooterStreet.value = street;
+      inpFooterZip.value = zip;
+      inpFooterCity.value = city;
+    };
+
+    section.append(sectionTitle, mkRow("Bezeichnung des Protokolls", inpProtocolTitle));
+    footerSection.append(
+      footerTitle,
+      footerCaption,
+      mkRow("Nutzerdaten uebernehmen", btnTakeUser),
+      mkRow("Ort (Ort, Datum)", inpFooterPlace),
+      mkRow("Datum", inpFooterDate),
+      mkRow("Name 1", inpFooterName1),
+      mkRow("Name 2", inpFooterName2),
+      mkRow("Protokollfuehrer", inpFooterRecorder),
+      mkRow("Str./HsNr.", inpFooterStreet),
+      mkRow("PLZ", inpFooterZip),
+      mkRow("Ort (Adresse)", inpFooterCity),
+    );
+
+    body.append(section, footerSection);
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.gap = "8px";
+    footer.style.padding = "12px 16px";
+    footer.style.borderTop = "1px solid #e2e8f0";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.type = "button";
+    btnCancel.textContent = "Abbrechen";
+    applyPopupButtonStyle(btnCancel);
+    btnCancel.onclick = () => this._closeProjectSettingsModal();
+
+    const btnSave = document.createElement("button");
+    btnSave.type = "button";
+    btnSave.textContent = "Speichern";
+    applyPopupButtonStyle(btnSave, { variant: "primary" });
+    btnSave.onclick = async () => {
+      const footerDate = String(inpFooterDate.value || "").trim() || this._todayDe();
+      inpFooterDate.value = footerDate;
+      const patch = {
+        "pdf.protocolTitle": String(inpProtocolTitle.value || "").trim(),
+        "pdf.footerPlace": String(inpFooterPlace.value || "").trim(),
+        "pdf.footerDate": footerDate,
+        "pdf.footerName1": String(inpFooterName1.value || "").trim(),
+        "pdf.footerName2": String(inpFooterName2.value || "").trim(),
+        "pdf.footerRecorder": String(inpFooterRecorder.value || "").trim(),
+        "pdf.footerStreet": String(inpFooterStreet.value || "").trim(),
+        "pdf.footerZip": String(inpFooterZip.value || "").trim(),
+        "pdf.footerCity": String(inpFooterCity.value || "").trim(),
+        "pdf.footerUseUserData": "false",
+      };
+      const res = await api.projectSettingsSetMany({ projectId: this.projectId, patch });
+      if (!res?.ok) {
+        alert(res?.error || "Projekt-Einstellungen konnten nicht gespeichert werden.");
+        return;
+      }
+      this._closeProjectSettingsModal();
+    };
+
+    footer.append(btnCancel, btnSave);
+    modal.append(head, body, footer);
+    overlay.appendChild(modal);
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) this._closeProjectSettingsModal();
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this._closeProjectSettingsModal();
+      }
+    });
+    document.body.appendChild(overlay);
+    this.projectSettingsOverlayEl = overlay;
+    try { overlay.focus(); } catch (_e) {}
+  }
+
   _buildPageButtonRow() {
     const btnRow = document.createElement("div");
     btnRow.style.display = "flex";
@@ -758,13 +1069,24 @@ export default class ProjectFormView {
     btnClose.textContent = "Schließen";
     applyPopupButtonStyle(btnClose);
 
+    const btnSettings = document.createElement("button");
+    btnSettings.type = "button";
+    btnSettings.textContent = "Einstellungen";
+    applyPopupButtonStyle(btnSettings);
+
     const btnArchive = document.createElement("button");
     btnArchive.type = "button";
     btnArchive.textContent = "Archiv";
     applyPopupButtonStyle(btnArchive, { variant: "danger" });
 
+    const btnExport = document.createElement("button");
+    btnExport.type = "button";
+    btnExport.textContent = "Export";
+    applyPopupButtonStyle(btnExport);
+
     btnSave.onclick = () => this._save();
     btnClose.onclick = () => this._closeToProjects();
+    btnSettings.onclick = () => this._openProjectSettingsModal();
     btnFirmsPdf.onclick = async () => {
       if (this.busy) return;
       if (!this.projectId) {
@@ -774,13 +1096,16 @@ export default class ProjectFormView {
       await this.router?.openFirmsPrintPreview?.({ projectId: this.projectId });
     };
     btnArchive.onclick = () => this._archive();
+    btnExport.onclick = () => this._exportProject();
 
-    btnRow.append(btnSave, btnFirmsPdf, btnClose, btnArchive);
+    btnRow.append(btnSave, btnSettings, btnFirmsPdf, btnClose, btnArchive, btnExport);
 
     this.btnSave = btnSave;
     this.btnFirmsPdf = btnFirmsPdf;
+    this.btnSettings = btnSettings;
     this.btnClose = btnClose;
     this.btnArchive = btnArchive;
+    this.btnExport = btnExport;
 
     return btnRow;
   }
@@ -797,10 +1122,20 @@ export default class ProjectFormView {
     btnArchive.textContent = "Archiv";
     applyPopupButtonStyle(btnArchive, { variant: "danger" });
 
+    const btnExport = document.createElement("button");
+    btnExport.type = "button";
+    btnExport.textContent = "Export";
+    applyPopupButtonStyle(btnExport);
+
     const btnCancel = document.createElement("button");
     btnCancel.type = "button";
     btnCancel.textContent = "Abbrechen";
     applyPopupButtonStyle(btnCancel);
+
+    const btnSettings = document.createElement("button");
+    btnSettings.type = "button";
+    btnSettings.textContent = "Einstellungen";
+    applyPopupButtonStyle(btnSettings);
 
     const btnSave = document.createElement("button");
     btnSave.type = "button";
@@ -808,14 +1143,18 @@ export default class ProjectFormView {
     applyPopupButtonStyle(btnSave, { variant: "primary" });
 
     btnArchive.onclick = () => this._archive();
+    btnExport.onclick = () => this._exportProject();
     btnCancel.onclick = () => this._handleModalClose();
+    btnSettings.onclick = () => this._openProjectSettingsModal();
     btnSave.onclick = () => this._save();
 
-    btnRow.append(btnArchive, btnCancel, btnSave);
+    btnRow.append(btnArchive, btnExport, btnSettings, btnCancel, btnSave);
 
     this.btnArchive = btnArchive;
+    this.btnSettings = btnSettings;
     this.btnModalCancel = btnCancel;
     this.btnSave = btnSave;
+    this.btnExport = btnExport;
 
     return btnRow;
   }

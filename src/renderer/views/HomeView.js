@@ -154,6 +154,38 @@ export default class HomeView {
     root.style.boxSizing = "border-box";
     root.style.paddingBottom = "8px";
 
+    root.style.position = "relative";
+    root.style.overflow = "auto";
+
+    const bgWrap = document.createElement("div");
+    bgWrap.setAttribute("aria-hidden", "true");
+    bgWrap.style.position = "absolute";
+    bgWrap.style.inset = "0";
+    bgWrap.style.display = "flex";
+    bgWrap.style.justifyContent = "center";
+    bgWrap.style.alignItems = "center";
+    bgWrap.style.pointerEvents = "none";
+    bgWrap.style.zIndex = "0";
+
+    const bgImg = document.createElement("img");
+    bgImg.src = "./assets/icon-BBM.png";
+    bgImg.alt = "";
+    bgImg.style.display = "block";
+    bgImg.style.width = "clamp(220px, 28vw, 420px)";
+    bgImg.style.maxWidth = "70%";
+    bgImg.style.height = "auto";
+    bgImg.style.objectFit = "contain";
+
+    bgWrap.append(bgImg);
+
+    const contentWrap = document.createElement("div");
+    contentWrap.style.position = "relative";
+    contentWrap.style.zIndex = "1";
+    contentWrap.style.display = "flex";
+    contentWrap.style.flexDirection = "column";
+    contentWrap.style.flex = "1";
+    contentWrap.style.minHeight = "100%";
+
     const head = document.createElement("div");
     head.style.display = "flex";
     head.style.alignItems = "center";
@@ -306,7 +338,8 @@ export default class HomeView {
 
     this.footerEl = footer;
     footerWrap.append(creditLine, footer);
-    root.append(head, grid, footerWrap);
+    contentWrap.append(head, grid, footerWrap);
+    root.append(bgWrap, contentWrap);
 
     this.root = root;
     return root;

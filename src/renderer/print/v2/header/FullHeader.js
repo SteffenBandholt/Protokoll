@@ -14,7 +14,8 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   left.appendChild(headerUtils.el("div", "v2ProjectName", headerUtils.projectNameLine(data?.project)));
   left.appendChild(headerUtils.el("div", "v2ProtocolTitle", titleText));
   if (listStandLine) {
-    left.appendChild(headerUtils.el("div", "v2ListStand", listStandLine));
+    const lines = String(listStandLine).split("\n");
+    lines.forEach((ln) => left.appendChild(headerUtils.el("div", "v2ListStand", ln)));
   }
 
   const right = headerUtils.el("div", "v2HeaderRight");
@@ -25,7 +26,7 @@ export function renderV2FullHeader({ data, pageNo, totalPages, modeLabel } = {})
   const city = String(settings["pdf.footerCity"] || "").trim();
   const hasAnyUserField = !!(name1 || name2 || street || zip || city);
   const userBox = headerUtils.el("div", "v2UserBox");
-  const userHint = "Nutzerdaten fehlen - Einstellungen > Drucken > Nutzerdaten";
+  const userHint = "Keine Angaben - Projekt > Bearbeiten > Einstellungen";
 
   if (!useUserData && !hasAnyUserField) {
     userBox.appendChild(headerUtils.el("div", "v2UserPlaceholder", userHint));

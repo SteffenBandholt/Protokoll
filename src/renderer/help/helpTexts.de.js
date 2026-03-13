@@ -1,57 +1,58 @@
 // src/renderer/help/helpTexts.de.js
 
-export const quickStart = `
-# Erste Schritte 
-## 1. Nutzerdaten eingeben 
-Sidebar Einstellungen -> Nutzereinstellungen 
-Die Nutzerdaten werden auf dem Protokoll im Seitenkopf gedruckt 
-## 2. Firma anlegen 
-## 2.1. Firmen (extern) - steht projektübergreifend   bereit - wird dem Projekt über Firmenpool zugeordnet
-- Sidebar Firmen (extern)   - 
-	-	Name 1 (Pflichtfeld) 
-	-	Kurzbez. : „Rufname“ der Firma, wird im Protokoll als „verantwortlich“ eingetragen  
-		 
-## 2.2. Firmen (intern) – steht  projektintern bereit - 
-Projekt wählen - - 
-- Im Header Firmen (intern) wählen 
+export const quickStart = `# BBM – Baubesprechungsmanager
 
-- Name 1 (Pflichtfeld) 
-- Kurzbez. : „Rufname“ der Firma, wird im Protokoll als „verantwortlich“ eingetragen  
-- Ist dem Projekt automatisch zugeordnet 
+## Erste Schritte
 
-## 3. Mitarbeiter anlegen 
-## 3.1. Mitarbeiter (extern) bei Firmen (extern) hinzufügen 
-## 3.2. Mitarbeiter (intern) bei Firmen (intern) hinzufügen 
+- **1. Nutzerdaten eingeben**
+  - Sidebar **Einstellungen → Nutzereinstellungen**
+  - Die Nutzerdaten werden auf dem Protokoll im Seitenkopf gedruckt
 
-## 4. Projekt anlegen 
-## 4.1. Sidebar  ➜ Start  ➜ Neues Projekt anlegen
-## 4.2. Projekte ➜ Projekt anlegen
- - Bezeichnung (Pflichtfeld) 
- 
-## 5. Protokoll anlegen 
- - Sidebar  Projektbezeichnung  ➜ Projekt auswählen 
-        -Protokoll wird automatisch angelegt 
-➜ Neuer Titel und neue Tops werden im geö neten Protokoll mit blauem Text angezeigt. 
-➜ Titel und Tops aus vorherigen Protokollen haben einen schwarzen Text 
-➜ Protokoll schließen beendet die Bearbeitung des Protokolls – nur noch read only 
-➜ Erneute Wahl des Projektes  legt ein neues Protokoll an, das vorherige ist als read only   
-eingefügt, TOPs können bedingt bearbeitet werden: 
-➜ Langtext: kann geändert werden (blauer Text) 
-➜ Fertig bis; Status; Verantw. kann geändert werden
+- **2. Firma anlegen**
+  - **2.1 Firmen (extern)** (projektübergreifend)
+    - Sidebar **Firmen (extern)**
+    - **Name 1** (Pflichtfeld)
+    - **Kurzbez.**: „Rufname“ der Firma; wird im Protokoll als „verantwortlich“ eingetragen und dem Projekt über den Firmenpool zugeordnet
+  - **2.2 Firmen (intern)** (projektintern)
+    - Projekt wählen
+    - **Name 1** (Pflichtfeld)
+    - Im Header **Firmen (intern)** wählen
+    - **Kurzbez.**: „Rufname“ der Firma; wird im Protokoll als „verantwortlich“ eingetragen und ist dem Projekt automatisch zugeordnet
+
+- **3. Mitarbeiter anlegen**
+  - **3.1** Mitarbeiter (extern) bei Firmen (extern) hinzufügen
+  - **3.2** Mitarbeiter (intern) bei Firmen (intern) hinzufügen
+
+- **4. Projekt anlegen**
+  - **4.1** Sidebar **Start → Neues Projekt anlegen**
+  - **4.2** **Projekte → Projekt anlegen**
+    - Bezeichnung (Pflichtfeld): **Projektbezeichnung**
+
+- **5. Protokoll anlegen**
+  - Sidebar: Protokoll wird automatisch angelegt
+  - Projekt auswählen
+  - Neuer Titel und neue TOPs werden im geöffneten Protokoll **blau** angezeigt
+  - Titel und TOPs aus vorherigen Protokollen haben **schwarzen** Text
+  - **Protokoll schließen** beendet die Bearbeitung (nur noch **read only**)
+  - Erneute Wahl des Projektes legt ein neues Protokoll an; das vorherige ist als **read only** eingefügt. TOPs können bedingt bearbeitet werden:
+    - Langtext: kann geändert werden (blauer Text)
+    - Fertig bis; Status; Verantw. kann geändert werden
 `;
 
-export const glossary = `
-# Glossar
+export const glossary = [
+  { term: "Projekt", definition: "Ein Vorgang/Baustelle. Alles (TOPs, Protokolle, Firmen, Teilnehmer) hängt daran." },
+  { term: "Firma", definition: "Stammdaten einer Firma. Alle Firmen existieren unabhängig von Projekten." },
+  { term: "Projektfirma", definition: "Eine Firma, die einem Projekt zugeordnet ist. Nur Projektfirmen wirken im Projekt." },
+  { term: "Mitarbeiter", definition: "Personen, die zu einer Firma gehören." },
+  { term: "Personenpool", definition: "Alle Mitarbeiter der Projektfirmen. Von hier werden Teilnehmer ausgewählt." },
+  { term: "Teilnehmer", definition: "Personen, die für eine Besprechung/Protokoll geführt werden und in Listen erscheinen." },
+  { term: "Verantwortlich", definition: "Zuständige Person für einen TOP. Kann ein Teilnehmer sein, muss es aber nicht." },
+  { term: "TOP / ToDo", definition: "Ein Punkt in der ToDo-Liste bzw. im Protokoll." },
+  { term: "Vorabzug", definition: "PDF-Zwischenstand. Zeigt den Zustand zum Zeitpunkt des Drucks." },
+  { term: "Protokoll schließen", definition: "Protokoll wird final und schreibgeschützt; Protokoll-PDF bleibt danach konsistent." },
+  { term: "Firmenliste (PDF)", definition: "PDF-Liste der dem Projekt zugeordneten Firmen, sortierbar über Firmenliste-Einstellungen." },
+];
 
-## Projekt
-Sammlung aller Protokolle, Teilnehmer und Aufgaben eines Bauvorhabens.
+const helpTextsDe = { quickStart, glossary };
 
-## Protokoll
-Dokumentation eines Termins mit Beschlüssen und Aufgaben.
-
-## Aufgabe
-Ein zugewiesener Arbeitspunkt mit Verantwortlichem und Frist.
-
-## Teilnehmer
-Person oder Firma, die an einem Termin beteiligt ist.
-`;
+export default helpTextsDe;

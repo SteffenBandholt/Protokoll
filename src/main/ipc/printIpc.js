@@ -106,11 +106,166 @@ async function _buildOutputPath({
     outDir = path.join(outBaseDir, "bbm", projectFolder, modeFolder);
   }
 
-  fs.mkdirSync(outDir, { recursive: true });
+  const normalizedOutDir = path.resolve(String(outDir || "").trim() || outBaseDir);
+  if (!fs.existsSync(normalizedOutDir)) {
+    fs.mkdirSync(normalizedOutDir, { recursive: true });
+  }
 
   return overwrite
     ? path.join(outDir, sanitizeFileName(fileName || "BBM.pdf"))
     : uniquePath(outDir, fileName || "BBM.pdf");
+}
+
+
+function findStoredProtocolPdf({
+  baseDir,
+  project,
+  expectedFileNames,
+  meetingIndex,
+} = {}) {
+  const normalizedBaseDir = String(baseDir || "").trim();
+  if (!normalizedBaseDir) {
+    return { ok: false, error: "Basisordner fehlt" };
+  }
+
+  const projectFolder = resolveProjectFolderName(project || {});
+  const protocolsDir = path.join(normalizedBaseDir, "bbm", projectFolder, "Protokolle");
+
+  if (!fs.existsSync(protocolsDir)) {
+    return {
+      ok: false,
+      error: "Protokollordner nicht gefunden",
+      dir: protocolsDir,
+      projectFolder,
+    };
+  }
+
+  const pdfFiles = fs
+    .readdirSync(protocolsDir, { withFileTypes: true })
+    .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => String(name || "").toLowerCase().endsWith(".pdf"));
+
+  const normalizedExpected = Array.isArray(expectedFileNames)
+    ? expectedFileNames.map((name) => sanitizeFileName(name)).filter(Boolean)
+    : [];
+
+  for (const expectedName of normalizedExpected) {
+    const candidate = path.join(protocolsDir, expectedName);
+    if (fs.existsSync(candidate)) {
+      return {
+        ok: true,
+        filePath: candidate,
+        dir: protocolsDir,
+        projectFolder,
+        matchedBy: "exact",
+      };
+    }
+  }
+
+  const marker = String(meetingIndex == null ? "" : `#${meetingIndex}`).trim().toLowerCase();
+  if (marker) {
+    const fallbackName = pdfFiles.find((name) => String(name).toLowerCase().includes(marker));
+    if (fallbackName) {
+      return {
+        ok: true,
+        filePath: path.join(protocolsDir, fallbackName),
+        dir: protocolsDir,
+        projectFolder,
+        matchedBy: "meetingIndex",
+      };
+    }
+  }
+
+  return {
+    ok: false,
+    error: "Keine passende PDF gefunden",
+    dir: protocolsDir,
+    projectFolder,
+    expectedFileNames: normalizedExpected,
+  };
+}
+
+function listStoredFirmsPdfs({ baseDir, project } = {}) {
+  const normalizedBaseDir = String(baseDir || "").trim();
+  if (!normalizedBaseDir) {
+    return { ok: false, error: "Basisordner fehlt" };
+  }
+
+  const projectFolder = resolveProjectFolderName(project || {});
+  const listsDir = path.join(normalizedBaseDir, "bbm", projectFolder, "Listen");
+
+  if (!fs.existsSync(listsDir)) {
+    return { ok: true, dir: listsDir, projectFolder, files: [] };
+  }
+
+  const files = fs
+    .readdirSync(listsDir, { withFileTypes: true })
+    .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
+    .map((entry) => entry.name)
+    .filter((name) => {
+      const normalized = String(name || "").toLowerCase();
+      return normalized.endsWith(".pdf") && normalized.includes("firmenliste");
+    })
+    .map((name) => {
+      const filePath = path.join(listsDir, name);
+      let mtimeMs = 0;
+      try {
+        mtimeMs = Number(fs.statSync(filePath)?.mtimeMs || 0);
+      } catch (_err) {
+        mtimeMs = 0;
+      }
+      return { fileName: name, filePath, mtimeMs };
+    })
+    .sort((a, b) => Number(b?.mtimeMs || 0) - Number(a?.mtimeMs || 0));
+
+  return { ok: true, dir: listsDir, projectFolder, files };
+}
+
+function listStoredProjectPdfs({ baseDir, project, kind } = {}) {
+  const normalizedBaseDir = String(baseDir || "").trim();
+  const kindKey = String(kind || "").trim().toLowerCase();
+  if (!normalizedBaseDir) {
+    return { ok: false, error: "Basisordner fehlt" };
+  }
+
+  const projectFolder = resolveProjectFolderName(project || {});
+  const targetDir = kindKey === "protocol"
+    ? path.join(normalizedBaseDir, "bbm", projectFolder, "Protokolle")
+    : path.join(normalizedBaseDir, "bbm", projectFolder, "Listen");
+
+  if (!fs.existsSync(targetDir)) {
+    return { ok: true, dir: targetDir, projectFolder, files: [] };
+  }
+
+  const matcher = (name) => {
+    const normalized = String(name || "").toLowerCase();
+    if (!normalized.endsWith(".pdf")) return false;
+    if (kindKey === "protocol") return true;
+    if (kindKey === "firms") return normalized.includes("firmenliste");
+    if (kindKey === "todo") return normalized.includes("todo-liste");
+    if (kindKey === "topsall") return normalized.includes("topliste-alle");
+    return false;
+  };
+
+  const files = fs
+    .readdirSync(targetDir, { withFileTypes: true })
+    .filter((entry) => entry && typeof entry.isFile === "function" && entry.isFile())
+    .map((entry) => entry.name)
+    .filter(matcher)
+    .map((name) => {
+      const filePath = path.join(targetDir, name);
+      let mtimeMs = 0;
+      try {
+        mtimeMs = Number(fs.statSync(filePath)?.mtimeMs || 0);
+      } catch (_err) {
+        mtimeMs = 0;
+      }
+      return { fileName: name, filePath, mtimeMs };
+    })
+    .sort((a, b) => Number(b?.mtimeMs || 0) - Number(a?.mtimeMs || 0));
+
+  return { ok: true, dir: targetDir, projectFolder, files };
 }
 
 function attachPrintDebugPipes(win, jobId) {
@@ -155,7 +310,8 @@ async function printToPdf(payload = {}) {
     overwrite: payload.overwrite,
   });
 
-  const debug = !!payload.debug || !app.isPackaged;
+  const silent = !!payload.silent;
+  const debug = !silent && (!!payload.debug || !app.isPackaged);
 
   const win = createPrintWindow({ debug });
   attachPrintDebugPipes(win, jobId);
@@ -263,6 +419,9 @@ function registerPrintIpc() {
         meetingId: p.meetingId,
         settingsOverride: p.settingsOverride || null,
       });
+      // Version/Channel für PDF-Footer mitgeben
+      data.appVersion = app.getVersion ? app.getVersion() : "";
+      data.buildChannel = app.isPackaged ? "STABLE" : "DEV";
       return { ok: true, data };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
@@ -278,6 +437,46 @@ function registerPrintIpc() {
       );
       const outPath = await printToPdf(payload || {});
       return { ok: true, filePath: outPath };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+
+  ipcMain.handle("protocol:findStoredPdf", async (_evt, payload) => {
+    try {
+      const p = payload || {};
+      return findStoredProtocolPdf({
+        baseDir: p.baseDir,
+        project: p.project || null,
+        expectedFileNames: p.expectedFileNames || [],
+        meetingIndex: p.meetingIndex,
+      });
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("firms:listStoredPdfs", async (_evt, payload) => {
+    try {
+      const p = payload || {};
+      return listStoredFirmsPdfs({
+        baseDir: p.baseDir,
+        project: p.project || null,
+      });
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("print:listStoredProjectPdfs", async (_evt, payload) => {
+    try {
+      const p = payload || {};
+      return listStoredProjectPdfs({
+        baseDir: p.baseDir,
+        project: p.project || null,
+        kind: p.kind || "",
+      });
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
     }

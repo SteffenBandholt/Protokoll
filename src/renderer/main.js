@@ -184,6 +184,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const dayMs = 24 * 60 * 60 * 1000;
     const usedDays = Math.floor((Date.now() - firstStart) / dayMs) + 1;
+    const remainingDays = limit - usedDays;
+
+    // Hinweis in den letzten 5 Tagen vor Ablauf
+    if (remainingDays >= 0 && remainingDays <= 4) {
+      const msg =
+        remainingDays === 0
+          ? "Hinweis: Die Testversion läuft heute ab."
+          : `Hinweis: Die Testversion läuft in ${remainingDays + 1} Tagen ab.`;
+      alert(msg);
+    }
+
     if (usedDays <= limit) return true;
 
     alert(`Testversion abgelaufen (${limit} Nutzungstage).`);

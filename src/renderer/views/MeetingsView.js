@@ -46,6 +46,133 @@ export default class MeetingsView {
     return "Druck";
   }
 
+  _formatProtocolDateForName(dateValue) {
+    const d = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return { dot: "", iso: "" };
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    return {
+      dot: `${dd}.${mm}.${yyyy}`,
+      iso: `${yyyy}-${mm}-${dd}`,
+    };
+  }
+
+  _sanitizeProtocolFilePart(value) {
+    return String(value || "")
+      .replace(/[<>:"/\\|?*]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  async _loadProjectForStoredPdf() {
+    const api = window.bbmDb || {};
+    if (typeof api.projectsList !== "function") return null;
+    const res = await api.projectsList();
+    if (!res?.ok) return null;
+    const list = res.list || [];
+    return list.find((item) => item.id === this.projectId) || null;
+  }
+
+  async _loadProtocolSettingsForStoredPdf() {
+    const api = window.bbmDb || {};
+    let merged = { ...(this.router?.context?.settings || {}) };
+    if (typeof api.appSettingsGetMany === "function") {
+      const res = await api.appSettingsGetMany(["pdf.protocolsDir", "pdf.protocolTitle"]);
+      if (res?.ok && res.data) {
+        merged = { ...merged, ...(res.data || {}) };
+      }
+    }
+    return merged;
+  }
+
+  _buildExpectedProtocolFileNames({ project, protocolTitle, meeting }) {
+    const projectNumber = this._sanitizeProtocolFilePart(
+      project?.project_number ?? project?.projectNumber ?? project?.number ?? ""
+    );
+    const projectShort = this._sanitizeProtocolFilePart(project?.short || project?.name || "");
+    const protocolName = this._sanitizeProtocolFilePart(protocolTitle || "Baubesprechung");
+    const meetingIndex =
+      meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+    const dateParts = this._formatProtocolDateForName(
+      meeting?.meeting_date ||
+        meeting?.meetingDate ||
+        meeting?.date ||
+        meeting?.created_at ||
+        meeting?.createdAt ||
+        meeting?.updated_at ||
+        meeting?.updatedAt ||
+        ""
+    );
+
+    const candidates = [];
+    if (projectNumber && protocolName && meetingIndex && dateParts.iso) {
+      candidates.push(`${projectNumber}_${protocolName}_#${meetingIndex}-${dateParts.iso}.pdf`);
+    }
+    if (projectNumber && projectShort && protocolName && meetingIndex && dateParts.dot) {
+      candidates.push(
+        `${projectNumber}_${projectShort}_${protocolName}_#${meetingIndex} - ${dateParts.dot}.pdf`
+      );
+    }
+    return candidates;
+  }
+
+  async _openStoredProtocolPreview(meeting) {
+    const printApi = window.bbmPrint || {};
+    if (typeof printApi.findStoredProtocolPdf !== "function") {
+      return false;
+    }
+
+    const settings = await this._loadProtocolSettingsForStoredPdf();
+    const baseDir = String(settings?.["pdf.protocolsDir"] || "").trim();
+    if (!baseDir) {
+      alert("Speicherort Protokolle ist nicht gesetzt.");
+      return true;
+    }
+
+    const project = await this._loadProjectForStoredPdf();
+    if (!project) {
+      return false;
+    }
+
+    const protocolTitle = String(settings?.["pdf.protocolTitle"] || "").trim() || "Baubesprechung";
+    const meetingIndex =
+      meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+
+    const found = await printApi.findStoredProtocolPdf({
+      baseDir,
+      project: {
+        project_number: project?.project_number ?? project?.projectNumber ?? project?.number ?? "",
+        short: project?.short || "",
+        name: project?.name || "",
+      },
+      expectedFileNames: this._buildExpectedProtocolFileNames({
+        project,
+        protocolTitle,
+        meeting,
+      }),
+      meetingIndex,
+    });
+
+    if (!found?.ok || !found?.filePath) {
+      const details = found?.expectedFileNames?.length
+        ? `\nErwartet: ${found.expectedFileNames.join(" | ")}`
+        : "";
+      alert((found?.error || "PDF nicht gefunden.") + details + (found?.dir ? `\nOrdner: ${found.dir}` : ""));
+      return true;
+    }
+
+    if (typeof this.router?.openStoredProtocolPreview !== "function") {
+      return false;
+    }
+
+    await this.router.openStoredProtocolPreview({
+      filePath: found.filePath,
+      title: "Protokoll (Vorschau)",
+    });
+    return true;
+  }
+
   async _selectClosedMeetingForPrint(meeting) {
     if (!this.printSelectionMode) return;
     if (!meeting || Number(meeting.is_closed) !== 1) return;
@@ -245,11 +372,8 @@ export default class MeetingsView {
     this.closedMeetings = this.meetings.filter((m) => Number(m.is_closed) === 1);
     this.openMeetingId =
       this.meetings.find((m) => Number(m.is_closed) === 0)?.id || null;
-    if (!this.meetings.some((m) => m.id === this.selectedMeetingId)) {
+    if (!this.closedMeetings.some((m) => m.id === this.selectedMeetingId)) {
       this.selectedMeetingId = null;
-    }
-    if (!this.printSelectionMode && !this.selectedMeetingId && this.openMeetingId) {
-      this.selectedMeetingId = this.openMeetingId;
     }
     this.renderList();
     this._updateBackButtonState();
@@ -270,7 +394,7 @@ export default class MeetingsView {
     }
 
     const term = (this.searchText || "").trim().toLowerCase();
-    const base = this.meetings || [];
+    const base = this.closedMeetings || [];
 
     if (!term) {
       this.filteredMeetings = base;
@@ -317,6 +441,12 @@ export default class MeetingsView {
     this.renderList();
   }
 
+  getSelectedClosedMeetingForEmail() {
+    const mid = this.selectedMeetingId || null;
+    if (!mid) return null;
+    return (this.closedMeetings || []).find((m) => m && m.id === mid) || null;
+  }
+
   async _openSelectedPdfPreview() {
     if (this._printBusy) return;
 
@@ -361,6 +491,11 @@ export default class MeetingsView {
       }
       alert("PrintModal unterst\u00FCtzt keinen Vorabzug (openPrintVorabzug fehlt).");
       return false;
+    }
+
+    const handledStoredPdf = await this._openStoredProtocolPreview(meeting);
+    if (handledStoredPdf) {
+      return true;
     }
 
     if (typeof this.router?.openMeetingPrintPreview === "function") {
@@ -436,7 +571,7 @@ export default class MeetingsView {
       return `#${idx} - ${raw}`;
     };
 
-    const base = this.meetings || [];
+    const base = this.closedMeetings || [];
     const visible = this.filterEnabled
       ? this.filteredMeetings || []
       : base;
@@ -469,26 +604,11 @@ export default class MeetingsView {
       const closed = Number(m.is_closed) === 1;
       const selectableInPrintMode = !this.printSelectionMode || closed;
       const displayTitle = formatMeetingLabel(m);
-      const isOpen = this.openMeetingId && m.id === this.openMeetingId;
+      const isOpen = false;
       li.textContent = "";
       const titleLine = document.createElement("div");
       titleLine.textContent = `${displayTitle}${closed ? " (geschlossen)" : ""}`;
       li.appendChild(titleLine);
-      if (isOpen) {
-        li.style.display = "flex";
-        li.style.flexDirection = "column";
-        li.style.justifyContent = "center";
-        const openLabel = document.createElement("div");
-        openLabel.textContent = "offen - in Bearbeitung";
-        openLabel.style.marginTop = "0";
-        openLabel.style.width = "100%";
-        openLabel.style.textAlign = "center";
-        openLabel.style.color = "#8bc34a";
-        openLabel.style.fontWeight = "600";
-        openLabel.style.fontSize = "inherit";
-        openLabel.style.lineHeight = "1.2";
-        li.appendChild(openLabel);
-      }
       if (closed) li.style.opacity = "0.75";
       if (this.printSelectionMode && !closed) li.style.opacity = "0.45";
       const isSelected = !this.printSelectionMode && this.selectedMeetingId && m.id === this.selectedMeetingId;
@@ -530,7 +650,7 @@ export default class MeetingsView {
 
         if (isDouble) {
           try {
-            const r = this.router?.showTops?.(m.id, this.projectId);
+            const r = this.router?.showTops?.(m.id, this.projectId, { readOnly: true });
             if (r && typeof r.catch === "function") {
               r.catch(() => {});
             }
@@ -552,7 +672,7 @@ export default class MeetingsView {
           this._selectClosedMeetingForPrint(m);
           return;
         }
-        this.router.showTops(m.id, this.projectId);
+        this.router.showTops(m.id, this.projectId, { readOnly: true });
       });
 
       list.appendChild(li);

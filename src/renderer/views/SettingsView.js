@@ -1,4 +1,4 @@
-// src/renderer/views/SettingsView.js
+﻿// src/renderer/views/SettingsView.js
 //
 // Nutzerdaten werden in DB + appSettings gepflegt (DB ist Quelle beim Laden).
 // Persistenz: ueber window.bbmDb.userProfileGet/userProfileUpsert + appSettingsGetMany/appSettingsSetMany.
@@ -275,6 +275,10 @@ export default class SettingsView {
     const root = document.createElement("div");
     root.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== "Escape") return;
+
+      // Enter in Textarea soll einen Zeilenumbruch erzeugen (kein globales Save/Close)
+      const tag = (e.target?.tagName || "").toString().toUpperCase();
+      if (e.key === "Enter" && tag === "TEXTAREA") return;
 
       const delOpen = this.deleteConfirmOverlayEl?.style?.display === "flex";
       const renOpen = this.renameOverlayEl?.style?.display === "flex";
@@ -1202,6 +1206,126 @@ export default class SettingsView {
 
     const versionHint = document.createElement("div");
     versionHint.textContent = "SemVer fuer den naechsten Build aus package.json.";
+
+    // Build-Kanal (STABLE/DEV) fuer `npm run dist`
+    const buildChannelBox = document.createElement("div");
+    buildChannelBox.style.display = "grid";
+    buildChannelBox.style.gridTemplateColumns = "1fr";
+    buildChannelBox.style.gap = "6px";
+    buildChannelBox.style.padding = "8px 10px";
+    buildChannelBox.style.border = "1px solid var(--card-border)";
+    buildChannelBox.style.borderRadius = "8px";
+    buildChannelBox.style.background = "var(--card-bg)";
+
+    const buildChannelTitle = document.createElement("div");
+    buildChannelTitle.textContent = "Build-Kanal (npm run dist)";
+    buildChannelTitle.style.fontWeight = "700";
+
+    const buildChannelHint = document.createElement("div");
+    buildChannelHint.style.fontSize = "12px";
+    buildChannelHint.style.opacity = "0.8";
+    buildChannelHint.textContent = "Damit du es mit Augen siehst: DEV baut BBM-DEV-... und zeigt DEV-Badge in der App.";
+
+    const buildChannelRow = document.createElement("div");
+    buildChannelRow.style.display = "flex";
+    buildChannelRow.style.alignItems = "center";
+    buildChannelRow.style.gap = "12px";
+    buildChannelRow.style.flexWrap = "wrap";
+
+    const mkRadio = (label, value) => {
+      const wrap = document.createElement("label");
+      wrap.style.display = "inline-flex";
+      wrap.style.alignItems = "center";
+      wrap.style.gap = "6px";
+      wrap.style.cursor = "pointer";
+      wrap.style.userSelect = "none";
+      const inp = document.createElement("input");
+      inp.type = "radio";
+      inp.name = "bbmBuildChannel";
+      inp.value = value;
+      const txt = document.createElement("span");
+      txt.textContent = label;
+      txt.style.fontSize = "13px";
+      txt.style.fontWeight = "600";
+      wrap.append(inp, txt);
+      return { wrap, inp };
+    };
+
+    const radioStable = mkRadio("STABLE", "stable");
+    const radioDev = mkRadio("DEV", "dev");
+    buildChannelRow.append(radioStable.wrap, radioDev.wrap);
+
+    const buildChannelStatus = document.createElement("div");
+    buildChannelStatus.style.fontSize = "12px";
+    buildChannelStatus.style.opacity = "0.9";
+    buildChannelStatus.textContent = "Lade...";
+
+    buildChannelBox.append(buildChannelTitle, buildChannelHint, buildChannelRow, buildChannelStatus);
+
+    let buildChannelCurrent = "stable";
+
+    const setBuildChannelUi = (ch, repoVersionForPreview = "") => {
+      const next = String(ch || "stable").trim().toLowerCase() === "dev" ? "dev" : "stable";
+      buildChannelCurrent = next;
+      radioStable.inp.checked = next === "stable";
+      radioDev.inp.checked = next === "dev";
+      const v = String(repoVersionForPreview || versionRepoCurrent || "").trim();
+      const fileName = next === "dev"
+        ? `BBM-DEV-${v || "X.Y.Z"}-Setup.exe`
+        : `BBM-${v || "X.Y.Z"}-Setup.exe`;
+      buildChannelStatus.textContent = `npm run dist baut: ${next === "dev" ? "DEV" : "STABLE"}  ->  ${fileName}`;
+    };
+
+    const loadBuildChannel = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devBuildChannelGet !== "function") {
+        // fallback: ENV/IPC app:getBuildChannel, aber hier im Dev-Popup lieber klar sagen
+        buildChannelStatus.textContent = "Build-Kanal: nicht verfuegbar (devBuildChannelGet fehlt).";
+        return false;
+      }
+      try {
+        const res = await api.devBuildChannelGet();
+        if (!res?.ok) {
+          buildChannelStatus.textContent = res?.error || "Build-Kanal konnte nicht geladen werden.";
+          return false;
+        }
+        setBuildChannelUi(res.channel, versionRepoCurrent);
+        return true;
+      } catch (_e) {
+        buildChannelStatus.textContent = "Build-Kanal konnte nicht geladen werden.";
+        return false;
+      }
+    };
+
+    const saveBuildChannel = async (next) => {
+      const api = window.bbmDb || {};
+      if (typeof api.devBuildChannelSet !== "function") {
+        alert("Build-Kanal speichern: nicht verfuegbar (devBuildChannelSet fehlt).");
+        return false;
+      }
+      try {
+        const res = await api.devBuildChannelSet({ channel: next });
+        if (!res?.ok) {
+          alert(res?.error || "Build-Kanal konnte nicht gespeichert werden.");
+          return false;
+        }
+        setBuildChannelUi(res.channel, versionRepoCurrent);
+        return true;
+      } catch (_e) {
+        alert("Build-Kanal konnte nicht gespeichert werden.");
+        return false;
+      }
+    };
+
+    radioStable.inp.onchange = async () => {
+      if (!radioStable.inp.checked) return;
+      await saveBuildChannel("stable");
+    };
+    radioDev.inp.onchange = async () => {
+      if (!radioDev.inp.checked) return;
+      await saveBuildChannel("dev");
+    };
+
     versionHint.style.fontSize = "12px";
     versionHint.style.opacity = "0.75";
     versionHint.style.marginBottom = "8px";
@@ -1289,6 +1413,7 @@ export default class SettingsView {
     versionBox.append(
       versionTitle,
       versionHint,
+      buildChannelBox,
       mkRow("Aktuelle App-Version (laufend)", appVersionValue),
       mkRow("Repo-Version (package.json)", repoVersionValue),
       mkRow("Major / Minor / Patch", badgesRow),
@@ -1380,6 +1505,7 @@ export default class SettingsView {
           return false;
         }
         versionRepoCurrent = String(res.repoVersion || "").trim();
+        await loadBuildChannel();
         appVersionValue.textContent = String(res.appVersion || "-");
         repoVersionValue.textContent = versionRepoCurrent || "-";
         updateVersionBadges(versionRepoCurrent);
@@ -3000,6 +3126,8 @@ export default class SettingsView {
         const tabHead = document.createElement("div");
         tabHead.style.display = "flex";
         tabHead.style.gap = "8px";
+        tabHead.style.flexWrap = "wrap";
+        tabHead.style.rowGap = "8px";
         tabHead.style.marginBottom = "10px";
 
         const tabBtnPdf = document.createElement("button");
@@ -3018,6 +3146,11 @@ export default class SettingsView {
         btnSeitenlayout.type = "button";
         btnSeitenlayout.textContent = "Seitenlayout";
         applyPopupButtonStyle(btnSeitenlayout);
+
+        const btnEmails = document.createElement("button");
+        btnEmails.type = "button";
+        btnEmails.textContent = "E-Mails";
+        applyPopupButtonStyle(btnEmails);
 
         const applyTabButtonBase = (btn) => {
           btn.style.padding = "6px 10px";
@@ -3048,10 +3181,12 @@ export default class SettingsView {
         applyTabButtonBase(tabBtnRoles);
         applyTabButtonBase(tabBtnPreRemarks);
         applyTabButtonBase(btnSeitenlayout);
+        applyTabButtonBase(btnEmails);
         applyHover(tabBtnPdf);
         applyHover(tabBtnLogos);
         applyHover(tabBtnRoles);
         applyHover(btnSeitenlayout);
+        applyHover(btnEmails);
         applyHover(tabBtnPreRemarks);
 
         const tabBody = document.createElement("div");
@@ -3064,7 +3199,7 @@ export default class SettingsView {
           if (activeTab === "logos") {
             this.settingsModalEl.style.width = "min(1280px, 95vw)";
           } else {
-            this.settingsModalEl.style.width = "min(624px, calc(100vw - 24px))";
+            this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
           }
         };
 
@@ -3103,6 +3238,175 @@ export default class SettingsView {
           });
         };
 
+
+        const openEmailsModal = async () => {
+          const api = window.bbmDb || {};
+
+          const SUBJECT_PLACEHOLDER =
+            "{projectNumber} - {projectShortName}  |  {protocolTitle} #{meetingIndex} - {meetingDate}";
+          const BODY_PLACEHOLDER =
+            "Sehr geehrte Damen und Herren,\n" +
+            "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
+
+          // Gespeicherte Werte laden (falls vorhanden)
+          let subjectValue = "";
+          let bodyValue = "";
+          if (typeof api.appSettingsGetMany === "function") {
+            try {
+              const res = await api.appSettingsGetMany(["email_subject", "email_body"]);
+              if (res?.ok) {
+                const data = res.data || {};
+                const s = String(data.email_subject ?? "");
+                const b = String(data.email_body ?? "");
+                if (s.trim()) subjectValue = s;
+                if (b.trim()) bodyValue = b;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          const emailsBox = document.createElement("div");
+          emailsBox.style.display = "grid";
+          emailsBox.style.gap = "12px";
+          emailsBox.style.padding = "6px";
+          emailsBox.style.justifyItems = "start";
+          emailsBox.style.fontFamily = "Calibri, Arial, sans-serif";
+
+          // Betreff
+          const subjectWrap = document.createElement("div");
+          subjectWrap.style.display = "grid";
+          subjectWrap.style.gap = "6px";
+
+          const subjectLabel = document.createElement("div");
+          subjectLabel.textContent = "Betreff";
+          subjectLabel.style.fontWeight = "700";
+          subjectLabel.style.color = "#1f2937";
+
+          const inpSubject = document.createElement("input");
+          inpSubject.type = "text";
+          inpSubject.value = subjectValue; // leer, wenn nichts gespeichert -> Placeholder sichtbar
+          inpSubject.placeholder = SUBJECT_PLACEHOLDER;
+          inpSubject.style.width = "17cm";
+          inpSubject.style.maxWidth = "100%";
+          inpSubject.style.boxSizing = "border-box";
+          inpSubject.style.padding = "8px 10px";
+          inpSubject.style.borderRadius = "10px";
+          inpSubject.style.border = "1px solid rgba(0,0,0,0.18)";
+          inpSubject.style.outline = "none";
+          inpSubject.style.fontFamily = "Calibri, Arial, sans-serif";
+
+          // Controlled input: State nur lokal, keine Persistenz
+          let subjectState = inpSubject.value || "";
+          inpSubject.addEventListener("input", () => {
+            subjectState = inpSubject.value || "";
+          });
+
+          const subjectHint = document.createElement("div");
+          subjectHint.textContent =
+            "Platzhalter: {projectNumber}, {projectShortName}, {protocolTitle}, {meetingIndex}, {meetingDate}";
+          subjectHint.style.fontSize = "12px";
+          subjectHint.style.opacity = "0.8";
+          subjectHint.style.color = "#374151";
+
+          subjectWrap.append(subjectLabel, inpSubject, subjectHint);
+
+          // Body
+          const bodyWrap = document.createElement("div");
+          bodyWrap.style.display = "grid";
+          bodyWrap.style.gap = "6px";
+
+          const bodyLabelRow = document.createElement("div");
+          bodyLabelRow.style.display = "flex";
+          bodyLabelRow.style.alignItems = "center";
+          bodyLabelRow.style.justifyContent = "space-between";
+          bodyLabelRow.style.width = "17cm";
+          bodyLabelRow.style.maxWidth = "100%";
+
+          const bodyLabel = document.createElement("div");
+          bodyLabel.textContent = "E-Mail Text";
+          bodyLabel.style.fontWeight = "700";
+          bodyLabel.style.color = "#1f2937";
+
+          const remainingBadge = document.createElement("div");
+          remainingBadge.style.fontSize = "12px";
+          remainingBadge.style.opacity = "0.85";
+          remainingBadge.style.userSelect = "none";
+
+          const inpBody = document.createElement("textarea");
+          inpBody.value = bodyValue; // leer, wenn nichts gespeichert -> Placeholder sichtbar
+          inpBody.placeholder = BODY_PLACEHOLDER;
+          inpBody.style.width = "17cm";
+          inpBody.style.height = "6cm";
+          inpBody.style.maxWidth = "100%";
+          inpBody.style.boxSizing = "border-box";
+          inpBody.style.padding = "8px 10px";
+          inpBody.style.borderRadius = "10px";
+          inpBody.style.border = "1px solid rgba(0,0,0,0.18)";
+          inpBody.style.outline = "none";
+          inpBody.style.resize = "none";
+          inpBody.style.fontFamily = "Calibri, Arial, sans-serif";
+          inpBody.maxLength = 300;
+
+          let bodyState = inpBody.value || "";
+          const syncRemaining = () => {
+            const len = (inpBody.value || "").length;
+            const rest = Math.max(0, 300 - len);
+            remainingBadge.textContent = `${rest} Zeichen übrig`;
+          };
+          syncRemaining();
+
+          inpBody.addEventListener("input", () => {
+            // maxLength greift i. d. R. bereits, aber zur Sicherheit:
+            if ((inpBody.value || "").length > 300) {
+              inpBody.value = (inpBody.value || "").slice(0, 300);
+            }
+            bodyState = inpBody.value || "";
+            syncRemaining();
+          });
+
+          bodyLabelRow.append(bodyLabel, remainingBadge);
+          bodyWrap.append(bodyLabelRow, inpBody);
+
+          emailsBox.append(subjectWrap, bodyWrap);
+
+          this._openSettingsModal({
+            title: "E-Mails",
+            content: [emailsBox],
+            closeOnly: false,
+            saveFn: async () => {
+              // Werte direkt aus den Feldern lesen (garantiert der aktuell sichtbare Text)
+              const rawSubject = String(inpSubject?.value ?? "");
+              const rawBody = String(inpBody?.value ?? "");
+              const tSubject = rawSubject.trim();
+              const tBody = rawBody.trim();
+
+              // Wenn leer -> zurücksetzen auf "" (Placeholder erscheint wieder)
+              const payload = {
+                email_subject: tSubject ? rawSubject : "",
+                email_body: tBody ? rawBody : "",
+              };
+
+              const saveApi = window.bbmDb || {};
+              if (typeof saveApi.appSettingsSetMany !== "function") {
+                alert("Settings-API fehlt (appSettingsSetMany).");
+                return false;
+              }
+
+              const res = await saveApi.appSettingsSetMany(payload);
+              if (!res?.ok) {
+                alert(res?.error || "Speichern fehlgeschlagen.");
+                return false;
+              }
+
+              // State aktualisieren (rein lokal)
+              subjectState = rawSubject;
+              bodyState = rawBody;
+              return true;
+            },
+          });
+        };
+
         const showTab = (next) => {
           activeTab = next;
           tabBody.innerHTML = "";
@@ -3137,10 +3441,15 @@ export default class SettingsView {
           if (ok === true) this._setMsg("Vorbemerkung gespeichert");
         };
 
-        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks, btnSeitenlayout);
+        tabHead.append(tabBtnPdf, tabBtnLogos, tabBtnRoles, tabBtnPreRemarks, btnSeitenlayout, btnEmails);
         btnSeitenlayout.onclick = async () => {
           this._closeSettingsModal();
           await openPrintLayoutModal();
+        };
+
+        btnEmails.onclick = async () => {
+          this._closeSettingsModal();
+          await openEmailsModal();
         };
 
         tabWrap.append(tabHead, tabBody);
@@ -3554,7 +3863,7 @@ export default class SettingsView {
       const isPrintSettingsPopup = titleNorm === "druckeinstellungen";
       const isLayoutPopup = titleNorm === "druck-layout";
       if (isPrintSettingsPopup) {
-        this.settingsModalEl.style.width = "min(624px, calc(100vw - 24px))";
+        this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
       } else if (isLayoutPopup) {
         this.settingsModalEl.style.width = "min(344px, calc(100vw - 24px))";
       } else if (isCompactPopup) {

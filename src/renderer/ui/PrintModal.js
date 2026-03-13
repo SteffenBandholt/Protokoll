@@ -6,7 +6,7 @@
 // PDF-Druck Phase 1.2 (Layout/Optik):
 // - nur geschlossene Besprechungen (Standard-Modal)
 // - Spalten: Datum (TOP angelegt) | Nr | TOP (Kurz+Lang) | Meta (Status/Due/Ampel + Verantw.)
-// - Spalten?berschrift auf JEDER Seite (thead table-header-group)
+// - Spaltenüberschrift auf JEDER Seite (thead table-header-group)
 // - Ampel in Meta-Spalte, rechts
 // - Stern (4.5mm, gelb mit schwarzem Rand) vor dem Kurztext, Kurz+Lang bleiben in Flucht
 // - Level 1: hellgrau, KEINE Meta (kein Status/Due/Verantw/Ampel), kein "Linien-Gefrickel"
@@ -34,6 +34,7 @@ import {
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 import { OVERLAY_TOP } from "./zIndex.js";
+import { buildProtocolPdfFileName } from "../utils/protocolPdfNaming.js";
 
 export default class PrintModal {
   constructor({ router } = {}) {
@@ -149,7 +150,7 @@ export default class PrintModal {
     };
 
     const btnClose = document.createElement("button");
-    btnClose.textContent = "Schlie?en";
+    btnClose.textContent = "Schließen";
     applyPopupButtonStyle(btnClose);
     btnClose.onclick = () => this.close();
 
@@ -327,7 +328,7 @@ export default class PrintModal {
     title.style.fontSize = "16px";
 
     const btnClose = document.createElement("button");
-    btnClose.textContent = "Schliessen";
+    btnClose.textContent = "Schließen";
     applyPopupButtonStyle(btnClose);
     btnClose.style.marginLeft = "auto";
     btnClose.onclick = () => this._closePreview();
@@ -839,6 +840,16 @@ export default class PrintModal {
     }
   }
 
+  async openExistingPdfPreview({ filePath, title } = {}) {
+    const raw = String(filePath || "").trim();
+    if (!raw) {
+      alert("PDF-Datei fehlt.");
+      return false;
+    }
+    this._openPreview({ filePath: raw, title: title || "Protokoll (Vorschau)" });
+    return true;
+  }
+
   _closePreview() {
     if (this.previewRoot) this.previewRoot.style.display = "none";
     if (this.previewFrame) this.previewFrame.src = "about:blank";
@@ -935,7 +946,7 @@ export default class PrintModal {
       return;
     }
     if (!mid) {
-      alert("Bitte zuerst eine Besprechung ?ffnen.");
+      alert("Bitte zuerst eine Besprechung öffnen.");
       return;
     }
 
@@ -998,6 +1009,162 @@ export default class PrintModal {
     await this._printFirmsPdf({ projectId, meetingId, preview: true });
   }
 
+  async openStoredFirmsPdfSelection({ projectId } = {}) {
+    try {
+      const pid = projectId || this.router?.currentProjectId || null;
+      if (!pid) {
+        alert("Bitte zuerst ein Projekt auswählen.");
+        return;
+      }
+
+      const api = window.bbmDb || {};
+      if (typeof window?.bbmPrint?.listStoredFirmsPdfs !== "function") {
+        alert("Gespeicherte Firmenlisten sind nicht verfügbar.");
+        return;
+      }
+
+      if (this.router) this.router.currentProjectId = pid;
+      this.projectId = pid;
+
+      let settings = this.router?.context?.settings || {};
+      const dirResolved = await this._resolveProtocolsDir({ settings, api, persistIfMissing: true });
+      settings = dirResolved.settings || settings;
+      const baseDir = String(dirResolved.dir || "").trim();
+      const projectInfo = await this._getProjectInfo(pid);
+      const projectLabel = await this._getProjectLabelWithNumber(pid);
+
+      const listRes = await window.bbmPrint.listStoredFirmsPdfs({
+        baseDir,
+        project: {
+          project_number: projectInfo.number || "",
+          name: projectInfo.name || "",
+          short: projectInfo.short || "",
+        },
+      });
+      if (!listRes?.ok) {
+        alert(listRes?.error || "Gespeicherte Firmenlisten konnten nicht geladen werden.");
+        return;
+      }
+
+      await new Promise((resolve) => {
+        const overlay = createPopupOverlay();
+        overlay.classList.add("bbm-print-overlay");
+        overlay.setAttribute("data-bbm-print-overlay", "stored-firms");
+
+        const closeOverlay = () => {
+          try {
+            overlay.remove();
+          } catch (_e) {
+            // ignore
+          }
+          resolve();
+        };
+
+        registerPopupCloseHandlers(overlay, () => closeOverlay());
+        overlay.addEventListener("mousedown", (e) => {
+          if (e.target === overlay) closeOverlay();
+        });
+
+        const card = document.createElement("div");
+        stylePopupCard(card, { width: "760px" });
+        card.style.maxWidth = "calc(100vw - 28px)";
+        card.style.maxHeight = "calc(100vh - 28px)";
+        card.style.padding = "16px";
+        card.style.display = "grid";
+        card.style.gridTemplateRows = "auto auto 1fr auto";
+        card.style.rowGap = "12px";
+
+        const title = document.createElement("div");
+        title.textContent = "Firmenliste";
+        title.style.fontWeight = "800";
+        title.style.fontSize = "16px";
+
+        const subtitle = document.createElement("div");
+        subtitle.textContent = `Vorhandene Firmenlisten-PDFs für ${projectLabel}`;
+        subtitle.style.opacity = "0.8";
+        subtitle.style.lineHeight = "1.4";
+
+        const listWrap = document.createElement("div");
+        listWrap.style.display = "flex";
+        listWrap.style.flexDirection = "column";
+        listWrap.style.gap = "8px";
+        listWrap.style.minHeight = "120px";
+        listWrap.style.maxHeight = "60vh";
+        listWrap.style.overflow = "auto";
+
+        const files = Array.isArray(listRes?.files) ? listRes.files : [];
+        if (!files.length) {
+          const empty = document.createElement("div");
+          empty.textContent = "Keine gespeicherten Firmenlisten-PDFs gefunden.";
+          empty.style.opacity = "0.75";
+          empty.style.padding = "8px 2px";
+          listWrap.appendChild(empty);
+        } else {
+          files.forEach((item) => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.style.display = "flex";
+            btn.style.flexDirection = "column";
+            btn.style.alignItems = "flex-start";
+            btn.style.gap = "4px";
+            btn.style.width = "100%";
+            btn.style.padding = "10px 12px";
+            btn.style.textAlign = "left";
+            btn.style.border = "1px solid var(--card-border)";
+            btn.style.borderRadius = "8px";
+            btn.style.background = "var(--card-bg)";
+            btn.style.cursor = "pointer";
+
+            const fileName = document.createElement("div");
+            fileName.textContent = String(item?.fileName || item?.filePath || "").trim();
+            fileName.style.fontWeight = "700";
+            fileName.style.wordBreak = "break-word";
+
+            const meta = document.createElement("div");
+            meta.textContent = this._formatStoredPdfMeta(item);
+            meta.style.opacity = "0.75";
+            meta.style.fontSize = "12px";
+            meta.style.wordBreak = "break-word";
+
+            btn.onclick = async () => {
+              await this.openExistingPdfPreview({
+                filePath: item?.filePath,
+                title: "Firmenliste (Vorschau)",
+              });
+            };
+
+            btn.append(fileName, meta);
+            listWrap.appendChild(btn);
+          });
+        }
+
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.justifyContent = "flex-end";
+        actions.style.gap = "10px";
+
+        const btnClose = document.createElement("button");
+        btnClose.type = "button";
+        btnClose.textContent = "Schließen";
+        applyPopupButtonStyle(btnClose, { variant: "neutral" });
+        btnClose.onclick = () => closeOverlay();
+
+        actions.appendChild(btnClose);
+        card.append(title, subtitle, listWrap, actions);
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        try {
+          overlay.focus();
+        } catch (_e) {
+          // ignore
+        }
+      });
+    } catch (err) {
+      console.error("[PrintModal] openStoredFirmsPdfSelection failed:", err);
+      alert(err?.message || String(err) || "Gespeicherte Firmenlisten konnten nicht geöffnet werden.");
+    }
+  }
+
   // ToDo-Liste: Vorschau mit PDF (gleiches Preview-Modal)
   async openTodoPrintPreview({ projectId, meetingId } = {}) {
     await this._printTodoPdf({ projectId, meetingId, preview: true });
@@ -1006,6 +1173,43 @@ export default class PrintModal {
   // Top-Liste(alle): Vorschau mit PDF (gleiches Preview-Modal)
   async openTopListAllPreview({ projectId, meetingId } = {}) {
     await this._printTopListAllPdf({ projectId, meetingId, preview: true });
+  }
+
+  async printFirmsDirect({ projectId, meetingId } = {}) {
+    return await this._printFirmsPdf({ projectId, meetingId, preview: false });
+  }
+
+  async printTodoDirect({ projectId, meetingId } = {}) {
+    return await this._printTodoPdf({ projectId, meetingId, preview: false });
+  }
+
+  async printTopListAllDirect({ projectId, meetingId } = {}) {
+    return await this._printTopListAllPdf({ projectId, meetingId, preview: false });
+  }
+
+  _formatDateForDisplay(value) {
+    const iso = this._formatDateForFile(value);
+    const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return String(iso || "").trim();
+    return `${m[3]}.${m[2]}.${m[1]}`;
+  }
+
+  _formatStoredPdfMeta(item = {}) {
+    const filePath = String(item?.filePath || "").trim();
+    const mtimeMs = Number(item?.mtimeMs || 0);
+    const stamp = mtimeMs > 0 ? new Date(mtimeMs).toLocaleString("de-DE") : "";
+    return [stamp ? `Geändert: ${stamp}` : "", filePath].filter(Boolean).join(" | ");
+  }
+
+  _buildListPdfFileName({ projectNumber, projectShortName, listLabel, meetingIndex, meetingDate } = {}) {
+    const parts = [
+      this._sanitizeFileSegment(projectNumber || ""),
+      this._sanitizeFileSegment(projectShortName || ""),
+      this._sanitizeFileSegment(listLabel || ""),
+      `Stand #${String(meetingIndex || "").trim() || "?"}`,
+      this._formatDateForDisplay(meetingDate || new Date()),
+    ].filter(Boolean);
+    return this._sanitizeFileName(parts.join(" - ")) + ".pdf";
   }
 
   async _printFirmsPdf({ projectId, meetingId, preview = true } = {}) {
@@ -1184,14 +1388,47 @@ export default class PrintModal {
         })
       );
 
-      const projectLabel = await this._getProjectLabelWithNumber(pid);
-      const fn = this._sanitizeFileName(`BBM ${projectLabel || ""} Firmenliste`) + ".pdf";
+      const projectInfo = await this._getProjectInfo(pid);
+      const projectNumber = projectInfo.number || (pid || "");
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
+      let meeting = null;
+      if (meetingId && typeof api.topsListByMeeting === "function") {
+        try {
+          const meetingRes = await api.topsListByMeeting(meetingId);
+          if (meetingRes?.ok) meeting = meetingRes?.meeting || null;
+        } catch (_e) {
+          // ignore
+        }
+      }
+      const meetingNr =
+        meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
+      const meetingDateRaw =
+        meeting?.meeting_date ||
+        meeting?.meetingDate ||
+        meeting?.date ||
+        meeting?.created_at ||
+        meeting?.createdAt ||
+        meeting?.updated_at ||
+        meeting?.updatedAt ||
+        new Date();
+      const fn = this._buildListPdfFileName({
+        projectNumber,
+        projectShortName,
+        listLabel: "Firmenliste",
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw,
+      });
       const out = await window.bbmPrint.printPdf({
         mode: "firms",
         projectId: pid,
         meetingId: meetingId || null,
         fileName: fn,
-        ...(preview ? { targetDir: "temp" } : {}),
+        ...(preview ? { targetDir: "temp" } : { baseDir: protocolsDir, projectNumber, overwrite: true, silent: true }),
       });
       if (!out?.ok) {
         alert(out?.error || "PDF-Erzeugung fehlgeschlagen");
@@ -1204,9 +1441,8 @@ export default class PrintModal {
 
       if (preview) {
         this._openPreview({ filePath: out.filePath, title: "Firmenliste (Vorschau)" });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] Firmenliste Vorschau fehlgeschlagen", err);
       alert("Vorschau konnte nicht erzeugt werden.");
@@ -1624,9 +1860,14 @@ export default class PrintModal {
         rows = this._buildTodoRowsLive({ tops: res?.list || [], meeting });
       }
 
-      const projectLabel = await this._getProjectLabelWithNumber(pid);
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -1638,9 +1879,13 @@ export default class PrintModal {
         meeting?.updated_at ||
         meeting?.updatedAt ||
         null;
-      const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
-      const fileName =
-        this._sanitizeFileName(`${projectNumber}_ToDo_#${meetingNr}-${meetingDateStr}`) + ".pdf";
+      const fileName = this._buildListPdfFileName({
+        projectNumber,
+        projectShortName,
+        listLabel: "ToDo-Liste",
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw || new Date(),
+      });
 
       const pdfLogoDefaults = {
         enabled: true,
@@ -1673,6 +1918,7 @@ export default class PrintModal {
         baseDir: protocolsDir,
         projectNumber,
         overwrite: true,
+        ...(!preview ? { silent: true } : {}),
         ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
@@ -1686,9 +1932,8 @@ export default class PrintModal {
 
       if (preview) {
         this._openPreview({ filePath: out.filePath, title: "ToDo (Vorschau)" });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] ToDo Vorschau fehlgeschlagen", err);
       alert("ToDo-Vorschau konnte nicht erzeugt werden.");
@@ -1758,6 +2003,12 @@ export default class PrintModal {
       const projectLabel = await this._getProjectLabelWithNumber(pid);
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -1769,11 +2020,13 @@ export default class PrintModal {
         meeting?.updated_at ||
         meeting?.updatedAt ||
         null;
-      const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
-      const fileName = meetingNr
-        ? this._sanitizeFileName(`${projectNumber}_TopListe-alle_#${meetingNr}-${meetingDateStr}`) +
-          ".pdf"
-        : this._sanitizeFileName(`${projectNumber}_TopListe-alle_${meetingDateStr}`) + ".pdf";
+      const fileName = this._buildListPdfFileName({
+        projectNumber,
+        projectShortName,
+        listLabel: "Top-Liste",
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw || new Date(),
+      });
 
       const pdfLogoDefaults = {
         enabled: true,
@@ -1818,6 +2071,7 @@ export default class PrintModal {
         baseDir: protocolsDir,
         projectNumber,
         overwrite: true,
+        ...(!preview ? { silent: true } : {}),
         ...(preview ? { targetDir: "temp" } : {}),
       });
       if (!out?.ok) {
@@ -1827,9 +2081,8 @@ export default class PrintModal {
 
       if (preview) {
         this._openPreview({ filePath: out.filePath, title: "Top-Liste (alle)" });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] Top-Liste(alle) Vorschau fehlgeschlagen", err);
       alert("Top-Liste(alle)-Vorschau konnte nicht erzeugt werden.");
@@ -1928,17 +2181,17 @@ export default class PrintModal {
     opt0.value = "";
     opt0.textContent =
       this.meetings.length > 0
-        ? "— geschlossene Besprechung wählen —"
-        : "— keine geschlossenen Besprechungen —";
+        ? "â geschlossene Besprechung wählen â"
+        : "â keine geschlossenen Besprechungen â";
     sel.appendChild(opt0);
 
     for (const m of this.meetings) {
       const opt = document.createElement("option");
       opt.value = m.id;
 
-      const idx = m.meeting_index != null ? `#${m.meeting_index}` : "#—";
+      const idx = m.meeting_index != null ? `#${m.meeting_index}` : "#â";
       const t = (m.title || "").toString().trim() || "(ohne Titel)";
-      opt.textContent = `${idx} – ${t}`;
+      opt.textContent = `${idx} â ${t}`;
       sel.appendChild(opt);
     }
 
@@ -1959,7 +2212,7 @@ export default class PrintModal {
   }
 
   _pdfCopyrightText() {
-    return "� 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
+    return "© 2026 BBM Alle Rechte vorbehalten | ###  ###  Testversion nicht freigegeben  ###  ###";
   }
 
   _pdfCopyrightStyle() {
@@ -2035,7 +2288,7 @@ export default class PrintModal {
     const v = String(s ?? "").trim();
     if (!v) return "";
     if (v.length <= n) return v;
-    return v.slice(0, Math.max(0, n - 1)) + "…";
+    return v.slice(0, Math.max(0, n - 1)) + "â¦";
   }
 
   _cut(s, n) {
@@ -2191,14 +2444,14 @@ export default class PrintModal {
   }
 
   _buildMeetingLabel(meeting) {
-    const idx = meeting?.meeting_index != null ? `#${meeting.meeting_index}` : "#—";
+    const idx = meeting?.meeting_index != null ? `#${meeting.meeting_index}` : "#â";
     const rawTitle = (meeting?.title || "").toString().trim();
 
     let date = null;
     let keyword = "";
 
     if (rawTitle) {
-      let t = rawTitle.replace(/^#\d+\s*(?:-|–)?\s*/i, "").trim();
+      let t = rawTitle.replace(/^#\d+\s*(?:-|â)?\s*/i, "").trim();
 
       const m = t.match(/^(\d{2}\.\d{2}\.\d{4})(?:\s*-\s*(.*))?$/);
       if (m) {
@@ -2210,7 +2463,7 @@ export default class PrintModal {
           date = dm[1];
           const after = t
             .slice(t.indexOf(dm[1]) + dm[1].length)
-            .replace(/^\s*[-–]\s*/, "");
+            .replace(/^\s*[-â]\s*/, "");
           keyword = after.trim();
         } else {
           keyword = t;
@@ -2229,11 +2482,11 @@ export default class PrintModal {
         meeting?.updatedAt ||
         null;
       const fmt = this._fmtDateYYYYMMDD(fallback);
-      if (fmt && fmt !== "—") date = fmt;
+      if (fmt && fmt !== "â") date = fmt;
     }
 
     if (keyword) {
-      keyword = keyword.replace(/^#\d+\b\s*(?:-|–)?\s*/i, "").trim();
+      keyword = keyword.replace(/^#\d+\b\s*(?:-|â)?\s*/i, "").trim();
     }
 
     let label = date ? `${idx} ${date}` : idx;
@@ -2519,9 +2772,36 @@ export default class PrintModal {
         const level = Number(t.level || 1);
         const isLevel1 = level === 1;
         const isImportant = Number(t.is_important ?? t.isImportant ?? 0) === 1;
-        const isOld = Number(t.is_carried_over ?? t.isCarriedOver ?? 0) === 1;
-        const isTouched = Number(t.is_touched ?? t.isTouched ?? 0) === 1;
+        const parseFlag = (v) => {
+          if (v === true || v === false) return v;
+          if (typeof v === "string") {
+            const s = v.trim().toLowerCase();
+            return s === "1" || s === "true";
+          }
+          const n = Number(v);
+          return Number.isFinite(n) ? n === 1 : false;
+        };
+
+        const isOld = parseFlag(
+          t.is_carried_over ?? t.isCarriedOver ?? t.frozen_is_carried_over ?? t.frozenIsCarriedOver
+        );
+        const isTouched = parseFlag(
+          t.is_touched ?? t.isTouched ?? t.frozen_is_touched ?? t.frozenIsTouched
+        );
         const isDone = shouldGrayTopForMeeting(t, meeting);
+        const changedRaw =
+          t.updated_at ??
+          t.updatedAt ??
+          t.changed_at ??
+          t.changedAt ??
+          t.frozen_changed_at ??
+          t.frozenChangedAt ??
+          t.longtext_changed_at ??
+          t.longtextChangedAt ??
+          t.created_at ??
+          t.createdAt ??
+          null;
+        const changedDate = changedRaw ? this._fmtDateYYYYMMDD(changedRaw) : "";
 
         const shouldMark = !isOld || (isOld && isTouched);
         const shortBlue = shouldMark;
@@ -2544,7 +2824,10 @@ export default class PrintModal {
         const createdDate = this._fmtDateYYYYMMDD(createdAtRaw);
 
         const shortText = this._truncate(t.title || "(ohne Bezeichnung)", 50);
-        const longTextRaw = t.longtext != null ? String(t.longtext) : "";
+        let longTextRaw = t.longtext != null ? String(t.longtext) : "";
+        if (isOld && isTouched && changedDate) {
+          longTextRaw = `${longTextRaw}${longTextRaw ? "\n" : ""}(Text geändert ${changedDate})`;
+        }
         const longText = this._truncate(
           longTextRaw.replace(/\r?\n/g, " ").replace(/ +/g, " "),
           250
@@ -2578,6 +2861,13 @@ export default class PrintModal {
             <td class="colNr">
               <div class="nr">${num}</div>
               <div class="nrDate">${this._escapeHtml(createdDate)}</div>
+              ${
+                isOld && changedDate
+                  ? `<div class="nrChanged">(${
+                      changedDate ? `Text geändert\n${this._escapeHtml(changedDate)}` : "Text geändert"
+                    })</div>`
+                  : ""
+              }
             </td>
 
             <td class="colText">
@@ -2585,6 +2875,8 @@ export default class PrintModal {
                 <div class="txtStar ${hasStar ? "" : "empty"}">${hasStar ? starSvg : ""}</div>
                 <div class="txtBlock">
                   <div class="short" style="color:${shortColor};">${this._escapeHtml(shortText)}</div>
+
+
                   <div class="long" style="color:${longColor};">${this._escapeHtml(longText)}</div>
                 </div>
               </div>
@@ -2670,8 +2962,8 @@ export default class PrintModal {
         }
       }
 
-      const timeOut = nextMeetingTimeRaw || "—";
-      const dateFallback = dateOut || "—";
+      const timeOut = nextMeetingTimeRaw || "â";
+      const dateFallback = dateOut || "â";
       const w = this._escapeHtml(weekday);
       const d = this._escapeHtml(dateFallback);
       const t = this._escapeHtml(timeOut);
@@ -2958,6 +3250,15 @@ export default class PrintModal {
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
+    .colNr .nrChanged {
+      font-size: 7.0pt;
+      line-height: 1.2;
+      margin-top: 0.5mm;
+      color: #1565c0;
+      font-variant-numeric: tabular-nums;
+      white-space: pre;
+      display: block;
+    }
 
     .textWrap {
       display: flex;
@@ -2984,6 +3285,26 @@ export default class PrintModal {
     .txtBlock {
       min-width: 0;
       flex: 1 1 auto;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #c62828;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #555;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #555;
+    }
+    .txtHint {
+      font-size: 8.0pt;
+      line-height: 1.2;
+      color: #555;
     }
 
     .short {
@@ -3326,6 +3647,20 @@ export default class PrintModal {
         const isTouched = Number(t.is_touched ?? t.isTouched ?? 0) === 1;
         const isDone = isDoneStatus(t.status);
 
+        const changedRaw =
+          t.updated_at ??
+          t.updatedAt ??
+          t.changed_at ??
+          t.changedAt ??
+          t.frozen_changed_at ??
+          t.frozenChangedAt ??
+          t.longtext_changed_at ??
+          t.longtextChangedAt ??
+          t.created_at ??
+          t.createdAt ??
+          null;
+        const changedDate = changedRaw ? this._fmtDateYYYYMMDD(changedRaw) : "";
+
         const shouldMark = !isOld || (isOld && isTouched);
         const BLUE = "#1565c0";
         const RED = "#c62828";
@@ -3376,6 +3711,13 @@ export default class PrintModal {
             <td class="colNr">
               <div class="nr">${num}</div>
               <div class="nrDate">${this._escapeHtml(createdDate)}</div>
+              ${
+                isOld && isTouched
+                  ? `<div class="nrChanged">(${
+                      changedDate ? `geändert ${this._escapeHtml(changedDate)}` : "geändert"
+                    })</div>`
+                  : ""
+              }
             </td>
 
             <td class="colText">
@@ -3954,8 +4296,10 @@ export default class PrintModal {
             <div class="personRow">
               <div class="pName">${this._escapeHtml(name)}</div>
               <div class="pRole">${this._escapeHtml(rolle)}</div>
-              <div class="pFunk">${this._escapeHtml(funkP)}</div>
-              <div class="pEmail">${this._escapeHtml(emailP)}</div>
+              <div class="pContact">
+                <div class="pFunk">${this._escapeHtml(funkP)}</div>
+                <div class="pEmail">${this._escapeHtml(emailP)}</div>
+              </div>
             </div>
           `;
         })
@@ -4152,7 +4496,7 @@ export default class PrintModal {
     }
     .personRow {
       display: grid;
-      grid-template-columns: 25% calc(25% - 15mm) 25% calc(25% + 15mm);
+      grid-template-columns: 25% calc(25% - 15mm) calc(50% + 15mm);
       gap: 2mm;
       align-items: start;
       text-align: left;
@@ -4163,6 +4507,10 @@ export default class PrintModal {
       text-align: left;
     }
     .pName { font-weight: 600; }
+    .pContact {
+      display: grid;
+      gap: 0.6mm;
+    }
 
     .empty {
       padding: 3mm 2mm;
@@ -4212,6 +4560,22 @@ export default class PrintModal {
       mode: "closed",
       closeModalAfter: true,
       preview: true,
+    });
+  }
+
+  async printClosedMeetingDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.projectId || this.router?.currentProjectId || null;
+    const effectiveMeetingId = meetingId || this.selectedMeetingId || null;
+    if (!effectiveProjectId) throw new Error("Projekt-Kontext fehlt.");
+    if (!effectiveMeetingId) throw new Error("Besprechung fehlt.");
+
+    return await this._printMeeting({
+      projectId: effectiveProjectId,
+      meetingId: effectiveMeetingId,
+      allowOpen: false,
+      mode: "closed",
+      closeModalAfter: false,
+      preview: false,
     });
   }
 
@@ -4308,12 +4672,30 @@ export default class PrintModal {
 
       // Projektnummer/Label: direkt aus DB holen
       const pid = projectId || meeting.project_id || this.router?.currentProjectId || null;
+      if (pid && typeof api.projectSettingsGetMany === "function") {
+        try {
+          const projectSettingsRes = await api.projectSettingsGetMany({
+            projectId: pid,
+            keys: ["pdf.protocolTitle"],
+          });
+          if (projectSettingsRes?.ok) {
+            const projectProtocolTitle = String(
+              projectSettingsRes?.data?.["pdf.protocolTitle"] || ""
+            ).trim();
+            if (projectProtocolTitle) {
+              settings = { ...settings, "pdf.protocolTitle": projectProtocolTitle };
+            }
+          }
+        } catch (_err) {
+          // ignore and keep global fallback
+        }
+      }
       const projectLabel = await this._getProjectLabelWithNumber(pid);
       const meetingLabel = this._buildMeetingLabel(meeting);
       const projectInfo = await this._getProjectInfo(pid);
       const projectNumber = projectInfo.number || (pid || "");
       const protocolNameRaw = String(settings?.["pdf.protocolTitle"] || "").trim();
-      const protocolName = this._sanitizeFileSegment(protocolNameRaw || "Baubesprechung");
+      const protocolName = this._sanitizeFileSegment(protocolNameRaw || "Protokoll");
       const meetingNr =
         meeting?.meeting_index ?? meeting?.meetingIndex ?? meeting?.index ?? meeting?.number ?? "";
       const meetingDateRaw =
@@ -4326,6 +4708,12 @@ export default class PrintModal {
         meeting?.updatedAt ||
         null;
       const meetingDateStr = this._formatDateForFile(meetingDateRaw || new Date());
+      const projectShortName =
+        projectInfo?.short ||
+        projectInfo?.short_name ||
+        projectInfo?.projectShortName ||
+        projectInfo?.name ||
+        "";
 
       const resP = await api.meetingParticipantsList({ meetingId });
       if (!resP?.ok) {
@@ -4368,11 +4756,23 @@ export default class PrintModal {
       });
 
       const suffix = isVorabzug ? " VORABZUG" : "";
+      const protocolFileName = buildProtocolPdfFileName({
+        projectNumber,
+        projectShortName,
+        protocolTitle: protocolName,
+        meetingIndex: meetingNr,
+        meetingDate: meetingDateRaw || new Date(),
+      });
+      const fallbackProtocolFileName = (() => {
+        const meetingDateDot = String(meetingDateStr || "").split("-").reverse().join(".");
+        const cleanShort = this._sanitizeFileSegment(projectShortName || "");
+        return cleanShort
+          ? `${projectNumber}_${cleanShort}_${protocolName}_#${meetingNr} - ${meetingDateDot}.pdf`
+          : `${projectNumber}_${protocolName}_#${meetingNr} - ${meetingDateDot}.pdf`;
+      })();
       const fn = isVorabzug
         ? this._sanitizeFileName(`BBM ${projectLabel || ""} ${meetingLabel}${suffix}`) + ".pdf"
-        : this._sanitizeFileName(
-            `${projectNumber}_${protocolName}_#${meetingNr}-${meetingDateStr}`
-          ) + ".pdf";
+        : this._sanitizeFileName((protocolFileName || fallbackProtocolFileName).replace(/\.pdf$/i, "")) + ".pdf";
 
       const nextMeetingSettingsForPrint = {
         "print.nextMeeting.enabled": String(settings?.["print.nextMeeting.enabled"] ?? "").trim(),
@@ -4396,6 +4796,7 @@ export default class PrintModal {
               baseDir: protocolsDir,
               projectNumber,
               overwrite: true,
+              silent: true,
             }),
       });
       if (!out?.ok) {
@@ -4411,13 +4812,12 @@ export default class PrintModal {
         }
         const title = isVorabzug ? "Vorabzug (Vorschau)" : "Protokoll (Vorschau)";
         this._openPreview({ filePath: out.filePath, title });
-      } else {
-        alert(`PDF gespeichert:\n${out.filePath || "(Pfad unbekannt)"}`);
       }
 
       if (closeModalAfter) {
         this.close();
       }
+      return out;
     } catch (err) {
       console.error("[PrintModal] _printMeeting failed", {
         projectId,
@@ -4438,22 +4838,5 @@ export default class PrintModal {
     }
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

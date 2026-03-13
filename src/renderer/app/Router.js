@@ -485,16 +485,19 @@ export default class Router {
     );
   }
 
-  async showTops(meetingId, projectId) {
+  async showTops(meetingId, projectId, options = {}) {
     const mod = await import("../views/TopsView.js");
     const V = mod.default;
+
+    const opts = options && typeof options === "object" ? options : {};
+    const readOnly = !!opts.readOnly;
 
     this.currentProjectId = projectId || this.currentProjectId || null;
     this.currentMeetingId = meetingId || null;
     this.lastTopsProjectId = this.currentProjectId || null;
     this.lastTopsMeetingId = this.currentMeetingId || null;
 
-    await this.show(new V({ router: this, meetingId, projectId }), {
+    await this.show(new V({ router: this, meetingId, projectId, readOnly }), {
       section: "meetings",
       isTopsView: true,
       pageTitle: "Protokoll",
@@ -750,7 +753,7 @@ export default class Router {
           meetingId: selectedMeetingId,
         });
       } else {
-        await this.openFirmsPrintPreview({
+        await this.printFirmsDirect({
           projectId: effectiveProjectId,
           meetingId: selectedMeetingId,
         });
@@ -813,6 +816,20 @@ export default class Router {
     }
   }
 
+  async openStoredProtocolPreview({ filePath, title } = {}) {
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.openExistingPdfPreview !== "function") {
+      alert("PrintModal unterstützt keine gespeicherte PDF-Vorschau.");
+      return false;
+    }
+    try {
+      await pm.openExistingPdfPreview({ filePath, title: title || "Protokoll (Vorschau)" });
+      return true;
+    } finally {
+      await this.closePrintModal({ keepPreview: true });
+    }
+  }
+
   async openPrintVorabzug({ projectId, meetingId } = {}) {
     const pm = await this._ensurePrintModal();
     if (typeof pm?.printVorabzug !== "function") {
@@ -869,6 +886,109 @@ export default class Router {
       await pm.openFirmsPrintPreview({ projectId: effectiveProjectId, meetingId: meetingId || null });
     } finally {
       await this.closePrintModal({ keepPreview: true });
+    }
+  }
+
+  async openStoredFirmsPdfSelection({ projectId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.openStoredFirmsPdfSelection !== "function") {
+      alert("PrintModal unterst\u00fctzt keine gespeicherten Firmenlisten.");
+      return;
+    }
+    try {
+      await pm.openStoredFirmsPdfSelection({ projectId: effectiveProjectId });
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
+    }
+  }
+
+  async printClosedMeetingDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt auswählen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    if (meetingId) this.currentMeetingId = meetingId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printClosedMeetingDirect !== "function") {
+      alert("PrintModal unterstützt keinen Protokoll-Direktdruck.");
+      return;
+    }
+    try {
+      const res = await pm.printClosedMeetingDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
+      return res;
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
+    }
+  }
+
+  async printFirmsDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    if (meetingId) this.currentMeetingId = meetingId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printFirmsDirect !== "function") {
+      alert("PrintModal unterst\u00fctzt keine Firmenliste.");
+      return;
+    }
+    try {
+      const res = await pm.printFirmsDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
+      return res;
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
+    }
+  }
+
+  async printTodoDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    if (meetingId) this.currentMeetingId = meetingId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printTodoDirect !== "function") {
+      alert("PrintModal unterst\u00fctzt keine ToDo-Liste.");
+      return;
+    }
+    try {
+      const res = await pm.printTodoDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
+      return res;
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
+    }
+  }
+
+  async printTopListAllDirect({ projectId, meetingId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) {
+      alert("Bitte zuerst ein Projekt ausw\u00e4hlen.");
+      return;
+    }
+    this.currentProjectId = effectiveProjectId;
+    if (meetingId) this.currentMeetingId = meetingId;
+    const pm = await this._ensurePrintModal();
+    if (typeof pm?.printTopListAllDirect !== "function") {
+      alert("PrintModal unterst\u00fctzt keine Top-Liste.");
+      return;
+    }
+    try {
+      const res = await pm.printTopListAllDirect({ projectId: effectiveProjectId, meetingId: meetingId || null });
+      return res;
+    } finally {
+      await this.closePrintModal({ keepPreview: false });
     }
   }
 

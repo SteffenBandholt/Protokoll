@@ -1,4 +1,4 @@
-﻿// src/main/main.js
+// src/main/main.js
 //
 // TECH-CONTRACT (verbindlich): docs/UI-TECH-CONTRACT.md
 // CONTRACT-VERSION: 1.0.1
@@ -16,7 +16,9 @@ const { registerProjectFirmsIpc } = require("./ipc/projectFirmsIpc");
 const { registerParticipantsIpc } = require("./ipc/participantsIpc");
 const { registerPrintIpc } = require("./ipc/printIpc");
 const { registerSettingsIpc } = require("./ipc/settingsIpc");
+const { registerProjectSettingsIpc } = require("./ipc/projectSettingsIpc");
 const { registerEditorIpc } = require("./ipc/editorIpc");
+const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -186,6 +188,54 @@ async function _setRepoVersion(nextVersion) {
   return next;
 }
 
+// ============================================================
+// ✅ Build Channel (Repo-Schalter + Laufzeitinfo fürs Badge)
+// ============================================================
+function _normalizeChannel(v) {
+  const s = String(v || "").trim().toUpperCase();
+  return s === "DEV" ? "DEV" : "STABLE";
+}
+
+function _getRepoChannelFilePath() {
+  const projectRoot = _resolveProjectRoot();
+  if (!projectRoot) return null;
+  return path.join(projectRoot, "channel.json");
+}
+
+async function _readRepoBuildChannel() {
+  const p = _getRepoChannelFilePath();
+  if (!p) return "DEV";
+  try {
+    if (!fs.existsSync(p)) return "DEV";
+    const raw = await fs.promises.readFile(p, "utf8");
+    const data = JSON.parse(raw);
+    return _normalizeChannel(data?.channel);
+  } catch (_e) {
+    return "DEV";
+  }
+}
+
+async function _writeRepoBuildChannel(next) {
+  const p = _getRepoChannelFilePath();
+  if (!p) throw new Error("Projektroot konnte nicht ermittelt werden (channel.json).");
+  const channel = _normalizeChannel(next);
+  await _writeJsonAtomic(p, { channel });
+  return channel;
+}
+
+// ✅ für EXE: buildChannel aus gepackter package.json (extraMetadata)
+function _readPackagedBuildChannel() {
+  try {
+    const pkgPath = path.join(app.getAppPath(), "package.json");
+    const raw = fs.readFileSync(pkgPath, "utf8");
+    const data = JSON.parse(raw);
+    const ch = _normalizeChannel(data?.buildChannel);
+    return ch;
+  } catch (_e) {
+    return "STABLE";
+  }
+}
+
 function createWindow() {
   const isProd = app.isPackaged;
   const iconPath = resolveIconPath();
@@ -316,7 +366,184 @@ app.whenReady().then(async () => {
   registerParticipantsIpc();
   registerPrintIpc();
   registerSettingsIpc();
+  registerProjectSettingsIpc();
   registerEditorIpc({ getMainWindow: () => mainWindow });
+  registerProjectTransferIpc();
+
+  // ============================================================
+  // ✅ Build Channel IPCs
+  // ============================================================
+  ipcMain.handle("app:getBuildChannel", async () => {
+    try {
+      // DEV beim Entwickeln (npm start)
+      if (!app.isPackaged) return { ok: true, channel: "DEV" };
+      // Packaged: aus extraMetadata.buildChannel (package.json im asar)
+      return { ok: true, channel: _readPackagedBuildChannel() };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err), channel: "STABLE" };
+    }
+  });
+
+  ipcMain.handle("dev:buildChannelGet", async () => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const channel = await _readRepoBuildChannel();
+      return { ok: true, channel };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dev:buildChannelSet", async (_event, payload) => {
+    if (app.isPackaged) return { ok: false, error: DEV_ONLY_ERROR };
+    try {
+      const next = _normalizeChannel(payload?.channel ?? payload?.value ?? payload?.buildChannel);
+      const saved = await _writeRepoBuildChannel(next);
+      return { ok: true, channel: saved };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+
+
+ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
+  try {
+    if (process.platform !== "win32") {
+      return { ok: false, error: "Outlook-Entwurf ist nur unter Windows verfügbar." };
+    }
+
+    const to = Array.isArray(payload?.to)
+      ? payload.to.map((v) => String(v || "").trim()).filter(Boolean)
+      : String(payload?.to || "")
+          .split(/[;,]/)
+          .map((v) => String(v || "").trim())
+          .filter(Boolean);
+
+    const subject = String(payload?.subject || "").trim();
+    const body = String(payload?.body || "");
+    const attachmentPath = String(payload?.attachmentPath || "").trim();
+    const attachmentsArr = Array.isArray(payload?.attachments)
+      ? payload.attachments.map((v) => String(v || "").trim()).filter(Boolean)
+      : [];
+    const allAttachments = [];
+    if (attachmentsArr.length) allAttachments.push(...attachmentsArr);
+    if (attachmentPath) allAttachments.push(attachmentPath);
+
+    const dedup = [];
+    const seen = new Set();
+    for (const a of allAttachments) {
+      const key = a.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      dedup.push(a);
+    }
+
+    if (!dedup.length) {
+      return { ok: false, error: "Anhangspfad fehlt." };
+    }
+    const missing = dedup.find((p) => !fs.existsSync(p));
+    if (missing) {
+      return { ok: false, error: "Anhang nicht gefunden." };
+    }
+
+    const tempDir = app.getPath("temp");
+    const scriptPath = path.join(tempDir, `bbm_outlook_draft_${Date.now()}.ps1`);
+    const script = [
+      'param(',
+      '  [string]$To = "",',
+      '  [string]$Subject = "",',
+      '  [string]$Body = "",',
+      '  [string]$AttachmentsBase64 = ""',
+      ')',
+      '$ErrorActionPreference = "Stop"',
+      '$Attachments = @()',
+      'if ($AttachmentsBase64) {',
+      '  $attachmentsJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($AttachmentsBase64))',
+      '  $parsedAttachments = ConvertFrom-Json -InputObject $attachmentsJson',
+      '  if ($parsedAttachments -is [System.Array]) {',
+      '    $Attachments = @($parsedAttachments | ForEach-Object { [string]$_ })',
+      '  } elseif ($parsedAttachments) {',
+      '    $Attachments = @([string]$parsedAttachments)',
+      '  }',
+      '}',
+      '$outlook = New-Object -ComObject Outlook.Application',
+      '$mail = $outlook.CreateItem(0)',
+      'if ($To) { $mail.To = $To }',
+      'if ($Subject) { $mail.Subject = $Subject }',
+      'if ($Body) { $mail.Body = $Body }',
+      'if ($Attachments) {',
+      '  foreach ($att in $Attachments) {',
+      '    if ($att -and (Test-Path -LiteralPath $att)) {',
+      '      [void]$mail.Attachments.Add($att)',
+      '    }',
+      '  }',
+      '}',
+      '$mail.Display()',
+      ''
+    ].join("\r\n");
+
+    fs.writeFileSync(scriptPath, script, "utf8");
+
+    const args = [
+      "-NoProfile",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-STA",
+      "-File",
+      scriptPath,
+      "-To",
+      to.join("; "),
+      "-Subject",
+      subject,
+      "-Body",
+      body,
+      "-AttachmentsBase64",
+      Buffer.from(JSON.stringify(dedup), "utf8").toString("base64"),
+    ];
+
+    const result = await new Promise((resolve) => {
+      let stderr = "";
+      let settled = false;
+      const child = spawn("powershell.exe", args, {
+        windowsHide: true,
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+
+      child.on("error", (err) => {
+        if (settled) return;
+        settled = true;
+        resolve({ ok: false, error: err?.message || String(err) });
+      });
+
+      if (child.stderr) {
+        child.stderr.on("data", (chunk) => {
+          stderr += String(chunk || "");
+        });
+      }
+
+      child.on("close", (code) => {
+        if (settled) return;
+        settled = true;
+        if (Number(code) === 0) {
+          resolve({ ok: true });
+        } else {
+          resolve({ ok: false, error: stderr.trim() || `PowerShell exit ${code}` });
+        }
+      });
+    });
+
+    try {
+      fs.unlinkSync(scriptPath);
+    } catch (_err) {
+      // ignore
+    }
+
+    return result;
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
 
   // ✅ App beenden (ohne Confirm) – über IPC
   ipcMain.handle("app:quit", () => {
@@ -485,7 +712,7 @@ app.whenReady().then(async () => {
   });
 
   console.log(
-    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, app:*"
+    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, projectTransfer, app:*"
   );
 
   // Fenster erst danach (damit Renderer nichts "zu früh" invoken kann)

@@ -31,8 +31,8 @@ export default class TopsView {
     this.btnChild = null;
 
     // Topbar buttons
-    this.btnEndMeeting = null; // "Protokoll schließen"
-    this.btnCloseMeeting = null; // "zurück"
+    this.btnEndMeeting = null; // "Protokoll beenden"
+    this.btnCloseMeeting = null; // "Schließen"
     this.btnLongToggle = null;
 
     this.btnAmpelToggle = null;
@@ -61,6 +61,10 @@ export default class TopsView {
     this._respDirtyTopId = null;
     this._respLastSetTopId = null;
     this._respLegacyReadonly = false;
+    this.projectStartDate = null;
+    this.projectEndDate = null;
+    this._dueDirty = false;
+    this._dueDirtyTopId = null;
 
     // List toggle: Langtext anzeigen
     this.showLongtextInList = false;
@@ -127,9 +131,39 @@ export default class TopsView {
     // UI sizing (Meta-Spalte ~30% schmaler)
     this.META_COL_W = 133; // px
     this.NUM_COL_W = 56; // px (ohne Ampel links)
+
+    // Mail-Flow nach Protokoll beenden
+    this._lastClosedMeetingForEmail = null;
   }
 
   _updateTopBarProtocolTitle() {
+    // Idle-State: kein aktives Protokoll
+    if (!this.meetingId) {
+      const host = this.topsTitleEl;
+      host.innerHTML = "";
+      host.style.display = "flex";
+      host.style.flexDirection = "column";
+      host.style.alignItems = "flex-start";
+      host.style.gap = "1px";
+      host.style.lineHeight = "1.1";
+
+      const labelLine = document.createElement("div");
+      labelLine.textContent = "Protokoll";
+      labelLine.style.color = "#000";
+      labelLine.style.fontWeight = "600";
+      host.appendChild(labelLine);
+
+      const line1 = document.createElement("div");
+      line1.textContent = this._idleHasProtocols ? "kein Protokoll aktiv" : "kein Protokoll vorhanden";
+      line1.style.color = "#616161";
+      line1.style.fontWeight = "700";
+      host.appendChild(line1);
+
+      host.title = "";
+      host.style.cursor = "default";
+      return;
+    }
+
     if (!this.topsTitleEl) return;
     const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
     const parts = this._parseMeetingTitleParts();
@@ -253,6 +287,31 @@ export default class TopsView {
     };
   }
 
+
+// ---- Date helpers (kompatibel) ----
+_todayISO() {
+  // YYYY-MM-DD (lokal)
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+todayISO() {
+  // Alias, falls irgendwo noch todayISO() genutzt wird
+  return this._todayISO();
+}
+
+_isoToDDMMYYYY(iso) {
+  // iso: YYYY-MM-DD
+  if (!iso || typeof iso !== "string" || iso.length < 10) return "";
+  const y = iso.slice(0, 4);
+  const m = iso.slice(5, 7);
+  const d = iso.slice(8, 10);
+  return `${d}.${m}.${y}`;
+}
+
   async _openMeetingKeywordPopup() {
     const api = window.bbmDb || {};
     if (typeof api.meetingsUpdateTitle !== "function") {
@@ -338,7 +397,7 @@ export default class TopsView {
     const close = () => {
       try {
         overlay.remove();
-      } catch {
+      } catch (e) {
         // ignore
       }
     };
@@ -391,7 +450,7 @@ export default class TopsView {
       try {
         keywordInput.focus();
         keywordInput.select();
-      } catch {
+      } catch (e) {
         // ignore
       }
     }, 0);
@@ -531,6 +590,33 @@ export default class TopsView {
     this._updateTopBarMetaLabels();
   }
 
+  async _loadProjectDates() {
+    this.projectStartDate = null;
+    this.projectEndDate = null;
+
+    const pid = this.projectId;
+    const api = window.bbmDb || {};
+    if (!pid || typeof api.projectsList !== "function") return;
+
+    const normalize = (v) => {
+      const s = (v || "").toString().trim();
+      if (!s) return null;
+      return s.slice(0, 10);
+    };
+
+    try {
+      const res = await api.projectsList();
+      if (!res?.ok) return;
+      const list = Array.isArray(res.list) ? res.list : [];
+      const proj = list.find((p) => this._topIdKey(p?.id) === this._topIdKey(pid));
+      if (!proj) return;
+      this.projectStartDate = normalize(proj.start_date ?? proj.startDate);
+      this.projectEndDate = normalize(proj.end_date ?? proj.endDate);
+    } catch (err) {
+      console.warn("[tops] _loadProjectDates failed:", err);
+    }
+  }
+
   async _loadLongtextSetting() {
     if (this._longtextSettingLoaded) return;
     const key = "tops.showLongtextInList";
@@ -667,7 +753,7 @@ export default class TopsView {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         map = parsed;
       }
-    } catch {
+    } catch (e) {
       map = {};
     }
 
@@ -1555,6 +1641,39 @@ export default class TopsView {
     this._applyAmpelDotColor(this.dueAmpelEl, color);
   }
 
+  _isResponsibleAllSelection() {
+    if (!this.selResponsible) return false;
+    const val = (this.selResponsible.value || "").toString();
+    const parsed = this._parseResponsibleOptionValue(val);
+    if (parsed && parsed.kind === "all") return true;
+    const opt = this.selResponsible.selectedOptions?.[0];
+    const lbl = (opt?.textContent || "").trim().toLowerCase();
+    return !parsed && !val && lbl === "alle";
+  }
+
+  _applyProjectDueDefaults(top) {
+    if (!top || !this.inpDueDate) return;
+    if (this._dueDirty && this._sameTopId(this._dueDirtyTopId, top.id)) return;
+
+    const current = (this.inpDueDate.value || "").trim();
+    const startDate = this.projectStartDate;
+    const endDate = this.projectEndDate;
+
+    let nextVal = "";
+    if (this._isResponsibleAllSelection() && endDate) {
+      if (!current || current === (startDate || "")) {
+        nextVal = endDate;
+      }
+    } else if (!current && startDate) {
+      nextVal = startDate;
+    }
+
+    if (nextVal) {
+      this.inpDueDate.value = nextVal;
+      this._updateDueAmpelFromInputs();
+    }
+  }
+
   _isDoneStatus(status) {
     const st = (status || "").toString().trim().toLowerCase();
     return st === "erledigt";
@@ -1569,7 +1688,9 @@ export default class TopsView {
   _updateTopBarMetaLabels() {
     if (!this.topMetaEl) return;
 
-    const on = !!this.showLongtextInList;
+    const hasMeeting = !!this.meetingId;
+    const hasTops = hasMeeting && Array.isArray(this.items) && this.items.length > 0;
+    const on = !!this.showLongtextInList && hasTops;
 
     // ✅ Platz immer reservieren -> keine Sprünge
     this.topMetaEl.style.visibility = on ? "visible" : "hidden";
@@ -1635,9 +1756,9 @@ export default class TopsView {
       b.style.flex = "0 0 auto";
     };
 
-    // "Protokoll schließen"
+    // "Protokoll beenden"
     const btnEndMeeting = document.createElement("button");
-    btnEndMeeting.textContent = "Protokoll schließen";
+    btnEndMeeting.textContent = "Protokoll beenden";
     btnEndMeeting.style.background = "#ef6c00";
     btnEndMeeting.style.color = "white";
     btnEndMeeting.style.border = "1px solid rgba(0,0,0,0.25)";
@@ -1665,6 +1786,8 @@ export default class TopsView {
       };
 
       const attemptClose = async () => {
+        const projIdForPrint = this.projectId || this.router?.currentProjectId || null;
+        const meetingIdForPrint = this.meetingId;
         try {
           if (typeof window.bbmDb?.topsPurgeTrashedByMeeting === "function") {
             const purgeRes = await window.bbmDb.topsPurgeTrashedByMeeting({
@@ -1683,7 +1806,86 @@ export default class TopsView {
           if (Array.isArray(res?.warnings) && res.warnings.length > 0) {
             alert(`Hinweis beim Schließen:\n${res.warnings.join("\n")}`);
           }
-          await this.router.showProjects();
+
+          // Reihenfolge: Protokoll -> Firmenliste -> ToDo-Liste (alles Datei-Druck, keine Vorschau)
+          const printResults = {
+            protocol: { ok: false, filePath: "" },
+            firms: { ok: false, filePath: "" },
+            todo: { ok: false, filePath: "" },
+            tops: { ok: false, filePath: "" },
+          };
+
+          try {
+            if (typeof this.router?.printClosedMeetingDirect === "function") {
+              const r = await this.router.printClosedMeetingDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+              printResults.protocol.ok = r?.ok !== false;
+              printResults.protocol.filePath = r?.filePath || r?.path || "";
+            }
+          } catch (err) {
+            console.warn("[tops] Protokoll-PDF nach Schließen fehlgeschlagen:", err);
+            alert("Protokoll-PDF konnte nach dem Schließen nicht erzeugt werden.");
+          }
+
+          try {
+            if (typeof this.router?.printFirmsDirect === "function") {
+              const r = await this.router.printFirmsDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+              printResults.firms.ok = r?.ok !== false;
+              printResults.firms.filePath = r?.filePath || r?.path || "";
+            }
+          } catch (err) {
+            console.warn("[tops] Firmenliste-PDF nach Schließen fehlgeschlagen:", err);
+            alert("Firmenliste-PDF konnte nach dem Schließen nicht erzeugt werden.");
+          }
+
+          try {
+            if (typeof this.router?.printTodoDirect === "function") {
+              const r = await this.router.printTodoDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+              printResults.todo.ok = r?.ok !== false;
+              printResults.todo.filePath = r?.filePath || r?.path || "";
+            }
+          } catch (err) {
+            console.warn("[tops] ToDo-PDF nach Schlie?en fehlgeschlagen:", err);
+            alert("ToDo-PDF konnte nach dem Schlie?en nicht erzeugt werden.");
+          }
+
+          try {
+            if (typeof this.router?.printTopListAllDirect === "function") {
+              const r = await this.router.printTopListAllDirect({
+                projectId: projIdForPrint,
+                meetingId: meetingIdForPrint,
+              });
+              printResults.tops.ok = r?.ok !== false;
+              printResults.tops.filePath = r?.filePath || r?.path || "";
+            }
+          } catch (err) {
+            console.warn("[tops] Top-Liste-PDF nach Schlie?en fehlgeschlagen:", err);
+            alert("Top-Liste-PDF konnte nach dem Schlie?en nicht erzeugt werden.");
+          }
+
+          const allPrinted =
+            printResults.protocol.ok !== false &&
+            printResults.firms.ok !== false &&
+            printResults.todo.ok !== false &&
+            printResults.tops.ok !== false;
+
+          this._lastClosedMeetingForEmail = res?.meeting
+            ? { ...res.meeting, id: res.meeting.id || meetingIdForPrint }
+            : { ...(this.meetingMeta || {}), id: meetingIdForPrint };
+
+          if (allPrinted) {
+            await this._maybePromptSendAfterClose({ printResults, meeting: this._lastClosedMeetingForEmail });
+          } else {
+            await this._enterIdleAfterClose();
+          }
           return;
         }
 
@@ -1722,6 +1924,47 @@ export default class TopsView {
       };
 
       await attemptClose();
+
+      // Nach erfolgreichem Schließen: automatische Druckläufe (Protokoll, Firmenliste, ToDo-Liste, Top-Liste)
+      try {
+        const projectId = this.projectId || this.router?.currentProjectId || null;
+        const meetingId = this.meetingId || this.router?.currentMeetingId || null;
+        const pm = typeof this.router?._ensurePrintModal === "function" ? await this.router._ensurePrintModal() : null;
+
+        if (pm && projectId && meetingId) {
+          // Protokoll
+          if (typeof pm.printClosedMeetingDirect === "function") {
+            await pm.printClosedMeetingDirect({ projectId, meetingId });
+          }
+          // Firmenliste
+          if (typeof pm._printFirmsPdf === "function") {
+            await pm._printFirmsPdf({ projectId, meetingId, preview: false });
+          }
+          // ToDo-Liste
+          if (typeof pm._printTodoPdf === "function") {
+            await pm._printTodoPdf({ projectId, meetingId, preview: false });
+          }
+          // Top-Liste (alle)
+          if (typeof pm._printTopListAllPdf === "function") {
+            await pm._printTopListAllPdf({ projectId, meetingId, preview: false });
+          }
+        }
+      } catch (errPrint) {
+        console.error("[TopsView] auto-print after close failed:", errPrint);
+      }
+
+      await this._enterIdleAfterClose();
+    };
+
+    const btnCloseMeeting = document.createElement("button");
+    btnCloseMeeting.textContent = "Schließen";
+    btnCloseMeeting.style.background = "#fff";
+    btnCloseMeeting.style.color = "#222";
+    btnCloseMeeting.style.border = "1px solid rgba(0,0,0,0.25)";
+    styleBtnBase(btnCloseMeeting);
+    btnCloseMeeting.onclick = async () => {
+      if (this._busy) return;
+      await this._closeViewOnly();
     };
 
     // + Titel
@@ -1910,7 +2153,7 @@ export default class TopsView {
     actionBtnsWrap.style.alignItems = "center";
     actionBtnsWrap.style.gap = "8px";
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
-    actionBtnsWrap.append(btnAmpelToggle, btnLongToggle, btnEndMeeting);
+    actionBtnsWrap.append(btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
 
     // Feldbezeichnungen rechts über Meta-Spalte (Platz immer reserviert)
     const topMeta = document.createElement("div");
@@ -2259,7 +2502,7 @@ export default class TopsView {
     this.btnChild = btnChild;
 
     this.btnEndMeeting = btnEndMeeting;
-    this.btnCloseMeeting = null;
+    this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
     this.btnAmpelToggle = btnAmpelToggle;
 
@@ -2421,6 +2664,8 @@ export default class TopsView {
       if (inpDueDate.disabled) return;
       if (!this.selectedTop) return;
       const dueVal = (inpDueDate.value || "").trim();
+      this._dueDirty = true;
+      this._dueDirtyTopId = this.selectedTop.id;
       await this._saveMeetingTopPatch({ due_date: dueVal || null }, { reload: true, pulse: true });
     });
 
@@ -2447,6 +2692,23 @@ export default class TopsView {
       const parsed = this._parseResponsibleOptionValue(val);
       this._respDirty = true;
       this._respDirtyTopId = this.selectedTop.id;
+      const currentTopId = this.selectedTop.id;
+
+      const dueDirtySameTop = this._dueDirty && this._sameTopId(this._dueDirtyTopId, currentTopId);
+      if (
+        !dueDirtySameTop &&
+        this.inpDueDate &&
+        parsed?.kind === "all" &&
+        parsed?.id === "all" &&
+        this.projectEndDate
+      ) {
+        const currentDue = (this.inpDueDate.value || "").trim();
+        const startIso = this.projectStartDate || "";
+        if (!currentDue || currentDue === startIso) {
+          this.inpDueDate.value = this.projectEndDate;
+          this._updateDueAmpelFromInputs();
+        }
+      }
 
       if (!parsed?.id) {
         const res = await this._saveMeetingTopPatch(
@@ -2543,6 +2805,14 @@ export default class TopsView {
   }
 
   async load() {
+    // Idle-State: TopsView ohne aktives Protokoll anzeigen (kein MeetingId).
+    if (!this.meetingId) {
+      await this._refreshIdleProtocolPresence();
+      this._renderIdleState();
+      return;
+    }
+
+    await this._loadProjectDates();
     await this._loadAmpelSetting();
     await this._loadTextLimitsSetting();
     await this.reloadList(true);
@@ -2550,6 +2820,720 @@ export default class TopsView {
     this.applyEditBoxState();
   }
 
+
+async _refreshIdleProtocolPresence() {
+  // Prüft, ob im Projekt bereits Protokolle (Meetings) existieren.
+  // Ergebnis steuert, ob im Idle-State zusätzlich "E-Mail senden" angeboten wird.
+  this._idleHasProtocols = false;
+
+  const pid = this.projectId;
+  if (!pid) return;
+
+  const api = window.bbmDb || {};
+  if (typeof api.meetingsListByProject !== "function") {
+    // Ohne API können wir es nicht sicher sagen -> konservativ: false
+    return;
+  }
+
+  try {
+    const res = await api.meetingsListByProject(pid);
+    if (res && res.ok) {
+      const list = Array.isArray(res.list) ? res.list : [];
+      this._idleHasProtocols = list.length > 0;
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
+_renderIdleState() {
+  // UI im Idle-State: kein aktives Protokoll.
+  // Regeln:
+  // - Editbox nicht anzeigen
+  // - Topsbar zeigt "kein Protokoll aktiv" oder "kein Protokoll vorhanden"
+  // - Ampel, Langtext, Protokoll schließen disabled
+  // - Main: keine TOP-Liste, Buttons "Protokoll neu" (+ ggf. "E-Mail senden")
+  try {
+    // Editbox
+    if (this.box) this.box.style.display = "none";
+
+    // Buttons deaktivieren
+    const dis = (b) => {
+      if (!b) return;
+      b.disabled = true;
+      b.style.opacity = "0.55";
+      b.style.cursor = "default";
+    };
+    dis(this.btnAmpelToggle);
+    dis(this.btnLongToggle);
+    dis(this.btnEndMeeting);
+
+    // Liste leeren und Idle Buttons anzeigen
+    if (this.listEl) {
+      this.listEl.innerHTML = "";
+      const li = document.createElement("li");
+      li.style.listStyle = "none";
+      li.style.padding = "28px 12px";
+      li.style.display = "flex";
+      li.style.justifyContent = "center";
+
+      const wrap = document.createElement("div");
+      wrap.style.display = "flex";
+      wrap.style.flexDirection = "column";
+      wrap.style.alignItems = "center";
+      wrap.style.gap = "10px";
+      wrap.style.maxWidth = "520px";
+      wrap.style.width = "100%";
+      wrap.style.opacity = "0.95";
+
+      const img = document.createElement("img");
+      img.src = EMPTY_LEVEL1_HINT_PNG;
+      img.alt = "Hinweis Protokoll neu";
+      img.style.width = "220px";
+      img.style.maxWidth = "70%";
+      img.style.height = "auto";
+      img.style.objectFit = "contain";
+      wrap.appendChild(img);
+
+      const btnNew = document.createElement("button");
+      btnNew.type = "button";
+      btnNew.textContent = "Protokoll neu";
+      btnNew.style.display = "inline-flex";
+      btnNew.style.alignItems = "center";
+      btnNew.style.justifyContent = "center";
+      btnNew.style.border = "none";
+      btnNew.style.background = "transparent";
+      btnNew.style.color = "#111827";
+      btnNew.style.padding = "0 2px 2px";
+      btnNew.style.margin = "0";
+      btnNew.style.minHeight = "0";
+      btnNew.style.lineHeight = "1.25";
+      btnNew.style.fontSize = "14px";
+      btnNew.style.fontWeight = "700";
+      btnNew.style.borderRadius = "0";
+      btnNew.style.borderBottom = "2px solid currentColor";
+      btnNew.style.borderBottomColor = "currentColor";
+      btnNew.style.cursor = this._busy ? "default" : "pointer";
+      btnNew.style.whiteSpace = "nowrap";
+      btnNew.disabled = !!this._busy;
+      btnNew.onmouseenter = () => {
+        if (btnNew.disabled) return;
+        btnNew.style.borderBottomColor = "#ff8c00";
+      };
+      btnNew.onmouseleave = () => {
+        btnNew.style.borderBottomColor = "currentColor";
+      };
+      btnNew.onclick = () => {
+        if (this._busy) return;
+        this._createMeetingFromIdle().catch((e) => {
+          console.error("[TopsView] _createMeetingFromIdle failed:", e);
+          alert(e && e.message ? e.message : String(e));
+        });
+      };
+      wrap.appendChild(btnNew);
+
+      li.appendChild(wrap);
+      this.listEl.appendChild(li);
+      this.listEl.style.paddingBottom = "16px";
+    }
+
+    this._updateTopBarProtocolTitle();
+    this._updateTopBarMetaLabels();
+  } catch (e) {
+    console.error("[TopsView] _renderIdleState error:", e);
+  }
+}
+
+_openMailClient() {
+  // Öffnet den Standard-Mailclient (Windows Handler für MAILTO).
+  const subject = encodeURIComponent("Baubesprechung");
+  const body = encodeURIComponent("Hallo,\n\n");
+  const href = `mailto:?subject=${subject}&body=${body}`;
+  try {
+    window.location.href = href;
+  } catch (e) {
+    console.warn("[TopsView] mailto failed:", e);
+  }
+}
+
+getSelectedClosedMeetingForEmail() {
+  if (this._lastClosedMeetingForEmail && this._lastClosedMeetingForEmail.id) {
+    return this._lastClosedMeetingForEmail;
+  }
+  if (this.meetingMeta && Number(this.meetingMeta.is_closed) === 1) {
+    return { ...this.meetingMeta, id: this.meetingId };
+  }
+  return null;
+}
+
+async _maybePromptSendAfterClose({ printResults, meeting }) {
+  await this._openSendMailAfterClose({ printResults, meeting });
+}
+
+async _openSendMailAfterClose({ printResults, meeting }) {
+  const MainHeader = (await import("../ui/MainHeader.js")).default;
+  const headerHelper = new MainHeader({ router: this.router });
+  const meetingRef = meeting || this.getSelectedClosedMeetingForEmail() || { id: this.meetingId };
+  const meetingId = meetingRef?.id || this.meetingId || null;
+
+  const recOptions = await headerHelper._getMeetingRecipientOptions(meetingId);
+  const allRecipients = recOptions.all || [];
+  const distRecipients =
+    (recOptions.anyDistributionField && recOptions.distribution.length ? recOptions.distribution : allRecipients) || [];
+  let selectedRecipients = [...distRecipients];
+
+  const { projectNumber, projectShortName } = await headerHelper._getCurrentProjectMailContext();
+  const protocolTitle = await headerHelper._resolveProtocolTitleForEmail(this.projectId || this.router?.currentProjectId);
+  const emailTemplate = await headerHelper._getStoredEmailTemplate();
+  const templateContext = headerHelper._buildEmailTemplateContext({
+    projectNumber,
+    projectShortName,
+    protocolTitle,
+    meeting: meetingRef,
+  });
+  const baseSubject = headerHelper._applyEmailSubjectTemplate(emailTemplate.subject || "", templateContext) ||
+    headerHelper._buildFallbackEmailSubject({ projectNumber, projectShortName, mailType: "" }) ||
+    headerHelper._defaultMeetingEmailSubject(templateContext);
+  const baseBody =
+    (emailTemplate.body || "").trim() ||
+    "Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
+
+  const attachments = [
+    { key: "protocol", label: "Protokoll", path: printResults?.protocol?.filePath || "" },
+    { key: "firms", label: "Firmenliste", path: printResults?.firms?.filePath || "" },
+    { key: "todo", label: "ToDo-Liste", path: printResults?.todo?.filePath || "" },
+    { key: "tops", label: "Top-Liste", path: printResults?.tops?.filePath || "" },
+  ];
+
+  // fallback: versuche gespeichertes Protokoll zu finden, falls Pfad fehlt
+  if (!attachments[0].path) {
+    try {
+      const lookup = await headerHelper._buildProtocolPdfLookupPayload(meetingRef, this.projectId || this.router?.currentProjectId);
+      if (lookup && window.bbmPrint?.findStoredProtocolPdf) {
+        const found = await window.bbmPrint.findStoredProtocolPdf(lookup);
+        if (found?.ok && found?.filePath) attachments[0].path = String(found.filePath || "");
+      }
+    } catch (_e) {
+      // ignore
+    }
+  }
+
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,0.45)";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.zIndex = "13000";
+  overlay.tabIndex = -1;
+
+  const card = document.createElement("div");
+  applyPopupCardStyle(card);
+  card.style.width = "min(720px, 94vw)";
+  card.style.maxHeight = "90vh";
+  card.style.display = "grid";
+  card.style.gridTemplateRows = "auto 1fr auto";
+  card.style.rowGap = "14px";
+  card.style.padding = "16px";
+
+  const title = document.createElement("div");
+  title.textContent = "Protokoll versenden";
+  title.style.fontWeight = "700";
+  title.style.fontSize = "16px";
+
+  const content = document.createElement("div");
+  content.style.display = "grid";
+  content.style.gridTemplateColumns = "1fr 1fr";
+  content.style.gap = "14px";
+  content.style.overflow = "auto";
+
+  // Empfänger
+  const recWrap = document.createElement("div");
+  recWrap.style.display = "flex";
+  recWrap.style.flexDirection = "column";
+  recWrap.style.gap = "8px";
+
+  const recTitle = document.createElement("div");
+  recTitle.textContent = "Empfänger";
+  recTitle.style.fontWeight = "700";
+
+  const recActions = document.createElement("div");
+  recActions.style.display = "flex";
+  recActions.style.flexWrap = "wrap";
+  recActions.style.gap = "6px";
+
+  const mkRecAction = (label, handler) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = label;
+    applyPopupButtonStyle(btn, { variant: "neutral" });
+    btn.style.padding = "4px 8px";
+    btn.onclick = handler;
+    return btn;
+  };
+
+  const applyRecipientSelection = (list) => {
+    selectedRecipients = [...list];
+    Array.from(recList.querySelectorAll("input[type=checkbox]")).forEach((cb) => {
+      cb.checked = selectedRecipients.includes(cb.value);
+    });
+  };
+
+  recActions.append(
+    mkRecAction("Alle", () => applyRecipientSelection(allRecipients)),
+    mkRecAction("Keine", () => applyRecipientSelection([]))
+  );
+
+  const recList = document.createElement("div");
+  recList.style.display = "flex";
+  recList.style.flexDirection = "column";
+  recList.style.gap = "4px";
+  recList.style.maxHeight = "220px";
+  recList.style.overflow = "auto";
+
+  const mkRecRow = (email) => {
+    const row = document.createElement("label");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "6px";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = email;
+    cb.checked = selectedRecipients.includes(email);
+    cb.onchange = () => {
+      if (cb.checked) {
+        if (!selectedRecipients.includes(email)) selectedRecipients.push(email);
+      } else {
+        selectedRecipients = selectedRecipients.filter((x) => x !== email);
+      }
+    };
+    const text = document.createElement("span");
+    text.textContent = email;
+    row.append(cb, text);
+    return row;
+  };
+
+  const uniqueAll = Array.from(new Set(allRecipients));
+  if (uniqueAll.length) {
+    uniqueAll.forEach((mail) => recList.appendChild(mkRecRow(mail)));
+  } else {
+    const hint = document.createElement("div");
+    hint.textContent = "Keine Empfänger gefunden.";
+    hint.style.opacity = "0.7";
+    recList.appendChild(hint);
+  }
+
+  recWrap.append(recTitle, recActions, recList);
+
+  // Anhänge
+  const attWrap = document.createElement("div");
+  attWrap.style.display = "flex";
+  attWrap.style.flexDirection = "column";
+  attWrap.style.gap = "8px";
+
+  const attTitle = document.createElement("div");
+  attTitle.textContent = "Anhänge";
+  attTitle.style.fontWeight = "700";
+
+  const attList = document.createElement("div");
+  attList.style.display = "flex";
+  attList.style.flexDirection = "column";
+  attList.style.gap = "6px";
+
+  attachments.forEach((att) => {
+    const row = document.createElement("label");
+    row.style.display = "flex";
+    row.style.alignItems = "center";
+    row.style.gap = "6px";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.onchange = () => {
+      att.selected = cb.checked;
+    };
+    att.selected = true;
+    const text = document.createElement("span");
+    text.textContent = att.label + (att.path ? "" : " (Pfad fehlt)");
+    row.append(cb, text);
+    attList.appendChild(row);
+  });
+
+  attWrap.append(attTitle, attList);
+
+  // Betreff / Text
+  const subjectLabel = document.createElement("div");
+  subjectLabel.textContent = "Betreff";
+  subjectLabel.style.fontWeight = "700";
+  subjectLabel.style.gridColumn = "1 / -1";
+
+  const subjectInput = document.createElement("input");
+  subjectInput.type = "text";
+  subjectInput.value = baseSubject;
+  subjectInput.style.width = "100%";
+  subjectInput.style.maxWidth = "100%";
+  subjectInput.style.boxSizing = "border-box";
+  subjectInput.style.padding = "8px";
+  subjectInput.style.gridColumn = "1 / -1";
+
+  const bodyLabel = document.createElement("div");
+  bodyLabel.textContent = "Mailtext";
+  bodyLabel.style.fontWeight = "700";
+  bodyLabel.style.gridColumn = "1 / -1";
+
+  const bodyInput = document.createElement("textarea");
+  bodyInput.value = baseBody;
+  bodyInput.style.width = "100%";
+  bodyInput.style.maxWidth = "100%";
+  bodyInput.style.boxSizing = "border-box";
+  bodyInput.style.minHeight = "180px";
+  bodyInput.style.padding = "8px";
+  bodyInput.style.gridColumn = "1 / -1";
+
+  content.append(recWrap, attWrap);
+  content.append(subjectLabel, subjectInput, bodyLabel, bodyInput);
+  content.style.gridTemplateColumns = "1fr 1fr";
+  content.style.gridTemplateRows = "auto auto auto auto";
+  content.style.gridAutoFlow = "row";
+
+  const actions = document.createElement("div");
+  actions.style.display = "flex";
+  actions.style.justifyContent = "flex-end";
+  actions.style.gap = "10px";
+
+  const btnCancel = document.createElement("button");
+  btnCancel.type = "button";
+  btnCancel.textContent = "Abbrechen";
+  applyPopupButtonStyle(btnCancel, { variant: "neutral" });
+
+
+  const btnSend = document.createElement("button");
+  btnSend.type = "button";
+  btnSend.textContent = "Mit Outlook / Mailprogramm öffnen";
+  applyPopupButtonStyle(btnSend, { variant: "primary" });
+
+  const closeOverlay = () => {
+    try {
+      overlay.remove();
+    } catch (_e) {
+      // ignore
+    }
+  };
+
+  const collectAttachments = () =>
+    attachments.filter((a) => a.selected && a.path).map((a) => a.path);
+
+  btnSend.onclick = async () => {
+    btnSend.disabled = true;
+    try {
+      await headerHelper._openMailClient("", {
+        recipients: selectedRecipients,
+        subject: subjectInput.value,
+        body: bodyInput.value,
+        attachments: collectAttachments(),
+        meeting: meetingRef,
+      });
+    } catch (err) {
+      console.error("[tops] send mail failed:", err);
+    } finally {
+      closeOverlay();
+      await this._enterIdleAfterClose();
+    }
+  };
+
+
+  btnCancel.onclick = async () => {
+    closeOverlay();
+    await this._enterIdleAfterClose();
+  };
+
+  actions.append(btnCancel, btnSend);
+
+  card.append(title, content, actions);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  try {
+    overlay.focus();
+  } catch (_e) {
+    // ignore
+  }
+}
+
+
+
+_writeCreateMeetingEditParticipants(val) {
+  // Merker (optional) – aktuell nur für den Create-Flow relevant.
+  this._createMeetingEditParticipants = !!val;
+}
+
+_openCreateMeetingModal({ dateISO, keyword = "", editParticipants = true } = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "9999";
+
+    const panel = document.createElement("div");
+    panel.style.background = "#fff";
+    panel.style.borderRadius = "12px";
+    panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.25)";
+    panel.style.width = "min(520px, calc(100vw - 32px))";
+    panel.style.padding = "16px";
+
+    const h = document.createElement("div");
+    h.textContent = "Neue Besprechung";
+    h.style.fontWeight = "700";
+    h.style.fontSize = "16px";
+    h.style.marginBottom = "12px";
+    panel.appendChild(h);
+
+    const row = (labelText, inputEl) => {
+      const r = document.createElement("div");
+      r.style.display = "flex";
+      r.style.flexDirection = "column";
+      r.style.gap = "6px";
+      r.style.marginBottom = "12px";
+
+      const lab = document.createElement("div");
+      lab.textContent = labelText;
+      lab.style.fontSize = "12px";
+      lab.style.color = "#444";
+      r.appendChild(lab);
+
+      r.appendChild(inputEl);
+      return r;
+    };
+
+    const inpDate = document.createElement("input");
+    inpDate.type = "date";
+    if (typeof dateISO === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateISO)) inpDate.value = dateISO;
+    inpDate.style.padding = "10px 12px";
+    inpDate.style.borderRadius = "10px";
+    inpDate.style.border = "1px solid rgba(0,0,0,0.2)";
+    panel.appendChild(row("Datum der Besprechung", inpDate));
+
+    const inpKw = document.createElement("input");
+    inpKw.type = "text";
+    inpKw.placeholder = "Schlagwort (optional)";
+    inpKw.value = String(keyword || "");
+    inpKw.style.padding = "10px 12px";
+    inpKw.style.borderRadius = "10px";
+    inpKw.style.border = "1px solid rgba(0,0,0,0.2)";
+    panel.appendChild(row("Schlagwort", inpKw));
+
+    const chkWrap = document.createElement("label");
+    chkWrap.style.display = "flex";
+    chkWrap.style.alignItems = "center";
+    chkWrap.style.gap = "10px";
+    chkWrap.style.margin = "6px 0 14px 0";
+    chkWrap.style.userSelect = "none";
+
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.checked = !!editParticipants;
+
+    const chkText = document.createElement("div");
+    chkText.textContent = "Teilnehmer nach dem Anlegen öffnen";
+    chkText.style.fontSize = "13px";
+
+    chkWrap.appendChild(chk);
+    chkWrap.appendChild(chkText);
+    panel.appendChild(chkWrap);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.justifyContent = "flex-end";
+    btnRow.style.gap = "10px";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.textContent = "Abbrechen";
+    btnCancel.style.padding = "10px 14px";
+    btnCancel.style.borderRadius = "10px";
+    btnCancel.style.border = "1px solid rgba(0,0,0,0.2)";
+    btnCancel.style.background = "#fff";
+
+    const btnOk = document.createElement("button");
+    btnOk.textContent = "Übernehmen";
+    btnOk.style.padding = "10px 14px";
+    btnOk.style.borderRadius = "10px";
+    btnOk.style.border = "1px solid rgba(0,0,0,0.2)";
+    btnOk.style.background = "#fff";
+    btnOk.style.fontWeight = "700";
+
+    btnRow.appendChild(btnCancel);
+    btnRow.appendChild(btnOk);
+    panel.appendChild(btnRow);
+
+    const cleanup = (res) => {
+      try { overlay.remove(); } catch (e) {}
+      resolve(res);
+    };
+
+    btnCancel.onclick = () => cleanup(null);
+    overlay.onclick = (ev) => {
+      if (ev.target === overlay) cleanup(null);
+    };
+
+    const submit = () => {
+      const vDate = String(inpDate.value || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(vDate)) {
+        alert("Bitte ein gültiges Datum auswählen.");
+        return;
+      }
+      cleanup({
+        dateISO: vDate,
+        keyword: String(inpKw.value || "").trim(),
+        editParticipants: !!chk.checked,
+      });
+    };
+
+    btnOk.onclick = submit;
+    inpDate.onkeydown = (ev) => {
+      if (ev.key === "Enter") submit();
+      if (ev.key === "Escape") cleanup(null);
+    };
+    inpKw.onkeydown = (ev) => {
+      if (ev.key === "Enter") submit();
+      if (ev.key === "Escape") cleanup(null);
+    };
+    document.addEventListener("keydown", function escHandler(ev) {
+      if (ev.key === "Escape") {
+        document.removeEventListener("keydown", escHandler);
+        cleanup(null);
+      }
+    });
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    // Fokus
+    setTimeout(() => { try { inpDate.focus(); } catch (e) {} }, 0);
+  });
+}
+
+async _createMeetingFromIdle() {
+  const api = window.bbmDb || {};
+  if (typeof api.meetingsCreate !== "function") {
+    alert("meetingsCreate ist nicht verfügbar (Preload/IPC fehlt).");
+    return;
+  }
+
+  const pid = this.projectId;
+  if (!pid) {
+    alert("Kein Projekt ausgewählt.");
+    return;
+  }
+
+  // Zwischendialog: Datum wählen + entscheiden, ob Teilnehmer-Popup geöffnet werden soll.
+  // (Datum wird NICHT automatisch übernommen, sondern muss bestätigt werden.)
+  let dateISO = this._todayISO(); // Vorschlag (User kann ändern)
+  let keyword = "";
+  let editParticipants = true;
+
+  const modalRes = await this._openCreateMeetingModal({ dateISO, keyword, editParticipants });
+  if (!modalRes) return;
+
+  const pickedISO = String(modalRes.dateISO || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(pickedISO)) dateISO = pickedISO;
+  keyword = String(modalRes.keyword || "").trim();
+  editParticipants = modalRes.editParticipants !== false;
+  this._writeCreateMeetingEditParticipants(editParticipants);
+
+  // nextIndex ermitteln
+  let nextIndex = 1;
+  if (typeof api.meetingsListByProject === "function") {
+    try {
+      const res = await api.meetingsListByProject(pid);
+      if (res && res.ok) {
+        const list = Array.isArray(res.list) ? res.list : [];
+        const maxIdx = list.reduce((mx, x) => Math.max(mx, Number(x.meeting_index || 0)), 0);
+        nextIndex = (maxIdx || 0) + 1;
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const dd = this._isoToDDMMYYYY(dateISO);
+  const idx = `#${nextIndex}`;
+  const title = keyword ? `${idx} ${dd} - ${keyword}` : `${idx} ${dd}`;
+
+  const createRes = await api.meetingsCreate({ projectId: pid, title });
+  if (!createRes || !createRes.ok) {
+    const msg = (createRes && createRes.error) ? createRes.error : "Besprechung anlegen fehlgeschlagen";
+    console.error("[TopsView] meetingsCreate failed", { pid, dateISO, keyword, title, error: msg });
+    alert("Besprechung konnte nicht angelegt werden.");
+    return;
+  }
+
+  const mid = createRes && createRes.meeting ? createRes.meeting.id : null;
+  if (!mid) {
+    alert("Besprechung angelegt, aber keine ID erhalten.");
+    return;
+  }
+
+  // Tops öffnen
+  this.router.currentProjectId = pid;
+  this.router.currentMeetingId = mid;
+  await this.router.showTops(mid, pid);
+
+  // optional Teilnehmer bearbeiten
+  if (editParticipants && this.router && typeof this.router.openParticipantsModal === "function") {
+    try {
+      await this.router.openParticipantsModal({ projectId: pid, meetingId: mid });
+    } catch (e) {
+      console.warn("[TopsView] openParticipantsModal failed:", e);
+    }
+  }
+}
+
+async _enterIdleAfterClose() {
+  // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
+  this.meetingId = null;
+  this.meetingMeta = null;
+  this.selectedTopId = null;
+  this.selectedTop = null;
+  this.isReadOnly = false;
+
+  await this._refreshIdleProtocolPresence();
+  this._renderIdleState();
+}
+
+async _findOpenMeetingIdForProject() {
+  const pid = this.projectId || this.router?.currentProjectId || null;
+  const api = window.bbmDb || {};
+  if (!pid || typeof api.meetingsListByProject !== "function") return null;
+
+  try {
+    const res = await api.meetingsListByProject(pid);
+    if (!res?.ok) return null;
+    const list = Array.isArray(res.list) ? res.list : [];
+    const openMeeting = list.find((m) => Number(m?.is_closed) === 0);
+    return openMeeting?.id || null;
+  } catch (err) {
+    console.warn("[TopsView] _findOpenMeetingIdForProject failed:", err);
+    return null;
+  }
+}
+
+async _closeViewOnly() {
+  const pid = this.projectId || this.router?.currentProjectId || null;
+  const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
+
+  if (isClosedMeeting) {
+    const openMeetingId = await this._findOpenMeetingIdForProject();
+    if (openMeetingId) {
+      await this.router?.showTops?.(openMeetingId, pid);
+      return;
+    }
+  }
+
+  await this.router?.showProjects?.();
+}
   _applyReadOnlyState() {
     const ro = !!this.isReadOnly;
     const busy = !!this._busy;
@@ -2566,10 +3550,9 @@ export default class TopsView {
     }
 
     if (this.btnEndMeeting) {
-      // "Protokoll schließen" darf immer schließen (auch bei read-only),
-      // nur bei busy sperren.
-      this.btnEndMeeting.disabled = busy;
+      this.btnEndMeeting.disabled = ro || busy;
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
+      this.btnEndMeeting.style.display = ro ? "none" : "";
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
@@ -2968,12 +3951,15 @@ export default class TopsView {
     } finally {
       this._setBusy(false);
       if (needsReload) {
-        setTimeout(() => {
-          this.reloadList(true).catch(() => {});
-        }, 0);
+        fireAndForget(async () => {
+          // Nach dem Schieben kann in der Ursprungs-Gruppe eine Nummernlücke entstehen.
+          // Die bestehende Auto-Fix-Prozedur (meetingTopsFixNumberGap) schließt diese Lücke(n) sofort.
+          await this.reloadList(true);
+          await this._autoFixNumberGapsAfterDelete();
+        });
       }
     }
-  }
+}
 
   async reloadList(keepSelection) {
     const list = this.listEl;
@@ -3079,10 +4065,43 @@ export default class TopsView {
       const isMarked = this._markTopIds && this._markTopIds.has(top.id);
 
       const isImportant = Number(top.is_important) === 1;
-      const isOld = Number(top.is_carried_over) === 1;
-      const isTouched = Number(top.is_touched) === 1;
+      const parseFlag = (v) => {
+        if (v === true || v === false) return v;
+        if (typeof v === "string") {
+          const s = v.trim().toLowerCase();
+          return s === "1" || s === "true";
+        }
+        const n = Number(v);
+        return Number.isFinite(n) ? n === 1 : false;
+      };
+
+      const isOld = parseFlag(
+        top.is_carried_over ??
+          top.isCarriedOver ??
+          top.frozen_is_carried_over ??
+          top.frozenIsCarriedOver
+      );
+      const isTouched = parseFlag(
+        top.is_touched ??
+          top.isTouched ??
+          top.frozen_is_touched ??
+          top.frozenIsTouched
+      );
       const isLevel1 = Number(top.level) === 1;
       const isDone = shouldGrayTopForMeeting(top, meeting);
+      const changedRaw =
+        top.updated_at ??
+        top.updatedAt ??
+        top.changed_at ??
+        top.changedAt ??
+        top.frozen_changed_at ??
+        top.frozenChangedAt ??
+        top.longtext_changed_at ??
+        top.longtextChangedAt ??
+        top.created_at ??
+        top.createdAt ??
+        null;
+      const changedDate = changedRaw ? this._formatDue(changedRaw) : "";
 
       const topIdKey = String(top.id);
       const isCollapsed = isLevel1 && this.level1Collapsed.has(topIdKey);
@@ -3166,11 +4185,44 @@ export default class TopsView {
         numBlock.appendChild(btnToggle);
       }
 
+            const numWrap = document.createElement("div");
+      numWrap.style.display = "flex";
+      numWrap.style.flexDirection = "column";
+      numWrap.style.lineHeight = "1.05";
+
       const numLabel = document.createElement("span");
       numLabel.textContent = `${num}.`;
-      numBlock.appendChild(numLabel);
+      numWrap.appendChild(numLabel);
 
-      const textCol = document.createElement("div");
+      // Hinweis unter Nummer, danach Stern (Flag bleibt auch nach Kopie sichtbar)
+      if (isOld && changedDate) {
+        const hint = document.createElement("span");
+        hint.textContent =
+          changedDate && changedDate !== "-"
+            ? `(Text geändert\n${changedDate})`
+            : "(Text geändert)";
+        hint.style.fontSize = "7pt";
+        hint.style.opacity = "0.85";
+        hint.style.color = "#000000";
+        hint.style.lineHeight = "1.1";
+        hint.style.whiteSpace = "pre";
+        numWrap.appendChild(hint);
+      }
+
+      if (!isOld && !isTouched) {
+        const star = document.createElement("span");
+        star.textContent = "★";
+        star.title = !isOld ? "Neuer TOP" : "Übernommener, geänderter TOP";
+        star.setAttribute("aria-label", star.title);
+        star.style.color = "#fbc02d";
+        star.style.fontSize = isLevel1 ? `${Math.max(fontSizes.l1 - 1, 12)}px` : `${Math.max(fontSizes.l24 - 1, 12)}px`;
+        star.style.lineHeight = "1";
+        star.style.marginLeft = "0px";
+        numWrap.appendChild(star);
+      }
+
+      numBlock.appendChild(numWrap);
+const textCol = document.createElement("div");
       textCol.style.display = "flex";
       textCol.style.flexDirection = "column";
       textCol.style.gap = "4px";
@@ -3187,17 +4239,19 @@ export default class TopsView {
 
       textCol.append(shortLine);
 
-      if (this.showLongtextInList) {
-        const lt = top.longtext ? String(top.longtext) : "";
-        if (lt) {
-          const longDiv = document.createElement("div");
-          longDiv.textContent = this._clampStr(lt, this._longMax());
-          longDiv.style.fontSize = `${fontSizes.long}px`;
-          longDiv.style.opacity = "0.85";
-          longDiv.style.whiteSpace = "pre-wrap";
-          longDiv.style.color = longColor;
-          textCol.append(longDiv);
-        }
+      let lt = top.longtext ? String(top.longtext) : "";
+      if (isOld && isTouched && changedDate) {
+        lt = `${lt}${lt ? "\n" : ""}(Text geändert ${changedDate})`;
+      }
+
+      if (this.showLongtextInList && lt) {
+        const longDiv = document.createElement("div");
+        longDiv.textContent = this._clampStr(lt, this._longMax());
+        longDiv.style.fontSize = `${fontSizes.long}px`;
+        longDiv.style.opacity = "0.85";
+        longDiv.style.whiteSpace = "pre-wrap";
+        longDiv.style.color = longColor;
+        textCol.append(longDiv);
       }
 
       let metaCol = null;
@@ -3310,11 +4364,56 @@ export default class TopsView {
       img.style.objectFit = "contain";
 
       const hint = document.createElement("div");
-      hint.textContent = "Mit Button  |+Titel|  den ersten Titel anlegen";
       hint.style.fontSize = "14px";
       hint.style.fontWeight = "600";
       hint.style.textAlign = "center";
       hint.style.color = "#1f2937";
+      hint.style.display = "flex";
+      hint.style.flexWrap = "wrap";
+      hint.style.alignItems = "center";
+      hint.style.justifyContent = "center";
+      hint.style.gap = "6px";
+
+      const hintPrefix = document.createElement("span");
+      hintPrefix.textContent = "Mit Button";
+
+      const hintBtn = document.createElement("button");
+      hintBtn.textContent = "+Titel";
+      hintBtn.style.display = "inline-flex";
+      hintBtn.style.alignItems = "center";
+      hintBtn.style.justifyContent = "center";
+      hintBtn.style.border = "none";
+      hintBtn.style.background = "transparent";
+      hintBtn.style.color = "var(--header-text)";
+      hintBtn.style.padding = "0 2px 2px";
+      hintBtn.style.margin = "0";
+      hintBtn.style.minHeight = "0";
+      hintBtn.style.lineHeight = "1.25";
+      hintBtn.style.fontSize = "13px";
+      hintBtn.style.fontWeight = "700";
+      hintBtn.style.borderRadius = "0";
+      hintBtn.style.borderBottom = "2pt solid currentColor";
+      hintBtn.style.lineHeight = "1.2";
+      hintBtn.style.alignSelf = "center";
+      hintBtn.style.borderBottomColor = "currentColor";
+      hintBtn.style.cursor = "pointer";
+      hintBtn.style.whiteSpace = "nowrap";
+      hintBtn.onmouseenter = () => {
+        if (hintBtn.disabled) return;
+        hintBtn.style.borderBottomColor = "#ff8c00";
+      };
+      hintBtn.onmouseleave = () => {
+        hintBtn.style.borderBottomColor = "currentColor";
+      };
+      hintBtn.addEventListener("click", () => {
+        if (this.isReadOnly || this._busy) return;
+        this.createTop(1, null);
+      });
+
+      const hintSuffix = document.createElement("span");
+      hintSuffix.textContent = "den ersten Titel anlegen";
+
+      hint.append(hintPrefix, hintBtn, hintSuffix);
 
       emptyWrap.append(img, hint);
       list.appendChild(emptyWrap);
@@ -3374,6 +4473,14 @@ export default class TopsView {
 
   applyEditBoxState() {
     const t = this.selectedTop;
+
+    if (!t) {
+      this._dueDirty = false;
+      this._dueDirtyTopId = null;
+    } else if (!this._sameTopId(this._dueDirtyTopId, t.id)) {
+      this._dueDirty = false;
+      this._dueDirtyTopId = null;
+    }
 
     const isLevel1 = Number(t?.level) === 1;
     if (this.editMetaCol) this.editMetaCol.style.display = isLevel1 ? "none" : "";
@@ -3445,6 +4552,7 @@ export default class TopsView {
       this.selStatus.value = st || "offen";
     }
 
+    this._applyProjectDueDefaults(t);
     this._updateDueAmpelFromInputs();
     this._clearLegacyResponsibleOption();
     this._respLegacyReadonly = false;
@@ -3470,6 +4578,7 @@ export default class TopsView {
           this._respLastSetTopId = topId;
           this._respDirty = false;
           this._respDirtyTopId = null;
+          this._applyProjectDueDefaults(t);
         }
       })
       .catch(() => {});
@@ -3738,6 +4847,3 @@ export default class TopsView {
     this._gapPopupOverlay = overlay;
   }
 }
-
-
-

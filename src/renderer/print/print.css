@@ -227,7 +227,7 @@ body {
 .firmPeopleHead,
 .firmPeopleRow {
   display: grid;
-  grid-template-columns: 17mm 20mm 46mm 67mm 40mm;
+  grid-template-columns: 17mm 20mm 46mm 107mm;
   column-gap: 0;
 }
 
@@ -237,12 +237,21 @@ body {
   padding: 1.2mm 0 1mm;
 }
 
+.firmPeopleContactHead {
+  display: grid;
+  gap: 0.6mm;
+  font-size: 8.7pt;
+  line-height: 1.1;
+}
+
+.firmPeopleContactHeadLine {
+  white-space: nowrap;
+}
+
 .firmPeopleHead > div:nth-child(3),
 .firmPeopleRow > div:nth-child(3),
 .firmPeopleHead > div:nth-child(4),
-.firmPeopleRow > div:nth-child(4),
-.firmPeopleHead > div:nth-child(5),
-.firmPeopleRow > div:nth-child(5) {
+.firmPeopleRow > div:nth-child(4) {
   border-left: 1px solid #cfd8dc;
   padding-left: 1.2mm;
 }
@@ -261,6 +270,15 @@ body {
 .firmPeopleRow > div:nth-child(4) {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.firmPeopleContact {
+  display: grid;
+  gap: 0.6mm;
+}
+
+.firmPeopleContactLine {
+  line-height: 1.25;
 }
 
 .firmPeopleEmpty {
@@ -316,14 +334,18 @@ body {
   align-items: stretch;
   width: 100%;
 }
-
+/* 
+   Das ist ein
+   mehrzeiliger Kommentar
+   folgend wird das Datum unter der topNumber eingestellt
+*/
 .nrDate {
-  font-size: 9pt;
+  font-size: 7pt;
   line-height: 1.1;
 }
-
+/* Das ist die Kennzeichnungseinstellung für ausgeblendete Tops */
 .nrHint {
-  font-size: 8.6pt;
+  font-size: 7pt;
   line-height: 1.1;
   color: #555;
 }
@@ -348,6 +370,21 @@ body {
 .lvl1Row.isNewTop .topNumber,
 .lvl1Row.isNewTop .lvl1Text {
   color: #1565c0;
+}
+
+.topRow.isImportant .topNumber,
+.topRow.isImportant .shortText,
+.topRow.isImportant .longText,
+.topRow .longText.isImportant,
+.lvl1Row.isImportant .topNumber,
+.lvl1Row.isImportant .lvl1Text,
+.topNumber.isImportant,
+.shortText.isImportant,
+.longText.isImportant,
+.lvl1Text.isImportant {
+  color: #c62828 !important;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
 .topsTable .shortText {

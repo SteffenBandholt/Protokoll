@@ -509,7 +509,7 @@ class TopService {
         ? patch.dueDate
         : (patch.due_date !== undefined ? patch.due_date : existingMt.due_date);
 
-    const longtext = patch.longtext !== undefined ? patch.longtext : existingMt.longtext;
+    let longtext = patch.longtext !== undefined ? patch.longtext : existingMt.longtext;
 
     // ✅ Blau machen NUR, wenn ein übernommener TOP im Langtext geändert wurde
     let touch = undefined;
@@ -517,9 +517,23 @@ class TopService {
     if (longProvided && Number(existingMt.is_carried_over) === 1) {
       const prev =
         existingMt.longtext === null || existingMt.longtext === undefined ? null : String(existingMt.longtext);
-      const next =
+      const nextRaw =
         patch.longtext === null || patch.longtext === undefined ? null : String(patch.longtext);
-      if (prev !== next) touch = 1;
+      const isChanged = prev !== nextRaw;
+      if (isChanged) {
+        touch = 1;
+        const d = new Date();
+        const stamp = `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1)
+          .padStart(2, "0")}.${d.getFullYear()}`;
+        const marker = `(Text geändert ${stamp})`;
+        const base = nextRaw || "";
+        if (!base.includes(marker)) {
+          const sep = base && !base.endsWith("\n") ? "\n" : "";
+          longtext = `${base}${sep}${marker}`;
+        } else {
+          longtext = base;
+        }
+      }
     }
 
     return this.meetingTopsRepo.updateMeetingTop({

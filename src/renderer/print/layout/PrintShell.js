@@ -2,6 +2,7 @@ import { renderV2GlobalHeader } from "../v2/header/GlobalHeader.js";
 import { renderV2FullHeader } from "../v2/header/FullHeader.js";
 import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
+
 const APP_ICON_URL = new URL("../assets/bbm-icon.png", window.location.href).toString();
 
 function _el(tag, className, text) {
@@ -24,6 +25,16 @@ function _buildStarIcon() {
     </svg>
   `.trim();
   return wrap;
+}
+
+function _applyImportantPrintColor(...els) {
+  for (const el of els) {
+    if (!el) continue;
+    el.classList.add("isImportant");
+    el.style.color = "#c62828";
+    el.style.webkitPrintColorAdjust = "exact";
+    el.style.printColorAdjust = "exact";
+  }
 }
 
 function _buildPageHeader({ projectLabel, docLabel, pageNo, totalPages }) {
@@ -71,6 +82,7 @@ function _buildTopRow(row) {
     const tr = document.createElement("tr");
     tr.className = "topRow lvl1Row";
     if (row.isNewTop) tr.classList.add("isNewTop");
+    if (row.isImportant) tr.classList.add("isImportant");
 
     const td = document.createElement("td");
     td.colSpan = 3;
@@ -78,11 +90,15 @@ function _buildTopRow(row) {
 
     const wrap = _el("div", "lvl1Wrap");
     const numBox = _el("div", "nrBox");
-    numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+    const topNumberEl = _el("div", "topNumber", row.numText);
+    const nrDateEl = _el("div", "nrDate", row.createdDate);
+    numBox.append(topNumberEl, nrDateEl);
     if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-    if (row.isNewTop) numBox.appendChild(_buildStarIcon());
+    // Hinweis "(Text geändert ...)" im v2-Druck unterdrückt
 
-    wrap.append(numBox, _el("div", "lvl1Text", row.title));
+    const lvl1TextEl = _el("div", "lvl1Text", row.title);
+    wrap.append(numBox, lvl1TextEl);
+    if (row.isImportant) _applyImportantPrintColor(topNumberEl, lvl1TextEl);
     td.appendChild(wrap);
     tr.appendChild(td);
     return tr;
@@ -91,18 +107,46 @@ function _buildTopRow(row) {
   const tr = document.createElement("tr");
   tr.className = "topRow";
   if (row.isNewTop) tr.classList.add("isNewTop");
+  if (row.isImportant) tr.classList.add("isImportant");
 
   const tdNr = _el("td", "colNr");
   const numBox = _el("div", "nrBox");
-  numBox.append(_el("div", "topNumber", row.numText), _el("div", "nrDate", row.createdDate));
+  const topNumberEl = _el("div", "topNumber", row.numText);
+  const nrDateEl = _el("div", "nrDate", row.createdDate);
+  numBox.append(topNumberEl, nrDateEl);
   if (row.isHiddenTop) numBox.appendChild(_el("div", "nrHint", "(ausgeblendet)"));
-  if (row.isNewTop) numBox.appendChild(_buildStarIcon());
+  // Hinweis "(Text geändert ...)" im v2-Druck unterdrückt
   tdNr.appendChild(numBox);
 
   const tdText = _el("td", "colText");
   const txtBlock = _el("div", "txtBlock");
-  txtBlock.appendChild(_el("div", "shortText", row.title));
-  if (row.longtext) txtBlock.appendChild(_el("div", "longText", row.longtext));
+  const shortTextEl = _el("div", "shortText", row.title);
+  txtBlock.appendChild(shortTextEl);
+  if (row.isImportant) _applyImportantPrintColor(topNumberEl, shortTextEl);
+
+  // IMPORTANT: final print DOM is built here (not in printApp.js)
+  // carried-over TOP + longtext edited later => mark and FORCE blue (PDF-safe)
+  if (row.longtext) {
+    const lt = _el("div", "longText", row.longtext);
+
+    const isTouched = Number(row?.isTouched ?? row?.is_touched ?? 0) === 1;
+    const isCarriedOver = !row.isNewTop;
+
+    if (isCarriedOver && isTouched && !row.isImportant) {
+      lt.classList.add("isTouched");
+      // Force the color for PDF output even if other CSS overrides or print engine optimizes colors
+      lt.style.color = "#1565c0";
+      lt.style.webkitPrintColorAdjust = "exact";
+      lt.style.printColorAdjust = "exact";
+    }
+
+    if (row.isImportant) {
+      _applyImportantPrintColor(lt);
+    }
+
+    txtBlock.appendChild(lt);
+  }
+
   tdText.appendChild(txtBlock);
 
   const tdMeta = _el("td", "colMeta");
@@ -184,8 +228,14 @@ function _buildGenericRow(row) {
       _el("div", "", "Vorname"),
       _el("div", "", "Nachname"),
       _el("div", "", "Funktion/Rolle"),
-      _el("div", "", "E-Mail"),
-      _el("div", "", "Telefon")
+      (() => {
+        const contactHead = _el("div", "firmPeopleContactHead");
+        contactHead.append(
+          _el("div", "firmPeopleContactHeadLine", "Telefon"),
+          _el("div", "firmPeopleContactHeadLine", "E-Mail")
+        );
+        return contactHead;
+      })()
     );
     people.appendChild(head);
 
@@ -202,12 +252,16 @@ function _buildGenericRow(row) {
       };
       for (const p of list) {
         const line = _el("div", "firmPeopleRow");
+        const contact = _el("div", "firmPeopleContact");
+        contact.append(
+          _el("div", "firmPeopleContactLine", p?.phone || ""),
+          _el("div", "firmPeopleContactLine", p?.email || "")
+        );
         line.append(
           _el("div", "", wrapByChars(p?.first_name || "", 10)),
           _el("div", "", wrapByChars(p?.last_name || "", 12)),
           _el("div", "", p?.role_text || ""),
-          _el("div", "", p?.email || ""),
-          _el("div", "", p?.phone || "")
+          contact
         );
         people.appendChild(line);
       }
@@ -236,7 +290,6 @@ function _buildColGroup(type) {
   `;
   return colgroup;
 }
-
 
 function _applyV2Vars(root, data) {
   const pagePadTopMm = Number(data?.v2Layout?.pagePadTopMm);
@@ -306,13 +359,14 @@ function _buildTable(page) {
   }
   if (!(page.table?.rows || []).length) {
     const tr = document.createElement("tr");
-    const msg = type === "firms"
-      ? "Keine Firmen vorhanden."
-      : type === "firmsCards"
+    const msg =
+      type === "firms"
         ? "Keine Firmen vorhanden."
-      : type === "todo"
-        ? "Keine offenen ToDos vorhanden."
-        : "Keine Einträge vorhanden.";
+        : type === "firmsCards"
+          ? "Keine Firmen vorhanden."
+          : type === "todo"
+            ? "Keine offenen ToDos vorhanden."
+            : "Keine Einträge vorhanden.";
     const td = _el("td", "", msg);
     td.colSpan = type === "todo" ? 5 : type === "firms" ? 3 : 1;
     tr.appendChild(td);
@@ -345,7 +399,7 @@ function _collectProtocolFooterLines(settings) {
   const lineZipCity = [footerZip, footerCity].filter((v) => v).join(" ").trim();
   const lines = [linePlaceDate, footerName1, footerName2, footerRecorder, footerStreet, lineZipCity].filter((v) => v);
   if (lines.length) return lines;
-  return ["Keine Angaben - Einstellungen > Drucken > Protokoll-Fuss"];
+  return ["Keine Angaben - Projekt > Bearbeiten > Einstellungen"];
 }
 
 function _buildProtocolFooter(data) {
@@ -455,16 +509,23 @@ function _buildPreRemarks(page) {
   return wrap;
 }
 
-function _buildSpineNote() {
+function _buildSpineNote(data = {}) {
   const wrap = _el("div", "pdfSpineNote");
   const icon = document.createElement("img");
   icon.className = "pdfSpineNoteIcon";
   icon.src = APP_ICON_URL;
   icon.alt = "";
+  const year = new Date().getFullYear();
+  const versionRaw = String(data?.appVersion || "").trim();
+  const versionText = versionRaw ? `v${versionRaw}` : "";
+  const channel = String(data?.buildChannel || "").trim();
+  const channelText = channel ? channel.toUpperCase() : "";
   const text = _el(
     "span",
     "pdfSpineNoteText",
-    "© v0.1.2 - BBM 2026   |   erstellt mit Baubesprechungsmanager    -    Testversion    - nicht freigegeben"
+    [ "©", versionText, `BBM ${year}`, "erstellt mit Baubesprechungsmanager", channelText ]
+      .filter(Boolean)
+      .join("   |   ")
   );
   wrap.append(icon, text);
   return wrap;
@@ -472,6 +533,11 @@ function _buildSpineNote() {
 
 export function renderPrint({ pages, data } = {}) {
   const root = _el("div", "printRoot printV2Root");
+
+  // Force colors into PDF output (Chromium/Electron)
+  root.style.webkitPrintColorAdjust = "exact";
+  root.style.printColorAdjust = "exact";
+
   const showVorabzugWatermark =
     ["vorabzug", "preview"].includes(String(data?.mode || "").trim().toLowerCase());
   if (showVorabzugWatermark) {
@@ -499,7 +565,7 @@ export function renderPrint({ pages, data } = {}) {
     const pageEl = _el("div", "page");
     const pageNo = Number(page?.header?.pageNo || 0);
     if (pageNo === 1) {
-      pageEl.appendChild(_buildSpineNote());
+      pageEl.appendChild(_buildSpineNote(data));
     }
     if (pageNo === 1) {
       pageEl.appendChild(renderV2GlobalHeader({ data }));

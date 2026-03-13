@@ -1,7 +1,68 @@
-Übergabeprotokoll
+# UEBERGABE.txt
 
-- Stand: Branch `feature/pdf-v2-rebuild`, alle Änderungen committed (Menü Druck, V2 Vorbemerkung/Logotext, Footer-Reserve). Arbeitsverzeichnis sauber.
-- Schwächen / offen: keine Tests gelaufen (siehe Notiz); visuelle Überprüfung der Drucksachen wäre sinnvoll.
-- Noch zu tun: ggf. Druck-Layout/Popup/Dropdown prüfen, Top-Liste im Druckmenü testen, Footer-Reserve-Default im Popup validieren.
-- Git-Handling: Weiter auf `feature/pdf-v2-rebuild` arbeiten. Neue Änderungen mit `git add` + `git commit -m "..."`. Für größere Aufgaben ggfs. neue Sub-Branches.
-- Bitte beim nächsten Start erwähnen: letzter Commit `Footer-Reserve default`, Fokus v2-Druck/Settings/MainHeader, um direkt weiterzumachen.
+Ziel dieser App:
+
+Erstellung und Verteilung von Baubesprechungsprotokollen.
+
+---
+
+# Hauptfunktionen
+
+1. Protokollerstellung
+2. PDF-Erzeugung
+3. Verteilung per E-Mail
+
+---
+
+# Entwicklungsstrategie
+
+Bei Änderungen gilt:
+
+1. Diagnose
+2. Fehlerstelle identifizieren
+3. minimalen Fix umsetzen
+
+Keine spekulativen Änderungen.
+
+---
+
+# Codex-Arbeitsweise
+
+Codex soll:
+
+- konkrete Fehlerstellen identifizieren
+- minimal korrigieren
+- bestehende Funktionen weiterverwenden
+
+Codex soll nicht:
+
+- alternative Architekturen bauen
+- große Refactorings durchführen
+- unnötige Dateien ändern
+
+---
+
+# Modellwahl
+
+Standard:
+
+gpt-5.1-codex-max
+
+Begründung:
+
+- höchste Zuverlässigkeit
+- weniger Fehlversuche
+- bessere Codeanalyse
+
+Tokenverbrauch ist zweitrangig.
+
+---
+
+# Debugstrategie
+
+Wenn eine Änderung nicht wirkt:
+
+1. aktive Datei prüfen
+2. Rückgabepfad verfolgen
+3. erste Verluststelle identifizieren
+4. nur diese Stelle ändern

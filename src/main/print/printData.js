@@ -2,6 +2,7 @@
 const { initDatabase } = require("../db/database");
 const projectsRepo = require("../db/projectsRepo");
 const meetingsRepo = require("../db/meetingsRepo");
+const projectSettingsRepo = require("../db/projectSettingsRepo");
 const meetingTopsRepo = require("../db/meetingTopsRepo");
 const projectFirmsRepo = require("../db/projectFirmsRepo");
 const { appSettingsGetManyWithDb } = require("../db/appSettingsRepo");
@@ -597,6 +598,20 @@ function _listMeetingParticipants(db, meetingId) {
     .all(meetingId);
 }
 
+
+const PROJECT_PRINT_SETTINGS_KEYS = [
+  "pdf.protocolTitle",
+  "pdf.footerPlace",
+  "pdf.footerDate",
+  "pdf.footerName1",
+  "pdf.footerName2",
+  "pdf.footerRecorder",
+  "pdf.footerStreet",
+  "pdf.footerZip",
+  "pdf.footerCity",
+  "pdf.footerUseUserData",
+];
+
 const PRINT_SETTINGS_KEYS = [
     "print.interludeText",
     "print.logo1.enabled",
@@ -755,7 +770,10 @@ async function getPrintData({ mode, projectId, meetingId, settingsOverride } = {
   const project = projectId ? projectsRepo.getById(projectId) : null;
   const meeting = meetingId ? meetingsRepo.getMeetingById(meetingId) : null;
   const settingsBase = _loadSettings(db);
-  const settings = { ...(settingsBase || {}), ...(settingsOverride || {}) };
+  const projectSettings = projectId
+    ? projectSettingsRepo.getMany(projectId, PROJECT_PRINT_SETTINGS_KEYS)
+    : {};
+  const settings = { ...(settingsBase || {}), ...(projectSettings || {}), ...(settingsOverride || {}) };
   const protocolTitle = String(settings?.["pdf.protocolTitle"] || "").trim();
   const printProfile = _resolvePrintProfile(mode);
   const userData = _buildUserData(settings);
