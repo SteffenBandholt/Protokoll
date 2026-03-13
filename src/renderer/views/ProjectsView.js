@@ -779,8 +779,58 @@ export default class ProjectsView {
   // Project click flow: Offene Besprechung öffnen, sonst anlegen
   // ------------------------------------------------------------
   async _openProjectInNewMode(projectId, projectObj) {
-    // Reuse der bestehenden Logik: offene Besprechung verwenden, sonst neu anlegen und Tops öffnen.
+    // Zuerst versuchen, ein offenes Protokoll wieder zu öffnen.
+    const openedExisting = await this._openExistingMeetingIfAvailable(projectId);
+    if (openedExisting) return true;
+
+    // Falls keines offen ist, neues anlegen.
     return await this._createMeetingAndOpenTops(projectId, projectObj);
+  }
+
+  async _openExistingMeetingIfAvailable(projectId) {
+    if (this._startingProject) return false;
+
+    const api = window.bbmDb || {};
+    if (typeof api.meetingsListByProject !== "function") return false;
+
+    this._startingProject = true;
+    this._setMsg("Öffne Projekt...");
+
+    try {
+      const res = await api.meetingsListByProject(projectId);
+      if (!res?.ok) return false;
+      const list = Array.isArray(res.list) ? res.list : [];
+      const openMeetings = list.filter((m) => Number(m?.is_closed) !== 1);
+      if (openMeetings.length === 0) return false;
+
+      const pickLatest = (arr) =>
+        arr.reduce((best, cur) => {
+          const bestIdx = Number(best?.meeting_index ?? best?.meetingIndex ?? 0);
+          const curIdx = Number(cur?.meeting_index ?? cur?.meetingIndex ?? 0);
+          if (curIdx > bestIdx) return cur;
+          if (curIdx === bestIdx) {
+            const bestId = Number(best?.id ?? 0);
+            const curId = Number(cur?.id ?? 0);
+            return curId > bestId ? cur : best;
+          }
+          return best;
+        }, openMeetings[0]);
+
+      const meeting = pickLatest(openMeetings);
+      if (!meeting?.id) return false;
+
+      this.router.currentProjectId = projectId;
+      this.router.currentMeetingId = meeting.id;
+      await this.router.showTops(meeting.id, projectId);
+      this._rememberLastProject(projectId);
+      return true;
+    } catch (err) {
+      console.warn("[ProjectsView] _openExistingMeetingIfAvailable failed:", err);
+      return false;
+    } finally {
+      this._startingProject = false;
+      this._setMsg("");
+    }
   }
 
   async _createMeetingAndOpenTops(projectId, projectObj) {

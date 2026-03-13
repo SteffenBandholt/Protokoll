@@ -61,6 +61,10 @@ export default class TopsView {
     this._respDirtyTopId = null;
     this._respLastSetTopId = null;
     this._respLegacyReadonly = false;
+    this.projectStartDate = null;
+    this.projectEndDate = null;
+    this._dueDirty = false;
+    this._dueDirtyTopId = null;
 
     // List toggle: Langtext anzeigen
     this.showLongtextInList = false;
@@ -584,6 +588,33 @@ _isoToDDMMYYYY(iso) {
     this._updateCharCounters();
     if (this.listEl) this._renderListOnly();
     this._updateTopBarMetaLabels();
+  }
+
+  async _loadProjectDates() {
+    this.projectStartDate = null;
+    this.projectEndDate = null;
+
+    const pid = this.projectId;
+    const api = window.bbmDb || {};
+    if (!pid || typeof api.projectsList !== "function") return;
+
+    const normalize = (v) => {
+      const s = (v || "").toString().trim();
+      if (!s) return null;
+      return s.slice(0, 10);
+    };
+
+    try {
+      const res = await api.projectsList();
+      if (!res?.ok) return;
+      const list = Array.isArray(res.list) ? res.list : [];
+      const proj = list.find((p) => this._topIdKey(p?.id) === this._topIdKey(pid));
+      if (!proj) return;
+      this.projectStartDate = normalize(proj.start_date ?? proj.startDate);
+      this.projectEndDate = normalize(proj.end_date ?? proj.endDate);
+    } catch (err) {
+      console.warn("[tops] _loadProjectDates failed:", err);
+    }
   }
 
   async _loadLongtextSetting() {
@@ -1610,6 +1641,39 @@ _isoToDDMMYYYY(iso) {
     this._applyAmpelDotColor(this.dueAmpelEl, color);
   }
 
+  _isResponsibleAllSelection() {
+    if (!this.selResponsible) return false;
+    const val = (this.selResponsible.value || "").toString();
+    const parsed = this._parseResponsibleOptionValue(val);
+    if (parsed && parsed.kind === "all") return true;
+    const opt = this.selResponsible.selectedOptions?.[0];
+    const lbl = (opt?.textContent || "").trim().toLowerCase();
+    return !parsed && !val && lbl === "alle";
+  }
+
+  _applyProjectDueDefaults(top) {
+    if (!top || !this.inpDueDate) return;
+    if (this._dueDirty && this._sameTopId(this._dueDirtyTopId, top.id)) return;
+
+    const current = (this.inpDueDate.value || "").trim();
+    const startDate = this.projectStartDate;
+    const endDate = this.projectEndDate;
+
+    let nextVal = "";
+    if (this._isResponsibleAllSelection() && endDate) {
+      if (!current || current === (startDate || "")) {
+        nextVal = endDate;
+      }
+    } else if (!current && startDate) {
+      nextVal = startDate;
+    }
+
+    if (nextVal) {
+      this.inpDueDate.value = nextVal;
+      this._updateDueAmpelFromInputs();
+    }
+  }
+
   _isDoneStatus(status) {
     const st = (status || "").toString().trim().toLowerCase();
     return st === "erledigt";
@@ -2600,6 +2664,8 @@ _isoToDDMMYYYY(iso) {
       if (inpDueDate.disabled) return;
       if (!this.selectedTop) return;
       const dueVal = (inpDueDate.value || "").trim();
+      this._dueDirty = true;
+      this._dueDirtyTopId = this.selectedTop.id;
       await this._saveMeetingTopPatch({ due_date: dueVal || null }, { reload: true, pulse: true });
     });
 
@@ -2626,6 +2692,23 @@ _isoToDDMMYYYY(iso) {
       const parsed = this._parseResponsibleOptionValue(val);
       this._respDirty = true;
       this._respDirtyTopId = this.selectedTop.id;
+      const currentTopId = this.selectedTop.id;
+
+      const dueDirtySameTop = this._dueDirty && this._sameTopId(this._dueDirtyTopId, currentTopId);
+      if (
+        !dueDirtySameTop &&
+        this.inpDueDate &&
+        parsed?.kind === "all" &&
+        parsed?.id === "all" &&
+        this.projectEndDate
+      ) {
+        const currentDue = (this.inpDueDate.value || "").trim();
+        const startIso = this.projectStartDate || "";
+        if (!currentDue || currentDue === startIso) {
+          this.inpDueDate.value = this.projectEndDate;
+          this._updateDueAmpelFromInputs();
+        }
+      }
 
       if (!parsed?.id) {
         const res = await this._saveMeetingTopPatch(
@@ -2729,6 +2812,7 @@ _isoToDDMMYYYY(iso) {
       return;
     }
 
+    await this._loadProjectDates();
     await this._loadAmpelSetting();
     await this._loadTextLimitsSetting();
     await this.reloadList(true);
@@ -4280,11 +4364,56 @@ const textCol = document.createElement("div");
       img.style.objectFit = "contain";
 
       const hint = document.createElement("div");
-      hint.textContent = "Mit Button  |+Titel|  den ersten Titel anlegen";
       hint.style.fontSize = "14px";
       hint.style.fontWeight = "600";
       hint.style.textAlign = "center";
       hint.style.color = "#1f2937";
+      hint.style.display = "flex";
+      hint.style.flexWrap = "wrap";
+      hint.style.alignItems = "center";
+      hint.style.justifyContent = "center";
+      hint.style.gap = "6px";
+
+      const hintPrefix = document.createElement("span");
+      hintPrefix.textContent = "Mit Button";
+
+      const hintBtn = document.createElement("button");
+      hintBtn.textContent = "+Titel";
+      hintBtn.style.display = "inline-flex";
+      hintBtn.style.alignItems = "center";
+      hintBtn.style.justifyContent = "center";
+      hintBtn.style.border = "none";
+      hintBtn.style.background = "transparent";
+      hintBtn.style.color = "var(--header-text)";
+      hintBtn.style.padding = "0 2px 2px";
+      hintBtn.style.margin = "0";
+      hintBtn.style.minHeight = "0";
+      hintBtn.style.lineHeight = "1.25";
+      hintBtn.style.fontSize = "13px";
+      hintBtn.style.fontWeight = "700";
+      hintBtn.style.borderRadius = "0";
+      hintBtn.style.borderBottom = "2pt solid currentColor";
+      hintBtn.style.lineHeight = "1.2";
+      hintBtn.style.alignSelf = "center";
+      hintBtn.style.borderBottomColor = "currentColor";
+      hintBtn.style.cursor = "pointer";
+      hintBtn.style.whiteSpace = "nowrap";
+      hintBtn.onmouseenter = () => {
+        if (hintBtn.disabled) return;
+        hintBtn.style.borderBottomColor = "#ff8c00";
+      };
+      hintBtn.onmouseleave = () => {
+        hintBtn.style.borderBottomColor = "currentColor";
+      };
+      hintBtn.addEventListener("click", () => {
+        if (this.isReadOnly || this._busy) return;
+        this.createTop(1, null);
+      });
+
+      const hintSuffix = document.createElement("span");
+      hintSuffix.textContent = "den ersten Titel anlegen";
+
+      hint.append(hintPrefix, hintBtn, hintSuffix);
 
       emptyWrap.append(img, hint);
       list.appendChild(emptyWrap);
@@ -4344,6 +4473,14 @@ const textCol = document.createElement("div");
 
   applyEditBoxState() {
     const t = this.selectedTop;
+
+    if (!t) {
+      this._dueDirty = false;
+      this._dueDirtyTopId = null;
+    } else if (!this._sameTopId(this._dueDirtyTopId, t.id)) {
+      this._dueDirty = false;
+      this._dueDirtyTopId = null;
+    }
 
     const isLevel1 = Number(t?.level) === 1;
     if (this.editMetaCol) this.editMetaCol.style.display = isLevel1 ? "none" : "";
@@ -4415,6 +4552,7 @@ const textCol = document.createElement("div");
       this.selStatus.value = st || "offen";
     }
 
+    this._applyProjectDueDefaults(t);
     this._updateDueAmpelFromInputs();
     this._clearLegacyResponsibleOption();
     this._respLegacyReadonly = false;
@@ -4440,6 +4578,7 @@ const textCol = document.createElement("div");
           this._respLastSetTopId = topId;
           this._respDirty = false;
           this._respDirtyTopId = null;
+          this._applyProjectDueDefaults(t);
         }
       })
       .catch(() => {});
