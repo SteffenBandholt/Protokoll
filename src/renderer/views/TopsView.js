@@ -4631,7 +4631,15 @@ const textCol = document.createElement("div");
         respRow.textContent = `${resp}`;
         respRow.style.whiteSpace = "nowrap";
 
-        metaCol.append(dueRow, stRow, respRow);
+        const contact = String(top?.contact_label || top?.contactLabel || "").trim();
+        if (contact) {
+          const contactRow = document.createElement("div");
+          contactRow.textContent = `${contact}`;
+          contactRow.style.whiteSpace = "nowrap";
+          metaCol.append(dueRow, stRow, respRow, contactRow);
+        } else {
+          metaCol.append(dueRow, stRow, respRow);
+        }
       }
 
       row.append(numBlock, textCol);

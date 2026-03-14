@@ -89,6 +89,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   const status = String(top.status || "").trim();
   const due = _formatDateIso(top.due_date || top.dueDate || "");
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
+  const contact = String(top.contact_label || top.contactLabel || "").trim();
 
   return {
     kind: "top",
@@ -105,6 +106,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     status,
     due,
     resp,
+    contact,
     ampelColor: level === 1 ? null : ampelColor,
   };
 }
@@ -172,6 +174,7 @@ function _buildTopRowElement(row) {
   meta3.appendChild(metaLine1);
   meta3.appendChild(_el("div", "metaLine meta2", row.due));
   meta3.appendChild(_el("div", "metaLine meta3", row.resp));
+  if (row.contact) meta3.appendChild(_el("div", "metaLine meta4", row.contact));
   tdMeta.appendChild(meta3);
 
   tr.append(tdNr, tdText, tdMeta);
