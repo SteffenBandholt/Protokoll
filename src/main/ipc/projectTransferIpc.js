@@ -6,7 +6,6 @@
 const { ipcMain, app } = require("electron");
 const fs = require("fs");
 const path = require("path");
-const archiver = require("archiver");
 const yauzl = require("yauzl");
 const extract = require("extract-zip");
 
@@ -112,6 +111,7 @@ async function _createExportZip({ exportPath, projectDir, manifest, payloads }) 
   await fs.promises.mkdir(path.dirname(exportPath), { recursive: true });
 
   await new Promise((resolve, reject) => {
+    const archiver = require("archiver");
     const output = fs.createWriteStream(exportPath);
     const archive = archiver("zip", { zlib: { level: 9 } });
 

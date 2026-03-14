@@ -48,6 +48,10 @@ function resolveIconPath() {
 
 const DEV_ONLY_ERROR = "Nur im Entwicklermodus verfuegbar.";
 
+function _getPackagedPackageJsonPath() {
+  return path.join(app.getAppPath(), "package.json");
+}
+
 function _findPackageJsonUp(startDir) {
   if (!startDir) return null;
   let current = path.resolve(startDir);
@@ -143,7 +147,9 @@ function _bumpSemver(version, kind) {
 }
 
 async function _loadRepoVersionFiles(projectRoot) {
-  const packagePath = path.join(projectRoot, "package.json");
+  const packagePath = app.isPackaged
+    ? _getPackagedPackageJsonPath()
+    : path.join(projectRoot, "package.json");
   if (!fs.existsSync(packagePath)) {
     throw new Error("package.json nicht gefunden.");
   }
@@ -226,7 +232,7 @@ async function _writeRepoBuildChannel(next) {
 // ✅ für EXE: buildChannel aus gepackter package.json (extraMetadata)
 function _readPackagedBuildChannel() {
   try {
-    const pkgPath = path.join(app.getAppPath(), "package.json");
+    const pkgPath = _getPackagedPackageJsonPath();
     const raw = fs.readFileSync(pkgPath, "utf8");
     const data = JSON.parse(raw);
     const ch = _normalizeChannel(data?.buildChannel);
