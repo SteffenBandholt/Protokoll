@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS meeting_tops (
   status TEXT DEFAULT 'offen',
   due_date TEXT,
   longtext TEXT,
+  contact_kind TEXT,
+  contact_person_id TEXT,
+  contact_label TEXT,
 
   is_carried_over INTEGER NOT NULL DEFAULT 0,
   completed_in_meeting_id TEXT,

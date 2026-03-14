@@ -60,6 +60,9 @@ class TopService {
           responsible_kind: r.responsible_kind ?? null,
           responsible_id: r.responsible_id ?? null,
           responsible_label: r.responsible_label ?? null,
+          contact_kind: r.contact_kind ?? null,
+          contact_person_id: r.contact_person_id ?? null,
+          contact_label: r.contact_label ?? null,
 
           frozen_at: r.frozen_at,
           frozen_title: r.frozen_title,
@@ -124,6 +127,9 @@ class TopService {
           responsible_kind: r.responsible_kind ?? null,
           responsible_id: r.responsible_id ?? null,
           responsible_label: r.responsible_label ?? null,
+          contact_kind: r.contact_kind ?? null,
+          contact_person_id: r.contact_person_id ?? null,
+          contact_label: r.contact_label ?? null,
 
           frozen_at: r.frozen_at,
           frozen_title: r.frozen_title,
@@ -443,6 +449,13 @@ class TopService {
       "responsibleKind",
       "responsibleId",
       "responsibleLabel",
+
+      "contact_kind",
+      "contact_person_id",
+      "contact_label",
+      "contactKind",
+      "contactPersonId",
+      "contactLabel",
     ]);
 
     for (const k of Object.keys(patch)) {
@@ -477,6 +490,21 @@ class TopService {
         ? patch.responsible_label
         : (patch.responsibleLabel !== undefined ? patch.responsibleLabel : undefined);
 
+    const ck =
+      patch.contact_kind !== undefined
+        ? patch.contact_kind
+        : (patch.contactKind !== undefined ? patch.contactKind : undefined);
+
+    const cp =
+      patch.contact_person_id !== undefined
+        ? patch.contact_person_id
+        : (patch.contactPersonId !== undefined ? patch.contactPersonId : undefined);
+
+    const cl =
+      patch.contact_label !== undefined
+        ? patch.contact_label
+        : (patch.contactLabel !== undefined ? patch.contactLabel : undefined);
+
     const imp =
       patch.is_important !== undefined
         ? patch.is_important
@@ -496,7 +524,10 @@ class TopService {
       imp !== undefined ||
       rk !== undefined ||
       ri !== undefined ||
-      rl !== undefined;
+      rl !== undefined ||
+      ck !== undefined ||
+      cp !== undefined ||
+      cl !== undefined;
 
     if (!meetingFieldsTouched) {
       return this.meetingTopsRepo.getMeetingTop(meetingId, topId);
@@ -549,6 +580,10 @@ class TopService {
       responsible_kind: rk,
       responsible_id: ri,
       responsible_label: rl,
+
+      contact_kind: ck,
+      contact_person_id: cp,
+      contact_label: cl,
 
       is_touched: touch,
     });

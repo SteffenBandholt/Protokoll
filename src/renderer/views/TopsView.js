@@ -51,6 +51,8 @@ export default class TopsView {
     this.inpDueDate = null;
     this.selStatus = null;
     this.selResponsible = null;
+    this.chkContact = null;
+    this.selContact = null;
     this.dueAmpelEl = null;
 
     this.projectFirms = [];
@@ -61,6 +63,7 @@ export default class TopsView {
     this._respDirtyTopId = null;
     this._respLastSetTopId = null;
     this._respLegacyReadonly = false;
+    this._contactLoadToken = 0;
     this.projectStartDate = null;
     this.projectEndDate = null;
     this._dueDirty = false;
@@ -887,6 +890,8 @@ _isoToDDMMYYYY(iso) {
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
+      if (this.chkContact) this.chkContact.disabled = true;
+      if (this.selContact) this.selContact.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkHidden) this.chkHidden.disabled = true;
 
@@ -922,6 +927,11 @@ _isoToDDMMYYYY(iso) {
       delete nextPatch.responsible_kind;
       delete nextPatch.responsible_id;
       delete nextPatch.responsible_label;
+    }
+    if (this.chkContact?.disabled || this.selContact?.disabled) {
+      delete nextPatch.contact_kind;
+      delete nextPatch.contact_person_id;
+      delete nextPatch.contact_label;
     }
     if (this.chkHidden?.disabled) delete nextPatch.is_hidden;
     if (this.chkImportant?.disabled) delete nextPatch.is_important;
@@ -959,6 +969,9 @@ _isoToDDMMYYYY(iso) {
         if (nextPatch.responsible_kind !== undefined) t.responsible_kind = nextPatch.responsible_kind;
         if (nextPatch.responsible_id !== undefined) t.responsible_id = nextPatch.responsible_id;
         if (nextPatch.responsible_label !== undefined) t.responsible_label = nextPatch.responsible_label;
+        if (nextPatch.contact_kind !== undefined) t.contact_kind = nextPatch.contact_kind;
+        if (nextPatch.contact_person_id !== undefined) t.contact_person_id = nextPatch.contact_person_id;
+        if (nextPatch.contact_label !== undefined) t.contact_label = nextPatch.contact_label;
       }
 
       if (pulse) this._showSavedPulse();
@@ -1013,6 +1026,26 @@ _isoToDDMMYYYY(iso) {
         patch.responsible_kind = null;
         patch.responsible_id = null;
         patch.responsible_label = null;
+      }
+    }
+
+    if (this.chkContact && !this.chkContact.disabled) {
+      if (!this.chkContact.checked) {
+        patch.contact_kind = null;
+        patch.contact_person_id = null;
+        patch.contact_label = null;
+      } else if (this.selContact && !this.selContact.disabled) {
+        const opt = this.selContact.selectedOptions?.[0] || null;
+        const val = (this.selContact.value || "").toString().trim();
+        if (val) {
+          patch.contact_kind = opt?.dataset?.contactKind || null;
+          patch.contact_person_id = val;
+          patch.contact_label = opt?.dataset?.contactLabel || opt?.textContent || null;
+        } else {
+          patch.contact_kind = null;
+          patch.contact_person_id = null;
+          patch.contact_label = null;
+        }
       }
     }
 
@@ -1342,6 +1375,184 @@ _isoToDDMMYYYY(iso) {
       sel.value = current;
     } else {
       sel.value = "";
+    }
+  }
+
+  _buildContactPersonLabel(row) {
+    const name = (row?.name || "").toString().trim();
+    if (name) return name;
+    const first = (row?.first_name ?? row?.firstName ?? "").toString().trim();
+    const last = (row?.last_name ?? row?.lastName ?? "").toString().trim();
+    const full = `${first} ${last}`.trim();
+    if (full) return full;
+    const label = (row?.label || "").toString().trim();
+    if (label) return label;
+    const rawId =
+      row?.id ??
+      row?.person_id ??
+      row?.personId ??
+      row?.project_person_id ??
+      row?.projectPersonId ??
+      "";
+    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
+    if (id) return `Person ${id}`;
+    return "Unbenannte Person";
+  }
+
+  _getSelectedFirmForContact() {
+    if (!this.selResponsible) return null;
+    const parsed = this._parseResponsibleOptionValue(this.selResponsible.value);
+    if (!parsed?.id) return null;
+    return parsed;
+  }
+
+  _getContactKindForFirmKind(kind) {
+    const k = (kind || "").toString().trim().toLowerCase();
+    if (k === "global_firm") return "global_person";
+    return "project_person";
+  }
+
+  async _loadContactPersonsForFirm(kind, id) {
+    const firmId = id === null || id === undefined ? "" : String(id).trim();
+    if (!firmId) return [];
+    const api = window.bbmDb || {};
+    try {
+      if ((kind || "") === "global_firm") {
+        if (typeof api.personsListByFirm === "function") {
+          const res = await api.personsListByFirm(firmId);
+          if (res?.ok) return res.list || res.items || res.persons || [];
+        }
+        return [];
+      }
+      if (typeof api.projectPersonsListByProjectFirm === "function") {
+        const res = await api.projectPersonsListByProjectFirm(firmId);
+        if (res?.ok) return res.list || res.items || res.persons || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  _setContactHint(text) {
+    if (!this.selContact) return;
+    this.selContact.innerHTML = "";
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = text || "-";
+    opt.disabled = true;
+    this.selContact.appendChild(opt);
+    this.selContact.value = "";
+  }
+
+  _setContactOptions(list, selectedId) {
+    if (!this.selContact) return;
+    this.selContact.innerHTML = "";
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "-";
+    this.selContact.appendChild(optEmpty);
+
+    for (const row of list || []) {
+      const id = row?.id === null || row?.id === undefined ? "" : String(row.id).trim();
+      if (!id) continue;
+      const label = row?.label || this._buildContactPersonLabel(row);
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = label;
+      opt.dataset.contactKind = row?.contact_kind || row?.contactKind || "";
+      opt.dataset.contactLabel = label;
+      this.selContact.appendChild(opt);
+    }
+
+    const selId = selectedId === null || selectedId === undefined ? "" : String(selectedId).trim();
+    if (selId && Array.from(this.selContact.options || []).some((o) => String(o.value) === selId)) {
+      this.selContact.value = selId;
+    } else {
+      this.selContact.value = "";
+    }
+  }
+
+  async _refreshContactOptions({
+    selectedId = null,
+    selectedLabel = null,
+    autoSaveSingle = false,
+  } = {}) {
+    if (!this.chkContact || !this.selContact) return;
+    const firm = this._getSelectedFirmForContact();
+    if (!firm) {
+      this.chkContact.checked = false;
+      this.chkContact.disabled = true;
+      this.selContact.disabled = true;
+      this._setContactHint("-");
+      return;
+    }
+
+    const disableAll = this.isReadOnly || this._busy || !this.selectedTop;
+    this.chkContact.disabled = disableAll;
+    if (disableAll) {
+      this.selContact.disabled = true;
+      return;
+    }
+
+    if (!this.chkContact.checked) {
+      this.selContact.disabled = true;
+      this._setContactHint("-");
+      return;
+    }
+
+    const token = ++this._contactLoadToken;
+    this.selContact.disabled = true;
+    const rawList = await this._loadContactPersonsForFirm(firm.kind, firm.id);
+    if (token !== this._contactLoadToken) return;
+
+    const contactKind = this._getContactKindForFirmKind(firm.kind);
+    const list = (rawList || [])
+      .map((row) => {
+        const id =
+          row?.id ??
+          row?.person_id ??
+          row?.personId ??
+          row?.project_person_id ??
+          row?.projectPersonId ??
+          null;
+        if (id === null || id === undefined || id === "") return null;
+        return {
+          ...row,
+          id: String(id),
+          label: this._buildContactPersonLabel(row),
+          contact_kind: contactKind,
+        };
+      })
+      .filter(Boolean);
+
+    if (!list.length) {
+      this._setContactHint("Keine Mitarbeiter");
+      this.selContact.disabled = true;
+      return;
+    }
+
+    this._setContactOptions(list, selectedId);
+    this.selContact.disabled = false;
+
+    if (list.length === 1) {
+      const only = list[0];
+      this.selContact.value = String(only.id);
+      if (autoSaveSingle && this.selectedTop) {
+        const res = await this._saveMeetingTopPatch(
+          {
+            contact_kind: only.contact_kind || contactKind,
+            contact_person_id: String(only.id),
+            contact_label: only.label || selectedLabel || null,
+          },
+          { reload: false, pulse: true }
+        );
+        if (res?.ok && this.selectedTop) {
+          this.selectedTop.contact_kind = only.contact_kind || contactKind;
+          this.selectedTop.contact_person_id = String(only.id);
+          this.selectedTop.contact_label = only.label || selectedLabel || null;
+        }
+      }
     }
   }
 
@@ -2487,7 +2698,20 @@ _isoToDDMMYYYY(iso) {
     selResponsible.style.width = "calc(100% + 3mm)";
     respWrap.append(selResponsible);
 
-    metaCol.append(dueWrap, statusWrap, respWrap);
+    const contactChkWrap = mkMetaField("Ansprechpartner");
+    const chkContact = document.createElement("input");
+    chkContact.type = "checkbox";
+    contactChkWrap.append(chkContact);
+
+    const contactSelWrap = mkMetaField("Ansprechp.");
+    const selContact = document.createElement("select");
+    selContact.disabled = true;
+    selContact.style.width = "100%";
+    selContact.style.marginLeft = "-3mm";
+    selContact.style.width = "calc(100% + 3mm)";
+    contactSelWrap.append(selContact);
+
+    metaCol.append(dueWrap, statusWrap, respWrap, contactChkWrap, contactSelWrap);
     editorRow.append(leftCol, sep, metaCol);
 
     box.append(boxHeader, editorRow);
@@ -2516,6 +2740,8 @@ _isoToDDMMYYYY(iso) {
     this.inpDueDate = inpDueDate;
     this.selStatus = selStatus;
     this.selResponsible = selResponsible;
+    this.chkContact = chkContact;
+    this.selContact = selContact;
     this.dueAmpelEl = dueAmpel;
 
     this.chkImportant = chkImportant;
@@ -2712,7 +2938,14 @@ _isoToDDMMYYYY(iso) {
 
       if (!parsed?.id) {
         const res = await this._saveMeetingTopPatch(
-          { responsible_kind: null, responsible_id: null, responsible_label: null },
+          {
+            responsible_kind: null,
+            responsible_id: null,
+            responsible_label: null,
+            contact_kind: null,
+            contact_person_id: null,
+            contact_label: null,
+          },
           { reload: false, pulse: true }
         );
         if (res?.ok) {
@@ -2720,7 +2953,16 @@ _isoToDDMMYYYY(iso) {
             this.selectedTop.responsible_kind = null;
             this.selectedTop.responsible_id = null;
             this.selectedTop.responsible_label = null;
+            this.selectedTop.contact_kind = null;
+            this.selectedTop.contact_person_id = null;
+            this.selectedTop.contact_label = null;
           }
+          if (this.chkContact) this.chkContact.checked = false;
+          if (this.selContact) {
+            this.selContact.disabled = true;
+            this._setContactHint("-");
+          }
+          this._refreshContactOptions({ selectedId: null, selectedLabel: null });
           this._respDirty = false;
           this._respDirtyTopId = null;
           this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
@@ -2735,6 +2977,9 @@ _isoToDDMMYYYY(iso) {
           responsible_kind: parsed.kind || "company",
           responsible_id: String(parsed.id),
           responsible_label: lbl,
+          contact_kind: null,
+          contact_person_id: null,
+          contact_label: null,
         },
         { reload: false, pulse: true }
       );
@@ -2743,10 +2988,90 @@ _isoToDDMMYYYY(iso) {
           this.selectedTop.responsible_kind = parsed.kind || "company";
           this.selectedTop.responsible_id = String(parsed.id);
           this.selectedTop.responsible_label = lbl;
+          this.selectedTop.contact_kind = null;
+          this.selectedTop.contact_person_id = null;
+          this.selectedTop.contact_label = null;
         }
+        if (this.chkContact) this.chkContact.checked = false;
+        if (this.selContact) {
+          this.selContact.disabled = true;
+          this._setContactHint("-");
+        }
+        this._refreshContactOptions({ selectedId: null, selectedLabel: null });
         this._respDirty = false;
         this._respDirtyTopId = null;
         this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
+      }
+    });
+
+    chkContact.addEventListener("change", async () => {
+      if (this.isReadOnly || this._busy) return;
+      if (!this.selectedTop) return;
+      const firm = this._getSelectedFirmForContact();
+      if (!firm) {
+        chkContact.checked = false;
+        if (this.selContact) {
+          this.selContact.disabled = true;
+          this._setContactHint("-");
+        }
+        return;
+      }
+      if (!chkContact.checked) {
+        if (this.selContact) {
+          this.selContact.disabled = true;
+          this._setContactHint("-");
+        }
+        const res = await this._saveMeetingTopPatch(
+          { contact_kind: null, contact_person_id: null, contact_label: null },
+          { reload: false, pulse: true }
+        );
+        if (res?.ok && this.selectedTop) {
+          this.selectedTop.contact_kind = null;
+          this.selectedTop.contact_person_id = null;
+          this.selectedTop.contact_label = null;
+        }
+        return;
+      }
+
+      await this._refreshContactOptions({
+        selectedId: this.selectedTop?.contact_person_id ?? null,
+        selectedLabel: this.selectedTop?.contact_label ?? null,
+        autoSaveSingle: true,
+      });
+    });
+
+    selContact.addEventListener("change", async () => {
+      if (this.isReadOnly || this._busy) return;
+      if (selContact.disabled) return;
+      if (!this.selectedTop) return;
+      const opt = selContact.selectedOptions?.[0] || null;
+      const val = (selContact.value || "").toString().trim();
+      if (!val) {
+        const res = await this._saveMeetingTopPatch(
+          { contact_kind: null, contact_person_id: null, contact_label: null },
+          { reload: false, pulse: true }
+        );
+        if (res?.ok && this.selectedTop) {
+          this.selectedTop.contact_kind = null;
+          this.selectedTop.contact_person_id = null;
+          this.selectedTop.contact_label = null;
+        }
+        return;
+      }
+      const kind = opt?.dataset?.contactKind || null;
+      const label = opt?.dataset?.contactLabel || opt?.textContent || null;
+      const res = await this._saveMeetingTopPatch(
+        {
+          contact_kind: kind,
+          contact_person_id: val,
+          contact_label: label,
+        },
+        { reload: false, pulse: true }
+      );
+      if (res?.ok && this.selectedTop) {
+        this.selectedTop.contact_kind = kind;
+        this.selectedTop.contact_person_id = val;
+        this.selectedTop.contact_label = label;
       }
     });
 
@@ -3578,6 +3903,8 @@ async _closeViewOnly() {
 
     if (this.chkImportant) this.chkImportant.disabled = busy || ro || !this.selectedTop;
     if (this.chkHidden) this.chkHidden.disabled = busy || ro || !this.selectedTop;
+    if (this.chkContact) this.chkContact.disabled = busy || ro || !this.selectedTop;
+    if (this.selContact) this.selContact.disabled = busy || ro || !this.selectedTop || this.selContact.disabled;
 
     if (this.inpTitle) this.inpTitle.disabled = busy || ro || !this.selectedTop || this.inpTitle.disabled;
     if (this.taLongtext) this.taLongtext.disabled = busy || ro || !this.selectedTop;
@@ -4500,6 +4827,8 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.value = "";
       if (this.selStatus) this.selStatus.value = "offen";
       if (this.selResponsible) this.selResponsible.value = "";
+      if (this.chkContact) this.chkContact.checked = false;
+      if (this.selContact) this._setContactHint("-");
       this._clearLegacyResponsibleOption();
       this._respLegacyReadonly = false;
       this._respDirty = false;
@@ -4512,6 +4841,8 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
+      if (this.chkContact) this.chkContact.disabled = true;
+      if (this.selContact) this.selContact.disabled = true;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
 
@@ -4556,6 +4887,10 @@ const textCol = document.createElement("div");
     this._updateDueAmpelFromInputs();
     this._clearLegacyResponsibleOption();
     this._respLegacyReadonly = false;
+    if (this.chkContact) {
+      const hasContact = !!(t?.contact_person_id || t?.contact_label);
+      this.chkContact.checked = hasContact;
+    }
 
     const topId = t.id;
     const sameTopDirty = this._respDirty && this._sameTopId(this._respDirtyTopId, topId);
@@ -4579,6 +4914,10 @@ const textCol = document.createElement("div");
           this._respDirty = false;
           this._respDirtyTopId = null;
           this._applyProjectDueDefaults(t);
+          this._refreshContactOptions({
+            selectedId: t?.contact_person_id ?? null,
+            selectedLabel: t?.contact_label ?? null,
+          });
         }
       })
       .catch(() => {});
@@ -4593,6 +4932,8 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
+      if (this.chkContact) this.chkContact.disabled = true;
+      if (this.selContact) this.selContact.disabled = true;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
 

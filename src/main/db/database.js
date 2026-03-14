@@ -245,6 +245,20 @@ function ensureMeetingTopsResponsibleColumns(dbConn) {
   addCol("responsible_label", "TEXT");
 }
 
+function ensureMeetingTopsContactColumns(dbConn) {
+  if (!tableExists(dbConn, "meeting_tops")) return;
+
+  const addCol = (name, sqlType) => {
+    if (!columnExists(dbConn, "meeting_tops", name)) {
+      dbConn.exec(`ALTER TABLE meeting_tops ADD COLUMN ${name} ${sqlType};`);
+    }
+  };
+
+  addCol("contact_kind", "TEXT");
+  addCol("contact_person_id", "TEXT");
+  addCol("contact_label", "TEXT");
+}
+
 function ensureTopsSoftDeleteColumns(dbConn) {
   if (!tableExists(dbConn, "tops")) return;
 
@@ -929,6 +943,9 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
       status TEXT DEFAULT 'offen',
       due_date TEXT,
       longtext TEXT,
+      contact_kind TEXT,
+      contact_person_id TEXT,
+      contact_label TEXT,
 
       is_carried_over INTEGER NOT NULL DEFAULT 0,
       is_important INTEGER NOT NULL DEFAULT 0,
@@ -1008,6 +1025,7 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
   ensureMeetingTopsTouchedColumn(dbConn);
   ensureMeetingTopsCompletedColumn(dbConn);
   ensureMeetingTopsResponsibleColumns(dbConn);
+  ensureMeetingTopsContactColumns(dbConn);
   ensureTopsSoftDeleteColumns(dbConn);
 }
 
@@ -1075,6 +1093,9 @@ function ensureSchema(dbConn) {
         status TEXT DEFAULT 'offen',
         due_date TEXT,
         longtext TEXT,
+        contact_kind TEXT,
+        contact_person_id TEXT,
+        contact_label TEXT,
 
         is_carried_over INTEGER NOT NULL DEFAULT 0,
         is_important INTEGER NOT NULL DEFAULT 0,
@@ -1106,6 +1127,7 @@ function ensureSchema(dbConn) {
   ensureMeetingTopsTouchedColumn(dbConn);
   ensureMeetingTopsCompletedColumn(dbConn);
   ensureMeetingTopsResponsibleColumns(dbConn);
+  ensureMeetingTopsContactColumns(dbConn);
   ensureTopsSoftDeleteColumns(dbConn);
   ensureFirmsAndPersonsSchema(dbConn);
   ensureProjectGlobalFirmsSchema(dbConn);
