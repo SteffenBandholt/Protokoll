@@ -711,15 +711,20 @@ _isoToDDMMYYYY(iso) {
   _getEditFontSizes() {
     const scale = (this.editFontScale || "small").toString().toLowerCase();
     if (scale === "large") {
-      return { short: 18, long: 17 };
+      return { short: 12, long: 12 };
     }
-    return { short: 14, long: 13 };
+    return { short: 10, long: 10 };
   }
 
   _applyEditFontSizes() {
     const sizes = this._getEditFontSizes();
     if (this.inpTitle) this.inpTitle.style.fontSize = `${sizes.short}px`;
     if (this.taLongtext) this.taLongtext.style.fontSize = `${sizes.long}px`;
+    if (this.editMetaCol) this.editMetaCol.style.fontSize = `${sizes.short}px`;
+    if (this.inpDueDate) this.inpDueDate.style.fontSize = `${sizes.short}px`;
+    if (this.selStatus) this.selStatus.style.fontSize = `${sizes.short}px`;
+    if (this.selResponsible) this.selResponsible.style.fontSize = `${sizes.short}px`;
+    if (this.selContact) this.selContact.style.fontSize = `${sizes.short}px`;
   }
 
   async _loadLevel1CollapsedSetting() {
@@ -2654,7 +2659,7 @@ _isoToDDMMYYYY(iso) {
 
       const lab = document.createElement("span");
       lab.textContent = labelText;
-      lab.style.fontSize = "12px";
+      lab.style.fontSize = "inherit";
       lab.style.opacity = "0.8";
 
       wrap.append(lab);
@@ -2698,20 +2703,36 @@ _isoToDDMMYYYY(iso) {
     selResponsible.style.width = "calc(100% + 3mm)";
     respWrap.append(selResponsible);
 
-    const contactChkWrap = mkMetaField("Ansprechpartner");
+    const contactWrap = document.createElement("div");
+    contactWrap.style.display = "flex";
+    contactWrap.style.flexDirection = "column";
+    contactWrap.style.gap = "4px";
+    contactWrap.style.marginTop = "2mm";
+
+    const contactLine = document.createElement("div");
+    contactLine.style.display = "flex";
+    contactLine.style.alignItems = "center";
+    contactLine.style.gap = "6px";
+
+    const contactLabel = document.createElement("span");
+    contactLabel.textContent = "Ansprechp.";
+    contactLabel.style.fontSize = "inherit";
+    contactLabel.style.opacity = "0.8";
+
     const chkContact = document.createElement("input");
     chkContact.type = "checkbox";
-    contactChkWrap.append(chkContact);
 
-    const contactSelWrap = mkMetaField("Ansprechp.");
+    contactLine.append(contactLabel, chkContact);
+
     const selContact = document.createElement("select");
     selContact.disabled = true;
     selContact.style.width = "100%";
     selContact.style.marginLeft = "-3mm";
     selContact.style.width = "calc(100% + 3mm)";
-    contactSelWrap.append(selContact);
 
-    metaCol.append(dueWrap, statusWrap, respWrap, contactChkWrap, contactSelWrap);
+    contactWrap.append(contactLine, selContact);
+
+    metaCol.append(dueWrap, statusWrap, respWrap, contactWrap);
     editorRow.append(leftCol, sep, metaCol);
 
     box.append(boxHeader, editorRow);
