@@ -302,9 +302,9 @@ body {
 }
 
 .topsTable .colMeta {
-  width: 15ch;
-  min-width: 15ch;
-  max-width: 15ch;
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
   padding-left: 5mm;
   text-align: left;
   font-size: 9.5pt;
@@ -410,7 +410,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 11ch;
+  max-width: 100%;
   text-align: left;
 }
 

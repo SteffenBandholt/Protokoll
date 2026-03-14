@@ -132,7 +132,7 @@ export default class TopsView {
     this._gapPopupOverlay = null;
 
     // UI sizing (Meta-Spalte ~30% schmaler)
-    this.META_COL_W = 133; // px
+    this.META_COL_W = 120; // px
     this.NUM_COL_W = 56; // px (ohne Ampel links)
 
     // Mail-Flow nach Protokoll beenden
