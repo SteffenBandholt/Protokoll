@@ -895,8 +895,7 @@ _isoToDDMMYYYY(iso) {
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.chkContact) this.chkContact.disabled = true;
-      if (this.selContact) this.selContact.disabled = true;
+      if (this.selContact) this.selContact.disabled = false;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkHidden) this.chkHidden.disabled = true;
 
@@ -932,11 +931,6 @@ _isoToDDMMYYYY(iso) {
       delete nextPatch.responsible_kind;
       delete nextPatch.responsible_id;
       delete nextPatch.responsible_label;
-    }
-    if (this.chkContact?.disabled || this.selContact?.disabled) {
-      delete nextPatch.contact_kind;
-      delete nextPatch.contact_person_id;
-      delete nextPatch.contact_label;
     }
     if (this.chkHidden?.disabled) delete nextPatch.is_hidden;
     if (this.chkImportant?.disabled) delete nextPatch.is_important;
@@ -1034,23 +1028,17 @@ _isoToDDMMYYYY(iso) {
       }
     }
 
-    if (this.chkContact && !this.chkContact.disabled) {
-      if (!this.chkContact.checked) {
+    if (this.selContact && !this.selContact.disabled) {
+      const opt = this.selContact.selectedOptions?.[0] || null;
+      const val = (this.selContact.value || "").toString().trim();
+      if (val) {
+        patch.contact_kind = opt?.dataset?.contactKind || null;
+        patch.contact_person_id = val;
+        patch.contact_label = opt?.dataset?.contactLabel || opt?.textContent || null;
+      } else {
         patch.contact_kind = null;
         patch.contact_person_id = null;
         patch.contact_label = null;
-      } else if (this.selContact && !this.selContact.disabled) {
-        const opt = this.selContact.selectedOptions?.[0] || null;
-        const val = (this.selContact.value || "").toString().trim();
-        if (val) {
-          patch.contact_kind = opt?.dataset?.contactKind || null;
-          patch.contact_person_id = val;
-          patch.contact_label = opt?.dataset?.contactLabel || opt?.textContent || null;
-        } else {
-          patch.contact_kind = null;
-          patch.contact_person_id = null;
-          patch.contact_label = null;
-        }
       }
     }
 
@@ -1442,11 +1430,18 @@ _isoToDDMMYYYY(iso) {
   _setContactHint(text) {
     if (!this.selContact) return;
     this.selContact.innerHTML = "";
-    const opt = document.createElement("option");
-    opt.value = "";
-    opt.textContent = text || "-";
-    opt.disabled = true;
-    this.selContact.appendChild(opt);
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "-";
+    this.selContact.appendChild(optEmpty);
+    const hintText = (text || "").toString().trim();
+    if (hintText && hintText !== "-") {
+      const optHint = document.createElement("option");
+      optHint.value = "__hint__";
+      optHint.textContent = hintText;
+      optHint.disabled = true;
+      this.selContact.appendChild(optHint);
+    }
     this.selContact.value = "";
   }
 
@@ -1483,31 +1478,24 @@ _isoToDDMMYYYY(iso) {
     selectedLabel = null,
     autoSaveSingle = false,
   } = {}) {
-    if (!this.chkContact || !this.selContact) return;
+    if (!this.selContact) return;
     const firm = this._getSelectedFirmForContact();
     if (!firm) {
-      this.chkContact.checked = false;
-      this.chkContact.disabled = true;
-      this.selContact.disabled = true;
       this._setContactHint("-");
       return;
     }
 
     const disableAll = this.isReadOnly || this._busy || !this.selectedTop;
-    this.chkContact.disabled = disableAll;
+    const effectiveSelectedId =
+      selectedId !== null && selectedId !== undefined ? selectedId : this.selectedTop?.contact_person_id ?? null;
+    const effectiveSelectedLabel =
+      selectedLabel !== null && selectedLabel !== undefined ? selectedLabel : this.selectedTop?.contact_label ?? null;
     if (disableAll) {
-      this.selContact.disabled = true;
-      return;
-    }
-
-    if (!this.chkContact.checked) {
-      this.selContact.disabled = true;
       this._setContactHint("-");
       return;
     }
 
     const token = ++this._contactLoadToken;
-    this.selContact.disabled = true;
     const rawList = await this._loadContactPersonsForFirm(firm.kind, firm.id);
     if (token !== this._contactLoadToken) return;
 
@@ -1533,32 +1521,12 @@ _isoToDDMMYYYY(iso) {
 
     if (!list.length) {
       this._setContactHint("Keine Mitarbeiter");
-      this.selContact.disabled = true;
       return;
     }
 
-    this._setContactOptions(list, selectedId);
-    this.selContact.disabled = false;
+    this._setContactOptions(list, effectiveSelectedId);
 
-    if (list.length === 1) {
-      const only = list[0];
-      this.selContact.value = String(only.id);
-      if (autoSaveSingle && this.selectedTop) {
-        const res = await this._saveMeetingTopPatch(
-          {
-            contact_kind: only.contact_kind || contactKind,
-            contact_person_id: String(only.id),
-            contact_label: only.label || selectedLabel || null,
-          },
-          { reload: false, pulse: true }
-        );
-        if (res?.ok && this.selectedTop) {
-          this.selectedTop.contact_kind = only.contact_kind || contactKind;
-          this.selectedTop.contact_person_id = String(only.id);
-          this.selectedTop.contact_label = only.label || selectedLabel || null;
-        }
-      }
-    }
+    // keep "-" as default even when a single person exists
   }
 
   // ========= Layout helper (Sidebar/Header offsets) =========
@@ -2709,28 +2677,18 @@ _isoToDDMMYYYY(iso) {
     contactWrap.style.gap = "4px";
     contactWrap.style.marginTop = "2mm";
 
-    const contactLine = document.createElement("div");
-    contactLine.style.display = "flex";
-    contactLine.style.alignItems = "center";
-    contactLine.style.gap = "6px";
-
     const contactLabel = document.createElement("span");
     contactLabel.textContent = "Ansprechp.";
     contactLabel.style.fontSize = "inherit";
     contactLabel.style.opacity = "0.8";
 
-    const chkContact = document.createElement("input");
-    chkContact.type = "checkbox";
-
-    contactLine.append(contactLabel, chkContact);
-
     const selContact = document.createElement("select");
-    selContact.disabled = true;
+    selContact.disabled = false;
     selContact.style.width = "100%";
     selContact.style.marginLeft = "-3mm";
     selContact.style.width = "calc(100% + 3mm)";
 
-    contactWrap.append(contactLine, selContact);
+    contactWrap.append(contactLabel, selContact);
 
     metaCol.append(dueWrap, statusWrap, respWrap, contactWrap);
     editorRow.append(leftCol, sep, metaCol);
@@ -2761,7 +2719,6 @@ _isoToDDMMYYYY(iso) {
     this.inpDueDate = inpDueDate;
     this.selStatus = selStatus;
     this.selResponsible = selResponsible;
-    this.chkContact = chkContact;
     this.selContact = selContact;
     this.dueAmpelEl = dueAmpel;
 
@@ -2978,9 +2935,8 @@ _isoToDDMMYYYY(iso) {
             this.selectedTop.contact_person_id = null;
             this.selectedTop.contact_label = null;
           }
-          if (this.chkContact) this.chkContact.checked = false;
           if (this.selContact) {
-            this.selContact.disabled = true;
+            this.selContact.disabled = false;
             this._setContactHint("-");
           }
           this._refreshContactOptions({ selectedId: null, selectedLabel: null });
@@ -3013,9 +2969,8 @@ _isoToDDMMYYYY(iso) {
           this.selectedTop.contact_person_id = null;
           this.selectedTop.contact_label = null;
         }
-        if (this.chkContact) this.chkContact.checked = false;
         if (this.selContact) {
-          this.selContact.disabled = true;
+          this.selContact.disabled = false;
           this._setContactHint("-");
         }
         this._refreshContactOptions({ selectedId: null, selectedLabel: null });
@@ -3023,42 +2978,6 @@ _isoToDDMMYYYY(iso) {
         this._respDirtyTopId = null;
         this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
       }
-    });
-
-    chkContact.addEventListener("change", async () => {
-      if (this.isReadOnly || this._busy) return;
-      if (!this.selectedTop) return;
-      const firm = this._getSelectedFirmForContact();
-      if (!firm) {
-        chkContact.checked = false;
-        if (this.selContact) {
-          this.selContact.disabled = true;
-          this._setContactHint("-");
-        }
-        return;
-      }
-      if (!chkContact.checked) {
-        if (this.selContact) {
-          this.selContact.disabled = true;
-          this._setContactHint("-");
-        }
-        const res = await this._saveMeetingTopPatch(
-          { contact_kind: null, contact_person_id: null, contact_label: null },
-          { reload: false, pulse: true }
-        );
-        if (res?.ok && this.selectedTop) {
-          this.selectedTop.contact_kind = null;
-          this.selectedTop.contact_person_id = null;
-          this.selectedTop.contact_label = null;
-        }
-        return;
-      }
-
-      await this._refreshContactOptions({
-        selectedId: this.selectedTop?.contact_person_id ?? null,
-        selectedLabel: this.selectedTop?.contact_label ?? null,
-        autoSaveSingle: true,
-      });
     });
 
     selContact.addEventListener("change", async () => {
@@ -3924,8 +3843,7 @@ async _closeViewOnly() {
 
     if (this.chkImportant) this.chkImportant.disabled = busy || ro || !this.selectedTop;
     if (this.chkHidden) this.chkHidden.disabled = busy || ro || !this.selectedTop;
-    if (this.chkContact) this.chkContact.disabled = busy || ro || !this.selectedTop;
-    if (this.selContact) this.selContact.disabled = busy || ro || !this.selectedTop || this.selContact.disabled;
+    if (this.selContact) this.selContact.disabled = false;
 
     if (this.inpTitle) this.inpTitle.disabled = busy || ro || !this.selectedTop || this.inpTitle.disabled;
     if (this.taLongtext) this.taLongtext.disabled = busy || ro || !this.selectedTop;
@@ -4856,7 +4774,6 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.value = "";
       if (this.selStatus) this.selStatus.value = "offen";
       if (this.selResponsible) this.selResponsible.value = "";
-      if (this.chkContact) this.chkContact.checked = false;
       if (this.selContact) this._setContactHint("-");
       this._clearLegacyResponsibleOption();
       this._respLegacyReadonly = false;
@@ -4870,8 +4787,7 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.chkContact) this.chkContact.disabled = true;
-      if (this.selContact) this.selContact.disabled = true;
+      if (this.selContact) this.selContact.disabled = false;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
 
@@ -4916,10 +4832,6 @@ const textCol = document.createElement("div");
     this._updateDueAmpelFromInputs();
     this._clearLegacyResponsibleOption();
     this._respLegacyReadonly = false;
-    if (this.chkContact) {
-      const hasContact = !!(t?.contact_person_id || t?.contact_label);
-      this.chkContact.checked = hasContact;
-    }
 
     const topId = t.id;
     const sameTopDirty = this._respDirty && this._sameTopId(this._respDirtyTopId, topId);
@@ -4961,8 +4873,7 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.chkContact) this.chkContact.disabled = true;
-      if (this.selContact) this.selContact.disabled = true;
+      if (this.selContact) this.selContact.disabled = false;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
 
