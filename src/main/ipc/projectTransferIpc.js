@@ -6,13 +6,35 @@
 const { ipcMain, app } = require("electron");
 const fs = require("fs");
 const path = require("path");
-const yauzl = require("yauzl");
-const extract = require("extract-zip");
 
 const { initDatabase } = require("../db/database");
 const { appSettingsGetMany } = require("../db/appSettingsRepo");
 const projectsRepo = require("../db/projectsRepo");
 const { buildStoragePreviewPaths, sanitizeDirName, resolveProjectFolderName } = require("./projectStoragePaths");
+
+function _getArchiver() {
+  try {
+    return require("archiver");
+  } catch (err) {
+    throw new Error("Transfer module 'archiver' konnte nicht geladen werden.");
+  }
+}
+
+function _getYauzl() {
+  try {
+    return require("yauzl");
+  } catch (err) {
+    throw new Error("Transfer module 'yauzl' konnte nicht geladen werden.");
+  }
+}
+
+function _getExtractZip() {
+  try {
+    return require("extract-zip");
+  } catch (err) {
+    throw new Error("Transfer module 'extract-zip' konnte nicht geladen werden.");
+  }
+}
 
 function _sanitizeFilePart(value, fallback = "Projekt") {
   const clean = String(value || "").trim() || fallback;
@@ -111,7 +133,7 @@ async function _createExportZip({ exportPath, projectDir, manifest, payloads }) 
   await fs.promises.mkdir(path.dirname(exportPath), { recursive: true });
 
   await new Promise((resolve, reject) => {
-    const archiver = require("archiver");
+    const archiver = _getArchiver();
     const output = fs.createWriteStream(exportPath);
     const archive = archiver("zip", { zlib: { level: 9 } });
 
@@ -144,7 +166,7 @@ function _validateExportZip(exportPath) {
     }
 
     const expect = { manifest: false, projectFolder: false };
-
+    const yauzl = _getYauzl();
     yauzl.open(exportPath, { lazyEntries: true }, (err, zipfile) => {
       if (err || !zipfile) return resolve({ ok: false, error: err?.message || "ZIP konnte nicht geöffnet werden." });
 
@@ -190,6 +212,7 @@ function _rowExists(db, table, id) {
 
 async function _extractZipToTemp(filePath, tempDir) {
   await fs.promises.mkdir(tempDir, { recursive: true });
+  const extract = _getExtractZip();
   await extract(filePath, { dir: tempDir });
 }
 
