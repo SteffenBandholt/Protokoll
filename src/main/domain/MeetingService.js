@@ -276,7 +276,6 @@ class MeetingService {
 
     const rows = this.meetingTopsRepo.listJoinedByMeeting(meetingId) || [];
     const byId = new Map();
-    const childrenByParent = new Map();
     const displayMemo = new Map();
     const ampelMemo = new Map();
     const ampelSvc = createAmpelService();
@@ -293,11 +292,6 @@ class MeetingService {
         responsible_label: String(r.responsible_label || "").trim(),
       };
       byId.set(String(node.id), node);
-      if (node.parent_top_id) {
-        const pKey = String(node.parent_top_id);
-        if (!childrenByParent.has(pKey)) childrenByParent.set(pKey, []);
-        childrenByParent.get(pKey).push(String(node.id));
-      }
     }
 
     const computeAmpelById = (id) => {
@@ -309,15 +303,6 @@ class MeetingService {
       if (!node) {
         ampelMemo.set(key, null);
         return null;
-      }
-
-      const childIds = childrenByParent.get(key) || [];
-      if (childIds.length > 0) {
-        const childAmpels = childIds.map((cid) => ({ color: computeAmpelById(cid) }));
-        const agg = ampelSvc.aggregateChildren(childAmpels || []);
-        const color = agg?.color || null;
-        ampelMemo.set(key, color);
-        return color;
       }
 
       const own = ampelSvc.evaluateTop(

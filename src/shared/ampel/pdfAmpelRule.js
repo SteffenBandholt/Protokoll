@@ -67,15 +67,6 @@ export function shouldShowAmpelInPdf({ mode, meeting, settings } = {}) {
 }
 
 export function computeAmpelColorForTop({ top, childrenColors, now } = {}) {
-  const childList = Array.isArray(childrenColors) ? childrenColors : [];
-  if (childList.length > 0) {
-    const priority = ["blue", "red", "orange", "green"];
-    for (const p of priority) {
-      if (childList.some((c) => c === p)) return p;
-    }
-    return null;
-  }
-
   const status = _normalizeStatus(top?.status);
   const dueDate = _parseYmdToLocalDateOnly(top?.due_date ?? top?.dueDate ?? null);
   const today = _toLocalDateOnly(now instanceof Date ? now : new Date()) || _toLocalDateOnly(new Date());
@@ -97,42 +88,15 @@ export function computeAmpelColorForTop({ top, childrenColors, now } = {}) {
 export function computeAmpelMapForTops({ tops, mode, meeting, settings, now } = {}) {
   const list = Array.isArray(tops) ? tops : [];
   const byId = new Map();
-  const childrenByParent = new Map();
 
   for (const t of list) {
     const id = _getId(t);
     if (!id) continue;
     const key = String(id);
     byId.set(key, t);
-    const pid = _getParentId(t);
-    if (!pid) continue;
-    const pkey = String(pid);
-    if (!childrenByParent.has(pkey)) childrenByParent.set(pkey, []);
-    childrenByParent.get(pkey).push(key);
   }
 
   const showAll = shouldShowAmpelInPdf({ mode, meeting, settings });
-  const cache = new Map();
-
-  const computeForId = (id) => {
-    const key = String(id);
-    if (cache.has(key)) return cache.get(key);
-    const t = byId.get(key);
-    if (!t) {
-      cache.set(key, null);
-      return null;
-    }
-    const childIds = childrenByParent.get(key) || [];
-    if (childIds.length > 0) {
-      const colors = childIds.map((cid) => computeForId(cid));
-      const c = computeAmpelColorForTop({ top: t, childrenColors: colors, now });
-      cache.set(key, c);
-      return c;
-    }
-    const c = computeAmpelColorForTop({ top: t, childrenColors: [], now });
-    cache.set(key, c);
-    return c;
-  };
 
   const out = new Map();
   for (const t of list) {
@@ -140,7 +104,7 @@ export function computeAmpelMapForTops({ tops, mode, meeting, settings, now } = 
     if (!id) continue;
     const level = _getLevel(t);
     const canShow = showAll && level >= 2 && level <= 4;
-    const color = canShow ? computeForId(id) : null;
+    const color = canShow ? computeAmpelColorForTop({ top: t, childrenColors: [], now }) : null;
     out.set(String(id), { show: canShow, color });
   }
 

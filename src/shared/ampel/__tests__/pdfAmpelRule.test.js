@@ -87,18 +87,6 @@ describe("pdfAmpelRule", () => {
     ).toBe("green");
   });
 
-  it("Parent aggregation: green+orange -> orange; orange+red -> red; red+blue -> blue", () => {
-    expect(
-      computeAmpelColorForTop({ top: mkTop(), childrenColors: ["green", "orange"] })
-    ).toBe("orange");
-    expect(
-      computeAmpelColorForTop({ top: mkTop(), childrenColors: ["orange", "red"] })
-    ).toBe("red");
-    expect(
-      computeAmpelColorForTop({ top: mkTop(), childrenColors: ["red", "blue"] })
-    ).toBe("blue");
-  });
-
   it("Sichtbarkeit: Vorabzug folgt Toggle; geschlossen folgt Freeze falls vorhanden", () => {
     const settingsOn = { "tops.ampelEnabled": "true" };
     const settingsOff = { "tops.ampelEnabled": "false" };

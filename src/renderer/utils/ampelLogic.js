@@ -51,17 +51,11 @@ function getParentId(top) {
 export function createAmpelComputer(allTops, now = new Date(), overridesById = null) {
   const list = Array.isArray(allTops) ? allTops : [];
   const byId = new Map();
-  const childrenByParent = new Map();
 
   for (const t of list) {
     const id = getId(t);
     if (!id) continue;
     byId.set(String(id), t);
-    const pid = getParentId(t);
-    if (!pid) continue;
-    const key = String(pid);
-    if (!childrenByParent.has(key)) childrenByParent.set(key, []);
-    childrenByParent.get(key).push(String(id));
   }
 
   const today = toLocalDateOnly(now) || toLocalDateOnly(new Date());
@@ -85,20 +79,6 @@ export function createAmpelComputer(allTops, now = new Date(), overridesById = n
 
     const t = resolveById(key);
     if (!t) {
-      cache.set(key, null);
-      return null;
-    }
-
-    const childIds = childrenByParent.get(key) || [];
-    if (childIds.length > 0) {
-      const colors = childIds.map((cid) => computeForId(cid));
-      const priority = ["blau", "rot", "orange", "gruen"];
-      for (const p of priority) {
-        if (colors.some((c) => c === p)) {
-          cache.set(key, p);
-          return p;
-        }
-      }
       cache.set(key, null);
       return null;
     }

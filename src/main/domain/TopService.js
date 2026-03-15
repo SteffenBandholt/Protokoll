@@ -200,14 +200,6 @@ class TopService {
     const nowForOpen = new Date();
     const closeTime = meeting.updated_at ? new Date(meeting.updated_at) : new Date();
 
-    const childrenByParent = new Map();
-    for (const t of items) {
-      const pid = t.parent_top_id || null;
-      if (!pid) continue;
-      if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
-      childrenByParent.get(pid).push(t.id);
-    }
-
     const ampelCache = new Map();
     const computeAmpelForId = (id) => {
       if (ampelCache.has(id)) return ampelCache.get(id);
@@ -223,14 +215,6 @@ class TopService {
         const v = { color: t.frozen_ampel_color, reason: t.frozen_ampel_reason || "" };
         ampelCache.set(id, v);
         return v;
-      }
-
-      const childIds = childrenByParent.get(id) || [];
-      if (childIds.length > 0) {
-        const childAmpels = childIds.map((cid) => computeAmpelForId(cid));
-        const agg = ampelService.aggregateChildren(childAmpels);
-        ampelCache.set(id, agg);
-        return agg;
       }
 
       const own = ampelService.evaluateTop(
