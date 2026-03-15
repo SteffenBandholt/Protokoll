@@ -6,17 +6,15 @@ const {
   buildStoragePreviewPaths,
 } = require("../src/main/ipc/projectStoragePaths");
 
+const audioSuggestionsRepoTests = require("./tests/audioSuggestionsRepo.test.cjs");
+const audioSuggestionApplyTests = require("./tests/audioSuggestionApply.test.cjs");
+const audioMappingTests = require("./tests/audioMapping.test.cjs");
+
+const tests = [];
 let failed = false;
 
 function run(name, fn) {
-  try {
-    fn();
-    console.log(`ok - ${name}`);
-  } catch (err) {
-    failed = true;
-    console.error(`not ok - ${name}`);
-    console.error(err?.stack || err?.message || err);
-  }
+  tests.push({ name, fn });
 }
 
 run("sanitizeDirName ersetzt ungueltige Zeichen", () => {
@@ -43,8 +41,25 @@ run("buildStoragePreviewPaths erzeugt Zielordner", () => {
   assert.equal(out.listsDir, path.join("C:\\Daten", "bbm", "12 - Test", "Listen"));
 });
 
-if (failed) {
-  process.exitCode = 1;
-} else {
-  console.log("Alle Tests bestanden.");
-}
+audioSuggestionsRepoTests(run, { assert });
+audioSuggestionApplyTests(run, { assert });
+audioMappingTests(run, { assert });
+
+(async () => {
+  for (const test of tests) {
+    try {
+      await test.fn();
+      console.log(`ok - ${test.name}`);
+    } catch (err) {
+      failed = true;
+      console.error(`not ok - ${test.name}`);
+      console.error(err?.stack || err?.message || err);
+    }
+  }
+
+  if (failed) {
+    process.exitCode = 1;
+  } else {
+    console.log("Alle Tests bestanden.");
+  }
+})();
