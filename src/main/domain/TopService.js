@@ -278,11 +278,12 @@ class TopService {
       title,
     });
 
+    const todayIso = new Date().toISOString().slice(0, 10);
     this.meetingTopsRepo.attachTopToMeeting({
       meetingId,
       topId: created.id,
       status: "offen",
-      dueDate: null,
+      dueDate: todayIso,
       longtext: null,
       isCarriedOver: false,
     });
