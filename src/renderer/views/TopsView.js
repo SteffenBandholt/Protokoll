@@ -7,6 +7,7 @@ import { shouldShowTopForMeeting, shouldGrayTopForMeeting } from "../utils/topVi
 import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
+import AudioSuggestionsPanel from "../ui/AudioSuggestionsPanel.js";
 import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
@@ -36,6 +37,7 @@ export default class TopsView {
     this.btnEndMeeting = null; // "Protokoll beenden"
     this.btnCloseMeeting = null; // "Schließen"
     this.btnLongToggle = null;
+    this.btnAudioAnalyze = null;
 
     this.btnAmpelToggle = null;
     this.btnTasks = null;
@@ -145,6 +147,9 @@ export default class TopsView {
 
     // Mail-Flow nach Protokoll beenden
     this._lastClosedMeetingForEmail = null;
+    this._audioPanel = null;
+    this._audioPanelBusy = false;
+    this._audioPanelStatusMessage = "";
   }
 
   _updateTopBarProtocolTitle() {
@@ -1052,6 +1057,7 @@ _isoToDDMMYYYY(iso) {
 
       if (this.btnEndMeeting) this.btnEndMeeting.disabled = true;
       if (this.btnCloseMeeting) this.btnCloseMeeting.disabled = true;
+      if (this.btnAudioAnalyze) this.btnAudioAnalyze.disabled = true;
 
       if (this.btnMove) this.btnMove.disabled = true;
       if (this.btnSaveTop) this.btnSaveTop.disabled = true;
@@ -2122,6 +2128,274 @@ _isoToDDMMYYYY(iso) {
     this.topMetaEl.append(mk("Fertig bis"), mk("Status"), mk("verantw"));
   }
 
+  _getAudioPanel() {
+    if (!this._audioPanel) {
+      this._audioPanel = new AudioSuggestionsPanel();
+    }
+    return this._audioPanel;
+  }
+
+  _manualAssignTitle() {
+    return "Manuell zuordnen";
+  }
+
+  _normalizeManualAssignTitle(value) {
+    return String(value || "").trim().toLocaleLowerCase("de-DE");
+  }
+
+  _findManualAssignTop() {
+    const target = this._normalizeManualAssignTitle(this._manualAssignTitle());
+    return (
+      (this.items || []).find((item) => {
+        return (
+          Number(item?.level) === 1 &&
+          this._normalizeManualAssignTitle(item?.title) === target
+        );
+      }) || null
+    );
+  }
+
+  _hasManualAssignChildren() {
+    const manualAssignTop = this._findManualAssignTop();
+    if (!manualAssignTop?.id) return false;
+    const itemById = new Map((this.items || []).map((item) => [String(item.id), item]));
+    const rootId = String(manualAssignTop.id);
+    return (this.items || []).some((item) => {
+      if (Number(item?.is_hidden || 0) === 1) return false;
+      let parentId = String(item?.parent_top_id || "").trim();
+      while (parentId) {
+        if (parentId === rootId) return true;
+        parentId = String(itemById.get(parentId)?.parent_top_id || "").trim();
+      }
+      return false;
+    });
+  }
+
+  async _warnAboutManualAssignBeforeClose() {
+    if (!this._hasManualAssignChildren()) return true;
+    return window.confirm(
+      "Im Bereich 'Manuell zuordnen' befinden sich noch nicht zugeordnete Punkte.\n\nTrotzdem abschließen?"
+    );
+  }
+
+  async _loadAudioSuggestions() {
+    if (!this.meetingId || typeof window?.bbmDb?.audioGetSuggestions !== "function") {
+      return [];
+    }
+
+    const res = await window.bbmDb.audioGetSuggestions({
+      meetingId: this.meetingId,
+      status: "pending",
+    });
+    if (!res?.ok) throw new Error(res?.error || "Vorschläge konnten nicht geladen werden.");
+    return Array.isArray(res.list) ? res.list : [];
+  }
+
+  async _refreshAudioPanel(options = {}) {
+    const panel = this._getAudioPanel();
+    const forceMessage =
+      options && Object.prototype.hasOwnProperty.call(options, "statusMessage")
+        ? options.statusMessage
+        : undefined;
+
+    try {
+      const suggestions = await this._loadAudioSuggestions();
+      const fallbackMessage = suggestions.length
+        ? ""
+        : "Aktuell liegen keine Vorschläge vor. Transkription und Analyse sind in Phase 3 noch Platzhalter.";
+      panel.update({
+        title: "Sprachdatei auswerten",
+        modeLabel: "Prüfmodus",
+        busy: !!this._audioPanelBusy,
+        statusMessage:
+          forceMessage !== undefined
+            ? String(forceMessage || "")
+            : (this._audioPanelStatusMessage || fallbackMessage),
+        suggestions,
+        onImportAudio: async () => this._runAudioImportFlow(),
+        onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+        onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
+        onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+      });
+    } catch (err) {
+      panel.update({
+        title: "Sprachdatei auswerten",
+        modeLabel: "Prüfmodus",
+        busy: !!this._audioPanelBusy,
+        statusMessage: err?.message || String(err),
+        suggestions: [],
+        onImportAudio: async () => this._runAudioImportFlow(),
+        onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+        onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
+        onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+      });
+    }
+  }
+
+  async _openAudioPanel() {
+    if (!this.meetingId || this.isReadOnly) return;
+    const panel = this._getAudioPanel();
+    panel.open({
+      title: "Sprachdatei auswerten",
+      modeLabel: "Prüfmodus",
+      busy: !!this._audioPanelBusy,
+      statusMessage: this._audioPanelStatusMessage,
+      suggestions: [],
+      onImportAudio: async () => this._runAudioImportFlow(),
+      onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+      onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
+      onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+    });
+    await this._refreshAudioPanel();
+  }
+
+  async _runAudioImportFlow() {
+    if (!this.meetingId || this.isReadOnly) return;
+    const api = window.bbmDb || {};
+    if (
+      typeof api.audioImport !== "function" ||
+      typeof api.audioTranscribe !== "function" ||
+      typeof api.audioAnalyze !== "function"
+    ) {
+      alert("Audio-Funktionen sind nicht verfügbar.");
+      return;
+    }
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Sprachdatei wird importiert...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const importRes = await api.audioImport({
+        meetingId: this.meetingId,
+        processingMode: "review",
+      });
+      if (importRes?.canceled) {
+        this._audioPanelStatusMessage = "Auswahl abgebrochen.";
+        return;
+      }
+      if (!importRes?.ok || !importRes.audioImport?.id) {
+        throw new Error(importRes?.error || "Audio-Import fehlgeschlagen.");
+      }
+
+      const audioImportId = importRes.audioImport.id;
+      this._audioPanelStatusMessage = "Transkription wird vorbereitet...";
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+      const transcribeRes = await api.audioTranscribe({ audioImportId });
+      if (!transcribeRes?.ok) {
+        throw new Error(transcribeRes?.error || "Transkription fehlgeschlagen.");
+      }
+
+      this._audioPanelStatusMessage = "Analyse wird vorbereitet...";
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+      const analyzeRes = await api.audioAnalyze({
+        audioImportId,
+        processingMode: "review",
+      });
+      if (!analyzeRes?.ok) {
+        throw new Error(analyzeRes?.error || "Analyse fehlgeschlagen.");
+      }
+
+      this._audioPanelStatusMessage =
+        analyzeRes?.message ||
+        "Import abgeschlossen. In Phase 3 entstehen noch keine echten Analysevorschläge.";
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _createDemoAudioSuggestion(demoType) {
+    if (!this.meetingId || this.isReadOnly) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioCreateDemoSuggestion !== "function") {
+      alert("audioCreateDemoSuggestion ist nicht verfÃ¼gbar.");
+      return;
+    }
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Demo-Vorschlag wird angelegt...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioCreateDemoSuggestion({
+        meetingId: this.meetingId,
+        demoType,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Demo-Vorschlag konnte nicht angelegt werden.");
+      }
+      this._audioPanelStatusMessage =
+        res?.message || "Demo-Vorschlag wurde zur PrÃ¼fung angelegt.";
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _applyAudioSuggestion(suggestion) {
+    const api = window.bbmDb || {};
+    if (typeof api.audioApplySuggestion !== "function") {
+      alert("audioApplySuggestion ist nicht verfügbar.");
+      return;
+    }
+
+    const suggestionId = String(suggestion?.id || "").trim();
+    if (!suggestionId) return;
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Vorschlag wird übernommen...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioApplySuggestion({ suggestionId });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Vorschlag konnte nicht übernommen werden.");
+      }
+      this._audioPanelStatusMessage = "Vorschlag übernommen.";
+      await this.reloadList(true);
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _rejectAudioSuggestion(suggestion) {
+    const api = window.bbmDb || {};
+    if (typeof api.audioRejectSuggestion !== "function") {
+      alert("audioRejectSuggestion ist nicht verfügbar.");
+      return;
+    }
+
+    const suggestionId = String(suggestion?.id || "").trim();
+    if (!suggestionId) return;
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Vorschlag wird verworfen...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioRejectSuggestion({ suggestionId });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Vorschlag konnte nicht verworfen werden.");
+      }
+      this._audioPanelStatusMessage = "Vorschlag verworfen.";
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
   render() {
     const root = document.createElement("div");
     if (!this._fontScaleListenerBound) {
@@ -2172,6 +2446,7 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnEndMeeting);
     btnEndMeeting.onclick = async () => {
       if (this._busy) return;
+      if (!(await this._warnAboutManualAssignBeforeClose())) return;
 
       const defDate = this._computeNextMeetingDefaultDateIso();
       const promptRes = await this.router?.promptNextMeetingSettings?.({
@@ -2361,6 +2636,17 @@ _isoToDDMMYYYY(iso) {
       }
 
       await this._enterIdleAfterClose();
+    };
+
+    const btnAudioAnalyze = document.createElement("button");
+    btnAudioAnalyze.textContent = "Sprachdatei auswerten";
+    btnAudioAnalyze.style.background = "#1565c0";
+    btnAudioAnalyze.style.color = "white";
+    btnAudioAnalyze.style.border = "1px solid rgba(0,0,0,0.25)";
+    styleBtnBase(btnAudioAnalyze);
+    btnAudioAnalyze.onclick = async () => {
+      if (this._busy || this.isReadOnly || !this.meetingId) return;
+      await this._openAudioPanel();
     };
 
     const btnCloseMeeting = document.createElement("button");
@@ -2601,7 +2887,14 @@ _isoToDDMMYYYY(iso) {
     actionBtnsWrap.style.alignItems = "center";
     actionBtnsWrap.style.gap = "8px";
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
-    actionBtnsWrap.append(viewWrap, btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
+    actionBtnsWrap.append(
+      viewWrap,
+      btnAmpelToggle,
+      btnLongToggle,
+      btnAudioAnalyze,
+      btnEndMeeting,
+      btnCloseMeeting
+    );
 
     // Feldbezeichnungen rechts über Meta-Spalte (Platz immer reserviert)
     const topMeta = document.createElement("div");
@@ -3081,6 +3374,7 @@ _isoToDDMMYYYY(iso) {
     this.btnEndMeeting = btnEndMeeting;
     this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
+    this.btnAudioAnalyze = btnAudioAnalyze;
     this.btnAmpelToggle = btnAmpelToggle;
     this.btnTasks = viewSelect;
 
@@ -3510,6 +3804,7 @@ _renderIdleState() {
     dis(this.btnLongToggle);
     dis(this.btnTasks);
     dis(this.btnEndMeeting);
+    dis(this.btnAudioAnalyze);
 
     // Liste leeren und Idle Buttons anzeigen
     if (this.listEl) {
@@ -4136,6 +4431,9 @@ async _createMeetingFromIdle() {
 
 async _enterIdleAfterClose() {
   // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
+  if (this._audioPanel && typeof this._audioPanel.close === "function") {
+    this._audioPanel.close();
+  }
   this.meetingId = null;
   this.meetingMeta = null;
   this.selectedTopId = null;
@@ -4196,6 +4494,11 @@ async _closeViewOnly() {
       this.btnEndMeeting.disabled = ro || busy;
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
       this.btnEndMeeting.style.display = ro ? "none" : "";
+    }
+    if (this.btnAudioAnalyze) {
+      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId;
+      this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
+      this.btnAudioAnalyze.style.display = ro || !this.meetingId ? "none" : "";
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
@@ -4767,6 +5070,10 @@ async _closeViewOnly() {
       const isTask = this._isTaskTop(top);
       const isDecision = parseFlag(top.is_decision ?? top.isDecision);
       const isLevel1 = Number(top.level) === 1;
+      const isManualAssignTop =
+        isLevel1 &&
+        this._normalizeManualAssignTitle(top.title) ===
+          this._normalizeManualAssignTitle(this._manualAssignTitle());
       const isDone = shouldGrayTopForMeeting(top, meeting);
       const changedRaw =
         top.updated_at ??
@@ -4810,7 +5117,7 @@ async _closeViewOnly() {
               ? (isTouched ? "blue" : "black")
               : "blue";
 
-      const baseBg = isLevel1 ? "#f3f3f3" : "transparent";
+      const baseBg = isManualAssignTop ? "#fff3e0" : (isLevel1 ? "#f3f3f3" : "transparent");
       li.style.background = isSelected ? "#dff0ff" : baseBg;
       li.style.border = isSelected ? "1px solid #7aa7ff" : "1px solid transparent";
       li.style.fontWeight = isSelected ? "700" : "400";
@@ -4915,6 +5222,7 @@ const textCol = document.createElement("div");
       shortLine.style.whiteSpace = "nowrap";
       shortLine.style.overflow = "hidden";
       shortLine.style.textOverflow = "ellipsis";
+      if (isManualAssignTop) shortLine.style.fontWeight = "700";
 
       textCol.append(shortLine);
 
@@ -5596,5 +5904,16 @@ const textCol = document.createElement("div");
     }
 
     this._gapPopupOverlay = overlay;
+  }
+
+  async destroy() {
+    try {
+      if (this._audioPanel && typeof this._audioPanel.destroy === "function") {
+        this._audioPanel.destroy();
+      }
+    } catch (_err) {
+      // ignore cleanup issues
+    }
+    this._audioPanel = null;
   }
 }

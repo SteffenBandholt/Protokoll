@@ -1,0 +1,446 @@
+export default class AudioSuggestionsPanel {
+  constructor() {
+    this.overlay = null;
+    this.card = null;
+    this.body = null;
+    this.state = {
+      title: "Sprachdatei auswerten",
+      modeLabel: "Prüfmodus",
+      busy: false,
+      statusMessage: "",
+      suggestions: [],
+      onImportAudio: null,
+      onCreateDemoSuggestion: null,
+      onApplySuggestion: null,
+      onRejectSuggestion: null,
+    };
+  }
+
+  open(nextState = {}) {
+    this.state = { ...this.state, ...nextState };
+    if (!this.overlay) this._mount();
+    this._render();
+  }
+
+  update(nextState = {}) {
+    if (!this.overlay) {
+      this.open(nextState);
+      return;
+    }
+    this.state = { ...this.state, ...nextState };
+    this._render();
+  }
+
+  close() {
+    if (!this.overlay) return;
+    this.overlay.remove();
+    this.overlay = null;
+    this.card = null;
+    this.body = null;
+  }
+
+  destroy() {
+    this.close();
+  }
+
+  _pickSuggestionValue(suggestion, keys) {
+    for (const key of keys) {
+      const value = suggestion?.[key];
+      if (value !== null && value !== undefined && String(value).trim()) {
+        return String(value).trim();
+      }
+    }
+    return "";
+  }
+
+  _formatTopLabel(numberValue, titleValue, idValue) {
+    const number = String(numberValue || "").trim();
+    const title = String(titleValue || "").trim();
+    const id = String(idValue || "").trim();
+    if (number && title) return `${number} ${title}`;
+    return title || number || id || "-";
+  }
+
+  _getTargetInfo(suggestion) {
+    const type = String(suggestion?.type || "").trim();
+    if (type === "append_to_top") {
+      return `Ziel-TOP: ${this._formatTopLabel(
+        this._pickSuggestionValue(suggestion, ["target_top_number", "targetTopNumber"]),
+        this._pickSuggestionValue(suggestion, ["target_top_title", "targetTopTitle"]),
+        this._pickSuggestionValue(suggestion, ["target_top_id", "targetTopId"])
+      )}`;
+    }
+    if (type === "create_child_top") {
+      return `Parent-TOP: ${this._formatTopLabel(
+        this._pickSuggestionValue(suggestion, ["parent_top_number", "parentTopNumber"]),
+        this._pickSuggestionValue(suggestion, ["parent_top_title", "parentTopTitle"]),
+        this._pickSuggestionValue(suggestion, ["parent_top_id", "parentTopId"])
+      )}`;
+    }
+    if (type === "manual_assign_child_top") {
+      return "Zielbereich: Manuell zuordnen";
+    }
+    return "Ziel: -";
+  }
+
+  _mount() {
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0, 0, 0, 0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "13000";
+    overlay.addEventListener("mousedown", (event) => {
+      if (event.target === overlay) this.close();
+    });
+
+    const card = document.createElement("div");
+    card.style.width = "min(960px, calc(100vw - 32px))";
+    card.style.maxHeight = "min(84vh, 900px)";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.background = "#ffffff";
+    card.style.borderRadius = "12px";
+    card.style.boxShadow = "0 20px 50px rgba(0, 0, 0, 0.25)";
+    card.style.overflow = "hidden";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.justifyContent = "space-between";
+    header.style.padding = "14px 18px";
+    header.style.borderBottom = "1px solid #e0e0e0";
+
+    const heading = document.createElement("div");
+    heading.dataset.role = "audio-panel-title";
+    heading.style.fontSize = "18px";
+    heading.style.fontWeight = "700";
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.textContent = "Schließen";
+    closeBtn.style.border = "1px solid #cfd8dc";
+    closeBtn.style.background = "#f7f9fb";
+    closeBtn.style.borderRadius = "6px";
+    closeBtn.style.padding = "6px 10px";
+    closeBtn.style.cursor = "pointer";
+    closeBtn.onclick = () => this.close();
+
+    header.append(heading, closeBtn);
+
+    const body = document.createElement("div");
+    body.style.padding = "18px";
+    body.style.overflow = "auto";
+    body.style.display = "flex";
+    body.style.flexDirection = "column";
+    body.style.gap = "16px";
+
+    card.append(header, body);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    this.overlay = overlay;
+    this.card = card;
+    this.body = body;
+  }
+
+  _render() {
+    if (!this.overlay || !this.body) return;
+
+    const titleEl = this.card?.querySelector?.('[data-role="audio-panel-title"]');
+    if (titleEl) titleEl.textContent = String(this.state.title || "Sprachdatei auswerten");
+
+    this.body.innerHTML = "";
+
+    const toolbar = document.createElement("div");
+    toolbar.style.display = "flex";
+    toolbar.style.alignItems = "center";
+    toolbar.style.justifyContent = "space-between";
+    toolbar.style.gap = "12px";
+    toolbar.style.flexWrap = "wrap";
+
+    const modeBox = document.createElement("div");
+    modeBox.style.display = "flex";
+    modeBox.style.flexDirection = "column";
+    modeBox.style.gap = "4px";
+
+    const modeLabel = document.createElement("div");
+    modeLabel.textContent = `Modus: ${String(this.state.modeLabel || "Prüfmodus")}`;
+    modeLabel.style.fontWeight = "600";
+
+    const modeHint = document.createElement("div");
+    modeHint.textContent = "Version 1 arbeitet ausschließlich im Prüfmodus.";
+    modeHint.style.fontSize = "12px";
+    modeHint.style.color = "#546e7a";
+
+    modeBox.append(modeLabel, modeHint);
+
+    const importBtn = document.createElement("button");
+    importBtn.type = "button";
+    importBtn.textContent = this.state.busy ? "Bitte warten..." : "Audio auswählen und auswerten";
+    importBtn.disabled = !!this.state.busy;
+    importBtn.style.border = "1px solid rgba(0,0,0,0.25)";
+    importBtn.style.background = "#1565c0";
+    importBtn.style.color = "#fff";
+    importBtn.style.borderRadius = "8px";
+    importBtn.style.padding = "8px 12px";
+    importBtn.style.cursor = importBtn.disabled ? "default" : "pointer";
+    importBtn.onclick = async () => {
+      if (typeof this.state.onImportAudio === "function") {
+        await this.state.onImportAudio();
+      }
+    };
+
+    toolbar.append(modeBox, importBtn);
+    this.body.appendChild(toolbar);
+
+    const demoWrap = document.createElement("div");
+    demoWrap.style.display = "flex";
+    demoWrap.style.flexDirection = "column";
+    demoWrap.style.gap = "8px";
+
+    const demoTitle = document.createElement("div");
+    demoTitle.textContent = "Gezielte Demo-Vorschläge";
+    demoTitle.style.fontWeight = "600";
+
+    const demoActions = document.createElement("div");
+    demoActions.style.display = "flex";
+    demoActions.style.gap = "8px";
+    demoActions.style.flexWrap = "wrap";
+
+    const demoButtons = [
+      {
+        type: "append_to_top",
+        label: "Test: Bestehenden TOP ergänzen",
+      },
+      {
+        type: "create_child_top",
+        label: "Test: Neuen TOP anlegen",
+      },
+      {
+        type: "manual_assign_child_top",
+        label: "Test: Manuell zuordnen",
+      },
+    ];
+
+    for (const item of demoButtons) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = item.label;
+      btn.disabled = !!this.state.busy;
+      btn.style.border = "1px solid #ffb74d";
+      btn.style.background = "#fff3e0";
+      btn.style.color = "#e65100";
+      btn.style.borderRadius = "8px";
+      btn.style.padding = "8px 12px";
+      btn.style.cursor = btn.disabled ? "default" : "pointer";
+      btn.onclick = async () => {
+        if (typeof this.state.onCreateDemoSuggestion === "function") {
+          await this.state.onCreateDemoSuggestion(item.type);
+        }
+      };
+      demoActions.appendChild(btn);
+    }
+
+    demoWrap.append(demoTitle, demoActions);
+    this.body.appendChild(demoWrap);
+
+    if (this.state.statusMessage) {
+      const statusBox = document.createElement("div");
+      statusBox.textContent = String(this.state.statusMessage);
+      statusBox.style.border = "1px solid #bbdefb";
+      statusBox.style.background = "#e3f2fd";
+      statusBox.style.color = "#0d47a1";
+      statusBox.style.borderRadius = "8px";
+      statusBox.style.padding = "10px 12px";
+      this.body.appendChild(statusBox);
+    }
+
+    const suggestions = Array.isArray(this.state.suggestions) ? this.state.suggestions : [];
+    const groups = [
+      {
+        key: "append_to_top",
+        label: "Ergänzungen zu bestehenden TOPs",
+      },
+      {
+        key: "create_child_top",
+        label: "Neue TOPs",
+      },
+      {
+        key: "manual_assign_child_top",
+        label: "Manuell zuordnen",
+      },
+    ];
+
+    if (!suggestions.length) {
+      const empty = document.createElement("div");
+      empty.textContent =
+        "Noch keine Vorschläge vorhanden. Die Transkription und Analyse sind in Phase 3 noch Platzhalter.";
+      empty.style.border = "1px dashed #cfd8dc";
+      empty.style.borderRadius = "8px";
+      empty.style.padding = "14px";
+      empty.style.color = "#455a64";
+      this.body.appendChild(empty);
+      return;
+    }
+
+    for (const group of groups) {
+      const items = suggestions.filter((suggestion) => suggestion?.type === group.key);
+      if (!items.length) continue;
+
+      const section = document.createElement("section");
+      section.style.display = "flex";
+      section.style.flexDirection = "column";
+      section.style.gap = "10px";
+
+      const title = document.createElement("h3");
+      title.textContent = `${group.label} (${items.length})`;
+      title.style.margin = "0";
+      title.style.fontSize = "16px";
+      title.style.fontWeight = "700";
+
+      section.appendChild(title);
+
+      for (const suggestion of items) {
+        const card = document.createElement("div");
+        card.style.border = "1px solid #e0e0e0";
+        card.style.borderRadius = "10px";
+        card.style.padding = "12px";
+        card.style.display = "flex";
+        card.style.flexDirection = "column";
+        card.style.gap = "8px";
+        card.style.background = "#fff";
+
+        const head = document.createElement("div");
+        head.style.display = "flex";
+        head.style.alignItems = "center";
+        head.style.justifyContent = "space-between";
+        head.style.gap = "12px";
+        head.style.flexWrap = "wrap";
+
+        const main = document.createElement("div");
+        main.style.display = "flex";
+        main.style.flexDirection = "column";
+        main.style.gap = "4px";
+
+        const titleEl = document.createElement("div");
+        titleEl.textContent = String(
+          suggestion.title_suggestion ||
+            suggestion.titleSuggestion ||
+            suggestion.text_suggestion ||
+            suggestion.textSuggestion ||
+            "Vorschlag"
+        );
+        titleEl.style.fontWeight = "700";
+
+        const metaEl = document.createElement("div");
+        const confidenceRaw = Number(suggestion.confidence);
+        const confidence = Number.isFinite(confidenceRaw)
+          ? `${Math.round(confidenceRaw * 100)}%`
+          : "-";
+        metaEl.textContent = `Typ: ${suggestion.type} | Konfidenz: ${confidence}`;
+        metaEl.style.fontSize = "12px";
+        metaEl.style.color = "#607d8b";
+
+        main.append(titleEl, metaEl);
+
+        const targetEl = document.createElement("div");
+        targetEl.textContent = this._getTargetInfo(suggestion);
+        targetEl.style.fontSize = "12px";
+        targetEl.style.color = "#5d4037";
+        targetEl.style.background = "#fff8e1";
+        targetEl.style.border = "1px solid #ffe0b2";
+        targetEl.style.borderRadius = "6px";
+        targetEl.style.padding = "6px 8px";
+        main.appendChild(targetEl);
+
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
+        actions.style.flexWrap = "wrap";
+
+        const btnApply = document.createElement("button");
+        btnApply.type = "button";
+        btnApply.textContent = "Übernehmen";
+        btnApply.disabled = !!this.state.busy;
+        btnApply.style.border = "1px solid #2e7d32";
+        btnApply.style.background = "#2e7d32";
+        btnApply.style.color = "#fff";
+        btnApply.style.borderRadius = "6px";
+        btnApply.style.padding = "6px 10px";
+        btnApply.style.cursor = btnApply.disabled ? "default" : "pointer";
+        btnApply.onclick = async () => {
+          if (typeof this.state.onApplySuggestion === "function") {
+            await this.state.onApplySuggestion(suggestion);
+          }
+        };
+
+        const btnReject = document.createElement("button");
+        btnReject.type = "button";
+        btnReject.textContent = "Verwerfen";
+        btnReject.disabled = !!this.state.busy;
+        btnReject.style.border = "1px solid #b0bec5";
+        btnReject.style.background = "#eceff1";
+        btnReject.style.color = "#263238";
+        btnReject.style.borderRadius = "6px";
+        btnReject.style.padding = "6px 10px";
+        btnReject.style.cursor = btnReject.disabled ? "default" : "pointer";
+        btnReject.onclick = async () => {
+          if (typeof this.state.onRejectSuggestion === "function") {
+            await this.state.onRejectSuggestion(suggestion);
+          }
+        };
+
+        actions.append(btnApply, btnReject);
+        head.append(main, actions);
+
+        const body = document.createElement("div");
+        body.style.display = "flex";
+        body.style.flexDirection = "column";
+        body.style.gap = "4px";
+
+        const previewTitle = document.createElement("div");
+        previewTitle.textContent = `Titel: ${String(
+          suggestion.title_suggestion || suggestion.titleSuggestion || "(ohne Titelvorschlag)"
+        )}`;
+        previewTitle.style.fontSize = "13px";
+        previewTitle.style.color = "#37474f";
+
+        const previewLabel = document.createElement("div");
+        previewLabel.textContent = "Textvorschau:";
+        previewLabel.style.fontSize = "12px";
+        previewLabel.style.fontWeight = "600";
+        previewLabel.style.color = "#546e7a";
+
+        const text = document.createElement("div");
+        text.textContent = String(
+          suggestion.text_suggestion || suggestion.textSuggestion || "(ohne Textvorschlag)"
+        );
+        text.style.whiteSpace = "pre-wrap";
+        text.style.borderLeft = "3px solid #bbdefb";
+        text.style.paddingLeft = "8px";
+
+        body.append(previewTitle, previewLabel, text);
+
+        const excerptRaw = String(
+          suggestion.source_excerpt || suggestion.sourceExcerpt || ""
+        ).trim();
+        if (excerptRaw) {
+          const excerpt = document.createElement("div");
+          excerpt.textContent = `Quelle: ${excerptRaw}`;
+          excerpt.style.fontSize = "12px";
+          excerpt.style.color = "#546e7a";
+          excerpt.style.whiteSpace = "pre-wrap";
+          body.appendChild(excerpt);
+        }
+
+        card.append(head, body);
+        section.appendChild(card);
+      }
+
+      this.body.appendChild(section);
+    }
+  }
+}

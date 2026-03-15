@@ -305,6 +305,166 @@ function ensureMeetingsNextMeetingColumns(dbConn) {
   addCol("next_meeting_extra", "TEXT");
 }
 
+function ensureAudioImportsSchema(dbConn) {
+  if (!tableExists(dbConn, "audio_imports")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS audio_imports (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        original_file_name TEXT,
+        mime_type TEXT,
+        processing_mode TEXT NOT NULL DEFAULT 'review',
+        status TEXT NOT NULL DEFAULT 'imported',
+        error_message TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+    `);
+  } else {
+    const addCol = (name, sqlType) => {
+      if (!columnExists(dbConn, "audio_imports", name)) {
+        dbConn.exec(`ALTER TABLE audio_imports ADD COLUMN ${name} ${sqlType};`);
+      }
+    };
+
+    addCol("meeting_id", "TEXT");
+    addCol("project_id", "TEXT");
+    addCol("file_path", "TEXT");
+    addCol("original_file_name", "TEXT");
+    addCol("mime_type", "TEXT");
+    addCol("processing_mode", "TEXT NOT NULL DEFAULT 'review'");
+    addCol("status", "TEXT NOT NULL DEFAULT 'imported'");
+    addCol("error_message", "TEXT");
+    addCol(
+      "created_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+    addCol(
+      "updated_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+  }
+
+  dbConn.exec(`
+    CREATE INDEX IF NOT EXISTS idx_audio_imports_meeting_id
+    ON audio_imports (meeting_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_imports_project_id
+    ON audio_imports (project_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_imports_status
+    ON audio_imports (status);
+  `);
+}
+
+function ensureTranscriptsSchema(dbConn) {
+  if (!tableExists(dbConn, "transcripts")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS transcripts (
+        id TEXT PRIMARY KEY,
+        audio_import_id TEXT NOT NULL UNIQUE,
+        engine TEXT,
+        language TEXT,
+        full_text TEXT,
+        segments_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (audio_import_id) REFERENCES audio_imports(id) ON DELETE CASCADE
+      );
+    `);
+  } else {
+    const addCol = (name, sqlType) => {
+      if (!columnExists(dbConn, "transcripts", name)) {
+        dbConn.exec(`ALTER TABLE transcripts ADD COLUMN ${name} ${sqlType};`);
+      }
+    };
+
+    addCol("audio_import_id", "TEXT");
+    addCol("engine", "TEXT");
+    addCol("language", "TEXT");
+    addCol("full_text", "TEXT");
+    addCol("segments_json", "TEXT");
+    addCol(
+      "created_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+    addCol(
+      "updated_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+  }
+
+  dbConn.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_transcripts_audio_import_id
+    ON transcripts (audio_import_id);
+  `);
+}
+
+function ensureAudioSuggestionsSchema(dbConn) {
+  if (!tableExists(dbConn, "audio_suggestions")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS audio_suggestions (
+        id TEXT PRIMARY KEY,
+        audio_import_id TEXT NOT NULL,
+        meeting_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        target_top_id TEXT,
+        parent_top_id TEXT,
+        title_suggestion TEXT,
+        text_suggestion TEXT,
+        source_excerpt TEXT,
+        confidence REAL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        mapping_reason TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (audio_import_id) REFERENCES audio_imports(id) ON DELETE CASCADE,
+        FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+    `);
+  } else {
+    const addCol = (name, sqlType) => {
+      if (!columnExists(dbConn, "audio_suggestions", name)) {
+        dbConn.exec(`ALTER TABLE audio_suggestions ADD COLUMN ${name} ${sqlType};`);
+      }
+    };
+
+    addCol("audio_import_id", "TEXT");
+    addCol("meeting_id", "TEXT");
+    addCol("project_id", "TEXT");
+    addCol("type", "TEXT");
+    addCol("target_top_id", "TEXT");
+    addCol("parent_top_id", "TEXT");
+    addCol("title_suggestion", "TEXT");
+    addCol("text_suggestion", "TEXT");
+    addCol("source_excerpt", "TEXT");
+    addCol("confidence", "REAL");
+    addCol("status", "TEXT NOT NULL DEFAULT 'pending'");
+    addCol("mapping_reason", "TEXT");
+    addCol(
+      "created_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+    addCol(
+      "updated_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+  }
+
+  dbConn.exec(`
+    CREATE INDEX IF NOT EXISTS idx_audio_suggestions_meeting_id
+    ON audio_suggestions (meeting_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_suggestions_audio_import_id
+    ON audio_suggestions (audio_import_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_suggestions_status
+    ON audio_suggestions (status);
+  `);
+}
+
 function ensureFirmsAndPersonsSchema(dbConn) {
   // ------------------------------------------------------------
   // firms (GLOBAL)
@@ -1153,6 +1313,10 @@ function ensureSchema(dbConn) {
   ensureProjectSettingsSchema(dbConn);
   ensureProjectCandidatesSchema(dbConn);
   ensureMeetingParticipantsSchema(dbConn);
+
+  ensureAudioImportsSchema(dbConn);
+  ensureTranscriptsSchema(dbConn);
+  ensureAudioSuggestionsSchema(dbConn);
 
   ensureAppSettingsSchema(dbConn);
 }
