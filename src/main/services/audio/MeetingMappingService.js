@@ -201,7 +201,7 @@ class MeetingMappingService {
       suggestions: [placeholderSuggestion],
       segmentCount: segments.length,
       stub: true,
-      message: "Segmentierung und Mapping sind in Phase 3 noch Platzhalter. Es wurde ein prüfbarer Demo-Vorschlag erzeugt.",
+      message: "Segmentierung und Mapping bleiben in Phase 4 noch Platzhalter. Es wurde ein pr?fbarer Demo-Vorschlag erzeugt.",
     };
   }
 }

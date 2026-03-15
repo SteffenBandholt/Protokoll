@@ -2180,15 +2180,19 @@ _isoToDDMMYYYY(iso) {
 
   async _loadAudioSuggestions() {
     if (!this.meetingId || typeof window?.bbmDb?.audioGetSuggestions !== "function") {
-      return [];
+      return { suggestions: [], audioImport: null, transcript: null };
     }
 
     const res = await window.bbmDb.audioGetSuggestions({
       meetingId: this.meetingId,
       status: "pending",
     });
-    if (!res?.ok) throw new Error(res?.error || "Vorschläge konnten nicht geladen werden.");
-    return Array.isArray(res.list) ? res.list : [];
+    if (!res?.ok) throw new Error(res?.error || "Vorschl?ge konnten nicht geladen werden.");
+    return {
+      suggestions: Array.isArray(res.list) ? res.list : [],
+      audioImport: res.audioImport || null,
+      transcript: res.transcript || null,
+    };
   }
 
   async _refreshAudioPanel(options = {}) {
@@ -2199,19 +2203,22 @@ _isoToDDMMYYYY(iso) {
         : undefined;
 
     try {
-      const suggestions = await this._loadAudioSuggestions();
+      const audioState = await this._loadAudioSuggestions();
+      const suggestions = Array.isArray(audioState?.suggestions) ? audioState.suggestions : [];
       const fallbackMessage = suggestions.length
         ? ""
-        : "Aktuell liegen keine Vorschläge vor. Transkription und Analyse sind in Phase 3 noch Platzhalter.";
+        : "Aktuell liegen keine Vorschl?ge vor. Die Transkription ist real angebunden, die Zuordnungslogik bleibt noch Platzhalter.";
       panel.update({
         title: "Sprachdatei auswerten",
-        modeLabel: "Prüfmodus",
+        modeLabel: "Pr?fmodus",
         busy: !!this._audioPanelBusy,
         statusMessage:
           forceMessage !== undefined
             ? String(forceMessage || "")
             : (this._audioPanelStatusMessage || fallbackMessage),
         suggestions,
+        audioImport: audioState?.audioImport || null,
+        transcript: audioState?.transcript || null,
         onImportAudio: async () => this._runAudioImportFlow(),
         onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
         onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
@@ -2220,10 +2227,12 @@ _isoToDDMMYYYY(iso) {
     } catch (err) {
       panel.update({
         title: "Sprachdatei auswerten",
-        modeLabel: "Prüfmodus",
+        modeLabel: "Pr?fmodus",
         busy: !!this._audioPanelBusy,
         statusMessage: err?.message || String(err),
         suggestions: [],
+        audioImport: null,
+        transcript: null,
         onImportAudio: async () => this._runAudioImportFlow(),
         onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
         onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
@@ -2241,6 +2250,8 @@ _isoToDDMMYYYY(iso) {
       busy: !!this._audioPanelBusy,
       statusMessage: this._audioPanelStatusMessage,
       suggestions: [],
+      audioImport: null,
+      transcript: null,
       onImportAudio: async () => this._runAudioImportFlow(),
       onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
       onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
@@ -2268,6 +2279,7 @@ _isoToDDMMYYYY(iso) {
     try {
       const importRes = await api.audioImport({
         meetingId: this.meetingId,
+        projectId: this.projectId || this.router?.currentProjectId || null,
         processingMode: "review",
       });
       if (importRes?.canceled) {
@@ -2279,7 +2291,7 @@ _isoToDDMMYYYY(iso) {
       }
 
       const audioImportId = importRes.audioImport.id;
-      this._audioPanelStatusMessage = "Transkription wird vorbereitet...";
+      this._audioPanelStatusMessage = "Lokale Transkription wird gestartet...";
       await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
 
       const transcribeRes = await api.audioTranscribe({ audioImportId });
@@ -2287,7 +2299,7 @@ _isoToDDMMYYYY(iso) {
         throw new Error(transcribeRes?.error || "Transkription fehlgeschlagen.");
       }
 
-      this._audioPanelStatusMessage = "Analyse wird vorbereitet...";
+      this._audioPanelStatusMessage = "Zuordnungslogik wird als Platzhalter ausgef?hrt...";
       await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
 
       const analyzeRes = await api.audioAnalyze({
@@ -2300,7 +2312,7 @@ _isoToDDMMYYYY(iso) {
 
       this._audioPanelStatusMessage =
         analyzeRes?.message ||
-        "Import abgeschlossen. In Phase 3 entstehen noch keine echten Analysevorschläge.";
+        "Transkript gespeichert. Die TOP-Zuordnung bleibt in diesem Stand noch ein klar markierter Platzhalter.";
     } catch (err) {
       this._audioPanelStatusMessage = err?.message || String(err);
     } finally {

@@ -12,6 +12,7 @@ const {
 } = require("../services/audio/TranscriptSegmentationService");
 const { createMeetingMappingService } = require("../services/audio/MeetingMappingService");
 const { createSuggestionApplyService } = require("../services/audio/SuggestionApplyService");
+const { createWhisperCppEngine } = require("../services/audio/engines/WhisperCppEngine");
 
 const AUDIO_FILE_FILTER = [
   {
@@ -21,11 +22,13 @@ const AUDIO_FILE_FILTER = [
 ];
 
 function registerAudioIpc() {
+  const transcriptionEngine = createWhisperCppEngine();
   const audioImportService = createAudioImportService({ meetingsRepo, audioImportsRepo });
   const transcriptionService = createTranscriptionService({
     meetingsRepo,
     audioImportsRepo,
     transcriptsRepo,
+    engine: transcriptionEngine,
   });
   const segmentationService = createTranscriptSegmentationService();
   const mappingService = createMeetingMappingService({
@@ -62,6 +65,7 @@ function registerAudioIpc() {
 
       const audioImport = audioImportService.importAudio({
         meetingId,
+        projectId: data.projectId || null,
         filePath,
         processingMode: data.processingMode || "review",
       });
@@ -76,7 +80,7 @@ function registerAudioIpc() {
     try {
       const audioImportId = String(payload?.audioImportId || "").trim();
       if (!audioImportId) return { ok: false, error: "audioImportId fehlt" };
-      const result = transcriptionService.transcribe({ audioImportId });
+      const result = await transcriptionService.transcribe({ audioImportId });
       return { ok: true, ...result };
     } catch (err) {
       if (payload?.audioImportId) {
@@ -128,15 +132,25 @@ function registerAudioIpc() {
       const status = String(data.status || "pending").trim() || undefined;
 
       let list = [];
+      let audioImport = null;
+      let transcript = null;
       if (audioImportId) {
         list = audioSuggestionsRepo.listByAudioImport(audioImportId, { status });
+        audioImport = audioImportsRepo.getById(audioImportId);
+        transcript = transcriptsRepo.getByAudioImportId(audioImportId);
       } else if (meetingId) {
         list = audioSuggestionsRepo.listByMeeting(meetingId, { status });
+        const imports = audioImportsRepo.listByMeeting(meetingId);
+        audioImport =
+          imports.find((entry) => !String(entry?.file_path || "").startsWith("demo://")) ||
+          imports[0] ||
+          null;
+        transcript = audioImport?.id ? transcriptsRepo.getByAudioImportId(audioImport.id) : null;
       } else {
         return { ok: false, error: "meetingId oder audioImportId fehlt" };
       }
 
-      return { ok: true, list };
+      return { ok: true, list, audioImport, transcript };
     } catch (err) {
       return { ok: false, error: err?.stack || err?.message || String(err) };
     }
