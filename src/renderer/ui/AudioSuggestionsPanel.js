@@ -2,7 +2,13 @@ export default class AudioSuggestionsPanel {
   constructor() {
     this.overlay = null;
     this.card = null;
+    this.header = null;
     this.body = null;
+    this._position = null;
+    this._dragState = null;
+    this._onDragMove = this._handleDragMove.bind(this);
+    this._onDragEnd = this._handleDragEnd.bind(this);
+    this._onWindowResize = this._handleWindowResize.bind(this);
     this.state = {
       title: "Sprachdatei auswerten",
       modeLabel: "Prüfmodus",
@@ -33,9 +39,12 @@ export default class AudioSuggestionsPanel {
 
   close() {
     if (!this.overlay) return;
+    this._stopDragging();
+    window.removeEventListener("resize", this._onWindowResize);
     this.overlay.remove();
     this.overlay = null;
     this.card = null;
+    this.header = null;
     this.body = null;
   }
 
@@ -87,16 +96,14 @@ export default class AudioSuggestionsPanel {
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
     overlay.style.inset = "0";
-    overlay.style.background = "rgba(0, 0, 0, 0.35)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
+    overlay.style.background = "rgba(0, 0, 0, 0.08)";
     overlay.style.zIndex = "13000";
     overlay.addEventListener("mousedown", (event) => {
       if (event.target === overlay) this.close();
     });
 
     const card = document.createElement("div");
+    card.style.position = "absolute";
     card.style.width = "min(960px, calc(100vw - 32px))";
     card.style.maxHeight = "min(84vh, 900px)";
     card.style.display = "flex";
@@ -112,6 +119,10 @@ export default class AudioSuggestionsPanel {
     header.style.justifyContent = "space-between";
     header.style.padding = "14px 18px";
     header.style.borderBottom = "1px solid #e0e0e0";
+    header.style.cursor = "move";
+    header.style.userSelect = "none";
+    header.title = "Zum Verschieben ziehen";
+    header.addEventListener("mousedown", (event) => this._startDragging(event));
 
     const heading = document.createElement("div");
     heading.dataset.role = "audio-panel-title";
@@ -143,7 +154,10 @@ export default class AudioSuggestionsPanel {
 
     this.overlay = overlay;
     this.card = card;
+    this.header = header;
     this.body = body;
+    window.addEventListener("resize", this._onWindowResize);
+    this._applyCardPosition();
   }
 
   _render() {
@@ -442,5 +456,78 @@ export default class AudioSuggestionsPanel {
 
       this.body.appendChild(section);
     }
+
+    this._applyCardPosition();
+  }
+
+  _getViewportPadding() {
+    return 16;
+  }
+
+  _applyCardPosition() {
+    if (!this.card) return;
+
+    const rect = this.card.getBoundingClientRect();
+    const width = rect.width || this.card.offsetWidth || 0;
+    const height = rect.height || this.card.offsetHeight || 0;
+    const padding = this._getViewportPadding();
+
+    let left = this._position?.left;
+    let top = this._position?.top;
+
+    if (!Number.isFinite(left) || !Number.isFinite(top)) {
+      left = Math.max(padding, Math.round((window.innerWidth - width) / 2));
+      top = Math.max(padding, Math.round((window.innerHeight - height) / 2));
+    }
+
+    const maxLeft = Math.max(padding, window.innerWidth - width - padding);
+    const maxTop = Math.max(padding, window.innerHeight - height - padding);
+    left = Math.min(Math.max(padding, left), maxLeft);
+    top = Math.min(Math.max(padding, top), maxTop);
+
+    this._position = { left, top };
+    this.card.style.left = `${left}px`;
+    this.card.style.top = `${top}px`;
+  }
+
+  _startDragging(event) {
+    if (!this.card || event.button !== 0) return;
+    if (event.target?.closest?.("button")) return;
+
+    const rect = this.card.getBoundingClientRect();
+    this._dragState = {
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+
+    if (this.header) this.header.style.cursor = "grabbing";
+    window.addEventListener("mousemove", this._onDragMove);
+    window.addEventListener("mouseup", this._onDragEnd);
+    event.preventDefault();
+  }
+
+  _handleDragMove(event) {
+    if (!this._dragState || !this.card) return;
+
+    this._position = {
+      left: event.clientX - this._dragState.offsetX,
+      top: event.clientY - this._dragState.offsetY,
+    };
+    this._applyCardPosition();
+  }
+
+  _handleDragEnd() {
+    this._stopDragging();
+  }
+
+  _stopDragging() {
+    window.removeEventListener("mousemove", this._onDragMove);
+    window.removeEventListener("mouseup", this._onDragEnd);
+    this._dragState = null;
+    if (this.header) this.header.style.cursor = "move";
+  }
+
+  _handleWindowResize() {
+    this._applyCardPosition();
   }
 }
