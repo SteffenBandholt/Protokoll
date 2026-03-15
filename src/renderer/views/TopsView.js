@@ -112,6 +112,7 @@ export default class TopsView {
     this._saveInfoTimer = null;
     this._userSelectedTop = false;
     this._updateAmpelToggleUi = null;
+    this._updateTaskDecisionUi = null;
     // Layout: pinned bars
     this._fixedResizeObs = null;
     this._fixedHorzResizeObs = null;
@@ -2607,6 +2608,75 @@ _isoToDDMMYYYY(iso) {
     addActions.style.marginLeft = "1.5cm";
     addActions.append(btnL1, btnChild);
 
+    const btnTask = document.createElement("button");
+    btnTask.type = "button";
+    btnTask.textContent = "ToDo";
+    btnTask.style.borderRadius = BTN_RADIUS;
+    btnTask.style.padding = BTN_PAD_ACTION;
+    btnTask.style.minHeight = BTN_MIN_H;
+
+    const btnDecision = document.createElement("button");
+    btnDecision.type = "button";
+    btnDecision.textContent = "Festlegung";
+    btnDecision.style.borderRadius = BTN_RADIUS;
+    btnDecision.style.padding = BTN_PAD_ACTION;
+    btnDecision.style.minHeight = BTN_MIN_H;
+
+    const updateTaskDecisionUi = () => {
+      const taskOn = !!this.chkTask?.checked;
+      const decOn = !!this.chkDecision?.checked;
+
+      const taskDisabled = !!this.chkTask?.disabled;
+      const decisionDisabled = !!this.chkDecision?.disabled;
+
+      btnTask.disabled = taskDisabled;
+      btnTask.style.opacity = taskDisabled ? "0.55" : "1";
+      btnTask.style.cursor = taskDisabled ? "default" : "pointer";
+      btnDecision.disabled = decisionDisabled;
+      btnDecision.style.opacity = decisionDisabled ? "0.55" : "1";
+      btnDecision.style.cursor = decisionDisabled ? "default" : "pointer";
+
+      btnTask.style.background = taskOn ? "#eef7ff" : "#f3f3f3";
+      btnTask.style.border = taskOn ? "1px solid #b6d4ff" : "1px solid #ddd";
+      btnTask.style.color = taskOn ? "#0b4db4" : "";
+
+      btnDecision.style.background = decOn ? "#fff7ed" : "#f3f3f3";
+      btnDecision.style.border = decOn ? "1px solid #fed7aa" : "1px solid #ddd";
+      btnDecision.style.color = decOn ? "#9a3412" : "";
+    };
+
+    this._updateTaskDecisionUi = updateTaskDecisionUi;
+    updateTaskDecisionUi();
+
+    btnTask.onclick = async () => {
+      if (this.isReadOnly || !this.selectedTop) return;
+      if (!this.chkTask || this.chkTask.disabled) return;
+      this.chkTask.checked = !this.chkTask.checked;
+      updateTaskDecisionUi();
+      await this._saveMeetingTopPatch({ is_task: this.chkTask.checked ? 1 : 0 }, { reload: true, pulse: true });
+    };
+
+    btnDecision.onclick = async () => {
+      if (this.isReadOnly || !this.selectedTop) return;
+      if (!this.chkDecision || this.chkDecision.disabled) return;
+      this.chkDecision.checked = !this.chkDecision.checked;
+      updateTaskDecisionUi();
+      await this._saveMeetingTopPatch({ is_decision: this.chkDecision.checked ? 1 : 0 }, { reload: true, pulse: true });
+    };
+
+    btnTask.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      btnTask.click();
+    });
+    btnDecision.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      btnDecision.click();
+    });
+
+    addActions.append(btnTask, btnDecision);
+
     const headerActions = document.createElement("div");
     headerActions.style.display = "inline-flex";
     headerActions.style.alignItems = "center";
@@ -2712,6 +2782,10 @@ _isoToDDMMYYYY(iso) {
 
     const chkHidden = document.createElement("input");
     chkHidden.type = "checkbox";
+    const chkTask = document.createElement("input");
+    chkTask.type = "checkbox";
+    const chkDecision = document.createElement("input");
+    chkDecision.type = "checkbox";
 
     const titleWrap = document.createElement("div");
     titleWrap.style.display = "flex";
@@ -2916,6 +2990,8 @@ _isoToDDMMYYYY(iso) {
 
     this.chkImportant = chkImportant;
     this.chkHidden = chkHidden;
+    this.chkTask = chkTask;
+    this.chkDecision = chkDecision;
 
     this.titleCountEl = titleCount;
     this.longCountEl = longCount;
@@ -5123,6 +5199,7 @@ const textCol = document.createElement("div");
     this._updateMoveControls();
     this._updateCreateChildControls();
     this._updateDeleteControls();
+    if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
   }
 
   async createTop(level, parentTopId) {
