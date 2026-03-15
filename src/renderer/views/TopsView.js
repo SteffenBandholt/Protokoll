@@ -139,6 +139,7 @@ export default class TopsView {
     this._audioPanel = null;
     this._audioPanelBusy = false;
     this._audioPanelStatusMessage = "";
+    this._audioSuggestionMarkTimer = null;
   }
 
   _updateTopBarProtocolTitle() {
@@ -1761,6 +1762,68 @@ _isoToDDMMYYYY(iso) {
     });
   }
 
+  _getAudioParentOptions() {
+    const list = Array.isArray(this.items) ? this.items : [];
+    return list
+      .filter((item) => {
+        const level = Number(item?.level || 0);
+        return Number(item?.is_hidden || 0) !== 1 && level >= 1 && level < 4;
+      })
+      .map((item) => {
+        const level = Math.max(1, Number(item?.level || 1));
+        const prefix = level > 1 ? `${"  ".repeat(level - 1)}- ` : "";
+        const number = String(item?.number || "").trim();
+        const title = String(item?.title || "").trim();
+        const label = `${prefix}${number ? `${number} ` : ""}${title || item?.id || ""}`.trim();
+        return {
+          id: String(item.id),
+          label,
+          level,
+        };
+      });
+  }
+
+  async _focusAudioSuggestion(suggestion, options = {}) {
+    const overrideParentTopId = String(options?.overrideParentTopId || "").trim() || null;
+    const type = String(suggestion?.type || "").trim();
+
+    let targetTopId = null;
+    if (type === "append_to_top") {
+      targetTopId = String(suggestion?.target_top_id || suggestion?.targetTopId || "").trim() || null;
+    } else if (overrideParentTopId) {
+      targetTopId = overrideParentTopId;
+    } else if (type === "create_child_top") {
+      targetTopId = String(suggestion?.parent_top_id || suggestion?.parentTopId || "").trim() || null;
+    } else if (type === "manual_assign_child_top") {
+      targetTopId = String(this._findManualAssignTop()?.id || "").trim() || null;
+    }
+
+    if (!targetTopId) return;
+    const target = this._findTopById(targetTopId);
+    if (!target) return;
+
+    this.selectedTopId = target.id;
+    this.selectedTop = target;
+    this._userSelectedTop = true;
+    this.applyEditBoxState();
+    this._updateMoveControls();
+    this._updateDeleteControls();
+    this._updateCreateChildControls();
+    this._setMarkedTopIds([target.id]);
+
+    if (this._audioSuggestionMarkTimer) {
+      clearTimeout(this._audioSuggestionMarkTimer);
+      this._audioSuggestionMarkTimer = null;
+    }
+    this._audioSuggestionMarkTimer = setTimeout(() => {
+      this._clearMarkedTopIds();
+      this._audioSuggestionMarkTimer = null;
+    }, 2500);
+
+    this._renderListOnly();
+    requestAnimationFrame(() => this._scrollListToSelectedAndEnd());
+  }
+
   async _warnAboutManualAssignBeforeClose() {
     if (!this._hasManualAssignChildren()) return true;
     return window.confirm(
@@ -1809,9 +1872,11 @@ _isoToDDMMYYYY(iso) {
         suggestions,
         audioImport: audioState?.audioImport || null,
         transcript: audioState?.transcript || null,
+        parentOptions: this._getAudioParentOptions(),
         onImportAudio: async () => this._runAudioImportFlow(),
         onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
-        onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
+        onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+        onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
         onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
       });
     } catch (err) {
@@ -1823,9 +1888,11 @@ _isoToDDMMYYYY(iso) {
         suggestions: [],
         audioImport: null,
         transcript: null,
+        parentOptions: this._getAudioParentOptions(),
         onImportAudio: async () => this._runAudioImportFlow(),
         onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
-        onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
+        onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+        onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
         onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
       });
     }
@@ -1836,15 +1903,17 @@ _isoToDDMMYYYY(iso) {
     const panel = this._getAudioPanel();
     panel.open({
       title: "Sprachdatei auswerten",
-      modeLabel: "Prüfmodus",
+      modeLabel: "Pr?fmodus",
       busy: !!this._audioPanelBusy,
       statusMessage: this._audioPanelStatusMessage,
       suggestions: [],
       audioImport: null,
       transcript: null,
+      parentOptions: this._getAudioParentOptions(),
       onImportAudio: async () => this._runAudioImportFlow(),
       onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
-      onApplySuggestion: async (suggestion) => this._applyAudioSuggestion(suggestion),
+      onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+      onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
       onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
     });
     await this._refreshAudioPanel();
@@ -1940,10 +2009,10 @@ _isoToDDMMYYYY(iso) {
     }
   }
 
-  async _applyAudioSuggestion(suggestion) {
+  async _applyAudioSuggestion(suggestion, options = {}) {
     const api = window.bbmDb || {};
     if (typeof api.audioApplySuggestion !== "function") {
-      alert("audioApplySuggestion ist nicht verfügbar.");
+      alert("audioApplySuggestion ist nicht verf?gbar.");
       return;
     }
 
@@ -1951,16 +2020,20 @@ _isoToDDMMYYYY(iso) {
     if (!suggestionId) return;
 
     this._audioPanelBusy = true;
-    this._audioPanelStatusMessage = "Vorschlag wird übernommen...";
+    this._audioPanelStatusMessage = "Vorschlag wird ?bernommen...";
     await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
 
     try {
-      const res = await api.audioApplySuggestion({ suggestionId });
+      const res = await api.audioApplySuggestion({
+        suggestionId,
+        overrideParentTopId: String(options?.overrideParentTopId || "").trim() || null,
+      });
       if (!res?.ok) {
-        throw new Error(res?.error || "Vorschlag konnte nicht übernommen werden.");
+        throw new Error(res?.error || "Vorschlag konnte nicht ?bernommen werden.");
       }
-      this._audioPanelStatusMessage = "Vorschlag übernommen.";
+      this._audioPanelStatusMessage = "Vorschlag ?bernommen.";
       await this.reloadList(true);
+      await this._focusAudioSuggestion(suggestion, options);
     } catch (err) {
       this._audioPanelStatusMessage = err?.message || String(err);
     } finally {
@@ -5158,6 +5231,10 @@ const textCol = document.createElement("div");
       }
     } catch (_err) {
       // ignore cleanup issues
+    }
+    if (this._audioSuggestionMarkTimer) {
+      clearTimeout(this._audioSuggestionMarkTimer);
+      this._audioSuggestionMarkTimer = null;
     }
     this._audioPanel = null;
   }
