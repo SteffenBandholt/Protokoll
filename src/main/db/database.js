@@ -394,6 +394,12 @@ function ensureAudioSuggestionsSchema(dbConn) {
         confidence REAL,
         status TEXT NOT NULL DEFAULT 'pending',
         mapping_reason TEXT,
+        applied_at TEXT,
+        rejected_at TEXT,
+        applied_target_top_id TEXT,
+        applied_parent_top_id TEXT,
+        applied_with_override INTEGER NOT NULL DEFAULT 0,
+        apply_error TEXT,
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
         FOREIGN KEY (audio_import_id) REFERENCES audio_imports(id) ON DELETE CASCADE,
@@ -420,6 +426,12 @@ function ensureAudioSuggestionsSchema(dbConn) {
     addCol("confidence", "REAL");
     addCol("status", "TEXT NOT NULL DEFAULT 'pending'");
     addCol("mapping_reason", "TEXT");
+    addCol("applied_at", "TEXT");
+    addCol("rejected_at", "TEXT");
+    addCol("applied_target_top_id", "TEXT");
+    addCol("applied_parent_top_id", "TEXT");
+    addCol("applied_with_override", "INTEGER NOT NULL DEFAULT 0");
+    addCol("apply_error", "TEXT");
     addCol(
       "created_at",
       "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"

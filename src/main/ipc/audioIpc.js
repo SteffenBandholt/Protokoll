@@ -21,6 +21,20 @@ const AUDIO_FILE_FILTER = [
   },
 ];
 
+function _buildApplyMessage(result) {
+  const mode = String(result?.mode || "").trim();
+  if (mode === "append_to_top") {
+    return "Vorschlag wurde als Ergänzung übernommen.";
+  }
+  if (mode === "create_child_top") {
+    return "Vorschlag wurde als neuer Unterpunkt übernommen.";
+  }
+  if (mode === "manual_assign_child_top") {
+    return "Vorschlag wurde unter dem gewählten Bereich angelegt.";
+  }
+  return "Vorschlag wurde übernommen.";
+}
+
 function registerAudioIpc() {
   const transcriptionEngine = createWhisperCppEngine();
   const audioImportService = createAudioImportService({ meetingsRepo, audioImportsRepo });
@@ -182,7 +196,7 @@ function registerAudioIpc() {
         overrideParentTopId,
       });
 
-      return { ok: true, ...result };
+      return { ok: true, ...result, message: _buildApplyMessage(result?.result) };
     } catch (err) {
       return { ok: false, error: err?.stack || err?.message || String(err) };
     }
@@ -195,13 +209,8 @@ function registerAudioIpc() {
 
       const suggestion = audioSuggestionsRepo.getById(suggestionId);
       if (!suggestion) return { ok: false, error: "Vorschlag nicht gefunden" };
-
-      const updatedSuggestion = audioSuggestionsRepo.updateStatus({
-        suggestionId,
-        status: "rejected",
-      });
-
-      return { ok: true, suggestion: updatedSuggestion };
+      const updatedSuggestion = audioSuggestionsRepo.markRejected({ suggestionId });
+      return { ok: true, suggestion: updatedSuggestion, message: "Vorschlag verworfen." };
     } catch (err) {
       return { ok: false, error: err?.stack || err?.message || String(err) };
     }

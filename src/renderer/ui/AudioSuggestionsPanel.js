@@ -631,6 +631,20 @@ export default class AudioSuggestionsPanel {
           body.appendChild(mappingReasonEl);
         }
 
+        const applyErrorRaw = String(suggestion.apply_error || suggestion.applyError || "").trim();
+        if (applyErrorRaw) {
+          const applyErrorEl = document.createElement("div");
+          applyErrorEl.textContent = `Letzter Übernahmefehler: ${applyErrorRaw}`;
+          applyErrorEl.style.fontSize = "12px";
+          applyErrorEl.style.color = "#b71c1c";
+          applyErrorEl.style.background = "#ffebee";
+          applyErrorEl.style.border = "1px solid #ffcdd2";
+          applyErrorEl.style.borderRadius = "6px";
+          applyErrorEl.style.padding = "6px 8px";
+          applyErrorEl.style.whiteSpace = "pre-wrap";
+          body.appendChild(applyErrorEl);
+        }
+
         if (this._canOverrideParent(suggestion)) {
           const overrideWrap = document.createElement("div");
           overrideWrap.style.display = "flex";

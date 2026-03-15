@@ -190,6 +190,115 @@ function updateStatus({ suggestionId, status }) {
   return getById(suggestionId);
 }
 
+function _getStatusLabel(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  if (normalized === "applied") return "bereits übernommen";
+  if (normalized === "rejected") return "bereits verworfen";
+  if (normalized) return `nicht mehr im Status pending (${normalized})`;
+  return "nicht mehr im Status pending";
+}
+
+function _throwPendingTransitionError(suggestionId, actionLabel) {
+  const current = getById(suggestionId);
+  if (!current) throw new Error("Vorschlag nicht gefunden");
+  throw new Error(`Vorschlag kann nicht ${actionLabel} werden: ${_getStatusLabel(current.status)}.`);
+}
+
+function markApplied({
+  suggestionId,
+  appliedTargetTopId = null,
+  appliedParentTopId = null,
+  usedOverride = false,
+}) {
+  const db = initDatabase();
+  if (!suggestionId) throw new Error("suggestionId required");
+
+  const now = _nowIso();
+  const info = db
+    .prepare(
+      `
+      UPDATE audio_suggestions
+      SET
+        status = 'applied',
+        applied_at = ?,
+        rejected_at = NULL,
+        applied_target_top_id = ?,
+        applied_parent_top_id = ?,
+        applied_with_override = ?,
+        apply_error = NULL,
+        updated_at = ?
+      WHERE id = ?
+        AND status = 'pending'
+    `
+    )
+    .run(
+      now,
+      appliedTargetTopId === null || appliedTargetTopId === undefined
+        ? null
+        : String(appliedTargetTopId),
+      appliedParentTopId === null || appliedParentTopId === undefined
+        ? null
+        : String(appliedParentTopId),
+      usedOverride ? 1 : 0,
+      now,
+      suggestionId
+    );
+
+  if (!info.changes) {
+    _throwPendingTransitionError(suggestionId, "übernommen");
+  }
+
+  return getById(suggestionId);
+}
+
+function markRejected({ suggestionId }) {
+  const db = initDatabase();
+  if (!suggestionId) throw new Error("suggestionId required");
+
+  const now = _nowIso();
+  const info = db
+    .prepare(
+      `
+      UPDATE audio_suggestions
+      SET
+        status = 'rejected',
+        rejected_at = ?,
+        apply_error = NULL,
+        updated_at = ?
+      WHERE id = ?
+        AND status = 'pending'
+    `
+    )
+    .run(now, now, suggestionId);
+
+  if (!info.changes) {
+    _throwPendingTransitionError(suggestionId, "verworfen");
+  }
+
+  return getById(suggestionId);
+}
+
+function setApplyError({ suggestionId, errorMessage }) {
+  const db = initDatabase();
+  if (!suggestionId) throw new Error("suggestionId required");
+
+  db.prepare(
+    `
+    UPDATE audio_suggestions
+    SET
+      apply_error = ?,
+      updated_at = ?
+    WHERE id = ?
+  `
+  ).run(
+    errorMessage === null || errorMessage === undefined ? null : String(errorMessage),
+    _nowIso(),
+    suggestionId
+  );
+
+  return getById(suggestionId);
+}
+
 module.exports = {
   getById,
   listByMeeting,
@@ -198,4 +307,7 @@ module.exports = {
   createSuggestions,
   deletePendingByAudioImport,
   updateStatus,
+  markApplied,
+  markRejected,
+  setApplyError,
 };
