@@ -94,6 +94,13 @@ export default class AudioSuggestionsPanel {
     return "Ziel: -";
   }
 
+  _getSuggestionOrigin(suggestion) {
+    const reason = String(suggestion?.mapping_reason || suggestion?.mappingReason || "").trim();
+    if (!reason) return "Herkunft: Vorschlag";
+    if (reason.startsWith("phase3_demo_")) return "Herkunft: Demo-Vorschlag";
+    return "Herkunft: Echtes Transkript";
+  }
+
   _mount() {
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
@@ -431,7 +438,13 @@ export default class AudioSuggestionsPanel {
         metaEl.style.fontSize = "12px";
         metaEl.style.color = "#607d8b";
 
-        main.append(titleEl, metaEl);
+        const originEl = document.createElement("div");
+        originEl.textContent = this._getSuggestionOrigin(suggestion);
+        originEl.style.fontSize = "12px";
+        originEl.style.color = "#2e7d32";
+        originEl.style.fontWeight = "600";
+
+        main.append(titleEl, metaEl, originEl);
 
         const targetEl = document.createElement("div");
         targetEl.textContent = this._getTargetInfo(suggestion);
@@ -521,6 +534,18 @@ export default class AudioSuggestionsPanel {
           excerpt.style.color = "#546e7a";
           excerpt.style.whiteSpace = "pre-wrap";
           body.appendChild(excerpt);
+        }
+
+        const mappingReasonRaw = String(
+          suggestion.mapping_reason || suggestion.mappingReason || ""
+        ).trim();
+        if (mappingReasonRaw) {
+          const mappingReasonEl = document.createElement("div");
+          mappingReasonEl.textContent = `Regelbasis: ${mappingReasonRaw}`;
+          mappingReasonEl.style.fontSize = "12px";
+          mappingReasonEl.style.color = "#6a1b9a";
+          mappingReasonEl.style.whiteSpace = "pre-wrap";
+          body.appendChild(mappingReasonEl);
         }
 
         card.append(head, body);
