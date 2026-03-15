@@ -78,6 +78,7 @@ export default class TopsView {
     this.showLongtextInList = false;
 
     this.showAmpelInList = true;
+    this.viewFilter = "all";
     // Char counter
     this.titleCountEl = null;
     this.longCountEl = null;
@@ -2048,6 +2049,49 @@ _isoToDDMMYYYY(iso) {
     return !shouldShowTopForMeeting(top, meeting);
   }
 
+  _isTaskTop(top) {
+    if (!top || typeof top !== "object") return false;
+    const raw = top.is_task ?? top.isTask;
+    if (raw === true || raw === false) return raw;
+    if (typeof raw === "string") {
+      const s = raw.trim().toLowerCase();
+      return s === "1" || s === "true";
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n === 1 : false;
+  }
+
+  _isDecisionTop(top) {
+    if (!top || typeof top !== "object") return false;
+    const raw = top.is_decision ?? top.isDecision;
+    if (raw === true || raw === false) return raw;
+    if (typeof raw === "string") {
+      const s = raw.trim().toLowerCase();
+      return s === "1" || s === "true";
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n === 1 : false;
+  }
+
+  _isVerzugTop(top) {
+    const st = String(top?.status || "").trim().toLowerCase();
+    return st === "verzug";
+  }
+
+  _matchesViewFilter(top) {
+    const mode = String(this.viewFilter || "all").trim().toLowerCase();
+    if (mode === "tasks") return this._isTaskTop(top);
+    if (mode === "verzug") return this._isVerzugTop(top);
+    if (mode === "decisions") return this._isDecisionTop(top);
+    return true;
+  }
+
+  _shouldHideTopInList(top) {
+    if (this._shouldHideDoneTop(top)) return true;
+    if (!this._matchesViewFilter(top)) return true;
+    return false;
+  }
+
   _updateTopBarMetaLabels() {
     if (!this.topMetaEl) return;
 
@@ -2472,20 +2516,46 @@ _isoToDDMMYYYY(iso) {
       btnAmpelToggle.click();
     });
 
-    const btnTasks = document.createElement("button");
-    btnTasks.type = "button";
-    btnTasks.textContent = "Aufgaben";
-    btnTasks.style.border = "1px solid #ddd";
-    btnTasks.style.background = "#f3f3f3";
-    styleBtnBase(btnTasks);
-    btnTasks.onclick = async () => {
-      await this._openProjectTasksPopup();
+    const viewWrap = document.createElement("div");
+    viewWrap.style.display = "inline-flex";
+    viewWrap.style.alignItems = "center";
+    viewWrap.style.gap = "6px";
+
+    const viewLabel = document.createElement("div");
+    viewLabel.textContent = "Ansicht";
+    viewLabel.style.fontWeight = "600";
+    viewLabel.style.whiteSpace = "nowrap";
+
+    const viewSelect = document.createElement("select");
+    viewSelect.style.border = "1px solid #ddd";
+    viewSelect.style.background = "#f3f3f3";
+    viewSelect.style.padding = BTN_PAD;
+    viewSelect.style.borderRadius = BTN_RADIUS;
+    viewSelect.style.cursor = "pointer";
+    viewSelect.style.minHeight = BTN_MIN_H;
+    viewSelect.title = "Ansicht";
+
+    const optAll = document.createElement("option");
+    optAll.value = "all";
+    optAll.textContent = "Alle";
+    const optTasks = document.createElement("option");
+    optTasks.value = "tasks";
+    optTasks.textContent = "Aufgaben";
+    const optOverdue = document.createElement("option");
+    optOverdue.value = "verzug";
+    optOverdue.textContent = "Verzug";
+    const optDecisions = document.createElement("option");
+    optDecisions.value = "decisions";
+    optDecisions.textContent = "Festlegungen";
+
+    viewSelect.append(optAll, optTasks, optOverdue, optDecisions);
+    viewSelect.value = this.viewFilter;
+    viewSelect.onchange = () => {
+      this.viewFilter = viewSelect.value || "all";
+      this._renderListOnly();
     };
-    btnTasks.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      btnTasks.click();
-    });
+
+    viewWrap.append(viewLabel, viewSelect);
 
     // Topbar: fixed
     const topBar = document.createElement("div");
@@ -2531,7 +2601,7 @@ _isoToDDMMYYYY(iso) {
     actionBtnsWrap.style.alignItems = "center";
     actionBtnsWrap.style.gap = "8px";
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
-    actionBtnsWrap.append(btnTasks, btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
+    actionBtnsWrap.append(viewWrap, btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
 
     // Feldbezeichnungen rechts über Meta-Spalte (Platz immer reserviert)
     const topMeta = document.createElement("div");
@@ -3012,7 +3082,7 @@ _isoToDDMMYYYY(iso) {
     this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
     this.btnAmpelToggle = btnAmpelToggle;
-    this.btnTasks = btnTasks;
+    this.btnTasks = viewSelect;
 
     this.topBarEl = topBar;
     this.box = box;
@@ -4254,7 +4324,7 @@ async _closeViewOnly() {
 
     const currentId = this._topIdKey(t.id);
     const visibleIds = (this.items || [])
-      .filter((x) => !this._shouldHideDoneTop(x))
+      .filter((x) => !this._shouldHideTopInList(x))
       .map((x) => this._topIdKey(x.id))
       .filter(Boolean);
     const idx = visibleIds.indexOf(currentId);
@@ -4328,10 +4398,13 @@ async _closeViewOnly() {
     const ok = confirm("TOP wirklich löschen?");
     if (!ok) return;
 
-    const ids = (this.items || []).map((x) => this._topIdKey(x.id)).filter(Boolean);
     const currentId = this._topIdKey(t.id);
-    const idx = ids.indexOf(currentId);
-    const nextId = idx >= 0 ? ids[idx + 1] || ids[idx - 1] || null : null;
+    const visibleIds = (this.items || [])
+      .filter((x) => !this._shouldHideTopInList(x))
+      .map((x) => this._topIdKey(x.id))
+      .filter(Boolean);
+    const idx = visibleIds.indexOf(currentId);
+    const nextId = idx >= 0 ? visibleIds[idx + 1] || visibleIds[idx - 1] || null : null;
 
     this.moveModeActive = false;
     this._deleteInFlight = true;
@@ -4626,7 +4699,7 @@ async _closeViewOnly() {
 
     let collapsedParentId = null;
     for (const top of this.items) {
-      if (this._shouldHideDoneTop(top)) continue;
+      if (this._shouldHideTopInList(top)) continue;
       const li = document.createElement("li");
       li.dataset.topId = String(top.id);
       li.style.listStyle = "none";
@@ -4661,7 +4734,7 @@ async _closeViewOnly() {
           top.frozen_is_touched ??
           top.frozenIsTouched
       );
-      const isTask = parseFlag(top.is_task ?? top.isTask);
+      const isTask = this._isTaskTop(top);
       const isDecision = parseFlag(top.is_decision ?? top.isDecision);
       const isLevel1 = Number(top.level) === 1;
       const isDone = shouldGrayTopForMeeting(top, meeting);
