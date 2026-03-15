@@ -4,6 +4,8 @@ export default class AudioSuggestionsPanel {
     this.card = null;
     this.header = null;
     this.body = null;
+    this._parentOverrideBySuggestionId = new Map();
+    this._selectedSuggestionId = null;
     this._position = null;
     this._dragState = null;
     this._onDragMove = this._handleDragMove.bind(this);
@@ -16,10 +18,12 @@ export default class AudioSuggestionsPanel {
       statusMessage: "",
       audioImport: null,
       transcript: null,
+      parentOptions: [],
       suggestions: [],
       onImportAudio: null,
       onCreateDemoSuggestion: null,
       onApplySuggestion: null,
+      onFocusSuggestion: null,
       onRejectSuggestion: null,
     };
   }
@@ -99,6 +103,49 @@ export default class AudioSuggestionsPanel {
     if (!reason) return "Herkunft: Vorschlag";
     if (reason.startsWith("phase3_demo_")) return "Herkunft: Demo-Vorschlag";
     return "Herkunft: Echtes Transkript";
+  }
+
+  _getSuggestionId(suggestion) {
+    return String(suggestion?.id || "").trim();
+  }
+
+  _canOverrideParent(suggestion) {
+    const type = String(suggestion?.type || "").trim();
+    return type === "create_child_top" || type === "manual_assign_child_top";
+  }
+
+  _getOverrideParentTopId(suggestion) {
+    const id = this._getSuggestionId(suggestion);
+    if (!id) return "";
+    return String(this._parentOverrideBySuggestionId.get(id) || "").trim();
+  }
+
+  _setOverrideParentTopId(suggestion, parentTopId) {
+    const id = this._getSuggestionId(suggestion);
+    if (!id) return;
+    const normalized = String(parentTopId || "").trim();
+    if (normalized) this._parentOverrideBySuggestionId.set(id, normalized);
+    else this._parentOverrideBySuggestionId.delete(id);
+  }
+
+  _getDefaultParentOptionLabel(suggestion) {
+    const type = String(suggestion?.type || "").trim();
+    if (type === "create_child_top") {
+      return `Aktueller Parent: ${this._formatTopLabel(
+        this._pickSuggestionValue(suggestion, ["parent_top_number", "parentTopNumber"]),
+        this._pickSuggestionValue(suggestion, ["parent_top_title", "parentTopTitle"]),
+        this._pickSuggestionValue(suggestion, ["parent_top_id", "parentTopId"])
+      )}`;
+    }
+    if (type === "manual_assign_child_top") {
+      return "Standard: Manuell zuordnen";
+    }
+    return "Standard";
+  }
+
+  _markSuggestionSelected(suggestion) {
+    const id = this._getSuggestionId(suggestion);
+    this._selectedSuggestionId = id || null;
   }
 
   _mount() {
@@ -399,13 +446,22 @@ export default class AudioSuggestionsPanel {
 
       for (const suggestion of items) {
         const card = document.createElement("div");
+        const suggestionId = this._getSuggestionId(suggestion);
+        const isSelectedSuggestion =
+          !!suggestionId && suggestionId === String(this._selectedSuggestionId || "").trim();
         card.style.border = "1px solid #e0e0e0";
         card.style.borderRadius = "10px";
         card.style.padding = "12px";
         card.style.display = "flex";
         card.style.flexDirection = "column";
         card.style.gap = "8px";
-        card.style.background = "#fff";
+        card.style.background = isSelectedSuggestion ? "#f4f9ff" : "#fff";
+        if (isSelectedSuggestion) {
+          card.style.border = "1px solid #64b5f6";
+        }
+        card.addEventListener("mousedown", () => {
+          this._markSuggestionSelected(suggestion);
+        });
 
         const head = document.createElement("div");
         head.style.display = "flex";
@@ -461,6 +517,29 @@ export default class AudioSuggestionsPanel {
         actions.style.gap = "8px";
         actions.style.flexWrap = "wrap";
 
+        const btnFocus = document.createElement("button");
+        btnFocus.type = "button";
+        btnFocus.textContent =
+          String(suggestion?.type || "").trim() === "append_to_top"
+            ? "Zum Ziel springen"
+            : "Zum Parent springen";
+        btnFocus.disabled = !!this.state.busy;
+        btnFocus.style.border = "1px solid #90caf9";
+        btnFocus.style.background = "#e3f2fd";
+        btnFocus.style.color = "#0d47a1";
+        btnFocus.style.borderRadius = "6px";
+        btnFocus.style.padding = "6px 10px";
+        btnFocus.style.cursor = btnFocus.disabled ? "default" : "pointer";
+        btnFocus.onclick = async () => {
+          this._markSuggestionSelected(suggestion);
+          if (typeof this.state.onFocusSuggestion === "function") {
+            await this.state.onFocusSuggestion(suggestion, {
+              overrideParentTopId: this._getOverrideParentTopId(suggestion) || null,
+            });
+          }
+          this._render();
+        };
+
         const btnApply = document.createElement("button");
         btnApply.type = "button";
         btnApply.textContent = "Übernehmen";
@@ -472,8 +551,11 @@ export default class AudioSuggestionsPanel {
         btnApply.style.padding = "6px 10px";
         btnApply.style.cursor = btnApply.disabled ? "default" : "pointer";
         btnApply.onclick = async () => {
+          this._markSuggestionSelected(suggestion);
           if (typeof this.state.onApplySuggestion === "function") {
-            await this.state.onApplySuggestion(suggestion);
+            await this.state.onApplySuggestion(suggestion, {
+              overrideParentTopId: this._getOverrideParentTopId(suggestion) || null,
+            });
           }
         };
 
@@ -488,12 +570,13 @@ export default class AudioSuggestionsPanel {
         btnReject.style.padding = "6px 10px";
         btnReject.style.cursor = btnReject.disabled ? "default" : "pointer";
         btnReject.onclick = async () => {
+          this._markSuggestionSelected(suggestion);
           if (typeof this.state.onRejectSuggestion === "function") {
             await this.state.onRejectSuggestion(suggestion);
           }
         };
 
-        actions.append(btnApply, btnReject);
+        actions.append(btnFocus, btnApply, btnReject);
         head.append(main, actions);
 
         const body = document.createElement("div");
@@ -546,6 +629,55 @@ export default class AudioSuggestionsPanel {
           mappingReasonEl.style.color = "#6a1b9a";
           mappingReasonEl.style.whiteSpace = "pre-wrap";
           body.appendChild(mappingReasonEl);
+        }
+
+        if (this._canOverrideParent(suggestion)) {
+          const overrideWrap = document.createElement("div");
+          overrideWrap.style.display = "flex";
+          overrideWrap.style.flexDirection = "column";
+          overrideWrap.style.gap = "6px";
+          overrideWrap.style.marginTop = "4px";
+
+          const overrideLabel = document.createElement("label");
+          overrideLabel.textContent = "Alternativen Parent wählen:";
+          overrideLabel.style.fontSize = "12px";
+          overrideLabel.style.fontWeight = "600";
+          overrideLabel.style.color = "#455a64";
+
+          const select = document.createElement("select");
+          select.disabled = !!this.state.busy;
+          select.style.border = "1px solid #cfd8dc";
+          select.style.borderRadius = "6px";
+          select.style.padding = "6px 8px";
+          select.style.background = "#fff";
+
+          const defaultOption = document.createElement("option");
+          defaultOption.value = "";
+          defaultOption.textContent = this._getDefaultParentOptionLabel(suggestion);
+          select.appendChild(defaultOption);
+
+          for (const option of Array.isArray(this.state.parentOptions) ? this.state.parentOptions : []) {
+            const opt = document.createElement("option");
+            opt.value = String(option?.id || "");
+            opt.textContent = String(option?.label || option?.title || option?.id || "");
+            if (!opt.value) continue;
+            select.appendChild(opt);
+          }
+
+          select.value = this._getOverrideParentTopId(suggestion);
+          select.onchange = async () => {
+            this._markSuggestionSelected(suggestion);
+            this._setOverrideParentTopId(suggestion, select.value);
+            if (typeof this.state.onFocusSuggestion === "function") {
+              await this.state.onFocusSuggestion(suggestion, {
+                overrideParentTopId: this._getOverrideParentTopId(suggestion) || null,
+              });
+            }
+            this._render();
+          };
+
+          overrideWrap.append(overrideLabel, select);
+          body.appendChild(overrideWrap);
         }
 
         card.append(head, body);
