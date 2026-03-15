@@ -62,6 +62,19 @@ function registerMeetingsIpc() {
     }
   });
 
+  ipcMain.handle("meetings:listProjectTasks", (_e, payload) => {
+    try {
+      const d = payload && typeof payload === "object" ? payload : { projectId: payload };
+      const projectId = d.projectId ?? d.project_id ?? d.id ?? null;
+      if (!projectId) return { ok: false, error: "projectId fehlt" };
+      const statusFilter = d.statusFilter ?? d.status ?? null;
+      const list = meetingService.listProjectTasks(projectId, statusFilter);
+      return { ok: true, list };
+    } catch (err) {
+      return { ok: false, error: err?.stack || err?.message || String(err) };
+    }
+  });
+
   console.log("[main] meetings IPC registered");
 }
 

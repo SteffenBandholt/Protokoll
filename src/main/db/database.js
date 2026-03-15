@@ -259,6 +259,17 @@ function ensureMeetingTopsContactColumns(dbConn) {
   addCol("contact_label", "TEXT");
 }
 
+function ensureMeetingTopsTaskFlagColumns(dbConn) {
+  if (!tableExists(dbConn, "meeting_tops")) return;
+
+  if (!columnExists(dbConn, "meeting_tops", "is_task")) {
+    dbConn.exec(`ALTER TABLE meeting_tops ADD COLUMN is_task INTEGER NOT NULL DEFAULT 0;`);
+  }
+  if (!columnExists(dbConn, "meeting_tops", "is_decision")) {
+    dbConn.exec(`ALTER TABLE meeting_tops ADD COLUMN is_decision INTEGER NOT NULL DEFAULT 0;`);
+  }
+}
+
 function ensureTopsSoftDeleteColumns(dbConn) {
   if (!tableExists(dbConn, "tops")) return;
 
@@ -950,6 +961,8 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
       is_carried_over INTEGER NOT NULL DEFAULT 0,
       is_important INTEGER NOT NULL DEFAULT 0,
       is_touched INTEGER NOT NULL DEFAULT 0,
+      is_task INTEGER NOT NULL DEFAULT 0,
+      is_decision INTEGER NOT NULL DEFAULT 0,
       completed_in_meeting_id TEXT,
 
       created_at TEXT NOT NULL,
@@ -1023,6 +1036,7 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
   ensureMeetingTopsSnapshotColumns(dbConn);
   ensureMeetingTopsImportantColumn(dbConn);
   ensureMeetingTopsTouchedColumn(dbConn);
+  ensureMeetingTopsTaskFlagColumns(dbConn);
   ensureMeetingTopsCompletedColumn(dbConn);
   ensureMeetingTopsResponsibleColumns(dbConn);
   ensureMeetingTopsContactColumns(dbConn);
@@ -1100,6 +1114,8 @@ function ensureSchema(dbConn) {
         is_carried_over INTEGER NOT NULL DEFAULT 0,
         is_important INTEGER NOT NULL DEFAULT 0,
         is_touched INTEGER NOT NULL DEFAULT 0,
+        is_task INTEGER NOT NULL DEFAULT 0,
+        is_decision INTEGER NOT NULL DEFAULT 0,
         completed_in_meeting_id TEXT,
 
         created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -1125,6 +1141,7 @@ function ensureSchema(dbConn) {
   ensureMeetingTopsSnapshotColumns(dbConn);
   ensureMeetingTopsImportantColumn(dbConn);
   ensureMeetingTopsTouchedColumn(dbConn);
+  ensureMeetingTopsTaskFlagColumns(dbConn);
   ensureMeetingTopsCompletedColumn(dbConn);
   ensureMeetingTopsResponsibleColumns(dbConn);
   ensureMeetingTopsContactColumns(dbConn);

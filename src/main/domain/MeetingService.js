@@ -48,12 +48,31 @@ function _isDoneStatus(status) {
   return String(status || "").trim().toLowerCase() === "erledigt";
 }
 
+function isMeetingTopTask(top) {
+  if (!top || typeof top !== "object") return false;
+  const raw = top.is_task !== undefined ? top.is_task : top.isTask;
+  return Number(raw) === 1 || raw === true;
+}
+
+function isMeetingTopDecision(top) {
+  if (!top || typeof top !== "object") return false;
+  const raw = top.is_decision !== undefined ? top.is_decision : top.isDecision;
+  return Number(raw) === 1 || raw === true;
+}
+
 function _parseYmdTs(value) {
   const s = String(value || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return Number.POSITIVE_INFINITY;
   const d = new Date(`${s}T00:00:00`);
   const ts = d.getTime();
   return Number.isFinite(ts) ? ts : Number.POSITIVE_INFINITY;
+}
+
+function _isOverdueTask(top, todayTs) {
+  if (!top) return false;
+  if (_isDoneStatus(top.status)) return false;
+  const dueTs = _parseYmdTs(top.due_date);
+  return Number.isFinite(dueTs) && dueTs < todayTs;
 }
 
 function _positionParts(pos) {
@@ -201,9 +220,54 @@ class MeetingService {
     if (lastClosed && lastClosed.id) {
       // meetingTopsRepo unterstützt beide Signaturen
       this.meetingTopsRepo.carryOverFromMeeting(lastClosed.id, meeting.id);
+
+      // Offene Aufgaben-TOPs: Task-Felder robust übernehmen
+      const carryRows = this.meetingTopsRepo.listJoinedByMeeting(lastClosed.id) || [];
+      for (const r of carryRows) {
+        if (!isMeetingTopTask(r)) continue;
+        if (_isDoneStatus(r.status)) continue;
+        this.meetingTopsRepo.updateMeetingTop({
+          meetingId: meeting.id,
+          topId: r.id,
+          status: r.status,
+          dueDate: r.due_date,
+          longtext: r.longtext,
+          is_decision: r.is_decision ?? r.isDecision,
+          responsible_kind: r.responsible_kind,
+          responsible_id: r.responsible_id,
+          responsible_label: r.responsible_label,
+          contact_kind: r.contact_kind,
+          contact_person_id: r.contact_person_id,
+          contact_label: r.contact_label,
+        });
+      }
     }
 
     return meeting;
+  }
+
+  listProjectTasks(projectId, statusFilter) {
+    if (!projectId) throw new Error("projectId required");
+
+    const rows = this.meetingTopsRepo.listLatestByProject(projectId) || [];
+    let out = rows.filter((r) => isMeetingTopTask(r));
+    if (statusFilter === "open") {
+      out = out.filter((r) => !_isDoneStatus(r.status));
+    } else if (statusFilter === "completed") {
+      out = out.filter((r) => _isDoneStatus(r.status));
+    }
+    const todayTs = _parseYmdTs(new Date().toISOString());
+    return out.map((r) => ({
+      ...r,
+      is_overdue: _isOverdueTask(r, todayTs),
+    }));
+  }
+
+  listProjectDecisions(projectId) {
+    if (!projectId) throw new Error("projectId required");
+
+    const rows = this.meetingTopsRepo.listLatestByProject(projectId) || [];
+    return rows.filter((r) => isMeetingTopDecision(r));
   }
 
   _buildTodoSnapshot(meeting) {
@@ -379,4 +443,6 @@ function createMeetingService(deps) {
 module.exports = {
   MeetingService,
   createMeetingService,
+  isMeetingTopTask,
+  isMeetingTopDecision,
 };
