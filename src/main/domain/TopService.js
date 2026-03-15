@@ -545,7 +545,7 @@ class TopService {
 
     const status = patch.status !== undefined ? patch.status : existingMt.status;
 
-    const dueDate =
+    let dueDate =
       patch.dueDate !== undefined
         ? patch.dueDate
         : (patch.due_date !== undefined ? patch.due_date : existingMt.due_date);
@@ -575,6 +575,11 @@ class TopService {
           longtext = base;
         }
       }
+    }
+
+    const statusNorm = String(status || "").trim().toLowerCase();
+    if (statusNorm === "erledigt") {
+      dueDate = new Date().toISOString().slice(0, 10);
     }
 
     return this.meetingTopsRepo.updateMeetingTop({
