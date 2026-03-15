@@ -2442,7 +2442,7 @@ _isoToDDMMYYYY(iso) {
       if (!res?.ok) {
         throw new Error(res?.error || "Vorschlag konnte nicht ?bernommen werden.");
       }
-      this._audioPanelStatusMessage = "Vorschlag ?bernommen.";
+      this._audioPanelStatusMessage = String(res?.message || "Vorschlag ?bernommen.");
       await this.reloadList(true);
       await this._focusAudioSuggestion(suggestion, options);
     } catch (err) {
@@ -2472,7 +2472,7 @@ _isoToDDMMYYYY(iso) {
       if (!res?.ok) {
         throw new Error(res?.error || "Vorschlag konnte nicht verworfen werden.");
       }
-      this._audioPanelStatusMessage = "Vorschlag verworfen.";
+      this._audioPanelStatusMessage = String(res?.message || "Vorschlag verworfen.");
     } catch (err) {
       this._audioPanelStatusMessage = err?.message || String(err);
     } finally {
