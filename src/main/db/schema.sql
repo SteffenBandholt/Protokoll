@@ -73,3 +73,52 @@ CREATE TABLE IF NOT EXISTS meeting_tops (
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (top_id) REFERENCES tops(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS audio_imports (
+  id TEXT PRIMARY KEY,
+  meeting_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  original_file_name TEXT,
+  mime_type TEXT,
+  processing_mode TEXT NOT NULL DEFAULT 'review',
+  status TEXT NOT NULL DEFAULT 'imported',
+  error_message TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS transcripts (
+  id TEXT PRIMARY KEY,
+  audio_import_id TEXT NOT NULL UNIQUE,
+  engine TEXT,
+  language TEXT,
+  full_text TEXT,
+  segments_json TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  FOREIGN KEY (audio_import_id) REFERENCES audio_imports(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS audio_suggestions (
+  id TEXT PRIMARY KEY,
+  audio_import_id TEXT NOT NULL,
+  meeting_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  target_top_id TEXT,
+  parent_top_id TEXT,
+  title_suggestion TEXT,
+  text_suggestion TEXT,
+  source_excerpt TEXT,
+  confidence REAL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  mapping_reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  FOREIGN KEY (audio_import_id) REFERENCES audio_imports(id) ON DELETE CASCADE,
+  FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
