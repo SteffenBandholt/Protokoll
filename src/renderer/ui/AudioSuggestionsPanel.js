@@ -14,6 +14,8 @@ export default class AudioSuggestionsPanel {
       modeLabel: "Prüfmodus",
       busy: false,
       statusMessage: "",
+      audioImport: null,
+      transcript: null,
       suggestions: [],
       onImportAudio: null,
       onCreateDemoSuggestion: null,
@@ -272,6 +274,77 @@ export default class AudioSuggestionsPanel {
       this.body.appendChild(statusBox);
     }
 
+    if (this.state.audioImport || this.state.transcript) {
+      const transcriptWrap = document.createElement("section");
+      transcriptWrap.style.display = "flex";
+      transcriptWrap.style.flexDirection = "column";
+      transcriptWrap.style.gap = "8px";
+      transcriptWrap.style.border = "1px solid #d7ccc8";
+      transcriptWrap.style.background = "#faf7f5";
+      transcriptWrap.style.borderRadius = "10px";
+      transcriptWrap.style.padding = "12px";
+
+      const transcriptTitle = document.createElement("div");
+      transcriptTitle.textContent = "Transkriptionsstatus";
+      transcriptTitle.style.fontWeight = "700";
+      transcriptWrap.appendChild(transcriptTitle);
+
+      if (this.state.audioImport) {
+        const importInfo = document.createElement("div");
+        const fileName = String(
+          this.state.audioImport.original_file_name ||
+            this.state.audioImport.originalFileName ||
+            this.state.audioImport.file_path ||
+            this.state.audioImport.filePath ||
+            "Audiodatei"
+        );
+        const importStatus = String(this.state.audioImport.status || "-");
+        importInfo.textContent = `Import: ${fileName} | Status: ${importStatus}`;
+        importInfo.style.fontSize = "13px";
+        transcriptWrap.appendChild(importInfo);
+
+        const importError = String(this.state.audioImport.error_message || "").trim();
+        if (importError) {
+          const errorBox = document.createElement("div");
+          errorBox.textContent = `Fehler: ${importError}`;
+          errorBox.style.fontSize = "12px";
+          errorBox.style.color = "#b71c1c";
+          errorBox.style.whiteSpace = "pre-wrap";
+          transcriptWrap.appendChild(errorBox);
+        }
+      }
+
+      if (this.state.transcript) {
+        const transcriptMeta = document.createElement("div");
+        const engine = String(this.state.transcript.engine || "-");
+        const language = String(this.state.transcript.language || "-");
+        transcriptMeta.textContent = `Engine: ${engine} | Sprache: ${language}`;
+        transcriptMeta.style.fontSize = "13px";
+        transcriptWrap.appendChild(transcriptMeta);
+
+        const rawTranscript = String(this.state.transcript.full_text || "").trim();
+        if (rawTranscript) {
+          const rawTitle = document.createElement("div");
+          rawTitle.textContent = "Rohes Transkript:";
+          rawTitle.style.fontSize = "12px";
+          rawTitle.style.fontWeight = "600";
+          rawTitle.style.color = "#546e7a";
+
+          const rawBox = document.createElement("div");
+          rawBox.textContent = rawTranscript;
+          rawBox.style.whiteSpace = "pre-wrap";
+          rawBox.style.maxHeight = "180px";
+          rawBox.style.overflow = "auto";
+          rawBox.style.borderLeft = "3px solid #80cbc4";
+          rawBox.style.paddingLeft = "8px";
+
+          transcriptWrap.append(rawTitle, rawBox);
+        }
+      }
+
+      this.body.appendChild(transcriptWrap);
+    }
+
     const suggestions = Array.isArray(this.state.suggestions) ? this.state.suggestions : [];
     const groups = [
       {
@@ -291,7 +364,7 @@ export default class AudioSuggestionsPanel {
     if (!suggestions.length) {
       const empty = document.createElement("div");
       empty.textContent =
-        "Noch keine Vorschläge vorhanden. Die Transkription und Analyse sind in Phase 3 noch Platzhalter.";
+        "Noch keine Vorschl?ge vorhanden. Die Transkription kann bereits real laufen, die TOP-Zuordnung bleibt in diesem Stand noch Platzhalter.";
       empty.style.border = "1px dashed #cfd8dc";
       empty.style.borderRadius = "8px";
       empty.style.padding = "14px";
