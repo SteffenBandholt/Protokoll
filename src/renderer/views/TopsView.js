@@ -4697,9 +4697,39 @@ async _closeViewOnly() {
     const meeting = this.meetingMeta || { id: this.meetingId };
     const isMeetingClosed = Number(meeting?.is_closed) === 1;
 
+    const parseDueTs = (top) => {
+      const raw = top?.due_date ?? top?.dueDate ?? null;
+      if (!raw) return null;
+      const s = String(raw).trim();
+      if (!s) return null;
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const y = Number(s.slice(0, 4));
+        const m = Number(s.slice(5, 7)) - 1;
+        const d = Number(s.slice(8, 10));
+        const dt = new Date(y, m, d, 0, 0, 0, 0);
+        return Number.isNaN(dt.getTime()) ? null : dt.getTime();
+      }
+      const dt = new Date(s);
+      if (Number.isNaN(dt.getTime())) return null;
+      const local = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0, 0);
+      return Number.isNaN(local.getTime()) ? null : local.getTime();
+    };
+
+    const visibleItems = (this.items || [])
+      .map((top, idx) => ({ top, idx, dueTs: parseDueTs(top) }))
+      .filter((x) => !this._shouldHideTopInList(x.top))
+      .sort((a, b) => {
+        const ah = a.dueTs !== null;
+        const bh = b.dueTs !== null;
+        if (ah && !bh) return -1;
+        if (!ah && bh) return 1;
+        if (ah && bh && a.dueTs !== b.dueTs) return a.dueTs - b.dueTs;
+        return a.idx - b.idx;
+      });
+
     let collapsedParentId = null;
-    for (const top of this.items) {
-      if (this._shouldHideTopInList(top)) continue;
+    for (const entry of visibleItems) {
+      const top = entry.top;
       const li = document.createElement("li");
       li.dataset.topId = String(top.id);
       li.style.listStyle = "none";
