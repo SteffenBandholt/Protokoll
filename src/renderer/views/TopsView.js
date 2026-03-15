@@ -10,6 +10,8 @@ import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonSty
 import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
+const TODO_ICON_PNG = new URL("../assets/icons/ui_todo_48.png", import.meta.url).href;
+const RED_FLAG_PNG = new URL("../assets/icons/redFlag.png", import.meta.url).href;
 
 export default class TopsView {
   constructor({ router, projectId, meetingId }) {
@@ -2622,6 +2624,9 @@ _isoToDDMMYYYY(iso) {
     btnDecision.style.padding = BTN_PAD_ACTION;
     btnDecision.style.minHeight = BTN_MIN_H;
 
+    let statusTodoIcon = null;
+    let statusDecisionIcon = null;
+
     const updateTaskDecisionUi = () => {
       const taskOn = !!this.chkTask?.checked;
       const decOn = !!this.chkDecision?.checked;
@@ -2643,6 +2648,9 @@ _isoToDDMMYYYY(iso) {
       btnDecision.style.background = decOn ? "#fff7ed" : "#f3f3f3";
       btnDecision.style.border = decOn ? "1px solid #fed7aa" : "1px solid #ddd";
       btnDecision.style.color = decOn ? "#9a3412" : "";
+
+      if (statusTodoIcon) statusTodoIcon.style.display = taskOn ? "inline-block" : "none";
+      if (statusDecisionIcon) statusDecisionIcon.style.display = decOn ? "inline-block" : "none";
     };
 
     this._updateTaskDecisionUi = updateTaskDecisionUi;
@@ -2917,9 +2925,10 @@ _isoToDDMMYYYY(iso) {
 
     const statusWrap = mkMetaField("Status");
     const selStatus = document.createElement("select");
-    selStatus.style.width = "100%";
     selStatus.style.marginLeft = "-3mm";
-    selStatus.style.width = "calc(100% + 3mm)";
+    selStatus.style.width = "calc(100% + 3mm - 12mm)";
+    selStatus.style.flex = "1 1 auto";
+    selStatus.style.minWidth = "0";
     const statusOptions = ["offen", "in arbeit", "erledigt", "blockiert", "verzug"];
     for (const v of statusOptions) {
       const opt = document.createElement("option");
@@ -2927,7 +2936,37 @@ _isoToDDMMYYYY(iso) {
       opt.textContent = v;
       selStatus.appendChild(opt);
     }
-    statusWrap.append(selStatus);
+    const statusRow = document.createElement("div");
+    statusRow.style.display = "flex";
+    statusRow.style.alignItems = "center";
+    statusRow.style.gap = "6px";
+    const statusSymbols = document.createElement("div");
+    statusSymbols.style.display = "inline-flex";
+    statusSymbols.style.alignItems = "center";
+    statusSymbols.style.justifyContent = "flex-end";
+    statusSymbols.style.gap = "4px";
+    statusSymbols.style.width = "12mm";
+    statusSymbols.style.minWidth = "12mm";
+    statusSymbols.style.flex = "0 0 auto";
+    statusTodoIcon = document.createElement("img");
+    statusTodoIcon.src = TODO_ICON_PNG;
+    statusTodoIcon.alt = "ToDo";
+    statusTodoIcon.title = "ToDo";
+    statusTodoIcon.style.width = "11px";
+    statusTodoIcon.style.height = "11px";
+    statusTodoIcon.style.objectFit = "contain";
+    statusTodoIcon.style.display = "none";
+    statusDecisionIcon = document.createElement("img");
+    statusDecisionIcon.src = RED_FLAG_PNG;
+    statusDecisionIcon.alt = "Festgelegt";
+    statusDecisionIcon.title = "Festgelegt";
+    statusDecisionIcon.style.width = "11px";
+    statusDecisionIcon.style.height = "11px";
+    statusDecisionIcon.style.objectFit = "contain";
+    statusDecisionIcon.style.display = "none";
+    statusSymbols.append(statusTodoIcon, statusDecisionIcon);
+    statusRow.append(selStatus, statusSymbols);
+    statusWrap.append(statusRow);
 
     const respWrap = mkMetaField("Verantw.");
     const selResponsible = document.createElement("select");
@@ -4622,6 +4661,8 @@ async _closeViewOnly() {
           top.frozen_is_touched ??
           top.frozenIsTouched
       );
+      const isTask = parseFlag(top.is_task ?? top.isTask);
+      const isDecision = parseFlag(top.is_decision ?? top.isDecision);
       const isLevel1 = Number(top.level) === 1;
       const isDone = shouldGrayTopForMeeting(top, meeting);
       const changedRaw =
@@ -4832,8 +4873,52 @@ const textCol = document.createElement("div");
         if (dot) dueRow.append(dot);
 
         const stRow = document.createElement("div");
-        stRow.textContent = `${st}`;
-        stRow.style.whiteSpace = "nowrap";
+        stRow.style.display = "flex";
+        stRow.style.alignItems = "center";
+        stRow.style.gap = "6px";
+        stRow.style.width = "100%";
+
+        const stText = document.createElement("span");
+        stText.textContent = `${st}`;
+        stText.style.whiteSpace = "nowrap";
+        stText.style.overflow = "hidden";
+        stText.style.textOverflow = "ellipsis";
+        stText.style.flex = "1 1 auto";
+        stText.style.minWidth = "0";
+
+        const statusSymbols = document.createElement("div");
+        statusSymbols.style.display = "inline-flex";
+        statusSymbols.style.alignItems = "center";
+        statusSymbols.style.justifyContent = "flex-end";
+        statusSymbols.style.gap = "4px";
+        statusSymbols.style.width = "12mm";
+        statusSymbols.style.minWidth = "12mm";
+        statusSymbols.style.flex = "0 0 auto";
+
+        if (isTask) {
+          const todoIcon = document.createElement("img");
+          todoIcon.src = TODO_ICON_PNG;
+          todoIcon.alt = "ToDo";
+          todoIcon.title = "ToDo";
+          todoIcon.style.width = "11px";
+          todoIcon.style.height = "11px";
+          todoIcon.style.objectFit = "contain";
+          todoIcon.style.display = "inline-block";
+          statusSymbols.appendChild(todoIcon);
+        }
+        if (isDecision) {
+          const decisionIcon = document.createElement("img");
+          decisionIcon.src = RED_FLAG_PNG;
+          decisionIcon.alt = "Festgelegt";
+          decisionIcon.title = "Festgelegt";
+          decisionIcon.style.width = "11px";
+          decisionIcon.style.height = "11px";
+          decisionIcon.style.objectFit = "contain";
+          decisionIcon.style.display = "inline-block";
+          statusSymbols.appendChild(decisionIcon);
+        }
+
+        stRow.append(stText, statusSymbols);
 
         const respRow = document.createElement("div");
         respRow.textContent = `${resp}`;
@@ -5077,6 +5162,7 @@ const textCol = document.createElement("div");
       this._updateDeleteControls();
       this._updateCreateChildControls();
       this._updateCharCounters();
+      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
       return;
     }
 
@@ -5167,6 +5253,7 @@ const textCol = document.createElement("div");
       this._updateMoveControls();
       this._updateDeleteControls();
       this._updateCreateChildControls();
+      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
       return;
     }
 

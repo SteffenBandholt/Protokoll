@@ -4,6 +4,8 @@ import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
 
 const APP_ICON_URL = new URL("../assets/bbm-icon.png", window.location.href).toString();
+const TODO_ICON_URL = new URL("../assets/icons/ui_todo_48.png", window.location.href).toString();
+const RED_FLAG_URL = new URL("../assets/icons/redFlag.png", window.location.href).toString();
 
 function _el(tag, className, text) {
   const el = document.createElement(tag);
@@ -153,6 +155,39 @@ function _buildTopRow(row) {
   const meta3 = _el("div", "meta3");
   const metaLine1 = _el("div", "metaLine meta1");
   metaLine1.appendChild(_el("span", "metaText", row.status));
+  const statusSymbols = document.createElement("span");
+  statusSymbols.style.display = "inline-flex";
+  statusSymbols.style.alignItems = "center";
+  statusSymbols.style.justifyContent = "flex-end";
+  statusSymbols.style.gap = "1mm";
+  statusSymbols.style.width = "12mm";
+  statusSymbols.style.minWidth = "12mm";
+  statusSymbols.style.flex = "0 0 auto";
+  if (row.isTask) {
+    const todoIcon = document.createElement("img");
+    todoIcon.src = TODO_ICON_URL;
+    todoIcon.alt = "ToDo";
+    todoIcon.title = "ToDo";
+    todoIcon.style.width = "3mm";
+    todoIcon.style.height = "3mm";
+    todoIcon.style.objectFit = "contain";
+    todoIcon.style.display = "inline-block";
+    todoIcon.style.flex = "0 0 auto";
+    statusSymbols.appendChild(todoIcon);
+  }
+  if (row.isDecision) {
+    const decisionIcon = document.createElement("img");
+    decisionIcon.src = RED_FLAG_URL;
+    decisionIcon.alt = "Festgelegt";
+    decisionIcon.title = "Festgelegt";
+    decisionIcon.style.width = "3mm";
+    decisionIcon.style.height = "3mm";
+    decisionIcon.style.objectFit = "contain";
+    decisionIcon.style.display = "inline-block";
+    decisionIcon.style.flex = "0 0 auto";
+    statusSymbols.appendChild(decisionIcon);
+  }
+  metaLine1.appendChild(statusSymbols);
   if (row.ampelColor) {
     const dot = _el("span", `ampelDot ${row.ampelColor}`);
     metaLine1.appendChild(dot);

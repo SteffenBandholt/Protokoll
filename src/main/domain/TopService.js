@@ -56,6 +56,10 @@ class TopService {
           // ✅ „angefasst“ (nur fürs UI-Farbverhalten)
           is_touched: r.is_touched ?? 0,
 
+          // Task / Decision
+          is_task: r.is_task ?? 0,
+          is_decision: r.is_decision ?? 0,
+
           // Verantwortlich (optional, kommt aus meeting_tops)
           responsible_kind: r.responsible_kind ?? null,
           responsible_id: r.responsible_id ?? null,
@@ -122,6 +126,10 @@ class TopService {
 
           // ✅ „angefasst“ (für Anzeige, auch wenn Meeting read-only)
           is_touched: r.is_touched ?? 0,
+
+          // Task / Decision
+          is_task: r.is_task ?? 0,
+          is_decision: r.is_decision ?? 0,
 
           // Verantwortlich (optional, nicht „frozen“, aber soll angezeigt werden)
           responsible_kind: r.responsible_kind ?? null,

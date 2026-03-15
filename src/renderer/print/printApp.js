@@ -90,6 +90,8 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   const due = _formatDateIso(top.due_date || top.dueDate || "");
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
   const contact = String(top.contact_label || top.contactLabel || "").trim();
+  const isTask = Number(top.is_task ?? top.isTask ?? 0) === 1;
+  const isDecision = Number(top.is_decision ?? top.isDecision ?? 0) === 1;
 
   return {
     kind: "top",
@@ -107,6 +109,8 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     due,
     resp,
     contact,
+    isTask,
+    isDecision,
     ampelColor: level === 1 ? null : ampelColor,
   };
 }
