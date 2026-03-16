@@ -1,7 +1,7 @@
 const TOPIC_CHANGE_PATTERNS = [
   /\bneuer punkt\b/i,
-  /\bau[sß]erdem\b/i,
-  /\bzus[aä]tzlich\b/i,
+  /\b(?:ausserdem|außerdem)\b/i,
+  /\b(?:zusaetzlich|zusätzlich)\b/i,
   /\bnoch ein thema\b/i,
   /\bweiterer punkt\b/i,
 ];
@@ -22,10 +22,20 @@ function _splitBySentenceBoundary(text) {
 }
 
 function _splitByTopicSignals(text) {
-  return String(text || "")
-    .split(/\s+(?=(?:neuer punkt|au[ßs]erdem|zus[aä]tzlich|noch ein thema|weiterer punkt)\b)/i)
+  const parts = String(text || "")
+    .split(/\s+(?=(?:neuer punkt|ausserdem|außerdem|zusaetzlich|zusätzlich|noch ein thema|weiterer punkt)\b)/i)
     .map((part) => String(part || "").trim())
     .filter(Boolean);
+
+  if (
+    parts.length >= 2 &&
+    parts[0].split(/\s+/).filter(Boolean).length <= 2 &&
+    /^(?:neuer punkt|noch ein thema)\b/i.test(parts[1])
+  ) {
+    parts.splice(0, 2, `${parts[0]} ${parts[1]}`.trim());
+  }
+
+  return parts;
 }
 
 class TranscriptSegmentationService {

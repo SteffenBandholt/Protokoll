@@ -1,5 +1,6 @@
 const NEW_POINT_PATTERN =
   /\b(?:neuer punkt|au[sß]erdem|zus[aä]tzlich|noch ein thema|weiterer punkt)\b/i;
+const ACTIVE_ANCHOR_MAX_WORDS = 12;
 
 function _audioLog(message, extra = null) {
   if (extra && typeof extra === "object") {
@@ -248,6 +249,21 @@ class MeetingMappingService {
     return compact.length > 80 ? `${compact.slice(0, 77).trim()}...` : compact;
   }
 
+  _shouldUseActiveAnchor(segment, { hasNewPointSignal, directTop, phraseTarget, currentAnchor }) {
+    if (!currentAnchor) return false;
+    if (hasNewPointSignal) return false;
+    if (directTop || phraseTarget?.entry) return false;
+
+    const wordCount = Number(segment?.wordCount || 0);
+    if (!Number.isFinite(wordCount) || wordCount <= 0 || wordCount > ACTIVE_ANCHOR_MAX_WORDS) {
+      return false;
+    }
+
+    if (segment?.hasTopicChangeSignal) return false;
+
+    return true;
+  }
+
   _mapSegment(segment, workingCard, context = {}) {
     const segmentText = this._safeText(segment?.text || "");
     if (!segmentText) return null;
@@ -260,6 +276,12 @@ class MeetingMappingService {
       context.anchorTopId
         ? workingCard.find((entry) => String(entry.topId) === String(context.anchorTopId))
         : null;
+    const allowAnchorAppend = this._shouldUseActiveAnchor(segment, {
+      hasNewPointSignal,
+      directTop,
+      phraseTarget,
+      currentAnchor,
+    });
 
     if (phraseTarget?.entry && phraseTarget.mode === "child") {
       return {
@@ -269,7 +291,7 @@ class MeetingMappingService {
         textSuggestion: segmentText,
         sourceExcerpt: segmentText,
         mappingReason: phraseTarget.reason,
-        anchorTopId: phraseTarget.entry.topId,
+        nextAnchorTopId: phraseTarget.entry.topId,
       };
     }
 
@@ -281,7 +303,7 @@ class MeetingMappingService {
         textSuggestion: segmentText,
         sourceExcerpt: segmentText,
         mappingReason: `new_point_under_existing:${directTop.reason}`,
-        anchorTopId: directTop.entry.topId,
+        nextAnchorTopId: directTop.entry.topId,
       };
     }
 
@@ -293,7 +315,7 @@ class MeetingMappingService {
         textSuggestion: segmentText,
         sourceExcerpt: segmentText,
         mappingReason: phraseTarget.reason,
-        anchorTopId: phraseTarget.entry.topId,
+        nextAnchorTopId: phraseTarget.entry.topId,
       };
     }
 
@@ -305,23 +327,11 @@ class MeetingMappingService {
         textSuggestion: segmentText,
         sourceExcerpt: segmentText,
         mappingReason: directTop.reason,
-        anchorTopId: directTop.entry.topId,
+        nextAnchorTopId: directTop.entry.topId,
       };
     }
 
-    if (hasNewPointSignal && currentAnchor) {
-      return {
-        type: "create_child_top",
-        parentTopId: currentAnchor.topId,
-        titleSuggestion: this._buildSuggestedTitle(segmentText),
-        textSuggestion: segmentText,
-        sourceExcerpt: segmentText,
-        mappingReason: `context_new_point:${currentAnchor.title}`,
-        anchorTopId: currentAnchor.topId,
-      };
-    }
-
-    if (!hasNewPointSignal && currentAnchor && Number(segment?.wordCount || 0) <= 22) {
+    if (allowAnchorAppend) {
       return {
         type: "append_to_top",
         targetTopId: currentAnchor.topId,
@@ -329,7 +339,7 @@ class MeetingMappingService {
         textSuggestion: segmentText,
         sourceExcerpt: segmentText,
         mappingReason: `context_anchor_append:${currentAnchor.title}`,
-        anchorTopId: currentAnchor.topId,
+        nextAnchorTopId: currentAnchor.topId,
       };
     }
 
@@ -341,7 +351,7 @@ class MeetingMappingService {
       mappingReason: hasNewPointSignal
         ? "manual_assign_new_point_without_safe_parent"
         : "manual_assign_no_safe_match",
-      anchorTopId: currentAnchor?.topId || null,
+      nextAnchorTopId: null,
     };
   }
 
@@ -491,7 +501,9 @@ class MeetingMappingService {
         })
       );
       created.push(suggestion);
-      anchorTopId = mapped.anchorTopId || anchorTopId;
+      if (Object.prototype.hasOwnProperty.call(mapped, "nextAnchorTopId")) {
+        anchorTopId = mapped.nextAnchorTopId || null;
+      }
     }
 
     this.audioImportsRepo.updateStatus({
