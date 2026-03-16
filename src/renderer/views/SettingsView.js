@@ -319,6 +319,7 @@ export default class SettingsView {
     if (code === "LICENSE_TOOL_NOT_FOUND") return "C:\\license-tool wurde nicht gefunden.";
     if (code === "LICENSE_TOOL_SCRIPT_MISSING") return "generate-license.cjs wurde im license-tool nicht gefunden.";
     if (code === "PRIVATE_KEY_MISSING") return "private_key.pem fehlt im license-tool.";
+    if (code === "INVALID_FORMAT") return "Die geladene Lizenzdatei ist beschaedigt oder hat kein gueltiges Format.";
     if (code === "CUSTOMER_NAME_REQUIRED") return "Bitte Kunde / Firma angeben.";
     if (code === "LICENSE_ID_REQUIRED") return "Bitte eine Lizenznummer angeben.";
     if (code === "VALID_FROM_REQUIRED") return "Bitte ein gueltiges Startdatum setzen.";
@@ -1977,13 +1978,22 @@ export default class SettingsView {
     licenseGenBox.style.gap = "8px";
 
     const licenseGenTitle = document.createElement("div");
-    licenseGenTitle.textContent = "Lizenz erstellen";
+    licenseGenTitle.textContent = "Lizenz verlaengern / bearbeiten";
     licenseGenTitle.style.fontWeight = "700";
 
     const licenseGenHint = document.createElement("div");
-    licenseGenHint.textContent = "Nur fuer den internen Entwicklungsbereich. Signierung laeuft ueber C:\\license-tool.";
+    licenseGenHint.textContent = "Nur fuer den internen Entwicklungsbereich. Bestehende .bbmlic laden, anpassen und ueber C:\\license-tool neu erzeugen.";
     licenseGenHint.style.fontSize = "12px";
     licenseGenHint.style.opacity = "0.8";
+
+    const loadedLicenseInfo = document.createElement("div");
+    loadedLicenseInfo.style.fontSize = "12px";
+    loadedLicenseInfo.style.lineHeight = "1.35";
+    loadedLicenseInfo.style.padding = "8px";
+    loadedLicenseInfo.style.borderRadius = "8px";
+    loadedLicenseInfo.style.background = "#f8fafc";
+    loadedLicenseInfo.style.border = "1px solid rgba(0,0,0,0.08)";
+    loadedLicenseInfo.textContent = "Keine bestehende Lizenz geladen.";
 
     const inpLicenseProduct = document.createElement("input");
     inpLicenseProduct.type = "text";
@@ -2000,6 +2010,11 @@ export default class SettingsView {
     const inpLicenseEdition = document.createElement("input");
     inpLicenseEdition.type = "text";
     inpLicenseEdition.value = "test";
+
+    const valueLicenseIssuedAt = document.createElement("div");
+    valueLicenseIssuedAt.textContent = "-";
+    valueLicenseIssuedAt.style.fontSize = "12px";
+    valueLicenseIssuedAt.style.wordBreak = "break-word";
 
     const inpLicenseValidFrom = document.createElement("input");
     inpLicenseValidFrom.type = "date";
@@ -2082,8 +2097,13 @@ export default class SettingsView {
 
     const btnLicenseGenerate = document.createElement("button");
     btnLicenseGenerate.type = "button";
-    btnLicenseGenerate.textContent = "Lizenzdatei erzeugen";
+    btnLicenseGenerate.textContent = "Lizenz verlaengern";
     applyPopupButtonStyle(btnLicenseGenerate, { variant: "primary" });
+
+    const btnLicenseLoad = document.createElement("button");
+    btnLicenseLoad.type = "button";
+    btnLicenseLoad.textContent = "Lizenz laden";
+    applyPopupButtonStyle(btnLicenseLoad);
 
     const btnLicenseOpenOutput = document.createElement("button");
     btnLicenseOpenOutput.type = "button";
@@ -2091,7 +2111,9 @@ export default class SettingsView {
     btnLicenseOpenOutput.disabled = true;
     applyPopupButtonStyle(btnLicenseOpenOutput);
 
-    licenseGenActions.append(btnLicenseGenerate, btnLicenseOpenOutput);
+    licenseGenActions.append(btnLicenseLoad, btnLicenseGenerate, btnLicenseOpenOutput);
+
+    let loadedLicenseMeta = null;
 
     const setLicenseGenBusy = (busy) => {
       const isBusy = !!busy;
@@ -2109,8 +2131,51 @@ export default class SettingsView {
       ].forEach((el) => {
         if (el) el.disabled = isBusy;
       });
+      btnLicenseLoad.disabled = isBusy;
       btnLicenseGenerate.disabled = isBusy;
       btnLicenseOpenOutput.disabled = isBusy || !btnLicenseOpenOutput.dataset.outputPath;
+    };
+
+    const syncLoadedLicenseInfo = () => {
+      if (!loadedLicenseMeta) {
+        loadedLicenseInfo.textContent = "Keine bestehende Lizenz geladen.";
+        btnLicenseGenerate.textContent = "Lizenz verlaengern";
+        return;
+      }
+      const currentLicenseId = String(inpLicenseId.value || "").trim();
+      const originalLicenseId = String(loadedLicenseMeta.licenseId || "").trim();
+      const sameId = currentLicenseId && originalLicenseId && currentLicenseId === originalLicenseId;
+      loadedLicenseInfo.textContent = [
+        `Geladen: ${loadedLicenseMeta.filePath || "-"}`,
+        `Vorherige Lizenznummer: ${originalLicenseId || "-"}`,
+        `IssuedAt: ${loadedLicenseMeta.issuedAt || "-"}`,
+        sameId
+          ? "Verlaengerung: Bestehende Lizenznummer wird weiterverwendet."
+          : "Verlaengerung: Neue Lizenznummer eingetragen.",
+      ].join("\n");
+      btnLicenseGenerate.textContent = sameId ? "Lizenz verlaengern" : "Lizenz unter neuer Nummer erzeugen";
+    };
+
+    const applyLoadedLicense = (res) => {
+      loadedLicenseMeta = {
+        filePath: String(res?.filePath || "").trim(),
+        licenseId: String(res?.licenseId || "").trim(),
+        issuedAt: String(res?.issuedAt || "").trim(),
+      };
+      inpLicenseProduct.value = String(res?.product || "bbm-protokoll").trim() || "bbm-protokoll";
+      inpLicenseCustomer.value = String(res?.customerName || "").trim();
+      inpLicenseId.value = String(res?.licenseId || "").trim();
+      inpLicenseEdition.value = String(res?.edition || "").trim() || "test";
+      valueLicenseIssuedAt.textContent = String(res?.issuedAt || "").trim() || "-";
+      inpLicenseValidFrom.value = String(res?.validFrom || "").trim();
+      inpLicenseValidUntil.value = String(res?.validUntil || "").trim();
+      inpLicenseMaxDevices.value = String(res?.maxDevices || 1).trim() || "1";
+      inpLicenseNotes.value = String(res?.notes || "").trim();
+      const loadedFeatures = Array.isArray(res?.features) ? res.features.map((v) => String(v || "").trim()) : [];
+      featureInputs.forEach((inp) => {
+        inp.checked = loadedFeatures.includes(inp.value);
+      });
+      syncLoadedLicenseInfo();
     };
 
     const collectLicenseFormData = () => ({
@@ -2125,6 +2190,41 @@ export default class SettingsView {
       features: featureInputs.filter((inp) => !!inp.checked).map((inp) => inp.value),
       notes: String(inpLicenseNotes.value || "").trim(),
     });
+
+    inpLicenseId.addEventListener("input", syncLoadedLicenseInfo);
+
+    btnLicenseLoad.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseLoadForEdit !== "function") {
+        licenseGenStatus.textContent = "Lizenz-Lade-IPC ist nicht verfuegbar.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+      setLicenseGenBusy(true);
+      licenseGenStatus.textContent = "Bestehende Lizenz wird geladen ...";
+      licenseGenStatus.style.color = "#4b5563";
+      try {
+        const res = await api.licenseLoadForEdit({});
+        if (res?.canceled) {
+          licenseGenStatus.textContent = "Lizenz laden abgebrochen.";
+          licenseGenStatus.style.color = "#4b5563";
+          return;
+        }
+        if (!res?.ok) {
+          licenseGenStatus.textContent = this._formatLicenseGenerationError(res?.error);
+          licenseGenStatus.style.color = "#b91c1c";
+          return;
+        }
+        applyLoadedLicense(res);
+        licenseGenStatus.textContent = "Bestehende Lizenzdaten geladen.";
+        licenseGenStatus.style.color = "#166534";
+      } catch (err) {
+        licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
+        licenseGenStatus.style.color = "#b91c1c";
+      } finally {
+        setLicenseGenBusy(false);
+      }
+    };
 
     btnLicenseGenerate.onclick = async () => {
       const api = window.bbmDb || {};
@@ -2180,10 +2280,12 @@ export default class SettingsView {
     licenseGenBox.append(
       licenseGenTitle,
       licenseGenHint,
+      loadedLicenseInfo,
       mkRow("Produkt", inpLicenseProduct),
       mkRow("Kunde / Firma", inpLicenseCustomer),
       mkRow("Lizenznummer", inpLicenseId),
       mkRow("Edition", inpLicenseEdition),
+      mkRow("IssuedAt (geladen)", valueLicenseIssuedAt),
       mkRow("Gueltig von", inpLicenseValidFrom),
       mkRow("Nutzungstage", inpLicenseDuration),
       mkRow("Gueltig bis", inpLicenseValidUntil),
@@ -2235,7 +2337,7 @@ export default class SettingsView {
 
     const btnOpenLicenseGenerator = document.createElement("button");
     btnOpenLicenseGenerator.type = "button";
-    btnOpenLicenseGenerator.textContent = "Lizenz erstellen";
+    btnOpenLicenseGenerator.textContent = "Lizenz erstellen / verlaengern";
     applyPopupButtonStyle(btnOpenLicenseGenerator, { variant: "primary" });
 
 
@@ -2538,7 +2640,7 @@ export default class SettingsView {
     btnOpenLicenseGenerator.onclick = async () => {
       this._closeSettingsModal();
       this._openSettingsModal({
-        title: "Lizenz erstellen",
+        title: "Lizenz erstellen / verlaengern",
         content: [licenseGenBox],
         closeOnly: true,
       });

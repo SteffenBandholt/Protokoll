@@ -104,6 +104,30 @@ function _readLicenseFile(filePath) {
   return parsed;
 }
 
+function _toEditableLicensePayload(parsed = {}, filePath = "") {
+  const license = parsed?.license && typeof parsed.license === "object" ? parsed.license : {};
+  const issuedAt = String(license.issuedAt || "").trim();
+  const validFrom = String(license.validFrom || "").trim() || (issuedAt ? issuedAt.slice(0, 10) : "");
+  return {
+    filePath: String(filePath || "").trim(),
+    product: String(license.product || "").trim(),
+    customerName: String(license.customerName || "").trim(),
+    licenseId: String(license.licenseId || "").trim(),
+    edition: String(license.edition || "").trim(),
+    issuedAt,
+    validFrom,
+    validUntil: String(license.validUntil || "").trim(),
+    maxDevices:
+      typeof license.maxDevices === "number"
+        ? license.maxDevices
+        : Number.isFinite(Number(license.maxDevices))
+          ? Number(license.maxDevices)
+          : 1,
+    features: Array.isArray(license.features) ? license.features.map((v) => String(v || "").trim()).filter(Boolean) : [],
+    notes: String(license.notes || "").trim(),
+  };
+}
+
 function _isDevLicenseGenerationAllowed() {
   return !app.isPackaged;
 }
@@ -336,6 +360,31 @@ function registerLicenseIpc() {
     } catch (err) {
       const payload = _toStatusPayload({ valid: false, reason: "INVALID_FORMAT" });
       return { ok: false, error: err?.message || String(err), ...payload };
+    }
+  });
+
+  ipcMain.handle("license:load-for-edit", async (event) => {
+    if (!_isDevLicenseGenerationAllowed()) {
+      return { ok: false, error: "LICENSE_GENERATION_NOT_ALLOWED" };
+    }
+    try {
+      const result = await dialog.showOpenDialog(_pickWindow(event), {
+        title: "Bestehende Lizenz laden",
+        properties: ["openFile"],
+        filters: LICENSE_FILE_FILTER,
+      });
+      if (result.canceled || !Array.isArray(result.filePaths) || !result.filePaths[0]) {
+        return { ok: true, canceled: true };
+      }
+      const filePath = String(result.filePaths[0] || "").trim();
+      const parsed = _readLicenseFile(filePath);
+      return {
+        ok: true,
+        ..._toEditableLicensePayload(parsed, filePath),
+      };
+    } catch (err) {
+      const reason = String(err?.code || err?.message || "INVALID_FORMAT").trim() || "INVALID_FORMAT";
+      return { ok: false, error: reason };
     }
   });
 

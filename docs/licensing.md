@@ -49,18 +49,20 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 
 
 ## Lizenz-Erstellung im Entwicklungsbereich
-- Die Lizenz-Erstellung ist nur im internen Entwicklungsbereich der ungepackten App verfuegbar.
+- Die Lizenz-Erstellung und Lizenz-Verlaengerung sind nur im internen Entwicklungsbereich der ungepackten App verfuegbar.
 - Verwendet wird ausschliesslich das externe Tool:
   - `C:\license-tool\generate-license.cjs`
 - Die App schreibt eine Eingabe-JSON nach:
   - `C:\license-tool\input\`
 - Die erzeugte `.bbmlic` landet in:
   - `C:\license-tool\output\`
+- Bestehende `.bbmlic` koennen im Entwicklungsbereich geladen, geprueft und als neue verlaengerte Lizenz erneut erzeugt werden.
 - Setzbare Felder in der UI:
   - `product`
   - `customerName`
   - `licenseId`
   - `edition`
+  - `issuedAt` (nur lesend aus geladener Lizenz)
   - `validFrom`
   - `validUntil`
   - optional `durationDays`
