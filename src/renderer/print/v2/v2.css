@@ -11,12 +11,12 @@
 
 .printV2Root .pdfSpineNote {
   position: absolute;
-  left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
-  right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
-  bottom: 4mm;
-  display: flex;
+  left: calc(var(--v2-pad-left, var(--v2-pad-x, 12mm)) - 2mm);
+  bottom: calc(var(--v2-pad-bottom, 18mm) + var(--v2-footer-reserve, 12mm));
+  transform: rotate(-90deg);
+  transform-origin: left bottom;
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
   gap: 1.2mm;
   font-size: 7pt;
   font-weight: 400;
@@ -37,8 +37,6 @@
 
 .printV2Root .pdfSpineNoteText {
   display: inline-block;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* GlobalHeader (page 1 only) */
@@ -565,6 +563,7 @@
 }
 
 .printV2Root .v2FooterReserveMarker {
+  display: none;
   position: absolute;
   left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
   right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
