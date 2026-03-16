@@ -1238,6 +1238,9 @@ async function handleInit(payload) {
         if (chRes?.ok) data.buildChannel = chRes.channel || "";
       } catch (_e) {}
     }
+    if (payload?.licenseMarkerText) {
+      data.licenseMarkerText = String(payload.licenseMarkerText || "").trim();
+    }
     if (document.fonts && document.fonts.ready) {
       try {
         await document.fonts.ready;

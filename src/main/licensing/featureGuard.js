@@ -30,14 +30,11 @@ function createLicenseBadgeText(licenseInfo = {}) {
   const year = new Date().getFullYear();
   const version = String(licenseInfo?.appVersion || "").trim();
   const customerName = String(licenseInfo?.customerName || "").trim();
-  const licenseId = String(licenseInfo?.licenseId || "").trim();
-  const edition = String(licenseInfo?.edition || "").trim();
-
-  const parts = [`© BBM ${year}`];
-  if (version) parts.push(`v${version}`);
-  parts.push(`Lizenz: ${customerName || licenseId || "-"}`);
-  if (edition) parts.push(edition);
-  return parts.join(" | ");
+  const prefix = `© BBM ${year}${version ? ` - v${version}` : ""}`;
+  if (customerName) {
+    return `${prefix} | Lizenziert für: ${customerName}`;
+  }
+  return `${prefix} | Keine gültige Lizenz`;
 }
 
 function enforceLicensedFeature(feature) {

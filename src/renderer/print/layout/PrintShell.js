@@ -551,18 +551,8 @@ function _buildSpineNote(data = {}) {
   icon.className = "pdfSpineNoteIcon";
   icon.src = APP_ICON_URL;
   icon.alt = "";
-  const year = new Date().getFullYear();
-  const versionRaw = String(data?.appVersion || "").trim();
-  const versionText = versionRaw ? `v${versionRaw}` : "";
-  const channel = String(data?.buildChannel || "").trim();
-  const channelText = channel ? channel.toUpperCase() : "";
-  const text = _el(
-    "span",
-    "pdfSpineNoteText",
-    [ "©", versionText, `BBM ${year}`, "erstellt mit Baubesprechungsmanager", channelText ]
-      .filter(Boolean)
-      .join("   |   ")
-  );
+  const markerText = String(data?.licenseMarkerText || "").trim();
+  const text = _el("span", "pdfSpineNoteText", markerText || "");
   wrap.append(icon, text);
   return wrap;
 }

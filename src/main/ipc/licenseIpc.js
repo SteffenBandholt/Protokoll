@@ -6,7 +6,7 @@ const fs = require("fs");
 const { saveLicense, loadLicense, deleteLicense } = require("../licensing/licenseStorage");
 const { getMachineId } = require("../licensing/deviceIdentity");
 const { verifyLicense } = require("../licensing/licenseVerifier");
-const { refreshStatus, getStatus } = require("../licensing/licenseService");
+const { refreshStatus } = require("../licensing/licenseService");
 
 const LICENSE_FILE_FILTER = [
   {
@@ -54,7 +54,6 @@ function _toStatusPayload(status) {
   };
 
   payload.diagnosticsText = _buildDiagnosticsText(payload);
-  payload.status = { ...payload };
   return payload;
 }
 
@@ -100,7 +99,7 @@ function _readLicenseFile(filePath) {
 function registerLicenseIpc() {
   ipcMain.handle("license:get-status", async () => {
     try {
-      const status = getStatus();
+      const status = refreshStatus();
       const payload = _toStatusPayload(status);
       console.log("[LICENSE] get-status", {
         valid: payload.valid,
@@ -207,7 +206,7 @@ function registerLicenseIpc() {
 
   ipcMain.handle("license:get-diagnostics", async () => {
     try {
-      const payload = _toStatusPayload(getStatus());
+      const payload = _toStatusPayload(refreshStatus());
       return { ok: true, ...payload };
     } catch (err) {
       const payload = _toStatusPayload({ valid: false, reason: "INVALID_FORMAT" });

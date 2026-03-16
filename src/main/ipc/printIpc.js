@@ -71,81 +71,6 @@ function buildPrintToPdfOptions() {
   };
 }
 
-function _escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-async function _injectLicenseBadge(win, licenseInfo) {
-  const badgeText = createLicenseBadgeText(licenseInfo);
-  if (!badgeText) return;
-
-  const payload = {
-    badgeText,
-    customerName: String(licenseInfo?.customerName || "").trim(),
-    licenseId: String(licenseInfo?.licenseId || "").trim(),
-    edition: String(licenseInfo?.edition || "").trim(),
-  };
-
-  await win.webContents.executeJavaScript(
-    `(() => {
-      const data = ${JSON.stringify(payload)};
-      const doc = document;
-      if (!doc || !doc.body) return;
-
-      const existing = doc.getElementById("bbm-license-badge");
-      if (existing) existing.remove();
-
-      const badge = doc.createElement("div");
-      badge.id = "bbm-license-badge";
-      badge.innerHTML = ${JSON.stringify(_escapeHtml(payload.badgeText))};
-      badge.style.position = "fixed";
-      badge.style.left = "2mm";
-      badge.style.top = "50%";
-      badge.style.transform = "translateY(-50%) rotate(-180deg)";
-      badge.style.writingMode = "vertical-rl";
-      badge.style.transformOrigin = "center";
-      badge.style.zIndex = "2147483647";
-      badge.style.padding = "2mm 1.5mm";
-      badge.style.border = "1px solid rgba(0,0,0,0.12)";
-      badge.style.borderRadius = "2mm";
-      badge.style.background = "rgba(255,255,255,0.92)";
-      badge.style.color = "#4b5563";
-      badge.style.font = "9px Arial, sans-serif";
-      badge.style.letterSpacing = "0.02em";
-      badge.style.pointerEvents = "none";
-      badge.style.boxSizing = "border-box";
-      badge.style.maxHeight = "180mm";
-      badge.style.textAlign = "center";
-      doc.body.appendChild(badge);
-
-      const titleParts = [doc.title || "BBM"];
-      if (data.customerName) titleParts.push(data.customerName);
-      if (data.licenseId) titleParts.push("Lizenz " + data.licenseId);
-      doc.title = titleParts.join(" | ");
-
-      const ensureMeta = (name, content) => {
-        if (!content) return;
-        let meta = doc.head && doc.head.querySelector('meta[name="' + name + '"]');
-        if (!meta) {
-          meta = doc.createElement("meta");
-          meta.setAttribute("name", name);
-          if (doc.head) doc.head.appendChild(meta);
-        }
-        meta.setAttribute("content", content);
-      };
-
-      ensureMeta("author", data.customerName || "BBM");
-      ensureMeta("subject", data.licenseId || "");
-      ensureMeta("keywords", [data.customerName, data.licenseId, data.edition].filter(Boolean).join(", "));
-    })();`,
-    true
-  );
-}
-
 function _folderForMode(mode) {
   const m = String(mode || "").trim().toLowerCase();
   if (m === "protocol") return "Protokolle";
@@ -371,6 +296,7 @@ async function printToPdf(payload = {}) {
   const projectId = payload.projectId || null;
   const meetingId = payload.meetingId || null;
   const licenseInfo = enforceLicensedFeature(LICENSE_FEATURES.PDF);
+  const licenseMarkerText = createLicenseBadgeText(licenseInfo);
 
   console.log(`[print:${jobId}] start mode=${mode} projectId=${projectId} meetingId=${meetingId}`);
 
@@ -442,7 +368,6 @@ async function printToPdf(payload = {}) {
 
       try {
         const options = buildPrintToPdfOptions();
-        await _injectLicenseBadge(win, licenseInfo);
         console.log(
           `[PRINT_ACTIVE] printToPDF options: ${JSON.stringify(
             {
@@ -477,6 +402,7 @@ async function printToPdf(payload = {}) {
         mode,
         projectId,
         meetingId,
+        licenseMarkerText,
         settingsOverride: payload.settingsOverride || null,
         debug,
       });

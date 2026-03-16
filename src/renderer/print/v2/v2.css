@@ -11,16 +11,16 @@
 
 .printV2Root .pdfSpineNote {
   position: absolute;
-  left: calc(var(--v2-pad-left, var(--v2-pad-x, 12mm)) - 2mm);
-  bottom: calc(var(--v2-pad-bottom, 18mm) + var(--v2-footer-reserve, 12mm));
-  transform: rotate(-90deg);
-  transform-origin: left bottom;
-  display: inline-flex;
+  left: var(--v2-pad-left, var(--v2-pad-x, 12mm));
+  right: var(--v2-pad-right, var(--v2-pad-x, 12mm));
+  bottom: 4mm;
+  display: flex;
   align-items: center;
-  gap: 0.8mm;
-  font-size: 6pt;
+  justify-content: flex-start;
+  gap: 1.2mm;
+  font-size: 7pt;
   font-weight: 400;
-  color: #000;
+  color: #374151;
   line-height: 1.1;
   white-space: nowrap;
   pointer-events: none;
@@ -37,6 +37,8 @@
 
 .printV2Root .pdfSpineNoteText {
   display: inline-block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* GlobalHeader (page 1 only) */

@@ -279,9 +279,8 @@ export default class SettingsView {
     if (code === "INVALID_SIGNATURE") return "Lizenzdatei konnte nicht verifiziert werden";
     if (code === "WRONG_PRODUCT") return "Lizenz gehoert zu einem anderen Produkt";
     if (code === "WRONG_MACHINE") return "Lizenz gehoert zu einem anderen Rechner";
-    if (code === "PUBLIC_KEY_MISSING" || code === "PUBLIC_KEY_INVALID") {
-      return "Lizenzpruefung ist lokal noch nicht vollstaendig eingerichtet";
-    }
+    if (code === "PUBLIC_KEY_MISSING") return "Oeffentlicher Lizenzschluessel fehlt";
+    if (code === "PUBLIC_KEY_INVALID") return "Oeffentlicher Lizenzschluessel ist ungueltig";
     return String(fallbackError || "Lizenzstatus konnte nicht geladen werden.");
   }
 
