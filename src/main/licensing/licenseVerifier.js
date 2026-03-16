@@ -1,13 +1,11 @@
+// src/main/licensing/licenseVerifier.js
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { getMachineId } = require("./deviceIdentity");
 
 const PUBLIC_KEY_PATH = path.join(__dirname, "public_key.pem");
-
-function getPublicKeyPath() {
-  return PUBLIC_KEY_PATH;
-}
+const EXPECTED_PRODUCT = "bbm-protokoll";
 
 function canonicalize(value) {
   if (Array.isArray(value)) {
@@ -24,38 +22,36 @@ function canonicalize(value) {
   return JSON.stringify(value);
 }
 
-function loadPublicKey() {
+function readPublicKey() {
   if (!fs.existsSync(PUBLIC_KEY_PATH)) {
-    const err = new Error(`Öffentlicher Lizenzschlüssel fehlt: ${PUBLIC_KEY_PATH}`);
-    err.code = "PUBLIC_KEY_MISSING";
-    throw err;
+    throw new Error(`PUBLIC_KEY_MISSING:${PUBLIC_KEY_PATH}`);
   }
 
-  const publicKey = String(fs.readFileSync(PUBLIC_KEY_PATH, "utf8") || "").trim();
-  if (!publicKey) {
-    const err = new Error(`Öffentlicher Lizenzschlüssel ist leer: ${PUBLIC_KEY_PATH}`);
-    err.code = "PUBLIC_KEY_MISSING";
-    throw err;
-  }
-
-  if (
-    !publicKey.includes("-----BEGIN PUBLIC KEY-----") ||
-    publicKey.includes("PLACEHOLDER_REPLACE_WITH_REAL_PUBLIC_KEY")
-  ) {
-    const err = new Error(`Öffentlicher Lizenzschlüssel ist noch nicht produktiv hinterlegt: ${PUBLIC_KEY_PATH}`);
-    err.code = "PUBLIC_KEY_INVALID";
-    throw err;
-  }
-
-  return publicKey;
+  return fs.readFileSync(PUBLIC_KEY_PATH, "utf8");
 }
 
-function verifySignature(licenseObject, signature) {
-  const publicKey = loadPublicKey();
-  const canonical = canonicalize(licenseObject);
-  const signatureBuffer = Buffer.from(signature, "base64");
+function verifySignature(license, signature) {
+  try {
+    const publicKey = readPublicKey();
+    const canonical = canonicalize(license);
+    const signatureBuffer = Buffer.from(String(signature || ""), "base64");
 
-  return crypto.verify(null, Buffer.from(canonical, "utf8"), publicKey, signatureBuffer);
+    return crypto.verify(
+      null,
+      Buffer.from(canonical, "utf8"),
+      publicKey,
+      signatureBuffer
+    );
+  } catch (_err) {
+    return false;
+  }
+}
+
+function isIsoDateString(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+  const parsed = new Date(raw);
+  return !Number.isNaN(parsed.getTime());
 }
 
 function verifyLicense(licenseData) {
@@ -65,32 +61,54 @@ function verifyLicense(licenseData) {
 
   const { license, signature, machineId } = licenseData;
 
-  if (!license || !signature) {
+  if (!license || typeof license !== "object" || !signature) {
     return { valid: false, reason: "INVALID_FORMAT" };
   }
 
-  let signatureValid = false;
-  try {
-    signatureValid = verifySignature(license, signature);
-  } catch (err) {
-    return { valid: false, reason: err?.code || "PUBLIC_KEY_INVALID" };
+  const requiredFields = [
+    "schemaVersion",
+    "product",
+    "licenseId",
+    "customerName",
+    "edition",
+    "issuedAt",
+    "validUntil",
+    "maxDevices",
+    "features",
+  ];
+
+  for (const field of requiredFields) {
+    const value = license[field];
+    const missing =
+      value === undefined ||
+      value === null ||
+      value === "" ||
+      (Array.isArray(value) && value.length === 0);
+
+    if (missing) {
+      return { valid: false, reason: "INVALID_FORMAT" };
+    }
   }
 
+  if (!Array.isArray(license.features)) {
+    return { valid: false, reason: "INVALID_FORMAT" };
+  }
+
+  if (typeof license.maxDevices !== "number" || license.maxDevices < 1) {
+    return { valid: false, reason: "INVALID_FORMAT" };
+  }
+
+  if (!isIsoDateString(license.issuedAt) || !isIsoDateString(license.validUntil)) {
+    return { valid: false, reason: "INVALID_FORMAT" };
+  }
+
+  if (license.product !== EXPECTED_PRODUCT) {
+    return { valid: false, reason: "WRONG_PRODUCT" };
+  }
+
+  const signatureValid = verifySignature(license, signature);
   if (!signatureValid) {
     return { valid: false, reason: "INVALID_SIGNATURE" };
-  }
-
-  const now = new Date();
-  const expiry = new Date(license.validUntil);
-  if (Number.isNaN(expiry.getTime())) {
-    return { valid: false, reason: "INVALID_VALID_UNTIL" };
-  }
-  if (now > expiry) {
-    return { valid: false, reason: "LICENSE_EXPIRED" };
-  }
-
-  if (license.product !== "bbm-protokoll") {
-    return { valid: false, reason: "WRONG_PRODUCT" };
   }
 
   const currentMachineId = getMachineId();
@@ -98,16 +116,35 @@ function verifyLicense(licenseData) {
     return { valid: false, reason: "WRONG_MACHINE" };
   }
 
+  const now = Date.now();
+  const expiresAt = new Date(license.validUntil).getTime();
+  if (Number.isNaN(expiresAt)) {
+    return { valid: false, reason: "INVALID_FORMAT" };
+  }
+
+  if (now > expiresAt) {
+    return {
+      valid: false,
+      reason: "LICENSE_EXPIRED",
+      license,
+    };
+  }
+
+  const msRemaining = expiresAt - now;
+  const daysRemaining = Math.ceil(msRemaining / (1000 * 60 * 60 * 24));
+  const expiresSoon = daysRemaining <= 14;
+
   return {
     valid: true,
+    reason: null,
     license,
+    machineId: currentMachineId,
+    expiresSoon,
+    daysRemaining,
+    expired: false,
   };
 }
 
 module.exports = {
-  canonicalize,
-  getPublicKeyPath,
-  loadPublicKey,
   verifyLicense,
-  verifySignature,
 };

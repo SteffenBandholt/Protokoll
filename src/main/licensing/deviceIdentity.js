@@ -1,46 +1,30 @@
-const fs = require("fs");
-const path = require("path");
+// src/main/licensing/deviceIdentity.js
+
+const os = require("os");
 const crypto = require("crypto");
-const { app } = require("electron");
 
-const FILE_NAME = "machine.json";
+let cachedMachineId = null;
 
-function getMachineFilePath() {
-  const userData = app.getPath("userData");
-  return path.join(userData, FILE_NAME);
-}
+function generateMachineFingerprint() {
+  const hostname = os.hostname();
+  const platform = os.platform();
+  const arch = os.arch();
+  const cpus = os.cpus().map((c) => c.model).join("|");
 
-function generateMachineId() {
-  return crypto.randomBytes(16).toString("hex");
+  const raw = `${hostname}|${platform}|${arch}|${cpus}`;
+
+  return crypto
+    .createHash("sha256")
+    .update(raw)
+    .digest("hex");
 }
 
 function getMachineId() {
-  const filePath = getMachineFilePath();
-
-  // existiert bereits
-  if (fs.existsSync(filePath)) {
-    try {
-      const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
-      if (data.machineId) {
-        return data.machineId;
-      }
-    } catch {
-      // Datei kaputt → neu erzeugen
-    }
+  if (!cachedMachineId) {
+    cachedMachineId = generateMachineFingerprint();
   }
 
-  // neue ID erzeugen
-  const machineId = generateMachineId();
-
-  const data = {
-    machineId,
-    createdAt: new Date().toISOString(),
-  };
-
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-
-  return machineId;
+  return cachedMachineId;
 }
 
 module.exports = {

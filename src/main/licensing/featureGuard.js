@@ -1,13 +1,19 @@
-const { getStatus, requireFeature } = require("./licenseService");
+// src/main/licensing/featureGuard.js
 
-const LICENSE_FEATURES = Object.freeze({
-  PDF_EXPORT: "pdf.export",
-  PROJECT_EXPORT: "project.export",
-  MAIL_OUTLOOK_DRAFT: "mail.outlookDraft",
-});
+const { app } = require("electron");
+const { requireFeature, getStatus } = require("./licenseService");
+
+const LICENSE_FEATURES = {
+  APP: "app",
+  PDF: "pdf",
+  EXPORT: "export",
+  MAIL: "mail",
+  MAIL_OUTLOOK_DRAFT: "mail",
+};
 
 function _extractLicenseInfo(status) {
   const license = status?.license && typeof status.license === "object" ? status.license : {};
+
   return {
     customerName: String(
       license.customerName || license.customer || license.customer_name || license.customer_name_full || ""
@@ -16,49 +22,22 @@ function _extractLicenseInfo(status) {
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
     features: Array.isArray(license.features) ? license.features : [],
-    isTest: !!(license.isTest || license.test || license.testLicense),
-    raw: license,
+    appVersion: String(app?.getVersion?.() || "").trim(),
   };
 }
 
 function createLicenseBadgeText(licenseInfo = {}) {
-  const parts = [];
-  if (licenseInfo.customerName) parts.push(licenseInfo.customerName);
-  if (licenseInfo.licenseId) parts.push(`Lizenz ${licenseInfo.licenseId}`);
-  if (licenseInfo.edition) parts.push(licenseInfo.edition);
-  if (licenseInfo.isTest) parts.push("TEST");
+  const year = new Date().getFullYear();
+  const version = String(licenseInfo?.appVersion || "").trim();
+  const customerName = String(licenseInfo?.customerName || "").trim();
+  const licenseId = String(licenseInfo?.licenseId || "").trim();
+  const edition = String(licenseInfo?.edition || "").trim();
+
+  const parts = [`© BBM ${year}`];
+  if (version) parts.push(`v${version}`);
+  parts.push(`Lizenz: ${customerName || licenseId || "-"}`);
+  if (edition) parts.push(edition);
   return parts.join(" | ");
-}
-
-function _decorateLicenseError(err, status) {
-  const message = String(err?.message || err || "").trim();
-  const decorated = new Error("Lizenzpruefung fehlgeschlagen.");
-  decorated.licenseError = true;
-  decorated.status = status || getStatus({ fresh: true });
-
-  if (message.startsWith("LICENSE_INVALID:")) {
-    decorated.code = "LICENSE_INVALID";
-    decorated.reason = message.slice("LICENSE_INVALID:".length) || decorated.status?.reason || "NO_LICENSE";
-    decorated.feature = null;
-    decorated.message = `Lizenz ungueltig oder nicht vorhanden (${decorated.reason}).`;
-    return decorated;
-  }
-
-  if (message.startsWith("FEATURE_NOT_ALLOWED:")) {
-    decorated.code = "FEATURE_NOT_ALLOWED";
-    decorated.feature = message.slice("FEATURE_NOT_ALLOWED:".length) || "";
-    decorated.reason = decorated.status?.reason || "FEATURE_NOT_ALLOWED";
-    decorated.message = decorated.feature
-      ? `Lizenz erlaubt die Funktion '${decorated.feature}' nicht.`
-      : "Lizenz erlaubt diese Funktion nicht.";
-    return decorated;
-  }
-
-  decorated.code = "LICENSE_INVALID";
-  decorated.reason = decorated.status?.reason || "NO_LICENSE";
-  decorated.feature = null;
-  decorated.message = message || decorated.message;
-  return decorated;
 }
 
 function enforceLicensedFeature(feature) {
@@ -66,34 +45,96 @@ function enforceLicensedFeature(feature) {
     requireFeature(feature);
     return _extractLicenseInfo(getStatus({ fresh: true }));
   } catch (err) {
-    throw _decorateLicenseError(err);
+    const rawMessage = String(err?.message || "");
+    const isLicenseError =
+      rawMessage.startsWith("LICENSE_INVALID:") ||
+      rawMessage.startsWith("FEATURE_NOT_ALLOWED:");
+
+    if (isLicenseError) {
+      err.licenseError = true;
+    }
+
+    throw err;
   }
 }
 
 function toLicenseErrorPayload(err) {
-  if (!err?.licenseError) {
+  const message = String(err?.message || "");
+
+  if (message.startsWith("LICENSE_INVALID:")) {
+    const reason = message.slice("LICENSE_INVALID:".length) || "UNKNOWN";
     return {
       ok: false,
-      error: err?.message || String(err),
+      licenseError: true,
+      code: "LICENSE_INVALID",
+      reason,
+      message: mapLicenseReasonToMessage(reason),
+      status: safeGetStatus(),
     };
   }
 
-  const status = err.status || { valid: false, reason: err.reason || "NO_LICENSE" };
-  const licenseInfo = _extractLicenseInfo(status);
+  if (message.startsWith("FEATURE_NOT_ALLOWED:")) {
+    const feature = message.slice("FEATURE_NOT_ALLOWED:".length) || "unknown";
+    return {
+      ok: false,
+      licenseError: true,
+      code: "FEATURE_NOT_ALLOWED",
+      reason: feature,
+      message: mapFeatureToMessage(feature),
+      status: safeGetStatus(),
+    };
+  }
 
   return {
     ok: false,
-    error: err.message,
-    code: err.code,
-    reason: err.reason || status.reason || "NO_LICENSE",
-    feature: err.feature || null,
-    valid: false,
-    customerName: licenseInfo.customerName,
-    licenseId: licenseInfo.licenseId,
-    edition: licenseInfo.edition,
-    validUntil: licenseInfo.validUntil,
-    features: licenseInfo.features,
+    licenseError: true,
+    code: "LICENSE_ERROR",
+    reason: "UNKNOWN",
+    message: "Lizenzfehler.",
+    status: safeGetStatus(),
   };
+}
+
+function safeGetStatus() {
+  try {
+    return getStatus();
+  } catch (_err) {
+    return null;
+  }
+}
+
+function mapLicenseReasonToMessage(reason) {
+  switch (reason) {
+    case "NO_LICENSE":
+      return "Keine Lizenz installiert.";
+    case "INVALID_FORMAT":
+      return "Lizenzdatei ist ungueltig.";
+    case "INVALID_SIGNATURE":
+      return "Lizenzsignatur ist ungueltig.";
+    case "WRONG_PRODUCT":
+      return "Diese Lizenz gehoert zu einem anderen Produkt.";
+    case "WRONG_MACHINE":
+      return "Diese Lizenz gehoert zu einem anderen Rechner.";
+    case "LICENSE_EXPIRED":
+      return "Die Lizenz ist abgelaufen.";
+    default:
+      return "Lizenz ist ungueltig.";
+  }
+}
+
+function mapFeatureToMessage(feature) {
+  switch (feature) {
+    case LICENSE_FEATURES.PDF:
+      return "PDF-Erzeugung ist fuer diese Lizenz nicht freigeschaltet.";
+    case LICENSE_FEATURES.EXPORT:
+      return "Export ist fuer diese Lizenz nicht freigeschaltet.";
+    case LICENSE_FEATURES.MAIL:
+      return "Mail-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    case LICENSE_FEATURES.APP:
+      return "Diese Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    default:
+      return `Feature nicht freigeschaltet: ${feature}`;
+  }
 }
 
 module.exports = {

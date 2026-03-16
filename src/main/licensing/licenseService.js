@@ -1,23 +1,28 @@
 const { loadLicense } = require("./licenseStorage");
 const { verifyLicense } = require("./licenseVerifier");
 
-let cachedResult = null;
+let cachedStatus = null;
 
 function checkLicense() {
   const licenseData = loadLicense();
-  cachedResult = verifyLicense(licenseData);
-  return cachedResult;
+  cachedStatus = verifyLicense(licenseData);
+  return cachedStatus;
 }
 
-function getStatus({ fresh = false } = {}) {
-  if (fresh || !cachedResult) {
+function getStatus() {
+  if (!cachedStatus) {
     return checkLicense();
   }
-  return cachedResult;
+
+  return cachedStatus;
 }
 
-function requireValidLicense({ fresh = false } = {}) {
-  const result = getStatus({ fresh });
+function refreshStatus() {
+  return checkLicense();
+}
+
+function requireValidLicense() {
+  const result = checkLicense();
 
   if (!result.valid) {
     throw new Error(`LICENSE_INVALID:${result.reason}`);
@@ -27,16 +32,10 @@ function requireValidLicense({ fresh = false } = {}) {
 }
 
 function requireFeature(feature) {
-  const normalizedFeature = String(feature || "").trim();
-  if (!normalizedFeature) {
-    throw new Error("FEATURE_NOT_ALLOWED:");
-  }
+  const license = requireValidLicense();
 
-  const license = requireValidLicense({ fresh: true });
-  const features = Array.isArray(license?.features) ? license.features : [];
-
-  if (!features.includes(normalizedFeature)) {
-    throw new Error(`FEATURE_NOT_ALLOWED:${normalizedFeature}`);
+  if (!Array.isArray(license.features) || !license.features.includes(feature)) {
+    throw new Error(`FEATURE_NOT_ALLOWED:${feature}`);
   }
 
   return true;
@@ -45,6 +44,7 @@ function requireFeature(feature) {
 module.exports = {
   checkLicense,
   getStatus,
+  refreshStatus,
   requireValidLicense,
-  requireFeature,
+  requireFeature
 };
