@@ -22,6 +22,18 @@ function saveLicense(licenseObject, machineId) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 }
 
+function saveLicenseData(licenseData) {
+  const filePath = getLicenseFilePath();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
+  const data = {
+    ...(licenseData && typeof licenseData === "object" ? licenseData : {}),
+    importedAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
 function loadLicense() {
   const filePath = getLicenseFilePath();
 
@@ -44,6 +56,7 @@ function hasLicense() {
 
 module.exports = {
   saveLicense,
+  saveLicenseData,
   loadLicense,
   hasLicense,
 };

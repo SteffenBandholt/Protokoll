@@ -20,6 +20,8 @@ const { registerProjectSettingsIpc } = require("./ipc/projectSettingsIpc");
 const { registerEditorIpc } = require("./ipc/editorIpc");
 const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
 const { registerAudioIpc } = require("./ipc/audioIpc");
+const { registerLicenseIpc } = require("./ipc/licenseIpc");
+const { checkLicense } = require("./licensing/licenseService");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -377,6 +379,14 @@ app.whenReady().then(async () => {
   registerEditorIpc({ getMainWindow: () => mainWindow });
   registerProjectTransferIpc();
   registerAudioIpc();
+  registerLicenseIpc();
+
+  try {
+    const licenseStatus = checkLicense();
+    console.log("[license] startup check:", licenseStatus?.valid ? "VALID" : licenseStatus?.reason || "UNKNOWN");
+  } catch (err) {
+    console.error("[license] startup check failed:", err?.stack || err?.message || String(err));
+  }
 
   // ============================================================
   // ✅ Build Channel IPCs
@@ -720,7 +730,7 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
   });
 
   console.log(
-    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, projectTransfer, audio, app:*"
+    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, projectTransfer, audio, license, app:*"
   );
 
   // Fenster erst danach (damit Renderer nichts "zu früh" invoken kann)
