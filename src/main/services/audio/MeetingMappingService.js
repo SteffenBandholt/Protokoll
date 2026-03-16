@@ -1,6 +1,14 @@
 const NEW_POINT_PATTERN =
   /\b(?:neuer punkt|au[sß]erdem|zus[aä]tzlich|noch ein thema|weiterer punkt)\b/i;
 
+function _audioLog(message, extra = null) {
+  if (extra && typeof extra === "object") {
+    console.info("[AUDIO] Map", message, extra);
+    return;
+  }
+  console.info("[AUDIO] Map", message);
+}
+
 class MeetingMappingService {
   constructor({
     meetingsRepo,
@@ -440,6 +448,8 @@ class MeetingMappingService {
   analyze({ audioImportId }) {
     if (!audioImportId) throw new Error("audioImportId required");
 
+    _audioLog("start", { audioImportId });
+
     const audioImport = this.audioImportsRepo.getById(audioImportId);
     if (!audioImport) throw new Error("Audio-Import nicht gefunden");
 
@@ -451,6 +461,11 @@ class MeetingMappingService {
 
     const segments = this.segmentationService.segmentTranscript(transcript);
     const workingCard = this._buildWorkingCard(meeting.id);
+    _audioLog("context", {
+      audioImportId,
+      segmentCount: segments.length,
+      workingCardCount: workingCard.length,
+    });
 
     this.transcriptsRepo.upsertTranscript({
       audioImportId,
@@ -483,6 +498,12 @@ class MeetingMappingService {
       audioImportId,
       status: "analyzed",
       errorMessage: null,
+    });
+
+    _audioLog("completed", {
+      audioImportId,
+      createdSuggestions: created.length,
+      segmentCount: segments.length,
     });
 
     return {
