@@ -370,7 +370,7 @@ async function printToPdf(payload = {}) {
   const mode = String(payload.mode || "").trim() || "protocol";
   const projectId = payload.projectId || null;
   const meetingId = payload.meetingId || null;
-  const licenseInfo = enforceLicensedFeature(LICENSE_FEATURES.PDF_EXPORT);
+  const licenseInfo = enforceLicensedFeature(LICENSE_FEATURES.PDF);
 
   console.log(`[print:${jobId}] start mode=${mode} projectId=${projectId} meetingId=${meetingId}`);
 

@@ -275,7 +275,7 @@ function registerProjectTransferIpc() {
     if (!projectId) return { ok: false, error: "projectId required" };
 
     try {
-      const licenseInfo = enforceLicensedFeature(LICENSE_FEATURES.PROJECT_EXPORT);
+      const licenseInfo = enforceLicensedFeature(LICENSE_FEATURES.EXPORT);
       const project = projectsRepo.getById(projectId);
       if (!project) throw new Error("Projekt nicht gefunden.");
 

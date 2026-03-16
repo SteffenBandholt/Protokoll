@@ -63,24 +63,28 @@ function toLicenseErrorPayload(err) {
 
   if (message.startsWith("LICENSE_INVALID:")) {
     const reason = message.slice("LICENSE_INVALID:".length) || "UNKNOWN";
+    const errorMessage = mapLicenseReasonToMessage(reason);
     return {
       ok: false,
       licenseError: true,
       code: "LICENSE_INVALID",
       reason,
-      message: mapLicenseReasonToMessage(reason),
+      error: errorMessage,
+      message: errorMessage,
       status: safeGetStatus(),
     };
   }
 
   if (message.startsWith("FEATURE_NOT_ALLOWED:")) {
     const feature = message.slice("FEATURE_NOT_ALLOWED:".length) || "unknown";
+    const errorMessage = mapFeatureToMessage(feature);
     return {
       ok: false,
       licenseError: true,
       code: "FEATURE_NOT_ALLOWED",
       reason: feature,
-      message: mapFeatureToMessage(feature),
+      error: errorMessage,
+      message: errorMessage,
       status: safeGetStatus(),
     };
   }
@@ -90,6 +94,7 @@ function toLicenseErrorPayload(err) {
     licenseError: true,
     code: "LICENSE_ERROR",
     reason: "UNKNOWN",
+    error: "Lizenzfehler.",
     message: "Lizenzfehler.",
     status: safeGetStatus(),
   };
