@@ -69,6 +69,12 @@ contextBridge.exposeInMainWorld("bbmDb", {
   audioRejectSuggestion: (data) => ipcRenderer.invoke("audio:rejectSuggestion", data),
 
   // ============================================================
+  // Lizenz
+  // ============================================================
+  licenseGetStatus: () => ipcRenderer.invoke("license:get-status"),
+  licenseImport: (data) => ipcRenderer.invoke("license:import", data),
+
+  // ============================================================
   // GLOBAL Firmen
   // ============================================================
   firmsListGlobal: () => ipcRenderer.invoke("firms:listGlobal"),
