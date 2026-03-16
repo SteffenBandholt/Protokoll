@@ -73,6 +73,13 @@ Zusätzlich unterstützt der Adapter als Fallback auch:
 - Audioformat nicht unterstützt
   Der Import akzeptiert nur die in `AudioImportService` hinterlegten Endungen
 
+## Kontextanker-Regel
+Die Mapping-Stufe arbeitet mit einem konservativen aktiven TOP-Anker.
+Ein Anker wird gesetzt, wenn ein Segment sicher einem bestehenden TOP oder Parent zugeordnet wurde.
+Kurze Folge-Segmente dürfen über diesen Anker als `append_to_top` auf denselben TOP laufen, aber nur ohne sicheren neuen TOP-Treffer, ohne explizites Themenwechsel-Signal und nur bei bewusst kurzer Segmentlänge.
+Der Anker wird ersetzt, sobald ein anderer TOP sicher erkannt wird, und verworfen, wenn ein neuer Punkt signalisiert wird oder das Segment zu eigenständig wirkt.
+Die Regel ist absichtlich konservativ begrenzt, damit unsichere Inhalte weiterhin lieber nach `Manuell zuordnen` fallen als falsch zugeordnet zu werden.
+
 ## Debug-Hinweise
 Die Services schreiben schlanke Statuslogs im Format:
 - `[AUDIO] Import`
