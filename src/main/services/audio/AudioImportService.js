@@ -11,6 +11,14 @@ const MIME_BY_EXT = {
   ".wma": "audio/x-ms-wma",
 };
 
+function _audioLog(message, extra = null) {
+  if (extra && typeof extra === "object") {
+    console.info("[AUDIO] Import", message, extra);
+    return;
+  }
+  console.info("[AUDIO] Import", message);
+}
+
 class AudioImportService {
   constructor({ meetingsRepo, audioImportsRepo }) {
     if (!meetingsRepo) throw new Error("AudioImportService: meetingsRepo required");
@@ -67,11 +75,11 @@ class AudioImportService {
     if (!meetingId) throw new Error("meetingId required");
     if (!filePath) throw new Error("filePath required");
 
-    const meeting = this._validateMeeting({ meetingId, projectId });
-    const fileInfo = this._validateFile(filePath);
-
+    _audioLog("start", { meetingId, processingMode });
     try {
-      return this.audioImportsRepo.createImport({
+      const meeting = this._validateMeeting({ meetingId, projectId });
+      const fileInfo = this._validateFile(filePath);
+      const audioImport = this.audioImportsRepo.createImport({
         meetingId: meeting.id,
         projectId: meeting.project_id,
         filePath: fileInfo.filePath,
@@ -80,8 +88,21 @@ class AudioImportService {
         processingMode,
         status: "imported",
       });
+      _audioLog("stored", {
+        audioImportId: audioImport?.id || null,
+        fileName: fileInfo.fileName,
+        mimeType: fileInfo.mimeType,
+      });
+      return audioImport;
     } catch (err) {
-      throw new Error(`Audio-Import konnte nicht gespeichert werden: ${err?.message || err}`);
+      _audioLog("failed", { meetingId, error: err?.message || String(err) });
+      const message = String(err?.message || err);
+      if (
+        /^(Besprechung|Projektbezug|Audiodatei|Nicht unterst|filePath required)/i.test(message)
+      ) {
+        throw err;
+      }
+      throw new Error(`Audio-Import konnte nicht gespeichert werden: ${message}`);
     }
   }
 }

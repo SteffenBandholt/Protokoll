@@ -13,6 +13,14 @@ function _normalizeStatus(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function _audioLog(message, extra = null) {
+  if (extra && typeof extra === "object") {
+    console.info("[AUDIO] Apply", message, extra);
+    return;
+  }
+  console.info("[AUDIO] Apply", message);
+}
+
 class SuggestionApplyService {
   constructor({
     audioSuggestionsRepo,
@@ -279,6 +287,11 @@ class SuggestionApplyService {
 
     const normalizedOverrideParentTopId = String(overrideParentTopId || "").trim() || null;
     const suggestion = this._getSuggestionOrThrow(suggestionId);
+    _audioLog("start", {
+      suggestionId,
+      type: suggestion?.type || null,
+      overrideParentTopId: normalizedOverrideParentTopId,
+    });
     this._assertSuggestionPending(suggestion, "übernommen");
 
     try {
@@ -313,6 +326,14 @@ class SuggestionApplyService {
         }),
       });
 
+      _audioLog("completed", {
+        suggestionId,
+        type: suggestion?.type || null,
+        appliedTargetTopId: updatedSuggestion?.applied_target_top_id || null,
+        appliedParentTopId: updatedSuggestion?.applied_parent_top_id || null,
+        usedOverride: Number(updatedSuggestion?.applied_with_override || 0) === 1,
+      });
+
       return {
         suggestion: updatedSuggestion,
         result,
@@ -325,6 +346,11 @@ class SuggestionApplyService {
           errorMessage: err?.message || String(err),
         });
       }
+      _audioLog("failed", {
+        suggestionId,
+        type: suggestion?.type || null,
+        error: err?.message || String(err),
+      });
       throw err;
     }
   }

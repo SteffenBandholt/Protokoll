@@ -6,6 +6,14 @@ const TOPIC_CHANGE_PATTERNS = [
   /\bweiterer punkt\b/i,
 ];
 
+function _audioLog(message, extra = null) {
+  if (extra && typeof extra === "object") {
+    console.info("[AUDIO] Segment", message, extra);
+    return;
+  }
+  console.info("[AUDIO] Segment", message);
+}
+
 function _splitBySentenceBoundary(text) {
   return String(text || "")
     .split(/(?<=[.!?;])\s+/)
@@ -48,7 +56,10 @@ class TranscriptSegmentationService {
 
   segmentTranscript(transcript) {
     const normalized = this._normalizeText(transcript?.full_text || "");
-    if (!normalized) return [];
+    if (!normalized) {
+      _audioLog("skip-empty");
+      return [];
+    }
 
     const paragraphs = normalized
       .split(/\n\s*\n/)
@@ -89,6 +100,10 @@ class TranscriptSegmentationService {
       }
     }
 
+    _audioLog("completed", {
+      paragraphCount: paragraphs.length,
+      segmentCount: segments.length,
+    });
     return segments;
   }
 }

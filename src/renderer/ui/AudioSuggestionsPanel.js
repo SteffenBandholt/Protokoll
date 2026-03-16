@@ -148,6 +148,29 @@ export default class AudioSuggestionsPanel {
     this._selectedSuggestionId = id || null;
   }
 
+  _formatAudioErrorMessage(message) {
+    const raw = String(message || "").trim();
+    if (!raw) return "";
+
+    const normalized = raw.toLocaleLowerCase("de-DE");
+    if (normalized.includes("whisper.cpp executable fehlt")) {
+      return "Whisper-Runtime fehlt. Bitte BBM_WHISPER_CPP_PATH oder WHISPER_CPP_PATH prüfen.";
+    }
+    if (normalized.includes("modell fehlt")) {
+      return "Whisper-Modell fehlt. Bitte BBM_WHISPER_MODEL_PATH oder WHISPER_MODEL_PATH setzen.";
+    }
+    if (normalized.includes("ffmpeg")) {
+      return "ffmpeg fehlt für dieses Audioformat. Entweder WAV verwenden oder BBM_FFMPEG_PATH setzen.";
+    }
+    if (
+      normalized.includes("nicht unterstütztes audioformat") ||
+      normalized.includes("nicht unterstütztes audioformat")
+    ) {
+      return "Audioformat nicht unterstützt. Bitte WAV, MP3, M4A, AAC, OGG, FLAC oder WMA verwenden.";
+    }
+    return raw;
+  }
+
   _mount() {
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
@@ -319,7 +342,7 @@ export default class AudioSuggestionsPanel {
 
     if (this.state.statusMessage) {
       const statusBox = document.createElement("div");
-      statusBox.textContent = String(this.state.statusMessage);
+      statusBox.textContent = this._formatAudioErrorMessage(this.state.statusMessage);
       statusBox.style.border = "1px solid #bbdefb";
       statusBox.style.background = "#e3f2fd";
       statusBox.style.color = "#0d47a1";
@@ -360,7 +383,7 @@ export default class AudioSuggestionsPanel {
         const importError = String(this.state.audioImport.error_message || "").trim();
         if (importError) {
           const errorBox = document.createElement("div");
-          errorBox.textContent = `Fehler: ${importError}`;
+          errorBox.textContent = `Fehler: ${this._formatAudioErrorMessage(importError)}`;
           errorBox.style.fontSize = "12px";
           errorBox.style.color = "#b71c1c";
           errorBox.style.whiteSpace = "pre-wrap";

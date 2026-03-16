@@ -1,3 +1,11 @@
+function _audioLog(message, extra = null) {
+  if (extra && typeof extra === "object") {
+    console.info("[AUDIO] Transcribe", message, extra);
+    return;
+  }
+  console.info("[AUDIO] Transcribe", message);
+}
+
 class TranscriptionService {
   constructor({ meetingsRepo, audioImportsRepo, transcriptsRepo, engine }) {
     if (!meetingsRepo) throw new Error("TranscriptionService: meetingsRepo required");
@@ -26,6 +34,7 @@ class TranscriptionService {
   async transcribe({ audioImportId, language = "de" }) {
     if (!audioImportId) throw new Error("audioImportId required");
 
+    _audioLog("start", { audioImportId, language });
     const audioImport = this.audioImportsRepo.getById(audioImportId);
     if (!audioImport) throw new Error("Audio-Import nicht gefunden");
 
@@ -57,6 +66,13 @@ class TranscriptionService {
         errorMessage: null,
       });
 
+      _audioLog("completed", {
+        audioImportId,
+        engine: result.engine || "whisper.cpp",
+        language: result.language || null,
+        textLength: String(result.fullText || "").length,
+      });
+
       return {
         transcript,
         stub: false,
@@ -69,6 +85,7 @@ class TranscriptionService {
         status: "failed",
         errorMessage: err?.message || String(err),
       });
+      _audioLog("failed", { audioImportId, error: err?.message || String(err) });
       throw err;
     }
   }
