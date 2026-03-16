@@ -57,6 +57,31 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 - Die erzeugte `.bbmlic` landet in:
   - `C:\license-tool\output\`
 - Bestehende `.bbmlic` koennen im Entwicklungsbereich geladen, geprueft und als neue verlaengerte Lizenz erneut erzeugt werden.
+- Im Bereich `Lizenz erstellen / verlaengern` gibt es zusaetzlich Schnellvorlagen, die nur Formularfelder vorbelegen:
+  - `30 Tage Test`
+    - `product = bbm-protokoll`
+    - `edition = test`
+    - `durationDays = 30`
+    - `validFrom = heute`
+    - `validUntil = validFrom + 30 Tage`
+    - `features = app, pdf, export, mail`
+    - `maxDevices = 2`
+  - `1 Jahr Standard`
+    - `product = bbm-protokoll`
+    - `edition = standard`
+    - `durationDays = 365`
+    - `validFrom = heute`
+    - `validUntil = validFrom + 365 Tage`
+    - `features = app, pdf, export`
+    - `maxDevices = 1`
+  - `1 Jahr Pro`
+    - `product = bbm-protokoll`
+    - `edition = pro`
+    - `durationDays = 365`
+    - `validFrom = heute`
+    - `validUntil = validFrom + 365 Tage`
+    - `features = app, pdf, export, mail`
+    - `maxDevices = 1`
 - Setzbare Felder in der UI:
   - `product`
   - `customerName`

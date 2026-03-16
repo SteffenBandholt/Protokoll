@@ -1995,6 +1995,20 @@ export default class SettingsView {
     loadedLicenseInfo.style.border = "1px solid rgba(0,0,0,0.08)";
     loadedLicenseInfo.textContent = "Keine bestehende Lizenz geladen.";
 
+    const licenseTemplateWrap = document.createElement("div");
+    licenseTemplateWrap.style.display = "flex";
+    licenseTemplateWrap.style.flexWrap = "wrap";
+    licenseTemplateWrap.style.gap = "8px";
+
+    const licenseTemplateInfo = document.createElement("div");
+    licenseTemplateInfo.style.fontSize = "12px";
+    licenseTemplateInfo.style.lineHeight = "1.35";
+    licenseTemplateInfo.style.padding = "8px";
+    licenseTemplateInfo.style.borderRadius = "8px";
+    licenseTemplateInfo.style.background = "#fff7ed";
+    licenseTemplateInfo.style.border = "1px solid rgba(245, 158, 11, 0.35)";
+    licenseTemplateInfo.textContent = "Keine Vorlage aktiv. Du kannst eine Schnellvorlage laden oder alle Felder frei setzen.";
+
     const inpLicenseProduct = document.createElement("input");
     inpLicenseProduct.type = "text";
     inpLicenseProduct.value = "bbm-protokoll";
@@ -2061,6 +2075,15 @@ export default class SettingsView {
       return checkbox;
     });
 
+    let activeLicenseTemplate = "";
+
+    const setFeatureSelection = (selectedFeatures) => {
+      const selected = new Set((Array.isArray(selectedFeatures) ? selectedFeatures : []).map((v) => String(v || "").trim()));
+      featureInputs.forEach((inp) => {
+        inp.checked = selected.has(inp.value);
+      });
+    };
+
     const calcValidUntil = () => {
       const validFrom = String(inpLicenseValidFrom.value || "").trim();
       const days = Number(inpLicenseDuration.value);
@@ -2073,6 +2096,62 @@ export default class SettingsView {
     calcValidUntil();
     inpLicenseValidFrom.addEventListener("change", calcValidUntil);
     inpLicenseDuration.addEventListener("input", calcValidUntil);
+
+    const todayIso = () => new Date().toISOString().slice(0, 10);
+
+    const applyLicenseTemplate = (templateKey) => {
+      const templates = {
+        test30: {
+          label: "30 Tage Test",
+          edition: "test",
+          durationDays: "30",
+          validFrom: todayIso(),
+          maxDevices: "2",
+          features: ["app", "pdf", "export", "mail"],
+        },
+        standard365: {
+          label: "1 Jahr Standard",
+          edition: "standard",
+          durationDays: "365",
+          validFrom: todayIso(),
+          maxDevices: "1",
+          features: ["app", "pdf", "export"],
+        },
+        pro365: {
+          label: "1 Jahr Pro",
+          edition: "pro",
+          durationDays: "365",
+          validFrom: todayIso(),
+          maxDevices: "1",
+          features: ["app", "pdf", "export", "mail"],
+        },
+      };
+      const tpl = templates[String(templateKey || "").trim()];
+      if (!tpl) return;
+      activeLicenseTemplate = tpl.label;
+      inpLicenseProduct.value = "bbm-protokoll";
+      inpLicenseEdition.value = tpl.edition;
+      inpLicenseDuration.value = tpl.durationDays;
+      inpLicenseValidFrom.value = tpl.validFrom;
+      inpLicenseMaxDevices.value = tpl.maxDevices;
+      setFeatureSelection(tpl.features);
+      calcValidUntil();
+      licenseTemplateInfo.textContent = `Vorlage aktiv: ${tpl.label}. Felder sind vorbelegt und koennen danach weiterhin manuell angepasst werden.`;
+      syncLoadedLicenseInfo();
+    };
+
+    [
+      ["30 Tage Test", "test30"],
+      ["1 Jahr Standard", "standard365"],
+      ["1 Jahr Pro", "pro365"],
+    ].forEach(([labelText, key]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = labelText;
+      applyPopupButtonStyle(btn);
+      btn.onclick = () => applyLicenseTemplate(key);
+      licenseTemplateWrap.appendChild(btn);
+    });
 
     const licenseGenStatus = document.createElement("div");
     licenseGenStatus.style.fontSize = "12px";
@@ -2138,7 +2217,9 @@ export default class SettingsView {
 
     const syncLoadedLicenseInfo = () => {
       if (!loadedLicenseMeta) {
-        loadedLicenseInfo.textContent = "Keine bestehende Lizenz geladen.";
+        loadedLicenseInfo.textContent = activeLicenseTemplate
+          ? `Keine bestehende Lizenz geladen.\nAktive Vorlage: ${activeLicenseTemplate}`
+          : "Keine bestehende Lizenz geladen.";
         btnLicenseGenerate.textContent = "Lizenz verlaengern";
         return;
       }
@@ -2172,9 +2253,9 @@ export default class SettingsView {
       inpLicenseMaxDevices.value = String(res?.maxDevices || 1).trim() || "1";
       inpLicenseNotes.value = String(res?.notes || "").trim();
       const loadedFeatures = Array.isArray(res?.features) ? res.features.map((v) => String(v || "").trim()) : [];
-      featureInputs.forEach((inp) => {
-        inp.checked = loadedFeatures.includes(inp.value);
-      });
+      setFeatureSelection(loadedFeatures);
+      activeLicenseTemplate = "";
+      licenseTemplateInfo.textContent = "Bestehende Lizenz geladen. Vorlagen koennen weiterhin genutzt werden, um Felder neu vorzubelegen.";
       syncLoadedLicenseInfo();
     };
 
@@ -2280,6 +2361,8 @@ export default class SettingsView {
     licenseGenBox.append(
       licenseGenTitle,
       licenseGenHint,
+      mkRow("Schnellvorlagen", licenseTemplateWrap),
+      licenseTemplateInfo,
       loadedLicenseInfo,
       mkRow("Produkt", inpLicenseProduct),
       mkRow("Kunde / Firma", inpLicenseCustomer),
