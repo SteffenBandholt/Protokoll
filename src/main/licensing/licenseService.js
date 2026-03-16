@@ -6,6 +6,12 @@ let cachedStatus = null;
 function checkLicense() {
   const licenseData = loadLicense();
   cachedStatus = verifyLicense(licenseData);
+  console.log("[LICENSE] checkLicense", {
+    hasLicense: !!licenseData?.license,
+    hasSignature: !!licenseData?.signature,
+    machineId: licenseData?.machineId || null,
+    result: cachedStatus?.reason || (cachedStatus?.valid ? "VALID" : "UNKNOWN"),
+  });
   return cachedStatus;
 }
 
@@ -18,7 +24,12 @@ function getStatus() {
 }
 
 function refreshStatus() {
-  return checkLicense();
+  const status = checkLicense();
+  console.log("[LICENSE] refreshStatus", {
+    valid: !!status?.valid,
+    reason: status?.reason || null,
+  });
+  return status;
 }
 
 function requireValidLicense() {

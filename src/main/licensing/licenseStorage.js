@@ -28,8 +28,8 @@ function loadLicense() {
 
 function saveLicense(licensePayload) {
   const filePath = getLicenseFilePath();
-
   const machineId = getMachineId();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
   const stored = {
     ...licensePayload,
@@ -42,6 +42,13 @@ function saveLicense(licensePayload) {
     JSON.stringify(stored, null, 2),
     "utf8"
   );
+
+  console.log("[LICENSE] saveLicense", {
+    filePath,
+    machineId,
+    hasLicense: !!stored?.license,
+    hasSignature: !!stored?.signature,
+  });
 
   return stored;
 }

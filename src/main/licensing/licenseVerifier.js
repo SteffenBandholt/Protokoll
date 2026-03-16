@@ -24,10 +24,23 @@ function canonicalize(value) {
 
 function readPublicKey() {
   if (!fs.existsSync(PUBLIC_KEY_PATH)) {
-    throw new Error(`PUBLIC_KEY_MISSING:${PUBLIC_KEY_PATH}`);
+    const err = new Error(`PUBLIC_KEY_MISSING:${PUBLIC_KEY_PATH}`);
+    err.code = "PUBLIC_KEY_MISSING";
+    throw err;
   }
 
-  return fs.readFileSync(PUBLIC_KEY_PATH, "utf8");
+  const publicKey = String(fs.readFileSync(PUBLIC_KEY_PATH, "utf8") || "").trim();
+  if (
+    !publicKey ||
+    !publicKey.includes("-----BEGIN PUBLIC KEY-----") ||
+    publicKey.includes("PLACEHOLDER_REPLACE_WITH_REAL_PUBLIC_KEY")
+  ) {
+    const err = new Error(`PUBLIC_KEY_INVALID:${PUBLIC_KEY_PATH}`);
+    err.code = "PUBLIC_KEY_INVALID";
+    throw err;
+  }
+
+  return publicKey;
 }
 
 function verifySignature(license, signature) {
@@ -36,14 +49,20 @@ function verifySignature(license, signature) {
     const canonical = canonicalize(license);
     const signatureBuffer = Buffer.from(String(signature || ""), "base64");
 
-    return crypto.verify(
-      null,
-      Buffer.from(canonical, "utf8"),
-      publicKey,
-      signatureBuffer
-    );
-  } catch (_err) {
-    return false;
+    return {
+      valid: crypto.verify(
+        null,
+        Buffer.from(canonical, "utf8"),
+        publicKey,
+        signatureBuffer
+      ),
+      reason: null,
+    };
+  } catch (err) {
+    return {
+      valid: false,
+      reason: err?.code || "INVALID_SIGNATURE",
+    };
   }
 }
 
@@ -103,23 +122,23 @@ function verifyLicense(licenseData) {
   }
 
   if (license.product !== EXPECTED_PRODUCT) {
-    return { valid: false, reason: "WRONG_PRODUCT" };
+    return { valid: false, reason: "WRONG_PRODUCT", license };
   }
 
-  const signatureValid = verifySignature(license, signature);
-  if (!signatureValid) {
-    return { valid: false, reason: "INVALID_SIGNATURE" };
+  const signatureCheck = verifySignature(license, signature);
+  if (!signatureCheck.valid) {
+    return { valid: false, reason: signatureCheck.reason || "INVALID_SIGNATURE", license };
   }
 
   const currentMachineId = getMachineId();
   if (machineId && machineId !== currentMachineId) {
-    return { valid: false, reason: "WRONG_MACHINE" };
+    return { valid: false, reason: "WRONG_MACHINE", license, machineId: currentMachineId };
   }
 
   const now = Date.now();
   const expiresAt = new Date(license.validUntil).getTime();
   if (Number.isNaN(expiresAt)) {
-    return { valid: false, reason: "INVALID_FORMAT" };
+    return { valid: false, reason: "INVALID_FORMAT", license };
   }
 
   if (now > expiresAt) {
@@ -127,6 +146,8 @@ function verifyLicense(licenseData) {
       valid: false,
       reason: "LICENSE_EXPIRED",
       license,
+      machineId: currentMachineId,
+      expired: true,
     };
   }
 

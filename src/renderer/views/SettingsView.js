@@ -325,9 +325,9 @@ export default class SettingsView {
 
     const statusCard = document.createElement("div");
     applyPopupCardStyle(statusCard);
-    statusCard.style.padding = "12px";
+    statusCard.style.padding = "8px 10px";
     statusCard.style.display = "grid";
-    statusCard.style.gap = "10px";
+    statusCard.style.gap = "8px";
 
     const statusRow = document.createElement("div");
     statusRow.style.display = "flex";
@@ -338,25 +338,25 @@ export default class SettingsView {
 
     const statusLabel = document.createElement("div");
     statusLabel.style.fontWeight = "800";
-    statusLabel.style.fontSize = "16px";
+    statusLabel.style.fontSize = "14px";
     statusLabel.textContent = "Lizenzstatus wird geladen ...";
 
     const statusHint = document.createElement("div");
-    statusHint.style.fontSize = "12px";
+    statusHint.style.fontSize = "11px";
     statusHint.style.opacity = "0.8";
     statusHint.textContent = "";
 
     statusRow.append(statusLabel, statusHint);
 
     const messageEl = document.createElement("div");
-    messageEl.style.fontSize = "13px";
-    messageEl.style.minHeight = "18px";
+    messageEl.style.fontSize = "12px";
+    messageEl.style.minHeight = "16px";
     messageEl.style.color = "#475569";
 
     const infoGrid = document.createElement("div");
     infoGrid.style.display = "grid";
     infoGrid.style.gridTemplateColumns = "minmax(150px, 220px) 1fr";
-    infoGrid.style.gap = "8px 12px";
+    infoGrid.style.gap = "6px 10px";
 
     const makeRow = (label, valueNode) => {
       const labelEl = document.createElement("div");
@@ -369,6 +369,7 @@ export default class SettingsView {
       if (!(valueNode instanceof HTMLElement)) {
         valueEl.textContent = String(valueNode || "-");
       }
+      valueEl.style.fontSize = "12px";
       valueEl.style.minWidth = "0";
       valueEl.style.wordBreak = "break-word";
       return [labelEl, valueEl];
@@ -402,9 +403,9 @@ export default class SettingsView {
 
     const diagnosticsCard = document.createElement("div");
     applyPopupCardStyle(diagnosticsCard);
-    diagnosticsCard.style.padding = "12px";
+    diagnosticsCard.style.padding = "8px 10px";
     diagnosticsCard.style.display = "grid";
-    diagnosticsCard.style.gap = "10px";
+    diagnosticsCard.style.gap = "8px";
 
     const diagnosticsHead = document.createElement("div");
     diagnosticsHead.style.display = "flex";
@@ -426,17 +427,17 @@ export default class SettingsView {
 
     const diagnosticsHelp = document.createElement("div");
     diagnosticsHelp.textContent = "Kompakter Textblock fuer Supportfaelle.";
-    diagnosticsHelp.style.fontSize = "12px";
+    diagnosticsHelp.style.fontSize = "11px";
     diagnosticsHelp.style.opacity = "0.78";
 
     const diagnosticsPre = document.createElement("pre");
     diagnosticsPre.style.margin = "0";
-    diagnosticsPre.style.padding = "10px";
+    diagnosticsPre.style.padding = "8px";
     diagnosticsPre.style.borderRadius = "8px";
     diagnosticsPre.style.background = "#f8fafc";
     diagnosticsPre.style.border = "1px solid rgba(0,0,0,0.08)";
-    diagnosticsPre.style.fontSize = "12px";
-    diagnosticsPre.style.lineHeight = "1.45";
+    diagnosticsPre.style.fontSize = "10px";
+    diagnosticsPre.style.lineHeight = "1.35";
     diagnosticsPre.style.whiteSpace = "pre-wrap";
     diagnosticsPre.style.wordBreak = "break-word";
     diagnosticsPre.textContent = "Diagnosedaten werden geladen ...";
