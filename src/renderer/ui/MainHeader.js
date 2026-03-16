@@ -1825,6 +1825,7 @@ export default class MainHeader {
 
     // ✅ Fenster-Titel Trial AN (Header AUS)
     this._refreshTrialInfo();
+    this._refreshLicenseInfo();
 
     // ✅ DEV Badge
     this._refreshBuildChannelBadge();
