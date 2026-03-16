@@ -20,6 +20,7 @@ export default class MainHeader {
 
     // logo group text under logo
     this.elVersion = null;
+    this.elLicenseInfo = null;
 
     // bottom left active
     this.elActive = null;
@@ -96,6 +97,8 @@ export default class MainHeader {
     // Trial / Build channel
     this._trialInfoLoading = null;
     this._trialInfoText = "";
+    this._licenseInfoLoading = null;
+    this._licenseInfoText = "";
     this._buildChannelLoading = null;
     this._buildChannel = "";
     this._baseWindowTitle = String(document?.title || "BBM").trim() || "BBM";
@@ -161,6 +164,15 @@ export default class MainHeader {
 
     logoWrap.append(logoImg);
 
+    const licenseInfo = document.createElement("div");
+    licenseInfo.style.fontSize = "11px";
+    licenseInfo.style.lineHeight = "1.25";
+    licenseInfo.style.fontWeight = "600";
+    licenseInfo.style.opacity = "0.9";
+    licenseInfo.style.wordBreak = "break-word";
+    licenseInfo.style.maxWidth = "560px";
+    licenseInfo.style.display = "none";
+
     // Center title (row 1, col 2) - only in TopsView
     const elCenterTitle = document.createElement("div");
     elCenterTitle.textContent = "Protokoll";
@@ -213,7 +225,7 @@ export default class MainHeader {
 
     rightInfo.append(elUserName, elUserCompany);
 
-    logoGroup.append(logoWrap);
+    logoGroup.append(logoWrap, licenseInfo);
 
     const actionWrap = document.createElement("div");
     actionWrap.style.gridColumn = "3";
@@ -876,6 +888,7 @@ export default class MainHeader {
     this.elLogoGroup = logoGroup;
     this.elLogoWrap = logoWrap;
     this.elLogoImg = logoImg;
+    this.elLicenseInfo = licenseInfo;
     this.elStickyNotice = stickyNotice;
     this.elStickyNoticeText = stickyNoticeText;
 
@@ -1722,6 +1735,46 @@ export default class MainHeader {
     })();
   }
 
+  async _refreshLicenseInfo() {
+    const api = window.bbmDb || {};
+
+    if (this.elLicenseInfo) {
+      this.elLicenseInfo.textContent = this._licenseInfoText || "";
+      this.elLicenseInfo.style.display = this._licenseInfoText ? "block" : "none";
+    }
+
+    if (typeof api.licenseGetStatus !== "function") {
+      this._licenseInfoText = "";
+      return;
+    }
+    if (this._licenseInfoLoading) return;
+
+    this._licenseInfoLoading = (async () => {
+      try {
+        const res = await api.licenseGetStatus();
+        const version = String(res?.appVersion || this.version || "").trim() || "-";
+        const customerName = String(res?.customerName || "").trim();
+        const licenseId = String(res?.licenseId || "").trim();
+        this._licenseInfoText =
+          res?.ok && res?.valid && customerName
+            ? `\u00A9 BBM 2026 - v${version} | Lizenziert \u00FCr ${customerName}${licenseId ? ` | ${licenseId}` : ""}`
+            : `\u00A9 BBM 2026 - v${version} | Keine g\u00FCltige Lizenz`;
+      } catch (_e) {
+        const version = String(this.version || "").trim() || "-";
+        this._licenseInfoText = `\u00A9 BBM 2026 - v${version} | Keine g\u00FCltige Lizenz`;
+      } finally {
+        if (this.elLicenseInfo) {
+          this.elLicenseInfo.textContent = this._licenseInfoText || "";
+          this.elLicenseInfo.style.display = this._licenseInfoText ? "block" : "none";
+        }
+        if (this.elLogoGroup && this._licenseInfoText) {
+          this.elLogoGroup.style.display = "flex";
+        }
+        this._licenseInfoLoading = null;
+      }
+    })();
+  }
+
   async _refreshBuildChannelBadge() {
     if (!this.elDevBadge) return;
     this.elDevBadge.style.display = "none";
@@ -1785,7 +1838,7 @@ export default class MainHeader {
     const hasCustomLogo = !!String(settings["header.logoPath"] || "").trim();
 
     if (this.elLogoGroup) {
-      this.elLogoGroup.style.display = logoEnabled && hasCustomLogo ? "flex" : "none";
+      this.elLogoGroup.style.display = logoEnabled && hasCustomLogo ? "flex" : this._licenseInfoText ? "flex" : "none";
       this.elLogoGroup.style.gridColumn = logoPos === "right" ? "3" : "1";
       this.elLogoGroup.style.justifySelf = logoPos === "right" ? "end" : "start";
       this.elLogoGroup.style.alignItems = logoPos === "right" ? "flex-end" : "flex-start";
@@ -1799,6 +1852,7 @@ export default class MainHeader {
     }
 
     if (this.elLogoWrap) {
+      this.elLogoWrap.style.display = logoEnabled && hasCustomLogo ? "inline-flex" : "none";
       this.elLogoWrap.style.paddingLeft = `${logoPadLeft}px`;
       this.elLogoWrap.style.paddingTop = `${logoPadTop}px`;
     }

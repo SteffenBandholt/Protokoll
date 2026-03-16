@@ -318,49 +318,61 @@ export default class SettingsView {
 
     const wrap = document.createElement("div");
     wrap.style.display = "grid";
-    wrap.style.gap = "12px";
-    wrap.style.minWidth = "min(640px, calc(100vw - 80px))";
-    wrap.style.maxWidth = "760px";
+    wrap.style.gap = "10px";
+    wrap.style.minWidth = "min(580px, calc(100vw - 80px))";
+    wrap.style.maxWidth = "700px";
 
     const statusCard = document.createElement("div");
     applyPopupCardStyle(statusCard);
-    statusCard.style.padding = "8px 10px";
+    statusCard.style.padding = "6px 8px";
     statusCard.style.display = "grid";
-    statusCard.style.gap = "8px";
+    statusCard.style.gap = "6px";
 
     const statusRow = document.createElement("div");
     statusRow.style.display = "flex";
     statusRow.style.alignItems = "center";
     statusRow.style.justifyContent = "space-between";
-    statusRow.style.gap = "12px";
+    statusRow.style.gap = "8px";
     statusRow.style.flexWrap = "wrap";
 
     const statusLabel = document.createElement("div");
     statusLabel.style.fontWeight = "800";
-    statusLabel.style.fontSize = "14px";
+    statusLabel.style.fontSize = "12px";
     statusLabel.textContent = "Lizenzstatus wird geladen ...";
 
     const statusHint = document.createElement("div");
-    statusHint.style.fontSize = "11px";
+    statusHint.style.fontSize = "10px";
     statusHint.style.opacity = "0.8";
     statusHint.textContent = "";
 
     statusRow.append(statusLabel, statusHint);
 
     const messageEl = document.createElement("div");
-    messageEl.style.fontSize = "12px";
-    messageEl.style.minHeight = "16px";
+    messageEl.style.fontSize = "11px";
+    messageEl.style.minHeight = "14px";
     messageEl.style.color = "#475569";
+
+    const licenseBanner = document.createElement("div");
+    licenseBanner.style.padding = "6px 8px";
+    licenseBanner.style.borderRadius = "8px";
+    licenseBanner.style.background = "#f8fafc";
+    licenseBanner.style.border = "1px solid rgba(0,0,0,0.08)";
+    licenseBanner.style.fontSize = "11px";
+    licenseBanner.style.fontWeight = "700";
+    licenseBanner.style.color = "#0f172a";
+    licenseBanner.style.wordBreak = "break-word";
+    licenseBanner.textContent = "\u00A9 BBM 2026 - v- | Keine gueltige Lizenz";
 
     const infoGrid = document.createElement("div");
     infoGrid.style.display = "grid";
-    infoGrid.style.gridTemplateColumns = "minmax(150px, 220px) 1fr";
-    infoGrid.style.gap = "6px 10px";
+    infoGrid.style.gridTemplateColumns = "minmax(130px, 180px) 1fr";
+    infoGrid.style.gap = "4px 8px";
 
     const makeRow = (label, valueNode) => {
       const labelEl = document.createElement("div");
       labelEl.textContent = label;
       labelEl.style.fontWeight = "700";
+      labelEl.style.fontSize = "11px";
       labelEl.style.color = "#334155";
 
       const valueEl =
@@ -368,7 +380,7 @@ export default class SettingsView {
       if (!(valueNode instanceof HTMLElement)) {
         valueEl.textContent = String(valueNode || "-");
       }
-      valueEl.style.fontSize = "12px";
+      valueEl.style.fontSize = "11px";
       valueEl.style.minWidth = "0";
       valueEl.style.wordBreak = "break-word";
       return [labelEl, valueEl];
@@ -384,7 +396,7 @@ export default class SettingsView {
     const valueMachineId = document.createElement("div");
     const valueAppVersion = document.createElement("div");
     const valueReason = document.createElement("div");
-    valueReason.style.fontSize = "12px";
+    valueReason.style.fontSize = "11px";
     valueReason.style.opacity = "0.8";
 
     [
@@ -402,9 +414,9 @@ export default class SettingsView {
 
     const diagnosticsCard = document.createElement("div");
     applyPopupCardStyle(diagnosticsCard);
-    diagnosticsCard.style.padding = "8px 10px";
+    diagnosticsCard.style.padding = "6px 8px";
     diagnosticsCard.style.display = "grid";
-    diagnosticsCard.style.gap = "8px";
+    diagnosticsCard.style.gap = "6px";
 
     const diagnosticsHead = document.createElement("div");
     diagnosticsHead.style.display = "flex";
@@ -442,7 +454,6 @@ export default class SettingsView {
     diagnosticsPre.textContent = "Diagnosedaten werden geladen ...";
 
     diagnosticsCard.append(diagnosticsHead, diagnosticsHelp, diagnosticsPre);
-    wrap.append(diagnosticsCard);
 
     const buttonRow = document.createElement("div");
     buttonRow.style.display = "flex";
@@ -460,8 +471,8 @@ export default class SettingsView {
     applyPopupButtonStyle(btnReload);
 
     buttonRow.append(btnImport, btnReload);
-    statusCard.append(statusRow, messageEl, infoGrid, buttonRow);
-    wrap.append(statusCard);
+    statusCard.append(statusRow, messageEl, licenseBanner, infoGrid, buttonRow);
+    wrap.append(statusCard, diagnosticsCard);
 
     const setBusy = (busy) => {
       const isBusy = !!busy;
@@ -508,6 +519,11 @@ export default class SettingsView {
       valueFeatures.textContent = features.length ? features.join(", ") : "-";
       valueReason.textContent = valid ? (isExpiringSoon ? warningText : "Keine Warnung") : reasonText;
       diagnosticsPre.textContent = String(res?.diagnosticsText || "").trim() || "Keine Diagnosedaten verfuegbar.";
+      const versionLabel = String(res?.appVersion || "").trim() || "-";
+      const customerLabel = String(res?.customerName || "").trim();
+      licenseBanner.textContent = valid && customerLabel
+        ? `\u00A9 BBM 2026 - v${versionLabel} | Lizenziert fuer: ${customerLabel}`
+        : `\u00A9 BBM 2026 - v${versionLabel} | Keine gueltige Lizenz`;
 
       if (!valid && reason === "NO_LICENSE") {
         setMessage("Es ist aktuell keine Lizenz installiert. Bitte eine .bbmlic-Datei importieren.", false);
