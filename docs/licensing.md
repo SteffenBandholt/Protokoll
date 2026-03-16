@@ -27,6 +27,15 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 - Fehlende oder noch nicht ersetzte `public_key.pem` wird kontrolliert als ungültige Lizenzbasis behandelt.
 - Build-Konfiguration baut nur noch `nsis` und ist auf `asar: true` umgestellt.
 
+
+## Derzeit geschuetzte Features
+- `pdf.export`
+  Sperrt die zentrale PDF-Erzeugung in `C:\01_Projekte\Protokoll\src\main\ipc\printIpc.js` direkt im Main-Prozess. PDF-Ausgaben erhalten dort zusaetzlich eine sichtbare Lizenzkennung mit Kunde und Lizenz-ID.
+- `project.export`
+  Schuetzt den Projekt-Export in `C:\01_Projekte\Protokoll\src\main\ipc\projectTransferIpc.js`. Der Export-Manifestblock traegt dabei ebenfalls die Lizenzkennung.
+- `mail.outlookDraft`
+  Schuetzt den Outlook-Entwurf in `C:\01_Projekte\Protokoll\src\main\main.js` vor dem eigentlichen Mail-Aufruf.
+
 ## Was noch offen ist
 - Ein echter öffentlicher Schlüssel muss lokal bereitgestellt werden.
 - Eine produktive Lizenzaktivierung oder Serveranbindung ist nicht Teil dieser Basis.
