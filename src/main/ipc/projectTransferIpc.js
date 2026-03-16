@@ -10,6 +10,11 @@ const path = require("path");
 const { initDatabase } = require("../db/database");
 const { appSettingsGetMany } = require("../db/appSettingsRepo");
 const projectsRepo = require("../db/projectsRepo");
+const {
+  LICENSE_FEATURES,
+  enforceLicensedFeature,
+  toLicenseErrorPayload,
+} = require("../licensing/featureGuard");
 const { buildStoragePreviewPaths, sanitizeDirName, resolveProjectFolderName } = require("./projectStoragePaths");
 
 function _getArchiver() {
@@ -270,6 +275,7 @@ function registerProjectTransferIpc() {
     if (!projectId) return { ok: false, error: "projectId required" };
 
     try {
+      const licenseInfo = enforceLicensedFeature(LICENSE_FEATURES.PROJECT_EXPORT);
       const project = projectsRepo.getById(projectId);
       if (!project) throw new Error("Projekt nicht gefunden.");
 
@@ -307,6 +313,12 @@ function registerProjectTransferIpc() {
         formatVersion: 2,
         exportDate: exportedAt,
         appVersion: app.getVersion ? app.getVersion() : "",
+        license: {
+          customerName: licenseInfo.customerName || "",
+          licenseId: licenseInfo.licenseId || "",
+          edition: licenseInfo.edition || "",
+          validUntil: licenseInfo.validUntil || "",
+        },
         projectId,
         projectNumber: project.project_number ?? project.projectNumber ?? null,
         projectShortName: project.short ?? null,
@@ -360,7 +372,7 @@ function registerProjectTransferIpc() {
         projectShortName: project.short ?? null,
       };
     } catch (err) {
-      return { ok: false, error: err?.message || String(err) };
+      return err?.licenseError ? toLicenseErrorPayload(err) : { ok: false, error: err?.message || String(err) };
     }
   });
 

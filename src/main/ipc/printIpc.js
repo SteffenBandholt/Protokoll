@@ -17,6 +17,12 @@ const path = require("path");
 const { createPrintWindow, getPrintAppUrl } = require("../print/printWindow");
 const { getPrintData } = require("../print/printData");
 const {
+  LICENSE_FEATURES,
+  createLicenseBadgeText,
+  enforceLicensedFeature,
+  toLicenseErrorPayload,
+} = require("../licensing/featureGuard");
+const {
   sanitizeDirName,
   resolveProjectFolderName,
 } = require("./projectStoragePaths");
@@ -63,6 +69,78 @@ function buildPrintToPdfOptions() {
       right: 0,
     },
   };
+}
+
+function _escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+async function _injectLicenseBadge(win, licenseInfo) {
+  const badgeText = createLicenseBadgeText(licenseInfo);
+  if (!badgeText) return;
+
+  const payload = {
+    badgeText,
+    customerName: String(licenseInfo?.customerName || "").trim(),
+    licenseId: String(licenseInfo?.licenseId || "").trim(),
+    edition: String(licenseInfo?.edition || "").trim(),
+  };
+
+  await win.webContents.executeJavaScript(
+    `(() => {
+      const data = ${JSON.stringify(payload)};
+      const doc = document;
+      if (!doc || !doc.body) return;
+
+      const existing = doc.getElementById("bbm-license-badge");
+      if (existing) existing.remove();
+
+      const badge = doc.createElement("div");
+      badge.id = "bbm-license-badge";
+      badge.innerHTML = ${JSON.stringify(_escapeHtml(payload.badgeText))};
+      badge.style.position = "fixed";
+      badge.style.right = "10mm";
+      badge.style.bottom = "8mm";
+      badge.style.zIndex = "2147483647";
+      badge.style.padding = "2mm 3mm";
+      badge.style.border = "1px solid rgba(0,0,0,0.18)";
+      badge.style.borderRadius = "3mm";
+      badge.style.background = "rgba(255,255,255,0.88)";
+      badge.style.color = "#555";
+      badge.style.font = "10px Arial, sans-serif";
+      badge.style.letterSpacing = "0.02em";
+      badge.style.pointerEvents = "none";
+      badge.style.boxSizing = "border-box";
+      badge.style.maxWidth = "80mm";
+      badge.style.textAlign = "right";
+      doc.body.appendChild(badge);
+
+      const titleParts = [doc.title || "BBM"];
+      if (data.customerName) titleParts.push(data.customerName);
+      if (data.licenseId) titleParts.push("Lizenz " + data.licenseId);
+      doc.title = titleParts.join(" | ");
+
+      const ensureMeta = (name, content) => {
+        if (!content) return;
+        let meta = doc.head && doc.head.querySelector('meta[name="' + name + '"]');
+        if (!meta) {
+          meta = doc.createElement("meta");
+          meta.setAttribute("name", name);
+          if (doc.head) doc.head.appendChild(meta);
+        }
+        meta.setAttribute("content", content);
+      };
+
+      ensureMeta("author", data.customerName || "BBM");
+      ensureMeta("subject", data.licenseId || "");
+      ensureMeta("keywords", [data.customerName, data.licenseId, data.edition].filter(Boolean).join(", "));
+    })();`,
+    true
+  );
 }
 
 function _folderForMode(mode) {
@@ -289,6 +367,7 @@ async function printToPdf(payload = {}) {
   const mode = String(payload.mode || "").trim() || "protocol";
   const projectId = payload.projectId || null;
   const meetingId = payload.meetingId || null;
+  const licenseInfo = enforceLicensedFeature(LICENSE_FEATURES.PDF_EXPORT);
 
   console.log(`[print:${jobId}] start mode=${mode} projectId=${projectId} meetingId=${meetingId}`);
 
@@ -360,6 +439,7 @@ async function printToPdf(payload = {}) {
 
       try {
         const options = buildPrintToPdfOptions();
+        await _injectLicenseBadge(win, licenseInfo);
         console.log(
           `[PRINT_ACTIVE] printToPDF options: ${JSON.stringify(
             {
@@ -438,7 +518,7 @@ function registerPrintIpc() {
       const outPath = await printToPdf(payload || {});
       return { ok: true, filePath: outPath };
     } catch (err) {
-      return { ok: false, error: err?.message || String(err) };
+      return err?.licenseError ? toLicenseErrorPayload(err) : { ok: false, error: err?.message || String(err) };
     }
   });
 
@@ -492,7 +572,7 @@ function registerPrintIpc() {
       const outPath = await printToPdf(payload || {});
       return { ok: true, filePath: outPath };
     } catch (err) {
-      return { ok: false, error: err?.message || String(err) };
+      return err?.licenseError ? toLicenseErrorPayload(err) : { ok: false, error: err?.message || String(err) };
     }
   });
 }
