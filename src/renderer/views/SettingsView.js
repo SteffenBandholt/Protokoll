@@ -313,6 +313,24 @@ export default class SettingsView {
     return this._formatLicenseReason(res?.reason, fallbackReason);
   }
 
+  _formatLicenseGenerationError(raw) {
+    const code = String(raw || "").trim().toUpperCase();
+    if (code === "LICENSE_GENERATION_NOT_ALLOWED") return "Lizenz-Erstellung ist nur im Entwicklungsbereich verfuegbar.";
+    if (code === "LICENSE_TOOL_NOT_FOUND") return "C:\\license-tool wurde nicht gefunden.";
+    if (code === "LICENSE_TOOL_SCRIPT_MISSING") return "generate-license.cjs wurde im license-tool nicht gefunden.";
+    if (code === "PRIVATE_KEY_MISSING") return "private_key.pem fehlt im license-tool.";
+    if (code === "CUSTOMER_NAME_REQUIRED") return "Bitte Kunde / Firma angeben.";
+    if (code === "LICENSE_ID_REQUIRED") return "Bitte eine Lizenznummer angeben.";
+    if (code === "VALID_FROM_REQUIRED") return "Bitte ein gueltiges Startdatum setzen.";
+    if (code === "VALID_UNTIL_REQUIRED") return "Bitte ein gueltiges Enddatum oder Nutzungstage setzen.";
+    if (code === "VALID_UNTIL_BEFORE_VALID_FROM") return "Das Enddatum darf nicht vor dem Startdatum liegen.";
+    if (code === "MAX_DEVICES_INVALID") return "Max. Geraete muss mindestens 1 sein.";
+    if (code === "FEATURES_REQUIRED") return "Bitte mindestens ein Feature auswaehlen.";
+    if (code === "OUTPUT_FILE_NOT_FOUND") return "Die erzeugte Lizenzdatei wurde im Ausgabeordner nicht gefunden.";
+    if (code === "GENERATOR_FAILED") return "Das externe license-tool hat einen Fehler gemeldet.";
+    return String(raw || "Lizenz konnte nicht erzeugt werden.");
+  }
+
   _createLicenseSettingsContent() {
     const api = window.bbmDb || {};
 
@@ -1952,6 +1970,231 @@ export default class SettingsView {
       }
     };
 
+    const licenseGenBox = document.createElement("div");
+    applyPopupCardStyle(licenseGenBox);
+    licenseGenBox.style.padding = "8px 10px";
+    licenseGenBox.style.display = "grid";
+    licenseGenBox.style.gap = "8px";
+
+    const licenseGenTitle = document.createElement("div");
+    licenseGenTitle.textContent = "Lizenz erstellen";
+    licenseGenTitle.style.fontWeight = "700";
+
+    const licenseGenHint = document.createElement("div");
+    licenseGenHint.textContent = "Nur fuer den internen Entwicklungsbereich. Signierung laeuft ueber C:\\license-tool.";
+    licenseGenHint.style.fontSize = "12px";
+    licenseGenHint.style.opacity = "0.8";
+
+    const inpLicenseProduct = document.createElement("input");
+    inpLicenseProduct.type = "text";
+    inpLicenseProduct.value = "bbm-protokoll";
+
+    const inpLicenseCustomer = document.createElement("input");
+    inpLicenseCustomer.type = "text";
+    inpLicenseCustomer.placeholder = "Musterbau GmbH";
+
+    const inpLicenseId = document.createElement("input");
+    inpLicenseId.type = "text";
+    inpLicenseId.placeholder = "BBM-TEST-0001";
+
+    const inpLicenseEdition = document.createElement("input");
+    inpLicenseEdition.type = "text";
+    inpLicenseEdition.value = "test";
+
+    const inpLicenseValidFrom = document.createElement("input");
+    inpLicenseValidFrom.type = "date";
+    inpLicenseValidFrom.value = new Date().toISOString().slice(0, 10);
+
+    const inpLicenseDuration = document.createElement("input");
+    inpLicenseDuration.type = "number";
+    inpLicenseDuration.min = "1";
+    inpLicenseDuration.step = "1";
+    inpLicenseDuration.value = "365";
+
+    const inpLicenseValidUntil = document.createElement("input");
+    inpLicenseValidUntil.type = "date";
+
+    const inpLicenseMaxDevices = document.createElement("input");
+    inpLicenseMaxDevices.type = "number";
+    inpLicenseMaxDevices.min = "1";
+    inpLicenseMaxDevices.step = "1";
+    inpLicenseMaxDevices.value = "1";
+
+    const inpLicenseNotes = document.createElement("textarea");
+    inpLicenseNotes.rows = 3;
+    inpLicenseNotes.placeholder = "Interne Notizen zur Lizenz";
+    inpLicenseNotes.style.width = "100%";
+    inpLicenseNotes.style.boxSizing = "border-box";
+
+    const featureWrap = document.createElement("div");
+    featureWrap.style.display = "flex";
+    featureWrap.style.flexWrap = "wrap";
+    featureWrap.style.gap = "8px 12px";
+
+    const featureInputs = ["app", "pdf", "export", "mail"].map((feature) => {
+      const label = document.createElement("label");
+      label.style.display = "inline-flex";
+      label.style.alignItems = "center";
+      label.style.gap = "6px";
+      label.style.fontSize = "12px";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = feature;
+      checkbox.checked = true;
+      label.append(checkbox, document.createTextNode(feature));
+      featureWrap.appendChild(label);
+      return checkbox;
+    });
+
+    const calcValidUntil = () => {
+      const validFrom = String(inpLicenseValidFrom.value || "").trim();
+      const days = Number(inpLicenseDuration.value);
+      if (!validFrom || !Number.isFinite(days) || days < 1) return;
+      const dt = new Date(`${validFrom}T00:00:00Z`);
+      if (Number.isNaN(dt.getTime())) return;
+      dt.setUTCDate(dt.getUTCDate() + Math.floor(days));
+      inpLicenseValidUntil.value = dt.toISOString().slice(0, 10);
+    };
+    calcValidUntil();
+    inpLicenseValidFrom.addEventListener("change", calcValidUntil);
+    inpLicenseDuration.addEventListener("input", calcValidUntil);
+
+    const licenseGenStatus = document.createElement("div");
+    licenseGenStatus.style.fontSize = "12px";
+    licenseGenStatus.style.minHeight = "16px";
+    licenseGenStatus.style.color = "#4b5563";
+
+    const licenseGenResult = document.createElement("div");
+    licenseGenResult.style.fontSize = "12px";
+    licenseGenResult.style.lineHeight = "1.35";
+    licenseGenResult.style.whiteSpace = "pre-wrap";
+    licenseGenResult.style.wordBreak = "break-word";
+    licenseGenResult.style.padding = "8px";
+    licenseGenResult.style.borderRadius = "8px";
+    licenseGenResult.style.background = "#f8fafc";
+    licenseGenResult.style.border = "1px solid rgba(0,0,0,0.08)";
+    licenseGenResult.textContent = "Noch keine Lizenz erzeugt.";
+
+    const licenseGenActions = document.createElement("div");
+    licenseGenActions.style.display = "flex";
+    licenseGenActions.style.flexWrap = "wrap";
+    licenseGenActions.style.gap = "8px";
+
+    const btnLicenseGenerate = document.createElement("button");
+    btnLicenseGenerate.type = "button";
+    btnLicenseGenerate.textContent = "Lizenzdatei erzeugen";
+    applyPopupButtonStyle(btnLicenseGenerate, { variant: "primary" });
+
+    const btnLicenseOpenOutput = document.createElement("button");
+    btnLicenseOpenOutput.type = "button";
+    btnLicenseOpenOutput.textContent = "Ausgabeordner oeffnen";
+    btnLicenseOpenOutput.disabled = true;
+    applyPopupButtonStyle(btnLicenseOpenOutput);
+
+    licenseGenActions.append(btnLicenseGenerate, btnLicenseOpenOutput);
+
+    const setLicenseGenBusy = (busy) => {
+      const isBusy = !!busy;
+      [
+        inpLicenseProduct,
+        inpLicenseCustomer,
+        inpLicenseId,
+        inpLicenseEdition,
+        inpLicenseValidFrom,
+        inpLicenseDuration,
+        inpLicenseValidUntil,
+        inpLicenseMaxDevices,
+        inpLicenseNotes,
+        ...featureInputs,
+      ].forEach((el) => {
+        if (el) el.disabled = isBusy;
+      });
+      btnLicenseGenerate.disabled = isBusy;
+      btnLicenseOpenOutput.disabled = isBusy || !btnLicenseOpenOutput.dataset.outputPath;
+    };
+
+    const collectLicenseFormData = () => ({
+      product: String(inpLicenseProduct.value || "").trim() || "bbm-protokoll",
+      customerName: String(inpLicenseCustomer.value || "").trim(),
+      licenseId: String(inpLicenseId.value || "").trim(),
+      edition: String(inpLicenseEdition.value || "").trim() || "test",
+      validFrom: String(inpLicenseValidFrom.value || "").trim(),
+      validUntil: String(inpLicenseValidUntil.value || "").trim(),
+      durationDays: String(inpLicenseDuration.value || "").trim(),
+      maxDevices: String(inpLicenseMaxDevices.value || "").trim(),
+      features: featureInputs.filter((inp) => !!inp.checked).map((inp) => inp.value),
+      notes: String(inpLicenseNotes.value || "").trim(),
+    });
+
+    btnLicenseGenerate.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseGenerate !== "function") {
+        licenseGenStatus.textContent = "Lizenz-Generator-IPC ist nicht verfuegbar.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+
+      setLicenseGenBusy(true);
+      licenseGenStatus.textContent = "Lizenz wird erzeugt ...";
+      licenseGenStatus.style.color = "#4b5563";
+      try {
+        const res = await api.licenseGenerate(collectLicenseFormData());
+        if (!res?.ok) {
+          licenseGenStatus.textContent = this._formatLicenseGenerationError(res?.error);
+          licenseGenStatus.style.color = "#b91c1c";
+          return;
+        }
+        btnLicenseOpenOutput.dataset.outputPath = String(res?.outputPath || "");
+        btnLicenseOpenOutput.disabled = !btnLicenseOpenOutput.dataset.outputPath;
+        licenseGenStatus.textContent = "Lizenzdatei erfolgreich erzeugt.";
+        licenseGenStatus.style.color = "#166534";
+        licenseGenResult.textContent = [
+          `Datei: ${res?.outputPath || "-"}`,
+          `Gueltig von: ${res?.validFrom || "-"}`,
+          `Gueltig bis: ${res?.validUntil || "-"}`,
+          `Kunde: ${res?.customerName || "-"}`,
+          `Lizenznummer: ${res?.licenseId || "-"}`,
+          `Features: ${Array.isArray(res?.features) && res.features.length ? res.features.join(", ") : "-"}`,
+        ].join("\n");
+      } catch (err) {
+        licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
+        licenseGenStatus.style.color = "#b91c1c";
+      } finally {
+        setLicenseGenBusy(false);
+      }
+    };
+
+    btnLicenseOpenOutput.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseOpenOutputDir !== "function") return;
+      const outputPath = String(btnLicenseOpenOutput.dataset.outputPath || "").trim();
+      if (!outputPath) return;
+      const res = await api.licenseOpenOutputDir({ outputPath });
+      if (!res?.ok) {
+        licenseGenStatus.textContent = res?.error || "Ausgabeordner konnte nicht geoeffnet werden.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+    };
+
+    licenseGenBox.append(
+      licenseGenTitle,
+      licenseGenHint,
+      mkRow("Produkt", inpLicenseProduct),
+      mkRow("Kunde / Firma", inpLicenseCustomer),
+      mkRow("Lizenznummer", inpLicenseId),
+      mkRow("Edition", inpLicenseEdition),
+      mkRow("Gueltig von", inpLicenseValidFrom),
+      mkRow("Nutzungstage", inpLicenseDuration),
+      mkRow("Gueltig bis", inpLicenseValidUntil),
+      mkRow("Max. Geraete", inpLicenseMaxDevices),
+      mkRow("Features", featureWrap),
+      mkRow("Notizen", inpLicenseNotes),
+      licenseGenActions,
+      licenseGenStatus,
+      licenseGenResult
+    );
+
     const devDefaultsBox = document.createElement("div");
     applyPopupCardStyle(devDefaultsBox);
     devDefaultsBox.style.padding = "8px 10px";
@@ -1989,6 +2232,11 @@ export default class SettingsView {
     btnOpenThemeDefaults.type = "button";
     btnOpenThemeDefaults.textContent = "Start-Defaults Farbschema";
     applyPopupButtonStyle(btnOpenThemeDefaults);
+
+    const btnOpenLicenseGenerator = document.createElement("button");
+    btnOpenLicenseGenerator.type = "button";
+    btnOpenLicenseGenerator.textContent = "Lizenz erstellen";
+    applyPopupButtonStyle(btnOpenLicenseGenerator, { variant: "primary" });
 
 
     const devDefaultsStatus = document.createElement("div");
@@ -2287,7 +2535,16 @@ export default class SettingsView {
       this._closeSettingsModal();
       await openThemeDefaultsPopup();
     };
+    btnOpenLicenseGenerator.onclick = async () => {
+      this._closeSettingsModal();
+      this._openSettingsModal({
+        title: "Lizenz erstellen",
+        content: [licenseGenBox],
+        closeOnly: true,
+      });
+    };
     devDefaultsActions.append(
+      btnOpenLicenseGenerator,
       btnOpenPrintDefaults,
       btnOpenStoragePreview,
       btnOpenThemeDefaults

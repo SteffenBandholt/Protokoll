@@ -31,6 +31,7 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
   - `expired` ist `true`, wenn `validUntil` bereits in der Vergangenheit liegt.
   - `expiresSoon` ist `true`, wenn die Lizenz noch nicht abgelaufen ist, aber in 14 Tagen oder weniger endet.
 - `license:get-diagnostics` liefert einen kompakten Support-Block mit Status, Grund, Kunde, Lizenz-ID, Edition, Ablaufdatum, Machine-ID, App-Version und Features.
+- Im Entwicklungsbereich der App gibt es eine interne Maske `Lizenz erstellen`, die ueber das externe Tool unter `C:\license-tool` eine `.bbmlic` erzeugt.
 
 
 ## Derzeit geschuetzte Features
@@ -45,3 +46,26 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 - Ein echter öffentlicher Schlüssel muss lokal bereitgestellt werden.
 - Eine produktive Lizenzaktivierung oder Serveranbindung ist nicht Teil dieser Basis.
 - Es gibt noch keine UI-geführte Lizenzverwaltung in dieser Doku.
+
+
+## Lizenz-Erstellung im Entwicklungsbereich
+- Die Lizenz-Erstellung ist nur im internen Entwicklungsbereich der ungepackten App verfuegbar.
+- Verwendet wird ausschliesslich das externe Tool:
+  - `C:\license-tool\generate-license.cjs`
+- Die App schreibt eine Eingabe-JSON nach:
+  - `C:\license-tool\input\`
+- Die erzeugte `.bbmlic` landet in:
+  - `C:\license-tool\output\`
+- Setzbare Felder in der UI:
+  - `product`
+  - `customerName`
+  - `licenseId`
+  - `edition`
+  - `validFrom`
+  - `validUntil`
+  - optional `durationDays`
+  - `maxDevices`
+  - `features`
+  - `notes`
+- `private_key.pem` bleibt weiterhin ausschliesslich im `license-tool` unter:
+  - `C:\license-tool\keys\private_key.pem`

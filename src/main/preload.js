@@ -74,6 +74,8 @@ contextBridge.exposeInMainWorld("bbmDb", {
   licenseGetStatus: () => ipcRenderer.invoke("license:get-status"),
   licenseGetDiagnostics: () => ipcRenderer.invoke("license:get-diagnostics"),
   licenseImport: (data) => ipcRenderer.invoke("license:import", data),
+  licenseGenerate: (data) => ipcRenderer.invoke("license:generate", data),
+  licenseOpenOutputDir: (data) => ipcRenderer.invoke("license:open-output-dir", data),
 
   // ============================================================
   // GLOBAL Firmen
