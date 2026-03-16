@@ -30,6 +30,7 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
   - `daysRemaining` wird als aufgerundete Tagesdifferenz zwischen `validUntil` und `jetzt` berechnet.
   - `expired` ist `true`, wenn `validUntil` bereits in der Vergangenheit liegt.
   - `expiresSoon` ist `true`, wenn die Lizenz noch nicht abgelaufen ist, aber in 14 Tagen oder weniger endet.
+- `license:get-diagnostics` liefert einen kompakten Support-Block mit Status, Grund, Kunde, Lizenz-ID, Edition, Ablaufdatum, Machine-ID, App-Version und Features.
 
 
 ## Derzeit geschuetzte Features

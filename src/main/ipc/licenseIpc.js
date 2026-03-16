@@ -1,7 +1,8 @@
 const fs = require("fs");
-const { BrowserWindow, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain } = require("electron");
 
 const { checkLicense, getStatus } = require("../licensing/licenseService");
+const { getMachineId } = require("../licensing/deviceIdentity");
 const { saveLicenseData } = require("../licensing/licenseStorage");
 const { verifyLicense } = require("../licensing/licenseVerifier");
 
@@ -46,8 +47,7 @@ function _getExpiryInfo(validUntil) {
 function _toStatusPayload(result) {
   const license = result?.license && typeof result.license === "object" ? result.license : {};
   const expiryInfo = _getExpiryInfo(license.validUntil);
-
-  return {
+  const payload = {
     valid: !!result?.valid,
     reason: String(result?.reason || ""),
     customerName: String(
@@ -57,10 +57,33 @@ function _toStatusPayload(result) {
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
     features: Array.isArray(license.features) ? license.features : [],
+    machineId: String(getMachineId() || "").trim(),
+    appVersion: String(app?.getVersion?.() || "").trim(),
     daysRemaining: expiryInfo.daysRemaining,
     expiresSoon: expiryInfo.expiresSoon,
     expired: expiryInfo.expired,
   };
+
+  payload.diagnosticsText = _formatDiagnosticsText(payload);
+  return payload;
+}
+
+function _formatDiagnosticsText(payload = {}) {
+  const valid = !!payload.valid;
+  const reason = String(payload.reason || "").trim();
+  const features = Array.isArray(payload.features) ? payload.features : [];
+
+  return [
+    `Lizenzstatus: ${valid ? "gueltig" : "ungueltig"}`,
+    `Grund: ${reason || "-"}`,
+    `Kunde: ${String(payload.customerName || "").trim() || "-"}`,
+    `Lizenz-ID: ${String(payload.licenseId || "").trim() || "-"}`,
+    `Edition: ${String(payload.edition || "").trim() || "-"}`,
+    `Gueltig bis: ${String(payload.validUntil || "").trim() || "-"}`,
+    `Machine-ID: ${String(payload.machineId || "").trim() || "-"}`,
+    `App-Version: ${String(payload.appVersion || "").trim() || "-"}`,
+    `Features: ${features.length ? features.join(",") : "-"}`,
+  ].join("\n");
 }
 
 function _readLicenseFile(filePath) {
@@ -153,6 +176,25 @@ function registerLicenseIpc() {
         ok: false,
         error: err?.message || String(err),
         ..._toStatusPayload({ valid: false, reason: code }),
+      };
+    }
+  });
+
+  ipcMain.handle("license:get-diagnostics", async () => {
+    try {
+      const status = _toStatusPayload(getStatus({ fresh: true }));
+      return {
+        ok: true,
+        ...status,
+        diagnosticsText: _formatDiagnosticsText(status),
+      };
+    } catch (err) {
+      const fallback = _toStatusPayload({ valid: false, reason: "INVALID_FORMAT" });
+      return {
+        ok: false,
+        error: err?.message || String(err),
+        ...fallback,
+        diagnosticsText: _formatDiagnosticsText(fallback),
       };
     }
   });

@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // Lizenz
   // ============================================================
   licenseGetStatus: () => ipcRenderer.invoke("license:get-status"),
+  licenseGetDiagnostics: () => ipcRenderer.invoke("license:get-diagnostics"),
   licenseImport: (data) => ipcRenderer.invoke("license:import", data),
 
   // ============================================================

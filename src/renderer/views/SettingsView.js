@@ -381,6 +381,8 @@ export default class SettingsView {
     const valueValidUntil = document.createElement("div");
     const valueDaysRemaining = document.createElement("div");
     const valueFeatures = document.createElement("div");
+    const valueMachineId = document.createElement("div");
+    const valueAppVersion = document.createElement("div");
     const valueReason = document.createElement("div");
     valueReason.style.fontSize = "12px";
     valueReason.style.opacity = "0.8";
@@ -392,9 +394,55 @@ export default class SettingsView {
       makeRow("Edition", valueEdition),
       makeRow("Gueltig bis", valueValidUntil),
       makeRow("Resttage", valueDaysRemaining),
+      makeRow("Machine-ID", valueMachineId),
+      makeRow("App-Version", valueAppVersion),
       makeRow("Aktivierte Features", valueFeatures),
       makeRow("Hinweis", valueReason),
     ].forEach(([labelEl, valueEl]) => infoGrid.append(labelEl, valueEl));
+
+    const diagnosticsCard = document.createElement("div");
+    applyPopupCardStyle(diagnosticsCard);
+    diagnosticsCard.style.padding = "12px";
+    diagnosticsCard.style.display = "grid";
+    diagnosticsCard.style.gap = "10px";
+
+    const diagnosticsHead = document.createElement("div");
+    diagnosticsHead.style.display = "flex";
+    diagnosticsHead.style.alignItems = "center";
+    diagnosticsHead.style.justifyContent = "space-between";
+    diagnosticsHead.style.gap = "8px";
+    diagnosticsHead.style.flexWrap = "wrap";
+
+    const diagnosticsTitle = document.createElement("div");
+    diagnosticsTitle.textContent = "Support-Diagnose";
+    diagnosticsTitle.style.fontWeight = "800";
+
+    const btnCopyDiagnostics = document.createElement("button");
+    btnCopyDiagnostics.type = "button";
+    btnCopyDiagnostics.textContent = "Diagnose kopieren";
+    applyPopupButtonStyle(btnCopyDiagnostics);
+
+    diagnosticsHead.append(diagnosticsTitle, btnCopyDiagnostics);
+
+    const diagnosticsHelp = document.createElement("div");
+    diagnosticsHelp.textContent = "Kompakter Textblock fuer Supportfaelle.";
+    diagnosticsHelp.style.fontSize = "12px";
+    diagnosticsHelp.style.opacity = "0.78";
+
+    const diagnosticsPre = document.createElement("pre");
+    diagnosticsPre.style.margin = "0";
+    diagnosticsPre.style.padding = "10px";
+    diagnosticsPre.style.borderRadius = "8px";
+    diagnosticsPre.style.background = "#f8fafc";
+    diagnosticsPre.style.border = "1px solid rgba(0,0,0,0.08)";
+    diagnosticsPre.style.fontSize = "12px";
+    diagnosticsPre.style.lineHeight = "1.45";
+    diagnosticsPre.style.whiteSpace = "pre-wrap";
+    diagnosticsPre.style.wordBreak = "break-word";
+    diagnosticsPre.textContent = "Diagnosedaten werden geladen ...";
+
+    diagnosticsCard.append(diagnosticsHead, diagnosticsHelp, diagnosticsPre);
+    wrap.append(diagnosticsCard);
 
     const buttonRow = document.createElement("div");
     buttonRow.style.display = "flex";
@@ -419,6 +467,7 @@ export default class SettingsView {
       const isBusy = !!busy;
       btnImport.disabled = isBusy;
       btnReload.disabled = isBusy;
+      btnCopyDiagnostics.disabled = isBusy;
     };
 
     const setMessage = (text, isError = false) => {
@@ -454,8 +503,11 @@ export default class SettingsView {
       valueEdition.textContent = String(res?.edition || "").trim() || "-";
       valueValidUntil.textContent = this._formatLicenseDate(res?.validUntil);
       valueDaysRemaining.textContent = Number.isFinite(daysRemaining) ? String(daysRemaining) : "-";
+      valueMachineId.textContent = String(res?.machineId || "").trim() || "-";
+      valueAppVersion.textContent = String(res?.appVersion || "").trim() || "-";
       valueFeatures.textContent = features.length ? features.join(", ") : "-";
       valueReason.textContent = valid ? (isExpiringSoon ? warningText : "Keine Warnung") : reasonText;
+      diagnosticsPre.textContent = String(res?.diagnosticsText || "").trim() || "Keine Diagnosedaten verfuegbar.";
 
       if (!valid && reason === "NO_LICENSE") {
         setMessage("Es ist aktuell keine Lizenz installiert. Bitte eine .bbmlic-Datei importieren.", false);
@@ -493,6 +545,50 @@ export default class SettingsView {
       }
     };
 
+    const loadDiagnostics = async () => {
+      if (typeof api.licenseGetDiagnostics !== "function") return;
+      try {
+        const res = await api.licenseGetDiagnostics();
+        diagnosticsPre.textContent =
+          String(res?.diagnosticsText || "").trim() || "Keine Diagnosedaten verfuegbar.";
+      } catch (_err) {
+        diagnosticsPre.textContent = "Diagnosedaten konnten nicht geladen werden.";
+      }
+    };
+
+    const copyText = async (text) => {
+      const value = String(text || "").trim();
+      if (!value) return false;
+
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+          return true;
+        }
+      } catch (_e) {
+        // fallback below
+      }
+
+      const helper = document.createElement("textarea");
+      helper.value = value;
+      helper.setAttribute("readonly", "readonly");
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      helper.style.pointerEvents = "none";
+      document.body.appendChild(helper);
+      helper.select();
+      helper.setSelectionRange(0, helper.value.length);
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (_e) {
+        ok = false;
+      } finally {
+        helper.remove();
+      }
+      return ok;
+    };
+
     btnImport.onclick = async () => {
       if (typeof api.licenseImport !== "function") {
         setMessage("Lizenzimport ist in dieser App-Version nicht verfuegbar.", true);
@@ -509,13 +605,16 @@ export default class SettingsView {
         }
         if (!res?.ok) {
           renderStatus(res || {}, res?.error || "Lizenz konnte nicht importiert werden.");
+          await loadDiagnostics();
           return;
         }
         renderStatus(res);
         setMessage("Lizenz erfolgreich importiert.", false);
         await loadStatus();
+        await loadDiagnostics();
       } catch (err) {
         renderStatus({}, err?.message || "Lizenz konnte nicht importiert werden.");
+        await loadDiagnostics();
       } finally {
         setBusy(false);
       }
@@ -523,9 +622,16 @@ export default class SettingsView {
 
     btnReload.onclick = async () => {
       await loadStatus();
+      await loadDiagnostics();
     };
 
-    void loadStatus();
+    btnCopyDiagnostics.onclick = async () => {
+      const text = diagnosticsPre.textContent || "";
+      const copied = await copyText(text);
+      setMessage(copied ? "Diagnose in die Zwischenablage kopiert." : "Diagnose konnte nicht kopiert werden.", !copied);
+    };
+
+    void Promise.all([loadStatus(), loadDiagnostics()]);
     return wrap;
   }
 
