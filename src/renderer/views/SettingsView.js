@@ -301,6 +301,19 @@ export default class SettingsView {
     }
   }
 
+  _formatLicenseWarning(res, fallbackReason = "") {
+    if (res?.expired) return "Lizenz ist abgelaufen";
+
+    const daysRemaining = Number(res?.daysRemaining);
+    if (res?.expiresSoon && Number.isFinite(daysRemaining)) {
+      if (daysRemaining <= 0) return "Lizenz laeuft heute ab";
+      if (daysRemaining === 1) return "Lizenz laeuft in 1 Tag ab";
+      return `Lizenz laeuft in ${daysRemaining} Tagen ab`;
+    }
+
+    return this._formatLicenseReason(res?.reason, fallbackReason);
+  }
+
   _createLicenseSettingsContent() {
     const api = window.bbmDb || {};
 
@@ -366,6 +379,7 @@ export default class SettingsView {
     const valueLicenseId = document.createElement("div");
     const valueEdition = document.createElement("div");
     const valueValidUntil = document.createElement("div");
+    const valueDaysRemaining = document.createElement("div");
     const valueFeatures = document.createElement("div");
     const valueReason = document.createElement("div");
     valueReason.style.fontSize = "12px";
@@ -377,6 +391,7 @@ export default class SettingsView {
       makeRow("Lizenz-ID", valueLicenseId),
       makeRow("Edition", valueEdition),
       makeRow("Gueltig bis", valueValidUntil),
+      makeRow("Resttage", valueDaysRemaining),
       makeRow("Aktivierte Features", valueFeatures),
       makeRow("Hinweis", valueReason),
     ].forEach(([labelEl, valueEl]) => infoGrid.append(labelEl, valueEl));
@@ -416,24 +431,38 @@ export default class SettingsView {
       const reason = String(res?.reason || "").trim();
       const features = Array.isArray(res?.features) ? res.features : [];
       const reasonText = this._formatLicenseReason(reason, fallbackError);
+      const warningText = this._formatLicenseWarning(res, fallbackError);
+      const daysRemaining = Number(res?.daysRemaining);
+      const isExpired = !!res?.expired || reason === "LICENSE_EXPIRED";
+      const isExpiringSoon = !!res?.expiresSoon && !isExpired;
+      const accentColor = isExpired ? "#b91c1c" : isExpiringSoon ? "#b45309" : valid ? "#166534" : "#b91c1c";
 
       statusLabel.textContent = valid ? "Lizenz gueltig" : "Lizenz ungueltig";
-      statusLabel.style.color = valid ? "#166534" : "#b91c1c";
-      statusHint.textContent = valid ? "Offline-Lizenz aktiv" : reasonText;
-      statusHint.style.color = valid ? "#166534" : "#b91c1c";
+      statusLabel.style.color = accentColor;
+      statusHint.textContent = valid
+        ? isExpiringSoon
+          ? warningText
+          : "Offline-Lizenz aktiv"
+        : warningText;
+      statusHint.style.color = accentColor;
 
-      valueStatus.textContent = valid ? "gueltig" : "ungueltig";
-      valueStatus.style.color = valid ? "#166534" : "#b91c1c";
+      valueStatus.textContent = valid ? (isExpiringSoon ? "gueltig, Warnung" : "gueltig") : "ungueltig";
+      valueStatus.style.color = accentColor;
       valueStatus.style.fontWeight = "700";
       valueCustomer.textContent = String(res?.customerName || "").trim() || "-";
       valueLicenseId.textContent = String(res?.licenseId || "").trim() || "-";
       valueEdition.textContent = String(res?.edition || "").trim() || "-";
       valueValidUntil.textContent = this._formatLicenseDate(res?.validUntil);
+      valueDaysRemaining.textContent = Number.isFinite(daysRemaining) ? String(daysRemaining) : "-";
       valueFeatures.textContent = features.length ? features.join(", ") : "-";
-      valueReason.textContent = reasonText;
+      valueReason.textContent = valid ? (isExpiringSoon ? warningText : "Keine Warnung") : reasonText;
 
       if (!valid && reason === "NO_LICENSE") {
         setMessage("Es ist aktuell keine Lizenz installiert. Bitte eine .bbmlic-Datei importieren.", false);
+      } else if (isExpired) {
+        setMessage("Lizenz ist abgelaufen.", true);
+      } else if (valid && isExpiringSoon) {
+        setMessage(warningText, true);
       } else if (!valid) {
         setMessage(reasonText, true);
       } else {

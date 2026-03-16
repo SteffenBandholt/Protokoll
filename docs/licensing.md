@@ -26,6 +26,10 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 - Signatur-, Ablauf-, Produkt- und Machine-ID-Prüfung sind zentral in `licenseVerifier.js` gebündelt.
 - Fehlende oder noch nicht ersetzte `public_key.pem` wird kontrolliert als ungültige Lizenzbasis behandelt.
 - Build-Konfiguration baut nur noch `nsis` und ist auf `asar: true` umgestellt.
+- `license:get-status` liefert zusätzlich Ablaufhinweise:
+  - `daysRemaining` wird als aufgerundete Tagesdifferenz zwischen `validUntil` und `jetzt` berechnet.
+  - `expired` ist `true`, wenn `validUntil` bereits in der Vergangenheit liegt.
+  - `expiresSoon` ist `true`, wenn die Lizenz noch nicht abgelaufen ist, aber in 14 Tagen oder weniger endet.
 
 
 ## Derzeit geschuetzte Features

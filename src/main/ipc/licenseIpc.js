@@ -12,8 +12,40 @@ const LICENSE_FILE_FILTER = [
   },
 ];
 
+function _getExpiryInfo(validUntil) {
+  const raw = String(validUntil || "").trim();
+  if (!raw) {
+    return {
+      daysRemaining: null,
+      expiresSoon: false,
+      expired: false,
+    };
+  }
+
+  const expiry = new Date(raw);
+  if (Number.isNaN(expiry.getTime())) {
+    return {
+      daysRemaining: null,
+      expiresSoon: false,
+      expired: false,
+    };
+  }
+
+  const diffMs = expiry.getTime() - Date.now();
+  const daysRemaining = Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+  const expired = diffMs < 0;
+  const expiresSoon = !expired && daysRemaining <= 14;
+
+  return {
+    daysRemaining,
+    expiresSoon,
+    expired,
+  };
+}
+
 function _toStatusPayload(result) {
   const license = result?.license && typeof result.license === "object" ? result.license : {};
+  const expiryInfo = _getExpiryInfo(license.validUntil);
 
   return {
     valid: !!result?.valid,
@@ -25,6 +57,9 @@ function _toStatusPayload(result) {
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
     features: Array.isArray(license.features) ? license.features : [],
+    daysRemaining: expiryInfo.daysRemaining,
+    expiresSoon: expiryInfo.expiresSoon,
+    expired: expiryInfo.expired,
   };
 }
 
