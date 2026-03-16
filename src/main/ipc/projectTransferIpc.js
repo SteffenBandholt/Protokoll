@@ -153,6 +153,11 @@ async function _createExportZip({ exportPath, projectDir, manifest, payloads }) 
       archive.append(JSON.stringify(part.data || {}, null, 2), { name: part.name });
     }
 
+    // Der Import erwartet den Ordner "project-folder" immer. Wir legen den
+    // Verzeichniseintrag deshalb auch dann an, wenn lokal (noch) keine Dateien
+    // im Projektordner liegen.
+    archive.append("", { name: "project-folder/" });
+
     if (projectDir && fs.existsSync(projectDir)) {
       archive.directory(projectDir, "project-folder");
     }
@@ -487,11 +492,22 @@ function registerProjectTransferIpc() {
       await fs.promises.mkdir(path.dirname(targetDir), { recursive: true });
       await fs.promises.cp(projectFolderSource, targetDir, { recursive: true });
 
+      let sourceZipDeleted = false;
+      let sourceZipDeleteWarning = "";
+      try {
+        await fs.promises.rm(absPath, { force: true });
+        sourceZipDeleted = true;
+      } catch (deleteErr) {
+        sourceZipDeleteWarning = deleteErr?.message || "Projekt-ZIP konnte nach dem Import nicht geloescht werden.";
+      }
+
       return {
         ok: true,
         projectId: project.id,
         projectNumber,
         projectShortName,
+        sourceZipDeleted,
+        warning: sourceZipDeleted ? "" : sourceZipDeleteWarning,
       };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };

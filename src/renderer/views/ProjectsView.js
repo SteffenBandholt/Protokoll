@@ -461,6 +461,21 @@ export default class ProjectsView {
     this._transferMode = "menu";
   }
 
+  _formatTransferImportError(raw) {
+    const msg = String(raw || "").trim();
+    if (!msg) return "Import fehlgeschlagen.";
+    if (msg === "Projekt existiert bereits (ID).") {
+      return "Import nicht moeglich: Dieses Projekt ist bereits in der App vorhanden.";
+    }
+    if (msg === "Projekt mit gleicher Projektnummer existiert bereits.") {
+      return "Import nicht moeglich: Ein Projekt mit derselben Projektnummer existiert bereits.";
+    }
+    if (msg === "Projektordner existiert bereits.") {
+      return "Import nicht moeglich: Der Projektordner existiert lokal bereits.";
+    }
+    return msg;
+  }
+
   async _runTransferImport() {
     if (this._transferBusy) return;
     if (typeof window.bbmProjectTransfer?.importProject !== "function") {
@@ -486,14 +501,17 @@ export default class ProjectsView {
         try {
           const res = await window.bbmProjectTransfer.importProject(filePath);
           if (!res?.ok) {
-            this._flashMsg(res?.error || "Import fehlgeschlagen.", 8000);
+            this._flashMsg(this._formatTransferImportError(res?.error), 10000);
             return;
           }
-          this._flashMsg("Projekt importiert.", 4000);
+          const importMsg = res?.warning
+            ? `Projekt importiert, aber Aufraeumen fehlgeschlagen: ${res.warning}`
+            : "Projekt importiert. Projekt-ZIP wurde entfernt.";
+          this._flashMsg(importMsg, res?.warning ? 10000 : 5000);
           await this.reloadProjects();
         } catch (err) {
           console.error("[ProjectsView] transfer import failed:", err);
-          this._flashMsg("Import fehlgeschlagen.", 8000);
+          this._flashMsg(this._formatTransferImportError(err?.message || err), 10000);
         } finally {
           this._setTransferStatus("");
           this._setTransferBusy(false);
@@ -534,7 +552,7 @@ export default class ProjectsView {
         this._flashMsg(res?.error || "Export fehlgeschlagen.", 8000);
         return;
       }
-      this._flashMsg("Export abgeschlossen.", 4000);
+      this._flashMsg(`Export abgeschlossen: ${res?.exportPath || "Pfad unbekannt"}`, 10000);
       await this.reloadProjects();
     } catch (err) {
       console.error("[ProjectsView] transfer export failed:", err);
