@@ -28,7 +28,7 @@
   "build": {
     "appId": "de.bbm.baubesprechungsmanager",
     "productName": "BBM",
-    "asar": false,
+    "asar": true,
     "directories": {
       "output": "dist"
     },
@@ -50,7 +50,6 @@
     "win": {
       "icon": "build/bbm-icon.ico",
       "target": [
-        "portable",
         "nsis"
       ]
     },

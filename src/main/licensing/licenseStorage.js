@@ -11,11 +11,12 @@ function getLicenseFilePath() {
 
 function saveLicense(licenseObject, machineId) {
   const filePath = getLicenseFilePath();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
   const data = {
     license: licenseObject,
     machineId,
-    activatedAt: new Date().toISOString()
+    activatedAt: new Date().toISOString(),
   };
 
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
@@ -44,5 +45,5 @@ function hasLicense() {
 module.exports = {
   saveLicense,
   loadLicense,
-  hasLicense
+  hasLicense,
 };

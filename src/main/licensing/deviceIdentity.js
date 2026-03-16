@@ -34,14 +34,15 @@ function getMachineId() {
 
   const data = {
     machineId,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
 
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
 
   return machineId;
 }
 
 module.exports = {
-  getMachineId
+  getMachineId,
 };

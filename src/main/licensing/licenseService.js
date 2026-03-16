@@ -9,15 +9,15 @@ function checkLicense() {
   return cachedResult;
 }
 
-function getStatus() {
-  if (!cachedResult) {
-    checkLicense();
+function getStatus({ fresh = false } = {}) {
+  if (fresh || !cachedResult) {
+    return checkLicense();
   }
   return cachedResult;
 }
 
-function requireValidLicense() {
-  const result = getStatus();
+function requireValidLicense({ fresh = false } = {}) {
+  const result = getStatus({ fresh });
 
   if (!result.valid) {
     throw new Error(`LICENSE_INVALID:${result.reason}`);
@@ -27,34 +27,24 @@ function requireValidLicense() {
 }
 
 function requireFeature(feature) {
-  const license = requireValidLicense();
+  const normalizedFeature = String(feature || "").trim();
+  if (!normalizedFeature) {
+    throw new Error("FEATURE_NOT_ALLOWED:");
+  }
 
-  if (!license.features || !license.features.includes(feature)) {
-    throw new Error(`FEATURE_NOT_ALLOWED:${feature}`);
+  const license = requireValidLicense({ fresh: true });
+  const features = Array.isArray(license?.features) ? license.features : [];
+
+  if (!features.includes(normalizedFeature)) {
+    throw new Error(`FEATURE_NOT_ALLOWED:${normalizedFeature}`);
   }
 
   return true;
 }
-function requireFeature(feature) {
 
-  // immer aktuelle Lizenz prüfen
-  const result = verifyLicense(loadLicense());
-
-  if (!result.valid) {
-    throw new Error(`LICENSE_INVALID:${result.reason}`);
-  }
-
-  const license = result.license;
-
-  if (!license.features || !license.features.includes(feature)) {
-    throw new Error(`FEATURE_NOT_ALLOWED:${feature}`);
-  }
-
-  return true;
-}
 module.exports = {
   checkLicense,
   getStatus,
   requireValidLicense,
-  requireFeature
+  requireFeature,
 };
