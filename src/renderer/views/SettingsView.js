@@ -499,14 +499,25 @@ export default class SettingsView {
     btnReload.textContent = "Status aktualisieren";
     applyPopupButtonStyle(btnReload);
 
-    buttonRow.append(btnImport, btnReload);
-    statusCard.append(statusRow, messageEl, licenseBanner, infoGrid, buttonRow);
+    const btnCreateRequest = document.createElement("button");
+    btnCreateRequest.type = "button";
+    btnCreateRequest.textContent = "Lizenzanforderung erzeugen";
+    applyPopupButtonStyle(btnCreateRequest);
+
+    const requestHint = document.createElement("div");
+    requestHint.style.fontSize = "11px";
+    requestHint.style.opacity = "0.8";
+    requestHint.textContent = "Soft-Lizenz: direkt importierbar. Vollversion: zuerst auf dem Zielrechner eine Lizenzanforderung erzeugen und danach die passende Lizenz importieren.";
+
+    buttonRow.append(btnImport, btnReload, btnCreateRequest);
+    statusCard.append(statusRow, messageEl, licenseBanner, infoGrid, requestHint, buttonRow);
     wrap.append(statusCard, diagnosticsCard);
 
     const setBusy = (busy) => {
       const isBusy = !!busy;
       btnImport.disabled = isBusy;
       btnReload.disabled = isBusy;
+      btnCreateRequest.disabled = isBusy;
       btnCopyDiagnostics.disabled = isBusy;
     };
 
@@ -661,6 +672,32 @@ export default class SettingsView {
       } catch (err) {
         renderStatus({}, err?.message || "Lizenz konnte nicht importiert werden.");
         await loadDiagnostics();
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    btnCreateRequest.onclick = async () => {
+      if (typeof api.licenseCreateRequest !== "function") {
+        setMessage("Lizenzanforderung ist in dieser App-Version nicht verfuegbar.", true);
+        return;
+      }
+      setBusy(true);
+      setMessage("Lizenzanforderung wird erzeugt ...", false);
+      try {
+        const customerHint = String(valueCustomer.textContent || "").trim();
+        const res = await api.licenseCreateRequest({ product: "bbm-protokoll", customerHint });
+        if (res?.canceled) {
+          setMessage("Lizenzanforderung abgebrochen.", false);
+          return;
+        }
+        if (!res?.ok) {
+          setMessage(this._formatLicenseGenerationError(res?.error), true);
+          return;
+        }
+        setMessage(`Lizenzanforderung gespeichert: ${res?.filePath || "-"}`, false);
+      } catch (err) {
+        setMessage(this._formatLicenseGenerationError(err?.message || err), true);
       } finally {
         setBusy(false);
       }
@@ -2058,6 +2095,11 @@ export default class SettingsView {
     valueLicenseIssuedAt.style.fontSize = "12px";
     valueLicenseIssuedAt.style.wordBreak = "break-word";
 
+    const valueLicenseRequestMachineId = document.createElement("div");
+    valueLicenseRequestMachineId.textContent = "-";
+    valueLicenseRequestMachineId.style.fontSize = "12px";
+    valueLicenseRequestMachineId.style.wordBreak = "break-word";
+
     const inpLicenseValidFrom = document.createElement("input");
     inpLicenseValidFrom.type = "date";
     inpLicenseValidFrom.value = new Date().toISOString().slice(0, 10);
@@ -2217,15 +2259,21 @@ export default class SettingsView {
     btnLicenseLoad.textContent = "Lizenz laden";
     applyPopupButtonStyle(btnLicenseLoad);
 
+    const btnLicenseLoadRequest = document.createElement("button");
+    btnLicenseLoadRequest.type = "button";
+    btnLicenseLoadRequest.textContent = "Lizenzanforderung laden";
+    applyPopupButtonStyle(btnLicenseLoadRequest);
+
     const btnLicenseOpenOutput = document.createElement("button");
     btnLicenseOpenOutput.type = "button";
     btnLicenseOpenOutput.textContent = "Ausgabeordner oeffnen";
     btnLicenseOpenOutput.disabled = true;
     applyPopupButtonStyle(btnLicenseOpenOutput);
 
-    licenseGenActions.append(btnLicenseLoad, btnLicenseGenerate, btnLicenseOpenOutput);
+    licenseGenActions.append(btnLicenseLoad, btnLicenseLoadRequest, btnLicenseGenerate, btnLicenseOpenOutput);
 
     let loadedLicenseMeta = null;
+    let loadedRequestMeta = null;
 
     const updateBindingHint = () => {
       const isMachineBound = String(inpLicenseBinding.value || "").trim() === "machine";
@@ -2253,6 +2301,7 @@ export default class SettingsView {
         if (el) el.disabled = isBusy;
       });
       btnLicenseLoad.disabled = isBusy;
+      btnLicenseLoadRequest.disabled = isBusy;
       btnLicenseGenerate.disabled = isBusy;
       btnLicenseOpenOutput.disabled = isBusy || !btnLicenseOpenOutput.dataset.outputPath;
     };
@@ -2260,7 +2309,7 @@ export default class SettingsView {
     const syncLoadedLicenseInfo = () => {
       if (!loadedLicenseMeta) {
         loadedLicenseInfo.textContent = activeLicenseTemplate
-          ? `Keine bestehende Lizenz geladen.\nAktive Vorlage: ${activeLicenseTemplate}`
+          ? `Keine bestehende Lizenz geladen.\nAktive Vorlage: ${activeLicenseTemplate}${loadedRequestMeta?.machineId ? `\nGeladene Lizenzanforderung: ${loadedRequestMeta.machineId}` : ""}`
           : "Keine bestehende Lizenz geladen.";
         btnLicenseGenerate.textContent = "Lizenz verlaengern";
         return;
@@ -2273,6 +2322,7 @@ export default class SettingsView {
         `Vorherige Lizenznummer: ${originalLicenseId || "-"}`,
         `IssuedAt: ${loadedLicenseMeta.issuedAt || "-"}`,
         `Modus: ${this._formatLicenseBinding(inpLicenseBinding.value)}`,
+        `Lizenzanforderung: ${loadedRequestMeta?.machineId || "-"}`,
         sameId
           ? "Verlaengerung: Bestehende Lizenznummer wird weiterverwendet."
           : "Verlaengerung: Neue Lizenznummer eingetragen.",
@@ -2304,12 +2354,33 @@ export default class SettingsView {
       syncLoadedLicenseInfo();
     };
 
+    const applyLoadedRequest = (res) => {
+      loadedRequestMeta = {
+        filePath: String(res?.filePath || "").trim(),
+        machineId: String(res?.machineId || "").trim(),
+      };
+      inpLicenseProduct.value = String(res?.product || "bbm-protokoll").trim() || "bbm-protokoll";
+      inpLicenseBinding.value = "machine";
+      valueLicenseRequestMachineId.textContent = loadedRequestMeta.machineId || "-";
+      if (!String(inpLicenseCustomer.value || "").trim() && String(res?.customerHint || "").trim()) {
+        inpLicenseCustomer.value = String(res?.customerHint || "").trim();
+      }
+      activeLicenseTemplate = "";
+      licenseTemplateInfo.textContent = `Lizenzanforderung geladen: ${loadedRequestMeta.filePath || "-"}`;
+      updateBindingHint();
+      syncLoadedLicenseInfo();
+    };
+
     const collectLicenseFormData = () => ({
       product: String(inpLicenseProduct.value || "").trim() || "bbm-protokoll",
       customerName: String(inpLicenseCustomer.value || "").trim(),
       licenseId: String(inpLicenseId.value || "").trim(),
       edition: String(inpLicenseEdition.value || "").trim() || "test",
       binding: String(inpLicenseBinding.value || "").trim() || "none",
+      machineId:
+        String(inpLicenseBinding.value || "").trim() === "machine"
+          ? String(loadedRequestMeta?.machineId || "").trim()
+          : "",
       validFrom: String(inpLicenseValidFrom.value || "").trim(),
       validUntil: String(inpLicenseValidUntil.value || "").trim(),
       durationDays: String(inpLicenseDuration.value || "").trim(),
@@ -2348,6 +2419,39 @@ export default class SettingsView {
         }
         applyLoadedLicense(res);
         licenseGenStatus.textContent = "Bestehende Lizenzdaten geladen.";
+        licenseGenStatus.style.color = "#166534";
+      } catch (err) {
+        licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
+        licenseGenStatus.style.color = "#b91c1c";
+      } finally {
+        setLicenseGenBusy(false);
+      }
+    };
+
+    btnLicenseLoadRequest.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseLoadRequestForGenerate !== "function") {
+        licenseGenStatus.textContent = "Lizenzanforderungs-IPC ist nicht verfuegbar.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+      setLicenseGenBusy(true);
+      licenseGenStatus.textContent = "Lizenzanforderung wird geladen ...";
+      licenseGenStatus.style.color = "#4b5563";
+      try {
+        const res = await api.licenseLoadRequestForGenerate({});
+        if (res?.canceled) {
+          licenseGenStatus.textContent = "Lizenzanforderung laden abgebrochen.";
+          licenseGenStatus.style.color = "#4b5563";
+          return;
+        }
+        if (!res?.ok) {
+          licenseGenStatus.textContent = this._formatLicenseGenerationError(res?.error);
+          licenseGenStatus.style.color = "#b91c1c";
+          return;
+        }
+        applyLoadedRequest(res);
+        licenseGenStatus.textContent = "Lizenzanforderung geladen.";
         licenseGenStatus.style.color = "#166534";
       } catch (err) {
         licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
@@ -2422,6 +2526,7 @@ export default class SettingsView {
       mkRow("Edition", inpLicenseEdition),
       mkRow("Lizenzmodus", inpLicenseBinding),
       bindingHint,
+      mkRow("Machine-ID aus Lizenzanforderung", valueLicenseRequestMachineId),
       mkRow("IssuedAt (geladen)", valueLicenseIssuedAt),
       mkRow("Gueltig von", inpLicenseValidFrom),
       mkRow("Nutzungstage", inpLicenseDuration),

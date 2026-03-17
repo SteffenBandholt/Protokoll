@@ -43,6 +43,7 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
     - Vollversion (rechnergebunden)
     - Verifikation prueft zusaetzlich die Machine-ID des Zielrechners
 - Fehlt `binding` in einer bestehenden Lizenz, wird aus Rueckwaertskompatibilitaet `none` angenommen.
+- Fuer `binding = machine` gibt es zusaetzlich eine Lizenzanforderung als JSON-Datei vom Zielrechner.
 
 
 ## Derzeit geschuetzte Features
@@ -74,6 +75,12 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 - Beim Erzeugen schreibt die App `binding` in die Eingabe fuer `C:\license-tool`.
 - Bei `binding = machine` wird die aktuelle lokale Machine-ID in die Generator-Eingabe uebernommen.
 - Fuer Vollversionen auf einem anderen Zielrechner ist daher weiterhin eine separate Machine-ID-Anforderung fuer diesen Rechner noetig.
+- Typischer Vollversions-Ablauf:
+  1. App auf dem Zielrechner starten
+  2. Im Lizenzbereich `Lizenzanforderung erzeugen`
+  3. JSON-Datei an den Entwickler geben
+  4. Im Entwicklungsbereich `Lizenzanforderung laden`
+  5. Vollversion erzeugen und anschliessend importieren
 - Im Bereich `Lizenz erstellen / verlaengern` gibt es zusaetzlich Schnellvorlagen, die nur Formularfelder vorbelegen:
   - `30 Tage Test`
     - `product = bbm-protokoll`

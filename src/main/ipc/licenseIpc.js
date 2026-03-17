@@ -3,6 +3,7 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const { spawn } = require("child_process");
 
 const { saveLicense, loadLicense, deleteLicense } = require("../licensing/licenseStorage");
@@ -107,6 +108,32 @@ function _readLicenseFile(filePath) {
   return parsed;
 }
 
+function _readLicenseRequestFile(filePath) {
+  const raw = fs.readFileSync(filePath, "utf8");
+  const parsed = JSON.parse(raw);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    const err = new Error("INVALID_FORMAT");
+    err.code = "INVALID_FORMAT";
+    throw err;
+  }
+  const product = String(parsed.product || "").trim();
+  const machineId = String(parsed.machineId || "").trim();
+  if (!product || !machineId) {
+    const err = new Error("INVALID_FORMAT");
+    err.code = "INVALID_FORMAT";
+    throw err;
+  }
+  return {
+    filePath: String(filePath || "").trim(),
+    product,
+    machineId,
+    appVersion: String(parsed.appVersion || "").trim(),
+    createdAt: String(parsed.createdAt || "").trim(),
+    customerHint: String(parsed.customerHint || "").trim(),
+    deviceName: String(parsed.deviceName || "").trim(),
+  };
+}
+
 function _toEditableLicensePayload(parsed = {}, filePath = "") {
   const license = parsed?.license && typeof parsed.license === "object" ? parsed.license : {};
   const issuedAt = String(license.issuedAt || "").trim();
@@ -198,7 +225,8 @@ function _validateGenerationPayload(raw = {}) {
   if (!Number.isFinite(maxDevices) || maxDevices < 1) throw new Error("MAX_DEVICES_INVALID");
   if (!features.length) throw new Error("FEATURES_REQUIRED");
 
-  const currentMachineId = binding === "machine" ? String(getMachineId() || "").trim() : "";
+  const requestedMachineId = String(raw?.machineId || "").trim();
+  const currentMachineId = binding === "machine" ? requestedMachineId || String(getMachineId() || "").trim() : "";
   if (binding === "machine" && !currentMachineId) throw new Error("MACHINE_ID_REQUIRED_FOR_BINDING");
 
   return {
@@ -372,6 +400,61 @@ function registerLicenseIpc() {
     } catch (err) {
       const payload = _toStatusPayload({ valid: false, reason: "INVALID_FORMAT" });
       return { ok: false, error: err?.message || String(err), ...payload };
+    }
+  });
+
+  ipcMain.handle("license:create-request", async (event, raw) => {
+    try {
+      const machineId = String(getMachineId() || "").trim();
+      if (!machineId) return { ok: false, error: "MACHINE_ID_REQUIRED_FOR_BINDING" };
+
+      const product = String(raw?.product || "bbm-protokoll").trim() || "bbm-protokoll";
+      const customerHint = String(raw?.customerHint || "").trim();
+      const createdAt = new Date().toISOString();
+      const appVersion = String(app?.getVersion?.() || "").trim();
+      const deviceName = String(os.hostname() || "").trim();
+      const shortMachineId = machineId.slice(0, 8) || "machine";
+      const suggestedName = `BBM_Lizenzanfrage_${createdAt.slice(0, 10)}_${shortMachineId}${customerHint ? `_${_sanitizeFilePart(customerHint, "kunde")}` : ""}.json`;
+
+      const result = await dialog.showSaveDialog(_pickWindow(event), {
+        title: "Lizenzanforderung speichern",
+        defaultPath: suggestedName,
+        filters: [{ name: "Lizenzanforderung", extensions: ["json"] }],
+      });
+      if (result.canceled || !result.filePath) return { ok: true, canceled: true };
+
+      const payload = {
+        product,
+        machineId,
+        appVersion,
+        createdAt,
+        customerHint,
+        deviceName,
+      };
+      await fs.promises.writeFile(result.filePath, JSON.stringify(payload, null, 2), "utf8");
+      return { ok: true, filePath: result.filePath, ...payload };
+    } catch (err) {
+      return { ok: false, error: String(err?.code || err?.message || "REQUEST_SAVE_FAILED").trim() || "REQUEST_SAVE_FAILED" };
+    }
+  });
+
+  ipcMain.handle("license:load-request-for-generate", async (event) => {
+    if (!_isDevLicenseGenerationAllowed()) {
+      return { ok: false, error: "LICENSE_GENERATION_NOT_ALLOWED" };
+    }
+    try {
+      const result = await dialog.showOpenDialog(_pickWindow(event), {
+        title: "Lizenzanforderung laden",
+        properties: ["openFile"],
+        filters: [{ name: "Lizenzanforderung", extensions: ["json"] }],
+      });
+      if (result.canceled || !Array.isArray(result.filePaths) || !result.filePaths[0]) {
+        return { ok: true, canceled: true };
+      }
+      return { ok: true, ..._readLicenseRequestFile(String(result.filePaths[0] || "").trim()) };
+    } catch (err) {
+      const reason = String(err?.code || err?.message || "INVALID_FORMAT").trim() || "INVALID_FORMAT";
+      return { ok: false, error: reason };
     }
   });
 
