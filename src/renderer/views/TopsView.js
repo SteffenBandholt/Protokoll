@@ -151,6 +151,8 @@ export default class TopsView {
     this._audioPanel = null;
     this._audioPanelBusy = false;
     this._audioPanelStatusMessage = "";
+    this._audioLicenseState = { loaded: false, allowed: false, message: "Audio ist nur mit gueltiger Audio-Lizenz verfuegbar." };
+    this._audioLicenseLoading = null;
     this._audioSuggestionMarkTimer = null;
     this._viewMenuOpen = false;
     this._viewMenuDocMouseDown = null;
@@ -2303,6 +2305,92 @@ _isoToDDMMYYYY(iso) {
     requestAnimationFrame(() => this._scrollListToSelectedAndEnd());
   }
 
+  _getAudioLicenseMessage() {
+    return (
+      String(this._audioLicenseState?.message || "").trim() || "Audio ist nur mit gueltiger Audio-Lizenz verfuegbar."
+    );
+  }
+
+  _applyAudioLicenseUi() {
+    if (!this.btnAudioAnalyze) return;
+    const ro = !!this.isReadOnly;
+    const busy = !!this._busy;
+    const audioAllowed = !!this._audioLicenseState?.allowed;
+    this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId || !audioAllowed;
+    this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
+    this.btnAudioAnalyze.style.display = ro || !this.meetingId ? "none" : "";
+    this.btnAudioAnalyze.title = audioAllowed ? "Audio-Funktionen oeffnen" : this._getAudioLicenseMessage();
+  }
+
+  async _refreshAudioLicenseState(options = {}) {
+    const force = !!options?.force;
+    if (!force && this._audioLicenseLoading) return await this._audioLicenseLoading;
+    if (!force && this._audioLicenseState?.loaded) {
+      this._applyAudioLicenseUi();
+      return this._audioLicenseState;
+    }
+
+    const currentLoad = (async () => {
+      const api = window?.bbmDb || {};
+      if (typeof api.licenseGetStatus !== "function") {
+        this._audioLicenseState = {
+          loaded: true,
+          allowed: false,
+          message: "Audio-Lizenzstatus ist nicht verfuegbar.",
+        };
+        this._applyAudioLicenseUi();
+        return this._audioLicenseState;
+      }
+
+      try {
+        const res = await api.licenseGetStatus();
+        const features = Array.isArray(res?.features)
+          ? res.features.map((value) => String(value || "").trim().toLowerCase())
+          : [];
+        const valid = !!res?.valid;
+        const allowed = valid && features.includes("audio");
+        this._audioLicenseState = {
+          loaded: true,
+          allowed,
+          message: allowed
+            ? ""
+            : valid
+              ? "Audio ist in dieser Lizenz nicht freigeschaltet."
+              : "Audio ist nur mit gueltiger Audio-Lizenz verfuegbar.",
+        };
+      } catch (_err) {
+        this._audioLicenseState = {
+          loaded: true,
+          allowed: false,
+          message: "Audio-Lizenzstatus konnte nicht geprueft werden.",
+        };
+      }
+
+      this._applyAudioLicenseUi();
+      return this._audioLicenseState;
+    })();
+
+    this._audioLicenseLoading = currentLoad;
+    try {
+      return await currentLoad;
+    } finally {
+      if (this._audioLicenseLoading === currentLoad) {
+        this._audioLicenseLoading = null;
+      }
+    }
+  }
+
+  async _ensureAudioLicensed(options = {}) {
+    const state = await this._refreshAudioLicenseState({ force: !!options?.force });
+    if (state?.allowed) return true;
+    const message = String(state?.message || "Audio ist nicht freigeschaltet.").trim();
+    this._audioPanelStatusMessage = message;
+    if (options?.alert !== false) {
+      alert(message);
+    }
+    return false;
+  }
+
   async _warnAboutManualAssignBeforeClose() {
     if (!this._hasManualAssignChildren()) return true;
     return window.confirm(
@@ -2313,6 +2401,11 @@ _isoToDDMMYYYY(iso) {
   async _loadAudioSuggestions() {
     if (!this.meetingId || typeof window?.bbmDb?.audioGetSuggestions !== "function") {
       return { suggestions: [], audioImport: null, transcript: null };
+    }
+
+    const audioAllowed = await this._refreshAudioLicenseState();
+    if (!audioAllowed?.allowed) {
+      throw new Error(this._getAudioLicenseMessage());
     }
 
     const res = await window.bbmDb.audioGetSuggestions({
@@ -2379,6 +2472,7 @@ _isoToDDMMYYYY(iso) {
 
   async _openAudioPanel() {
     if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioLicensed())) return;
     const panel = this._getAudioPanel();
     panel.open({
       title: "Sprachdatei auswerten",
@@ -2400,6 +2494,7 @@ _isoToDDMMYYYY(iso) {
 
   async _runAudioImportFlow() {
     if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioLicensed())) return;
     const api = window.bbmDb || {};
     if (
       typeof api.audioImport !== "function" ||
@@ -2461,6 +2556,7 @@ _isoToDDMMYYYY(iso) {
 
   async _createDemoAudioSuggestion(demoType) {
     if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioLicensed())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioCreateDemoSuggestion !== "function") {
       alert("audioCreateDemoSuggestion ist nicht verfÃ¼gbar.");
@@ -2490,6 +2586,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _applyAudioSuggestion(suggestion, options = {}) {
+    if (!(await this._ensureAudioLicensed())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioApplySuggestion !== "function") {
       alert("audioApplySuggestion ist nicht verf?gbar.");
@@ -2523,6 +2620,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _rejectAudioSuggestion(suggestion) {
+    if (!(await this._ensureAudioLicensed())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioRejectSuggestion !== "function") {
       alert("audioRejectSuggestion ist nicht verfügbar.");
@@ -3639,6 +3737,7 @@ _isoToDDMMYYYY(iso) {
     this._updateAmpelToggleUi = updateAmpelToggleUi;
     updateAmpelToggleUi();
     this._updateTopBarProtocolTitle();
+    fireAndForget(this._refreshAudioLicenseState());
 
     // layout spacers
     const updateEditBoxSpacer = () => {
@@ -4728,9 +4827,7 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
     if (this.btnAudioAnalyze) {
-      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId;
-      this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
-      this.btnAudioAnalyze.style.display = ro || !this.meetingId ? "none" : "";
+      this._applyAudioLicenseUi();
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;

@@ -23,6 +23,23 @@ const LICENSE_TOOL_INPUT_DIR = path.join(LICENSE_TOOL_ROOT, "input");
 const LICENSE_TOOL_OUTPUT_DIR = path.join(LICENSE_TOOL_ROOT, "output");
 const LICENSE_TOOL_SCRIPT = path.join(LICENSE_TOOL_ROOT, "generate-license.cjs");
 const LICENSE_TOOL_PRIVATE_KEY = path.join(LICENSE_TOOL_ROOT, "keys", "private_key.pem");
+const OPTIONAL_LICENSE_FEATURES = new Set(["audio"]);
+
+function _normalizeOptionalFeatures(features) {
+  return Array.from(
+    new Set(
+      (Array.isArray(features) ? features : [])
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter((value) => OPTIONAL_LICENSE_FEATURES.has(value))
+    )
+  );
+}
+
+function _describeOptionalFeatures(features) {
+  const normalized = _normalizeOptionalFeatures(features);
+  if (!normalized.length) return "Standard";
+  return normalized.join(",");
+}
 
 function _getExpiryInfo(validUntil) {
   const raw = String(validUntil || "").trim();
@@ -54,7 +71,7 @@ function _toStatusPayload(status) {
     licenseId: String(license.licenseId || "").trim(),
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
-    features: Array.isArray(license.features) ? license.features : [],
+    features: _normalizeOptionalFeatures(license.features),
     binding,
     machineId: String(status?.machineId || getMachineId() || "").trim(),
     appVersion: String(app?.getVersion?.() || "").trim(),
@@ -69,7 +86,6 @@ function _toStatusPayload(status) {
 }
 
 function _buildDiagnosticsText(payload) {
-  const features = Array.isArray(payload?.features) ? payload.features : [];
   return [
     `Lizenzstatus: ${payload?.valid ? "gueltig" : "ungueltig"}`,
     `Grund: ${payload?.reason || "-"}`,
@@ -80,7 +96,7 @@ function _buildDiagnosticsText(payload) {
     `Gueltig bis: ${payload?.validUntil || "-"}`,
     `Machine-ID: ${payload?.machineId || "-"}`,
     `App-Version: ${payload?.appVersion || "-"}`,
-    `Features: ${features.length ? features.join(",") : "-"}`,
+    `Features: ${_describeOptionalFeatures(payload?.features)}`,
   ].join("\n");
 }
 
@@ -155,7 +171,7 @@ function _toEditableLicensePayload(parsed = {}, filePath = "") {
         : Number.isFinite(Number(license.maxDevices))
           ? Number(license.maxDevices)
           : 1,
-    features: Array.isArray(license.features) ? license.features.map((v) => String(v || "").trim()).filter(Boolean) : [],
+    features: _normalizeOptionalFeatures(license.features),
     notes: String(license.notes || "").trim(),
   };
 }
@@ -209,9 +225,7 @@ function _validateGenerationPayload(raw = {}) {
   const explicitValidUntil = _normalizeIsoDate(raw?.validUntil);
   const validUntil = explicitValidUntil || _computeValidUntil(validFrom, durationDays);
   const maxDevices = Number(raw?.maxDevices);
-  const features = Array.isArray(raw?.features)
-    ? raw.features.map((v) => String(v || "").trim()).filter(Boolean)
-    : [];
+  const features = _normalizeOptionalFeatures(raw?.features);
   const notes = String(raw?.notes || "").trim();
 
   if (!customerName) throw new Error("CUSTOMER_NAME_REQUIRED");
@@ -223,8 +237,6 @@ function _validateGenerationPayload(raw = {}) {
     throw new Error("VALID_UNTIL_BEFORE_VALID_FROM");
   }
   if (!Number.isFinite(maxDevices) || maxDevices < 1) throw new Error("MAX_DEVICES_INVALID");
-  if (!features.length) throw new Error("FEATURES_REQUIRED");
-
   const requestedMachineId = String(raw?.machineId || "").trim();
   const currentMachineId = binding === "machine" ? requestedMachineId || String(getMachineId() || "").trim() : "";
   if (binding === "machine" && !currentMachineId) throw new Error("MACHINE_ID_REQUIRED_FOR_BINDING");

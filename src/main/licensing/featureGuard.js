@@ -9,7 +9,19 @@ const LICENSE_FEATURES = {
   EXPORT: "export",
   MAIL: "mail",
   MAIL_OUTLOOK_DRAFT: "mail",
+  AUDIO: "audio",
 };
+
+const ALWAYS_INCLUDED_FEATURES = new Set([
+  LICENSE_FEATURES.APP,
+  LICENSE_FEATURES.PDF,
+  LICENSE_FEATURES.EXPORT,
+  LICENSE_FEATURES.MAIL,
+]);
+
+function _isAlwaysIncludedFeature(feature) {
+  return ALWAYS_INCLUDED_FEATURES.has(String(feature || "").trim().toLowerCase());
+}
 
 function _extractLicenseInfo(status) {
   const license = status?.license && typeof status.license === "object" ? status.license : {};
@@ -38,6 +50,10 @@ function createLicenseBadgeText(licenseInfo = {}) {
 }
 
 function enforceLicensedFeature(feature) {
+  if (_isAlwaysIncludedFeature(feature)) {
+    return _extractLicenseInfo(safeGetStatus());
+  }
+
   try {
     requireFeature(feature);
     return _extractLicenseInfo(getStatus({ fresh: true }));
@@ -126,14 +142,8 @@ function mapLicenseReasonToMessage(reason) {
 
 function mapFeatureToMessage(feature) {
   switch (feature) {
-    case LICENSE_FEATURES.PDF:
-      return "PDF-Erzeugung ist fuer diese Lizenz nicht freigeschaltet.";
-    case LICENSE_FEATURES.EXPORT:
-      return "Export ist fuer diese Lizenz nicht freigeschaltet.";
-    case LICENSE_FEATURES.MAIL:
-      return "Mail-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
-    case LICENSE_FEATURES.APP:
-      return "Diese Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    case LICENSE_FEATURES.AUDIO:
+      return "Audio ist fuer diese Lizenz nicht freigeschaltet.";
     default:
       return `Feature nicht freigeschaltet: ${feature}`;
   }

@@ -334,7 +334,6 @@ export default class SettingsView {
     if (code === "BINDING_INVALID") return "Bitte einen gueltigen Lizenzmodus auswaehlen.";
     if (code === "MACHINE_ID_REQUIRED_FOR_BINDING") return "Fuer Vollversion ist eine gueltige Machine-ID erforderlich.";
     if (code === "MAX_DEVICES_INVALID") return "Max. Geraete muss mindestens 1 sein.";
-    if (code === "FEATURES_REQUIRED") return "Bitte mindestens ein Feature auswaehlen.";
     if (code === "OUTPUT_FILE_NOT_FOUND") return "Die erzeugte Lizenzdatei wurde im Ausgabeordner nicht gefunden.";
     if (code === "GENERATOR_FAILED") return "Das externe license-tool hat einen Fehler gemeldet.";
     return String(raw || "Lizenz konnte nicht erzeugt werden.");
@@ -557,7 +556,7 @@ export default class SettingsView {
       valueDaysRemaining.textContent = Number.isFinite(daysRemaining) ? String(daysRemaining) : "-";
       valueMachineId.textContent = String(res?.machineId || "").trim() || "-";
       valueAppVersion.textContent = String(res?.appVersion || "").trim() || "-";
-      valueFeatures.textContent = features.length ? features.join(", ") : "-";
+      valueFeatures.textContent = features.includes("audio") ? "Standard + Audio" : "Nur Standardfunktionen";
       valueReason.textContent = valid ? (isExpiringSoon ? warningText : "Keine Warnung") : reasonText;
       diagnosticsPre.textContent = String(res?.diagnosticsText || "").trim() || "Keine Diagnosedaten verfuegbar.";
       const versionLabel = String(res?.appVersion || "").trim() || "-";
@@ -2130,7 +2129,15 @@ export default class SettingsView {
     featureWrap.style.flexWrap = "wrap";
     featureWrap.style.gap = "8px 12px";
 
-    const featureInputs = ["app", "pdf", "export", "mail"].map((feature) => {
+    const featureHint = document.createElement("div");
+    featureHint.style.width = "100%";
+    featureHint.style.fontSize = "12px";
+    featureHint.style.lineHeight = "1.35";
+    featureHint.style.color = "#475569";
+    featureHint.textContent = "App, PDF, Export und Mail sind immer Teil der Standardlizenz. Optional ist nur Audio.";
+    featureWrap.appendChild(featureHint);
+
+    const featureInputs = ["audio"].map((feature) => {
       const label = document.createElement("label");
       label.style.display = "inline-flex";
       label.style.alignItems = "center";
@@ -2139,8 +2146,8 @@ export default class SettingsView {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.value = feature;
-      checkbox.checked = true;
-      label.append(checkbox, document.createTextNode(feature));
+      checkbox.checked = false;
+      label.append(checkbox, document.createTextNode("Audio"));
       featureWrap.appendChild(label);
       return checkbox;
     });
@@ -2178,7 +2185,7 @@ export default class SettingsView {
           durationDays: "30",
           validFrom: todayIso(),
           maxDevices: "2",
-          features: ["app", "pdf", "export", "mail"],
+          features: ["audio"],
         },
         standard365: {
           label: "1 Jahr Standard",
@@ -2187,7 +2194,7 @@ export default class SettingsView {
           durationDays: "365",
           validFrom: todayIso(),
           maxDevices: "1",
-          features: ["app", "pdf", "export"],
+          features: [],
         },
         pro365: {
           label: "1 Jahr Pro",
@@ -2196,7 +2203,7 @@ export default class SettingsView {
           durationDays: "365",
           validFrom: todayIso(),
           maxDevices: "1",
-          features: ["app", "pdf", "export", "mail"],
+          features: ["audio"],
         },
       };
       const tpl = templates[String(templateKey || "").trim()];
@@ -2491,7 +2498,7 @@ export default class SettingsView {
           `Kunde: ${res?.customerName || "-"}`,
           `Lizenznummer: ${res?.licenseId || "-"}`,
           `Machine-ID: ${res?.machineId || "-"}`,
-          `Features: ${Array.isArray(res?.features) && res.features.length ? res.features.join(", ") : "-"}`,
+          `Features: ${Array.isArray(res?.features) && res.features.includes("audio") ? "Standard + Audio" : "Nur Standardfunktionen"}`,
         ].join("\n");
       } catch (err) {
         licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
