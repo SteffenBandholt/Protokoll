@@ -7,6 +7,7 @@ import { shouldShowTopForMeeting, shouldGrayTopForMeeting } from "../utils/topVi
 import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
+import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
@@ -36,6 +37,7 @@ export default class TopsView {
     this.btnLongToggle = null;
 
     this.btnAmpelToggle = null;
+    this.btnTasks = null;
     this.box = null;
     this.topBarEl = null;
     this.editMetaCol = null;
@@ -70,6 +72,7 @@ export default class TopsView {
     this.showLongtextInList = false;
 
     this.showAmpelInList = true;
+    this.viewFilter = "all";
     // Char counter
     this.titleCountEl = null;
     this.longCountEl = null;
@@ -134,6 +137,10 @@ export default class TopsView {
 
     // Mail-Flow nach Protokoll beenden
     this._lastClosedMeetingForEmail = null;
+    this._viewMenuOpen = false;
+    this._viewMenuDocMouseDown = null;
+    this._viewMenuEl = null;
+    this._viewMenuBtn = null;
   }
 
   _updateTopBarProtocolTitle() {
@@ -876,6 +883,7 @@ _isoToDDMMYYYY(iso) {
 
       if (this.btnEndMeeting) this.btnEndMeeting.disabled = true;
       if (this.btnCloseMeeting) this.btnCloseMeeting.disabled = true;
+      if (this.btnTasks) this.btnTasks.disabled = true;
 
       if (this.btnMove) this.btnMove.disabled = true;
       if (this.btnSaveTop) this.btnSaveTop.disabled = true;
@@ -1685,6 +1693,83 @@ _isoToDDMMYYYY(iso) {
     return !shouldShowTopForMeeting(top, meeting);
   }
 
+  _isTaskTop(top) {
+    if (!top || typeof top !== "object") return false;
+    const raw = top.is_task ?? top.isTask;
+    if (raw === true || raw === false) return raw;
+    if (typeof raw === "string") {
+      const s = raw.trim().toLowerCase();
+      return s === "1" || s === "true";
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n === 1 : false;
+  }
+
+  _isDecisionTop(top) {
+    if (!top || typeof top !== "object") return false;
+    const raw = top.is_decision ?? top.isDecision;
+    if (raw === true || raw === false) return raw;
+    if (typeof raw === "string") {
+      const s = raw.trim().toLowerCase();
+      return s === "1" || s === "true";
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n === 1 : false;
+  }
+
+  _isVerzugTop(top) {
+    return String(top?.status || "").trim().toLowerCase() === "verzug";
+  }
+
+  _matchesViewFilter(top) {
+    const mode = String(this.viewFilter || "all").trim().toLowerCase();
+    if (mode === "tasks") return this._isTaskTop(top);
+    if (mode === "verzug") return this._isVerzugTop(top);
+    if (mode === "decisions") return this._isDecisionTop(top);
+    return true;
+  }
+
+  _shouldHideTopInList(top) {
+    if (this._shouldHideDoneTop(top)) return true;
+    if (!this._matchesViewFilter(top)) return true;
+    return false;
+  }
+
+  _viewFilterLabel(mode) {
+    const key = String(mode || "all").trim().toLowerCase();
+    if (key === "tasks") return "Aufgaben";
+    if (key === "verzug") return "Verzug";
+    if (key === "decisions") return "Festlegungen";
+    return "Alle";
+  }
+
+  _setViewMenuOpen(nextOpen) {
+    this._viewMenuOpen = !!nextOpen;
+    if (this._viewMenuEl) {
+      this._viewMenuEl.style.display = this._viewMenuOpen ? "flex" : "none";
+      if (this._viewMenuOpen) {
+        this._positionViewMenu();
+      }
+    }
+    if (this._viewMenuBtn) {
+      this._viewMenuBtn.setAttribute("aria-expanded", this._viewMenuOpen ? "true" : "false");
+    }
+  }
+
+  _positionViewMenu() {
+    if (!this._viewMenuEl || !this._viewMenuBtn) return;
+    const menuEl = this._viewMenuEl;
+    const btnRect = this._viewMenuBtn.getBoundingClientRect();
+    const gap = 4;
+    const viewportPad = 8;
+    menuEl.style.top = `${Math.round(btnRect.bottom + gap)}px`;
+    menuEl.style.left = "0px";
+    const menuWidth = Math.ceil(menuEl.getBoundingClientRect().width || menuEl.offsetWidth || 190);
+    const maxLeft = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad);
+    const targetLeft = Math.round(btnRect.right - menuWidth);
+    menuEl.style.left = `${Math.min(maxLeft, Math.max(viewportPad, targetLeft))}px`;
+  }
+
   _updateTopBarMetaLabels() {
     if (!this.topMetaEl) return;
 
@@ -2109,6 +2194,144 @@ _isoToDDMMYYYY(iso) {
       btnAmpelToggle.click();
     });
 
+    const viewWrap = document.createElement("div");
+    viewWrap.style.position = "relative";
+    viewWrap.style.display = "inline-flex";
+    viewWrap.style.alignItems = "center";
+    viewWrap.style.flex = "0 0 auto";
+
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.title = "Ansicht";
+    viewBtn.setAttribute("aria-haspopup", "menu");
+    viewBtn.style.display = "inline-flex";
+    viewBtn.style.alignItems = "center";
+    viewBtn.style.justifyContent = "space-between";
+    viewBtn.style.gap = "8px";
+    viewBtn.style.padding = BTN_PAD;
+    viewBtn.style.borderRadius = BTN_RADIUS;
+    viewBtn.style.cursor = "pointer";
+    viewBtn.style.border = "1px solid #ddd";
+    viewBtn.style.background = "#f3f3f3";
+    viewBtn.style.color = "#222";
+    viewBtn.style.minHeight = BTN_MIN_H;
+    viewBtn.style.minWidth = "96px";
+    viewBtn.style.fontSize = "13px";
+    viewBtn.style.fontWeight = "600";
+    viewBtn.style.lineHeight = "1.25";
+    viewBtn.style.whiteSpace = "nowrap";
+    viewBtn.onmouseenter = () => {
+      if (viewBtn.disabled) return;
+      viewBtn.style.background = "#ececec";
+      viewBtn.style.borderColor = "#cfcfcf";
+    };
+    viewBtn.onmouseleave = () => {
+      viewBtn.style.background = "#f3f3f3";
+      viewBtn.style.borderColor = "#ddd";
+    };
+
+    const viewBtnLabel = document.createElement("span");
+    viewBtnLabel.textContent = "Ansicht";
+    const viewBtnCaret = document.createElement("span");
+    viewBtnCaret.textContent = "v";
+    viewBtnCaret.style.fontSize = "11px";
+    viewBtnCaret.style.opacity = "0.75";
+    viewBtn.append(viewBtnLabel, viewBtnCaret);
+
+    const viewMenu = document.createElement("div");
+    viewMenu.style.position = "fixed";
+    viewMenu.style.top = "0";
+    viewMenu.style.left = "0";
+    viewMenu.style.minWidth = "190px";
+    viewMenu.style.maxWidth = "calc(100vw - 16px)";
+    viewMenu.style.display = "none";
+    viewMenu.style.flexDirection = "column";
+    viewMenu.style.gap = "0";
+    viewMenu.style.padding = "4px";
+    viewMenu.style.border = "1px solid var(--card-border)";
+    viewMenu.style.borderRadius = "8px";
+    viewMenu.style.background = "var(--card-bg)";
+    viewMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
+    viewMenu.style.zIndex = String(POPOVER_MENU);
+
+    const updateViewMenuUi = () => {
+      const filterLabel = this._viewFilterLabel(this.viewFilter);
+      viewBtn.title = `Ansicht: ${filterLabel}`;
+      viewBtn.setAttribute("aria-label", `Ansicht: ${filterLabel}`);
+      Array.from(viewMenu.querySelectorAll("button[data-view-filter]")).forEach((item) => {
+        const active = item.getAttribute("data-view-filter") === this.viewFilter;
+        item.style.background = active ? "var(--btn-outline-hover-bg)" : "transparent";
+        item.style.fontWeight = active ? "700" : "400";
+      });
+    };
+
+    const mkViewItem = (value, label) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.textContent = label;
+      item.setAttribute("data-view-filter", value);
+      item.style.display = "block";
+      item.style.width = "100%";
+      item.style.textAlign = "left";
+      item.style.border = "none";
+      item.style.background = "transparent";
+      item.style.color = "var(--text-main)";
+      item.style.padding = "8px 10px";
+      item.style.borderRadius = "6px";
+      item.style.minHeight = "30px";
+      item.style.cursor = "pointer";
+      item.onmouseenter = () => {
+        item.style.background = "var(--btn-outline-hover-bg)";
+      };
+      item.onmouseleave = () => {
+        if (item.getAttribute("data-view-filter") !== this.viewFilter) {
+          item.style.background = "transparent";
+        }
+      };
+      item.onclick = () => {
+        this.viewFilter = value;
+        updateViewMenuUi();
+        this._setViewMenuOpen(false);
+        this._renderListOnly();
+      };
+      return item;
+    };
+
+    viewMenu.append(
+      mkViewItem("all", "Alle"),
+      mkViewItem("tasks", "Aufgaben"),
+      mkViewItem("verzug", "Verzug"),
+      mkViewItem("decisions", "Festlegungen")
+    );
+    updateViewMenuUi();
+    document.body.appendChild(viewMenu);
+
+    viewBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (viewBtn.disabled) return;
+      this._setViewMenuOpen(!this._viewMenuOpen);
+    };
+    viewBtn.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      viewBtn.click();
+    });
+
+    if (this._viewMenuDocMouseDown) {
+      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
+      this._viewMenuDocMouseDown = null;
+    }
+    this._viewMenuDocMouseDown = (e) => {
+      if (!this._viewMenuOpen) return;
+      if (viewWrap.contains(e.target)) return;
+      if (viewMenu.contains(e.target)) return;
+      this._setViewMenuOpen(false);
+    };
+    document.addEventListener("mousedown", this._viewMenuDocMouseDown, true);
+
+    viewWrap.append(viewBtn);
+
     // Topbar: fixed
     const topBar = document.createElement("div");
     topBar.style.position = "fixed";
@@ -2153,7 +2376,7 @@ _isoToDDMMYYYY(iso) {
     actionBtnsWrap.style.alignItems = "center";
     actionBtnsWrap.style.gap = "8px";
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
-    actionBtnsWrap.append(btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
+    actionBtnsWrap.append(viewWrap, btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
 
     // Feldbezeichnungen rechts über Meta-Spalte (Platz immer reserviert)
     const topMeta = document.createElement("div");
@@ -2505,6 +2728,9 @@ _isoToDDMMYYYY(iso) {
     this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
     this.btnAmpelToggle = btnAmpelToggle;
+    this.btnTasks = viewBtn;
+    this._viewMenuEl = viewMenu;
+    this._viewMenuBtn = viewBtn;
 
     this.topBarEl = topBar;
     this.box = box;
@@ -2866,6 +3092,7 @@ _renderIdleState() {
     };
     dis(this.btnAmpelToggle);
     dis(this.btnLongToggle);
+    dis(this.btnTasks);
     dis(this.btnEndMeeting);
 
     // Liste leeren und Idle Buttons anzeigen
@@ -3554,6 +3781,12 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
+    if (this.btnTasks) {
+      this.btnTasks.disabled = ro || busy || !this.meetingId;
+      this.btnTasks.style.opacity = this.btnTasks.disabled ? "0.65" : "1";
+      this.btnTasks.style.display = ro || !this.meetingId ? "none" : "";
+      if (this.btnTasks.disabled) this._setViewMenuOpen(false);
+    }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
       this.btnCloseMeeting.style.opacity = this.btnCloseMeeting.disabled ? "0.65" : "1";
@@ -3680,7 +3913,7 @@ async _closeViewOnly() {
 
     const currentId = this._topIdKey(t.id);
     const visibleIds = (this.items || [])
-      .filter((x) => !this._shouldHideDoneTop(x))
+      .filter((x) => !this._shouldHideTopInList(x))
       .map((x) => this._topIdKey(x.id))
       .filter(Boolean);
     const idx = visibleIds.indexOf(currentId);
@@ -4052,7 +4285,7 @@ async _closeViewOnly() {
 
     let collapsedParentId = null;
     for (const top of this.items) {
-      if (this._shouldHideDoneTop(top)) continue;
+      if (this._shouldHideTopInList(top)) continue;
       const li = document.createElement("li");
       li.dataset.topId = String(top.id);
       li.style.listStyle = "none";
@@ -4845,5 +5078,16 @@ const textCol = document.createElement("div");
     }
 
     this._gapPopupOverlay = overlay;
+  }
+
+  async destroy() {
+    if (this._viewMenuDocMouseDown) {
+      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
+      this._viewMenuDocMouseDown = null;
+    }
+    this._setViewMenuOpen(false);
+    if (this._viewMenuEl && this._viewMenuEl.parentNode) {
+      this._viewMenuEl.parentNode.removeChild(this._viewMenuEl);
+    }
   }
 }
