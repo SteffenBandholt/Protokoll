@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS meeting_tops (
   is_task INTEGER NOT NULL DEFAULT 0,
   is_decision INTEGER NOT NULL DEFAULT 0,
   completed_in_meeting_id TEXT,
+  responsible_kind TEXT,
+  responsible_id TEXT,
+  responsible_label TEXT,
+  contact_person_kind TEXT,
+  contact_person_id TEXT,
+  contact_person_label TEXT,
 
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),

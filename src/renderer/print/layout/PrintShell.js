@@ -86,6 +86,7 @@ function _buildTableHead(type) {
           <div>Status</div>
           <div>Fertig bis</div>
           <div>verantw</div>
+          <div>anspr</div>
         </div>
       </th>
     `;
@@ -185,6 +186,7 @@ function _buildTopRow(row) {
   meta3.appendChild(metaLine1);
   meta3.appendChild(_el("div", "metaLine meta2", row.due));
   meta3.appendChild(_el("div", "metaLine meta3", row.resp));
+  meta3.appendChild(_el("div", "metaLine meta4", row.contactPerson));
   tdMeta.appendChild(meta3);
 
   tr.append(tdNr, tdText, tdMeta);

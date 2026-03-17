@@ -62,6 +62,9 @@ class TopService {
           responsible_kind: r.responsible_kind ?? null,
           responsible_id: r.responsible_id ?? null,
           responsible_label: r.responsible_label ?? null,
+          contact_person_kind: r.contact_person_kind ?? null,
+          contact_person_id: r.contact_person_id ?? null,
+          contact_person_label: r.contact_person_label ?? null,
 
           frozen_at: r.frozen_at,
           frozen_title: r.frozen_title,
@@ -128,6 +131,9 @@ class TopService {
           responsible_kind: r.responsible_kind ?? null,
           responsible_id: r.responsible_id ?? null,
           responsible_label: r.responsible_label ?? null,
+          contact_person_kind: r.contact_person_kind ?? null,
+          contact_person_id: r.contact_person_id ?? null,
+          contact_person_label: r.contact_person_label ?? null,
 
           frozen_at: r.frozen_at,
           frozen_title: r.frozen_title,
@@ -448,9 +454,15 @@ class TopService {
       "responsible_kind",
       "responsible_id",
       "responsible_label",
+      "contact_person_kind",
+      "contact_person_id",
+      "contact_person_label",
       "responsibleKind",
       "responsibleId",
       "responsibleLabel",
+      "contactPersonKind",
+      "contactPersonId",
+      "contactPersonLabel",
     ]);
 
     for (const k of Object.keys(patch)) {
@@ -484,6 +496,18 @@ class TopService {
       patch.responsible_label !== undefined
         ? patch.responsible_label
         : (patch.responsibleLabel !== undefined ? patch.responsibleLabel : undefined);
+    const cpk =
+      patch.contact_person_kind !== undefined
+        ? patch.contact_person_kind
+        : (patch.contactPersonKind !== undefined ? patch.contactPersonKind : undefined);
+    const cpi =
+      patch.contact_person_id !== undefined
+        ? patch.contact_person_id
+        : (patch.contactPersonId !== undefined ? patch.contactPersonId : undefined);
+    const cpl =
+      patch.contact_person_label !== undefined
+        ? patch.contact_person_label
+        : (patch.contactPersonLabel !== undefined ? patch.contactPersonLabel : undefined);
 
     const imp =
       patch.is_important !== undefined
@@ -514,7 +538,10 @@ class TopService {
       isDecision !== undefined ||
       rk !== undefined ||
       ri !== undefined ||
-      rl !== undefined;
+      rl !== undefined ||
+      cpk !== undefined ||
+      cpi !== undefined ||
+      cpl !== undefined;
 
     if (!meetingFieldsTouched) {
       return this.meetingTopsRepo.getMeetingTop(meetingId, topId);
@@ -569,6 +596,9 @@ class TopService {
       responsible_kind: rk,
       responsible_id: ri,
       responsible_label: rl,
+      contact_person_kind: cpk,
+      contact_person_id: cpi,
+      contact_person_label: cpl,
 
       is_touched: touch,
     });

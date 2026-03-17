@@ -89,6 +89,12 @@ function attachTopToMeeting({
   responsibleKind = undefined,
   responsibleId = undefined,
   responsibleLabel = undefined,
+  contact_person_kind = undefined,
+  contact_person_id = undefined,
+  contact_person_label = undefined,
+  contactPersonKind = undefined,
+  contactPersonId = undefined,
+  contactPersonLabel = undefined,
 
   is_task = undefined,
   isTask = undefined,
@@ -147,6 +153,9 @@ function attachTopToMeeting({
   const hasRK = _hasCol(db, "responsible_kind");
   const hasRI = _hasCol(db, "responsible_id");
   const hasRL = _hasCol(db, "responsible_label");
+  const hasCPK = _hasCol(db, "contact_person_kind");
+  const hasCPI = _hasCol(db, "contact_person_id");
+  const hasCPL = _hasCol(db, "contact_person_label");
   const hasIsTask = _hasCol(db, "is_task");
   const hasIsDecision = _hasCol(db, "is_decision");
 
@@ -160,6 +169,18 @@ function attachTopToMeeting({
     responsible_label !== undefined
       ? responsible_label
       : (responsibleLabel !== undefined ? responsibleLabel : undefined);
+  const cpk =
+    contact_person_kind !== undefined
+      ? contact_person_kind
+      : (contactPersonKind !== undefined ? contactPersonKind : undefined);
+  const cpi =
+    contact_person_id !== undefined
+      ? contact_person_id
+      : (contactPersonId !== undefined ? contactPersonId : undefined);
+  const cpl =
+    contact_person_label !== undefined
+      ? contact_person_label
+      : (contactPersonLabel !== undefined ? contactPersonLabel : undefined);
 
   if (hasRK) {
     cols.push("responsible_kind");
@@ -172,6 +193,18 @@ function attachTopToMeeting({
   if (hasRL) {
     cols.push("responsible_label");
     vals.push(rl === undefined ? null : rl);
+  }
+  if (hasCPK) {
+    cols.push("contact_person_kind");
+    vals.push(cpk === undefined ? null : cpk);
+  }
+  if (hasCPI) {
+    cols.push("contact_person_id");
+    vals.push(cpi === undefined ? null : cpi);
+  }
+  if (hasCPL) {
+    cols.push("contact_person_label");
+    vals.push(cpl === undefined ? null : cpl);
   }
   const isTaskRaw = is_task !== undefined ? is_task : (isTask !== undefined ? isTask : undefined);
   const isDecisionRaw =
@@ -231,6 +264,12 @@ function updateMeetingTop({
   responsibleKind = undefined,
   responsibleId = undefined,
   responsibleLabel = undefined,
+  contact_person_kind = undefined,
+  contact_person_id = undefined,
+  contact_person_label = undefined,
+  contactPersonKind = undefined,
+  contactPersonId = undefined,
+  contactPersonLabel = undefined,
 
   is_task = undefined,
   isTask = undefined,
@@ -285,6 +324,9 @@ function updateMeetingTop({
   const hasRK = _hasCol(db, "responsible_kind");
   const hasRI = _hasCol(db, "responsible_id");
   const hasRL = _hasCol(db, "responsible_label");
+  const hasCPK = _hasCol(db, "contact_person_kind");
+  const hasCPI = _hasCol(db, "contact_person_id");
+  const hasCPL = _hasCol(db, "contact_person_label");
   const hasIsTask = _hasCol(db, "is_task");
   const hasIsDecision = _hasCol(db, "is_decision");
 
@@ -298,6 +340,18 @@ function updateMeetingTop({
     responsible_label !== undefined
       ? responsible_label
       : (responsibleLabel !== undefined ? responsibleLabel : undefined);
+  const cpk =
+    contact_person_kind !== undefined
+      ? contact_person_kind
+      : (contactPersonKind !== undefined ? contactPersonKind : undefined);
+  const cpi =
+    contact_person_id !== undefined
+      ? contact_person_id
+      : (contactPersonId !== undefined ? contactPersonId : undefined);
+  const cpl =
+    contact_person_label !== undefined
+      ? contact_person_label
+      : (contactPersonLabel !== undefined ? contactPersonLabel : undefined);
 
   if (hasRK && rk !== undefined) {
     sets.push("responsible_kind = ?");
@@ -310,6 +364,18 @@ function updateMeetingTop({
   if (hasRL && rl !== undefined) {
     sets.push("responsible_label = ?");
     vals.push(rl);
+  }
+  if (hasCPK && cpk !== undefined) {
+    sets.push("contact_person_kind = ?");
+    vals.push(cpk);
+  }
+  if (hasCPI && cpi !== undefined) {
+    sets.push("contact_person_id = ?");
+    vals.push(cpi);
+  }
+  if (hasCPL && cpl !== undefined) {
+    sets.push("contact_person_label = ?");
+    vals.push(cpl);
   }
 
   const isTaskRaw = is_task !== undefined ? is_task : (isTask !== undefined ? isTask : undefined);
@@ -363,6 +429,9 @@ function listJoinedByMeeting(meetingId) {
   const rkSel = _hasCol(db, "responsible_kind") ? "mt.responsible_kind" : "NULL AS responsible_kind";
   const riSel = _hasCol(db, "responsible_id") ? "mt.responsible_id" : "NULL AS responsible_id";
   const rlSel = _hasCol(db, "responsible_label") ? "mt.responsible_label" : "NULL AS responsible_label";
+  const cpkSel = _hasCol(db, "contact_person_kind") ? "mt.contact_person_kind" : "NULL AS contact_person_kind";
+  const cpiSel = _hasCol(db, "contact_person_id") ? "mt.contact_person_id" : "NULL AS contact_person_id";
+  const cplSel = _hasCol(db, "contact_person_label") ? "mt.contact_person_label" : "NULL AS contact_person_label";
   const isTaskSel = _hasCol(db, "is_task") ? "mt.is_task" : "0";
   const isDecisionSel = _hasCol(db, "is_decision") ? "mt.is_decision" : "0";
 
@@ -404,6 +473,9 @@ function listJoinedByMeeting(meetingId) {
         ${rkSel},
         ${riSel},
         ${rlSel},
+        ${cpkSel},
+        ${cpiSel},
+        ${cplSel},
         ${isTaskSel} AS is_task,
         ${isDecisionSel} AS is_decision,
 
@@ -445,6 +517,9 @@ function listLatestByProject(projectId) {
   const rkSel = _hasCol(db, "responsible_kind") ? "mt.responsible_kind" : "NULL AS responsible_kind";
   const riSel = _hasCol(db, "responsible_id") ? "mt.responsible_id" : "NULL AS responsible_id";
   const rlSel = _hasCol(db, "responsible_label") ? "mt.responsible_label" : "NULL AS responsible_label";
+  const cpkSel = _hasCol(db, "contact_person_kind") ? "mt.contact_person_kind" : "NULL AS contact_person_kind";
+  const cpiSel = _hasCol(db, "contact_person_id") ? "mt.contact_person_id" : "NULL AS contact_person_id";
+  const cplSel = _hasCol(db, "contact_person_label") ? "mt.contact_person_label" : "NULL AS contact_person_label";
   const isTaskSel = _hasCol(db, "is_task") ? "mt.is_task" : "0";
   const isDecisionSel = _hasCol(db, "is_decision") ? "mt.is_decision" : "0";
 
@@ -494,6 +569,9 @@ function listLatestByProject(projectId) {
         ${rkSel},
         ${riSel},
         ${rlSel},
+        ${cpkSel},
+        ${cpiSel},
+        ${cplSel},
         ${isTaskSel} AS is_task,
         ${isDecisionSel} AS is_decision,
 
@@ -584,6 +662,9 @@ function carryOverFromMeeting(arg1, arg2) {
   const hasRK = _hasCol(db, "responsible_kind");
   const hasRI = _hasCol(db, "responsible_id");
   const hasRL = _hasCol(db, "responsible_label");
+  const hasCPK = _hasCol(db, "contact_person_kind");
+  const hasCPI = _hasCol(db, "contact_person_id");
+  const hasCPL = _hasCol(db, "contact_person_label");
   const hasIsTask = _hasCol(db, "is_task");
   const hasIsDecision = _hasCol(db, "is_decision");
 
@@ -595,6 +676,9 @@ function carryOverFromMeeting(arg1, arg2) {
   if (hasRK) cols.push("responsible_kind");
   if (hasRI) cols.push("responsible_id");
   if (hasRL) cols.push("responsible_label");
+  if (hasCPK) cols.push("contact_person_kind");
+  if (hasCPI) cols.push("contact_person_id");
+  if (hasCPL) cols.push("contact_person_label");
   if (hasIsTask) cols.push("is_task");
   if (hasIsDecision) cols.push("is_decision");
   if (hasCreatedAt) cols.push("created_at");
@@ -612,6 +696,9 @@ function carryOverFromMeeting(arg1, arg2) {
   if (hasRK) selectParts.push("responsible_kind");
   if (hasRI) selectParts.push("responsible_id");
   if (hasRL) selectParts.push("responsible_label");
+  if (hasCPK) selectParts.push("contact_person_kind");
+  if (hasCPI) selectParts.push("contact_person_id");
+  if (hasCPL) selectParts.push("contact_person_label");
   if (hasIsTask) selectParts.push("is_task");
   if (hasIsDecision) selectParts.push("is_decision");
 

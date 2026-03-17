@@ -243,6 +243,9 @@ function ensureMeetingTopsResponsibleColumns(dbConn) {
   addCol("responsible_kind", "TEXT");
   addCol("responsible_id", "INTEGER");
   addCol("responsible_label", "TEXT");
+  addCol("contact_person_kind", "TEXT");
+  addCol("contact_person_id", "TEXT");
+  addCol("contact_person_label", "TEXT");
 }
 
 function ensureMeetingTopsTaskDecisionColumns(dbConn) {

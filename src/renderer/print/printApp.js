@@ -101,6 +101,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   const status = String(top.status || "").trim();
   const due = _formatDateIso(top.due_date || top.dueDate || "");
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
+  const contactPerson = String(top.contact_person_label || top.contactPersonLabel || "").trim();
   const isTask = _flag01(top.is_task ?? top.isTask ?? 0);
   const isDecision = status.trim().toLowerCase() === "festlegung";
 
@@ -119,6 +120,7 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     status,
     due,
     resp,
+    contactPerson,
     isTask,
     isDecision,
     ampelColor: level === 1 ? null : ampelColor,
@@ -211,6 +213,7 @@ function _buildTopRowElement(row) {
   meta3.appendChild(metaLine1);
   meta3.appendChild(_el("div", "metaLine meta2", row.due));
   meta3.appendChild(_el("div", "metaLine meta3", row.resp));
+  meta3.appendChild(_el("div", "metaLine meta4", row.contactPerson));
   tdMeta.appendChild(meta3);
 
   tr.append(tdNr, tdText, tdMeta);
@@ -434,6 +437,7 @@ function _buildTableHeadForMeasure(type) {
           <div>Status</div>
           <div>Fertig bis</div>
           <div>verantw</div>
+          <div>anspr</div>
         </div>
       </th>
     `;
