@@ -117,6 +117,11 @@ function verifyLicense(licenseData) {
     return { valid: false, reason: "INVALID_FORMAT" };
   }
 
+  const binding = String(license.binding || "").trim().toLowerCase() || "none";
+  if (!["none", "machine"].includes(binding)) {
+    return { valid: false, reason: "INVALID_FORMAT" };
+  }
+
   if (!isIsoDateString(license.issuedAt) || !isIsoDateString(license.validUntil)) {
     return { valid: false, reason: "INVALID_FORMAT" };
   }
@@ -131,8 +136,14 @@ function verifyLicense(licenseData) {
   }
 
   const currentMachineId = getMachineId();
-  if (machineId && machineId !== currentMachineId) {
-    return { valid: false, reason: "WRONG_MACHINE", license, machineId: currentMachineId };
+  const boundMachineId = String(license.machineId || machineId || "").trim();
+  if (binding === "machine") {
+    if (!boundMachineId) {
+      return { valid: false, reason: "INVALID_FORMAT", license, machineId: currentMachineId };
+    }
+    if (boundMachineId !== currentMachineId) {
+      return { valid: false, reason: "WRONG_MACHINE", license, machineId: currentMachineId };
+    }
   }
 
   const now = Date.now();
@@ -160,6 +171,7 @@ function verifyLicense(licenseData) {
     reason: null,
     license,
     machineId: currentMachineId,
+    binding,
     expiresSoon,
     daysRemaining,
     expired: false,

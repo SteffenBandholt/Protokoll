@@ -33,6 +33,17 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 - `license:get-diagnostics` liefert einen kompakten Support-Block mit Status, Grund, Kunde, Lizenz-ID, Edition, Ablaufdatum, Machine-ID, App-Version und Features.
 - Im Entwicklungsbereich der App gibt es eine interne Maske `Lizenz erstellen`, die ueber das externe Tool unter `C:\license-tool` eine `.bbmlic` erzeugt.
 
+## Lizenzmodi
+- Es gibt genau zwei unterstuetzte Modi:
+  - `binding = none`
+    - Soft-Lizenz
+    - keine harte Rechnerbindung
+    - Verifikation prueft Signatur, Produkt, Ablaufdatum und Features
+  - `binding = machine`
+    - Vollversion (rechnergebunden)
+    - Verifikation prueft zusaetzlich die Machine-ID des Zielrechners
+- Fehlt `binding` in einer bestehenden Lizenz, wird aus Rueckwaertskompatibilitaet `none` angenommen.
+
 
 ## Derzeit geschuetzte Features
 - `pdf.export`
@@ -57,10 +68,17 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
 - Die erzeugte `.bbmlic` landet in:
   - `C:\license-tool\output\`
 - Bestehende `.bbmlic` koennen im Entwicklungsbereich geladen, geprueft und als neue verlaengerte Lizenz erneut erzeugt werden.
+- In der internen Maske kann der Lizenzmodus explizit gesetzt werden:
+  - `Soft-Lizenz` -> `binding = none`
+  - `Vollversion (rechnergebunden)` -> `binding = machine`
+- Beim Erzeugen schreibt die App `binding` in die Eingabe fuer `C:\license-tool`.
+- Bei `binding = machine` wird die aktuelle lokale Machine-ID in die Generator-Eingabe uebernommen.
+- Fuer Vollversionen auf einem anderen Zielrechner ist daher weiterhin eine separate Machine-ID-Anforderung fuer diesen Rechner noetig.
 - Im Bereich `Lizenz erstellen / verlaengern` gibt es zusaetzlich Schnellvorlagen, die nur Formularfelder vorbelegen:
   - `30 Tage Test`
     - `product = bbm-protokoll`
     - `edition = test`
+    - `binding = none`
     - `durationDays = 30`
     - `validFrom = heute`
     - `validUntil = validFrom + 30 Tage`
@@ -69,6 +87,7 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
   - `1 Jahr Standard`
     - `product = bbm-protokoll`
     - `edition = standard`
+    - `binding = none`
     - `durationDays = 365`
     - `validFrom = heute`
     - `validUntil = validFrom + 365 Tage`
@@ -77,6 +96,7 @@ Es dürfen keine privaten Schlüssel ins Repository eingecheckt werden.
   - `1 Jahr Pro`
     - `product = bbm-protokoll`
     - `edition = pro`
+    - `binding = machine`
     - `durationDays = 365`
     - `validFrom = heute`
     - `validUntil = validFrom + 365 Tage`

@@ -313,6 +313,12 @@ export default class SettingsView {
     return this._formatLicenseReason(res?.reason, fallbackReason);
   }
 
+  _formatLicenseBinding(binding) {
+    const code = String(binding || "").trim().toLowerCase() || "none";
+    if (code === "machine") return "Vollversion (rechnergebunden)";
+    return "Soft-Lizenz";
+  }
+
   _formatLicenseGenerationError(raw) {
     const code = String(raw || "").trim().toUpperCase();
     if (code === "LICENSE_GENERATION_NOT_ALLOWED") return "Lizenz-Erstellung ist nur im Entwicklungsbereich verfuegbar.";
@@ -325,6 +331,8 @@ export default class SettingsView {
     if (code === "VALID_FROM_REQUIRED") return "Bitte ein gueltiges Startdatum setzen.";
     if (code === "VALID_UNTIL_REQUIRED") return "Bitte ein gueltiges Enddatum oder Nutzungstage setzen.";
     if (code === "VALID_UNTIL_BEFORE_VALID_FROM") return "Das Enddatum darf nicht vor dem Startdatum liegen.";
+    if (code === "BINDING_INVALID") return "Bitte einen gueltigen Lizenzmodus auswaehlen.";
+    if (code === "MACHINE_ID_REQUIRED_FOR_BINDING") return "Fuer Vollversion ist eine gueltige Machine-ID erforderlich.";
     if (code === "MAX_DEVICES_INVALID") return "Max. Geraete muss mindestens 1 sein.";
     if (code === "FEATURES_REQUIRED") return "Bitte mindestens ein Feature auswaehlen.";
     if (code === "OUTPUT_FILE_NOT_FOUND") return "Die erzeugte Lizenzdatei wurde im Ausgabeordner nicht gefunden.";
@@ -409,6 +417,7 @@ export default class SettingsView {
     const valueCustomer = document.createElement("div");
     const valueLicenseId = document.createElement("div");
     const valueEdition = document.createElement("div");
+    const valueBinding = document.createElement("div");
     const valueValidUntil = document.createElement("div");
     const valueDaysRemaining = document.createElement("div");
     const valueFeatures = document.createElement("div");
@@ -423,6 +432,7 @@ export default class SettingsView {
       makeRow("Kunde", valueCustomer),
       makeRow("Lizenz-ID", valueLicenseId),
       makeRow("Edition", valueEdition),
+      makeRow("Modus", valueBinding),
       makeRow("Gueltig bis", valueValidUntil),
       makeRow("Resttage", valueDaysRemaining),
       makeRow("Machine-ID", valueMachineId),
@@ -531,6 +541,7 @@ export default class SettingsView {
       valueCustomer.textContent = String(res?.customerName || "").trim() || "-";
       valueLicenseId.textContent = String(res?.licenseId || "").trim() || "-";
       valueEdition.textContent = String(res?.edition || "").trim() || "-";
+      valueBinding.textContent = this._formatLicenseBinding(res?.binding);
       valueValidUntil.textContent = this._formatLicenseDate(res?.validUntil);
       valueDaysRemaining.textContent = Number.isFinite(daysRemaining) ? String(daysRemaining) : "-";
       valueMachineId.textContent = String(res?.machineId || "").trim() || "-";
@@ -2025,6 +2036,23 @@ export default class SettingsView {
     inpLicenseEdition.type = "text";
     inpLicenseEdition.value = "test";
 
+    const inpLicenseBinding = document.createElement("select");
+    [
+      ["Soft-Lizenz", "none"],
+      ["Vollversion (rechnergebunden)", "machine"],
+    ].forEach(([labelText, value]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = labelText;
+      inpLicenseBinding.appendChild(option);
+    });
+
+    const bindingHint = document.createElement("div");
+    bindingHint.style.fontSize = "12px";
+    bindingHint.style.lineHeight = "1.35";
+    bindingHint.style.color = "#475569";
+    bindingHint.textContent = "Soft-Lizenz: keine Rechnerbindung. Vollversion: bindet die Lizenz an die aktuelle lokale Machine-ID.";
+
     const valueLicenseIssuedAt = document.createElement("div");
     valueLicenseIssuedAt.textContent = "-";
     valueLicenseIssuedAt.style.fontSize = "12px";
@@ -2104,6 +2132,7 @@ export default class SettingsView {
         test30: {
           label: "30 Tage Test",
           edition: "test",
+          binding: "none",
           durationDays: "30",
           validFrom: todayIso(),
           maxDevices: "2",
@@ -2112,6 +2141,7 @@ export default class SettingsView {
         standard365: {
           label: "1 Jahr Standard",
           edition: "standard",
+          binding: "none",
           durationDays: "365",
           validFrom: todayIso(),
           maxDevices: "1",
@@ -2120,6 +2150,7 @@ export default class SettingsView {
         pro365: {
           label: "1 Jahr Pro",
           edition: "pro",
+          binding: "machine",
           durationDays: "365",
           validFrom: todayIso(),
           maxDevices: "1",
@@ -2131,12 +2162,14 @@ export default class SettingsView {
       activeLicenseTemplate = tpl.label;
       inpLicenseProduct.value = "bbm-protokoll";
       inpLicenseEdition.value = tpl.edition;
+      inpLicenseBinding.value = tpl.binding;
       inpLicenseDuration.value = tpl.durationDays;
       inpLicenseValidFrom.value = tpl.validFrom;
       inpLicenseMaxDevices.value = tpl.maxDevices;
       setFeatureSelection(tpl.features);
       calcValidUntil();
       licenseTemplateInfo.textContent = `Vorlage aktiv: ${tpl.label}. Felder sind vorbelegt und koennen danach weiterhin manuell angepasst werden.`;
+      updateBindingHint();
       syncLoadedLicenseInfo();
     };
 
@@ -2194,6 +2227,14 @@ export default class SettingsView {
 
     let loadedLicenseMeta = null;
 
+    const updateBindingHint = () => {
+      const isMachineBound = String(inpLicenseBinding.value || "").trim() === "machine";
+      bindingHint.textContent = isMachineBound
+        ? "Vollversion: Die Lizenz wird an die aktuelle lokale Machine-ID gebunden. Fuer fremde Zielrechner ist dafuer eine separate Machine-ID-Anforderung noetig."
+        : "Soft-Lizenz: keine Rechnerbindung. Die Lizenz kann ohne Machine-ID verwendet und weitergegeben werden.";
+    };
+    updateBindingHint();
+
     const setLicenseGenBusy = (busy) => {
       const isBusy = !!busy;
       [
@@ -2201,6 +2242,7 @@ export default class SettingsView {
         inpLicenseCustomer,
         inpLicenseId,
         inpLicenseEdition,
+        inpLicenseBinding,
         inpLicenseValidFrom,
         inpLicenseDuration,
         inpLicenseValidUntil,
@@ -2230,6 +2272,7 @@ export default class SettingsView {
         `Geladen: ${loadedLicenseMeta.filePath || "-"}`,
         `Vorherige Lizenznummer: ${originalLicenseId || "-"}`,
         `IssuedAt: ${loadedLicenseMeta.issuedAt || "-"}`,
+        `Modus: ${this._formatLicenseBinding(inpLicenseBinding.value)}`,
         sameId
           ? "Verlaengerung: Bestehende Lizenznummer wird weiterverwendet."
           : "Verlaengerung: Neue Lizenznummer eingetragen.",
@@ -2247,6 +2290,7 @@ export default class SettingsView {
       inpLicenseCustomer.value = String(res?.customerName || "").trim();
       inpLicenseId.value = String(res?.licenseId || "").trim();
       inpLicenseEdition.value = String(res?.edition || "").trim() || "test";
+      inpLicenseBinding.value = String(res?.binding || "none").trim() || "none";
       valueLicenseIssuedAt.textContent = String(res?.issuedAt || "").trim() || "-";
       inpLicenseValidFrom.value = String(res?.validFrom || "").trim();
       inpLicenseValidUntil.value = String(res?.validUntil || "").trim();
@@ -2256,6 +2300,7 @@ export default class SettingsView {
       setFeatureSelection(loadedFeatures);
       activeLicenseTemplate = "";
       licenseTemplateInfo.textContent = "Bestehende Lizenz geladen. Vorlagen koennen weiterhin genutzt werden, um Felder neu vorzubelegen.";
+      updateBindingHint();
       syncLoadedLicenseInfo();
     };
 
@@ -2264,6 +2309,7 @@ export default class SettingsView {
       customerName: String(inpLicenseCustomer.value || "").trim(),
       licenseId: String(inpLicenseId.value || "").trim(),
       edition: String(inpLicenseEdition.value || "").trim() || "test",
+      binding: String(inpLicenseBinding.value || "").trim() || "none",
       validFrom: String(inpLicenseValidFrom.value || "").trim(),
       validUntil: String(inpLicenseValidUntil.value || "").trim(),
       durationDays: String(inpLicenseDuration.value || "").trim(),
@@ -2273,6 +2319,10 @@ export default class SettingsView {
     });
 
     inpLicenseId.addEventListener("input", syncLoadedLicenseInfo);
+    inpLicenseBinding.addEventListener("change", () => {
+      updateBindingHint();
+      syncLoadedLicenseInfo();
+    });
 
     btnLicenseLoad.onclick = async () => {
       const api = window.bbmDb || {};
@@ -2333,8 +2383,10 @@ export default class SettingsView {
           `Datei: ${res?.outputPath || "-"}`,
           `Gueltig von: ${res?.validFrom || "-"}`,
           `Gueltig bis: ${res?.validUntil || "-"}`,
+          `Modus: ${this._formatLicenseBinding(res?.binding)}`,
           `Kunde: ${res?.customerName || "-"}`,
           `Lizenznummer: ${res?.licenseId || "-"}`,
+          `Machine-ID: ${res?.machineId || "-"}`,
           `Features: ${Array.isArray(res?.features) && res.features.length ? res.features.join(", ") : "-"}`,
         ].join("\n");
       } catch (err) {
@@ -2368,6 +2420,8 @@ export default class SettingsView {
       mkRow("Kunde / Firma", inpLicenseCustomer),
       mkRow("Lizenznummer", inpLicenseId),
       mkRow("Edition", inpLicenseEdition),
+      mkRow("Lizenzmodus", inpLicenseBinding),
+      bindingHint,
       mkRow("IssuedAt (geladen)", valueLicenseIssuedAt),
       mkRow("Gueltig von", inpLicenseValidFrom),
       mkRow("Nutzungstage", inpLicenseDuration),

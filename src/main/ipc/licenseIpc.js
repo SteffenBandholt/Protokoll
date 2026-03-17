@@ -44,6 +44,7 @@ function _getExpiryInfo(validUntil) {
 
 function _toStatusPayload(status) {
   const license = status?.license && typeof status.license === "object" ? status.license : {};
+  const binding = String(license.binding || status?.binding || "").trim().toLowerCase() || "none";
   const expiry = _getExpiryInfo(license.validUntil);
   const payload = {
     valid: !!status?.valid,
@@ -53,6 +54,7 @@ function _toStatusPayload(status) {
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
     features: Array.isArray(license.features) ? license.features : [],
+    binding,
     machineId: String(status?.machineId || getMachineId() || "").trim(),
     appVersion: String(app?.getVersion?.() || "").trim(),
     daysRemaining:
@@ -73,6 +75,7 @@ function _buildDiagnosticsText(payload) {
     `Kunde: ${payload?.customerName || "-"}`,
     `Lizenz-ID: ${payload?.licenseId || "-"}`,
     `Edition: ${payload?.edition || "-"}`,
+    `Binding: ${payload?.binding || "none"}`,
     `Gueltig bis: ${payload?.validUntil || "-"}`,
     `Machine-ID: ${payload?.machineId || "-"}`,
     `App-Version: ${payload?.appVersion || "-"}`,
@@ -114,6 +117,8 @@ function _toEditableLicensePayload(parsed = {}, filePath = "") {
     customerName: String(license.customerName || "").trim(),
     licenseId: String(license.licenseId || "").trim(),
     edition: String(license.edition || "").trim(),
+    binding: String(license.binding || "").trim().toLowerCase() || "none",
+    boundMachineId: String(license.machineId || parsed?.machineId || "").trim(),
     issuedAt,
     validFrom,
     validUntil: String(license.validUntil || "").trim(),
@@ -168,6 +173,7 @@ function _validateGenerationPayload(raw = {}) {
   const customerName = String(raw?.customerName || "").trim();
   const licenseId = String(raw?.licenseId || "").trim();
   const edition = String(raw?.edition || "test").trim() || "test";
+  const binding = String(raw?.binding || "").trim().toLowerCase() || "none";
   const validFrom = _normalizeIsoDate(raw?.validFrom);
   const durationDays =
     raw?.durationDays === "" || raw?.durationDays === null || raw?.durationDays === undefined
@@ -183,6 +189,7 @@ function _validateGenerationPayload(raw = {}) {
 
   if (!customerName) throw new Error("CUSTOMER_NAME_REQUIRED");
   if (!licenseId) throw new Error("LICENSE_ID_REQUIRED");
+  if (!["none", "machine"].includes(binding)) throw new Error("BINDING_INVALID");
   if (!validFrom) throw new Error("VALID_FROM_REQUIRED");
   if (!validUntil) throw new Error("VALID_UNTIL_REQUIRED");
   if (new Date(`${validUntil}T00:00:00Z`).getTime() < new Date(`${validFrom}T00:00:00Z`).getTime()) {
@@ -191,17 +198,22 @@ function _validateGenerationPayload(raw = {}) {
   if (!Number.isFinite(maxDevices) || maxDevices < 1) throw new Error("MAX_DEVICES_INVALID");
   if (!features.length) throw new Error("FEATURES_REQUIRED");
 
+  const currentMachineId = binding === "machine" ? String(getMachineId() || "").trim() : "";
+  if (binding === "machine" && !currentMachineId) throw new Error("MACHINE_ID_REQUIRED_FOR_BINDING");
+
   return {
     product,
     customerName,
     licenseId,
     edition,
+    binding,
     validFrom,
     validUntil,
     durationDays: Number.isFinite(durationDays) && durationDays > 0 ? Math.floor(durationDays) : null,
     maxDevices: Math.floor(maxDevices),
     features,
     notes,
+    machineId: currentMachineId || "",
   };
 }
 
@@ -412,11 +424,15 @@ function registerLicenseIpc() {
             customerName: inputData.customerName,
             licenseId: inputData.licenseId,
             edition: inputData.edition,
+            binding: inputData.binding,
             validFrom: inputData.validFrom,
             validUntil: inputData.validUntil,
             maxDevices: inputData.maxDevices,
             features: inputData.features,
             notes: inputData.notes,
+            ...(inputData.binding === "machine" && inputData.machineId
+              ? { machineId: inputData.machineId }
+              : {}),
           },
           null,
           2
@@ -437,6 +453,8 @@ function registerLicenseIpc() {
         outputDir: LICENSE_TOOL_OUTPUT_DIR,
         customerName: inputData.customerName,
         licenseId: inputData.licenseId,
+        binding: inputData.binding,
+        machineId: inputData.binding === "machine" ? inputData.machineId : "",
         validFrom: inputData.validFrom,
         validUntil: inputData.validUntil,
         features: inputData.features,
