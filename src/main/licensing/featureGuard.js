@@ -1,14 +1,10 @@
 const { app } = require("electron");
 const { requireFeature, getStatus } = require("./licenseService");
-
-const LICENSE_FEATURES = {
-  APP: "app",
-  PDF: "pdf",
-  EXPORT: "export",
-  MAIL: "mail",
-  MAIL_OUTLOOK_DRAFT: "mail",
-  AUDIO: "audio",
-};
+const {
+  LICENSE_FEATURES,
+  normalizeLicensedFeatures,
+  isStandardLicensedFeature,
+} = require("./licenseFeatures");
 
 function _extractLicenseInfo(status) {
   const license = status?.license && typeof status.license === "object" ? status.license : {};
@@ -20,7 +16,7 @@ function _extractLicenseInfo(status) {
     licenseId: String(license.licenseId || license.id || "").trim(),
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
-    features: Array.isArray(license.features) ? license.features : [],
+    features: normalizeLicensedFeatures(license.features),
     appVersion: String(app?.getVersion?.() || "").trim(),
   };
 }
@@ -40,8 +36,13 @@ function createLicenseBadgeText(licenseInfo = {}) {
 }
 
 function enforceLicensedFeature(feature) {
+  const normalizedFeature = String(feature || "").trim().toLowerCase();
+  if (isStandardLicensedFeature(normalizedFeature)) {
+    return _extractLicenseInfo(getStatus({ fresh: true }));
+  }
+
   try {
-    requireFeature(feature);
+    requireFeature(normalizedFeature);
     return _extractLicenseInfo(getStatus({ fresh: true }));
   } catch (err) {
     const rawMessage = String(err?.message || "");

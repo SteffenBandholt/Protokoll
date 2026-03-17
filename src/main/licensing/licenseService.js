@@ -1,5 +1,10 @@
 const { loadLicense } = require("./licenseStorage");
 const { verifyLicense } = require("./licenseVerifier");
+const {
+  normalizeLicensedFeatures,
+  isStandardLicensedFeature,
+  isOptionalLicensedFeature,
+} = require("./licenseFeatures");
 
 let cachedStatus = null;
 
@@ -37,8 +42,16 @@ function requireFeature(feature) {
     throw new Error("FEATURE_NOT_ALLOWED:");
   }
 
+  if (isStandardLicensedFeature(normalizedFeature)) {
+    return true;
+  }
+
+  if (!isOptionalLicensedFeature(normalizedFeature)) {
+    throw new Error(`FEATURE_NOT_ALLOWED:${normalizedFeature}`);
+  }
+
   const license = requireValidLicense({ fresh: true });
-  const features = Array.isArray(license?.features) ? license.features : [];
+  const features = normalizeLicensedFeatures(license?.features);
 
   if (!features.includes(normalizedFeature)) {
     throw new Error(`FEATURE_NOT_ALLOWED:${normalizedFeature}`);

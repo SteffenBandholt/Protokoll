@@ -13,6 +13,11 @@ const {
 const { createMeetingMappingService } = require("../services/audio/MeetingMappingService");
 const { createSuggestionApplyService } = require("../services/audio/SuggestionApplyService");
 const { createWhisperCppEngine } = require("../services/audio/engines/WhisperCppEngine");
+const {
+  LICENSE_FEATURES,
+  enforceLicensedFeature,
+  toLicenseErrorPayload,
+} = require("../licensing/featureGuard");
 
 const AUDIO_FILE_FILTER = [
   {
@@ -33,6 +38,18 @@ function _buildApplyMessage(result) {
     return "Vorschlag wurde unter dem gewählten Bereich angelegt.";
   }
   return "Vorschlag wurde übernommen.";
+}
+
+function _ensureAudioLicensed() {
+  enforceLicensedFeature(LICENSE_FEATURES.AUDIO);
+}
+
+function _toAudioErrorPayload(err) {
+  if (err?.licenseError || String(err?.message || "").startsWith("LICENSE_")) {
+    return toLicenseErrorPayload(err);
+  }
+
+  return { ok: false, error: err?.stack || err?.message || String(err) };
 }
 
 function registerAudioIpc() {
@@ -59,6 +76,7 @@ function registerAudioIpc() {
 
   ipcMain.handle("audio:import", async (evt, payload) => {
     try {
+      _ensureAudioLicensed();
       const data = payload && typeof payload === "object" ? payload : {};
       const meetingId = String(data.meetingId || "").trim();
       if (!meetingId) return { ok: false, error: "meetingId fehlt" };
@@ -86,12 +104,13 @@ function registerAudioIpc() {
 
       return { ok: true, audioImport };
     } catch (err) {
-      return { ok: false, error: err?.stack || err?.message || String(err) };
+      return _toAudioErrorPayload(err);
     }
   });
 
   ipcMain.handle("audio:transcribe", async (_evt, payload) => {
     try {
+      _ensureAudioLicensed();
       const audioImportId = String(payload?.audioImportId || "").trim();
       if (!audioImportId) return { ok: false, error: "audioImportId fehlt" };
       const result = await transcriptionService.transcribe({ audioImportId });
@@ -108,12 +127,13 @@ function registerAudioIpc() {
           // ignore follow-up errors
         }
       }
-      return { ok: false, error: err?.stack || err?.message || String(err) };
+      return _toAudioErrorPayload(err);
     }
   });
 
   ipcMain.handle("audio:analyze", async (_evt, payload) => {
     try {
+      _ensureAudioLicensed();
       const audioImportId = String(payload?.audioImportId || "").trim();
       if (!audioImportId) return { ok: false, error: "audioImportId fehlt" };
       const result = mappingService.analyze({
@@ -134,12 +154,13 @@ function registerAudioIpc() {
           // ignore follow-up errors
         }
       }
-      return { ok: false, error: err?.stack || err?.message || String(err) };
+      return _toAudioErrorPayload(err);
     }
   });
 
   ipcMain.handle("audio:getSuggestions", async (_evt, payload) => {
     try {
+      _ensureAudioLicensed();
       const data = payload && typeof payload === "object" ? payload : {};
       const audioImportId = String(data.audioImportId || "").trim();
       const meetingId = String(data.meetingId || "").trim();
@@ -166,12 +187,13 @@ function registerAudioIpc() {
 
       return { ok: true, list, audioImport, transcript };
     } catch (err) {
-      return { ok: false, error: err?.stack || err?.message || String(err) };
+      return _toAudioErrorPayload(err);
     }
   });
 
   ipcMain.handle("audio:createDemoSuggestion", async (_evt, payload) => {
     try {
+      _ensureAudioLicensed();
       const meetingId = String(payload?.meetingId || "").trim();
       const demoType = String(payload?.demoType || "").trim();
       if (!meetingId) return { ok: false, error: "meetingId fehlt" };
@@ -181,12 +203,13 @@ function registerAudioIpc() {
       const list = audioSuggestionsRepo.listByMeeting(meetingId, { status: "pending" });
       return { ok: true, ...result, list };
     } catch (err) {
-      return { ok: false, error: err?.stack || err?.message || String(err) };
+      return _toAudioErrorPayload(err);
     }
   });
 
   ipcMain.handle("audio:applySuggestion", async (_evt, payload) => {
     try {
+      _ensureAudioLicensed();
       const suggestionId = String(payload?.suggestionId || "").trim();
       if (!suggestionId) return { ok: false, error: "suggestionId fehlt" };
 
@@ -198,12 +221,13 @@ function registerAudioIpc() {
 
       return { ok: true, ...result, message: _buildApplyMessage(result?.result) };
     } catch (err) {
-      return { ok: false, error: err?.stack || err?.message || String(err) };
+      return _toAudioErrorPayload(err);
     }
   });
 
   ipcMain.handle("audio:rejectSuggestion", async (_evt, payload) => {
     try {
+      _ensureAudioLicensed();
       const suggestionId = String(payload?.suggestionId || "").trim();
       if (!suggestionId) return { ok: false, error: "suggestionId fehlt" };
 
@@ -212,7 +236,7 @@ function registerAudioIpc() {
       const updatedSuggestion = audioSuggestionsRepo.markRejected({ suggestionId });
       return { ok: true, suggestion: updatedSuggestion, message: "Vorschlag verworfen." };
     } catch (err) {
-      return { ok: false, error: err?.stack || err?.message || String(err) };
+      return _toAudioErrorPayload(err);
     }
   });
 }

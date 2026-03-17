@@ -3,7 +3,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { getMachineId } = require("./deviceIdentity");
 
-const PUBLIC_KEY_PATH = path.join(__dirname, "public_key.pem");
+const BUNDLED_PUBLIC_KEY_PATH = path.join(__dirname, "public_key.pem");
 const EXPECTED_PRODUCT = "bbm-protokoll";
 
 function canonicalize(value) {
@@ -19,41 +19,75 @@ function canonicalize(value) {
   return JSON.stringify(value);
 }
 
-function readPublicKey() {
-  if (!fs.existsSync(PUBLIC_KEY_PATH)) {
-    const err = new Error(`PUBLIC_KEY_MISSING:${PUBLIC_KEY_PATH}`);
-    err.code = "PUBLIC_KEY_MISSING";
-    throw err;
-  }
-
-  const publicKey = String(fs.readFileSync(PUBLIC_KEY_PATH, "utf8") || "").trim();
+function _validatePublicKey(publicKey, sourceLabel) {
+  const normalized = String(publicKey || "").trim();
   if (
-    !publicKey ||
-    !publicKey.includes("-----BEGIN PUBLIC KEY-----") ||
-    publicKey.includes("PLACEHOLDER_REPLACE_WITH_REAL_PUBLIC_KEY")
+    !normalized ||
+    !normalized.includes("-----BEGIN PUBLIC KEY-----") ||
+    normalized.includes("PLACEHOLDER_REPLACE_WITH_REAL_PUBLIC_KEY")
   ) {
-    const err = new Error(`PUBLIC_KEY_INVALID:${PUBLIC_KEY_PATH}`);
+    const err = new Error(`PUBLIC_KEY_INVALID:${sourceLabel}`);
     err.code = "PUBLIC_KEY_INVALID";
     throw err;
   }
 
-  return publicKey;
+  return normalized;
+}
+
+function _readPublicKeyFromEnvContent() {
+  const value = String(process.env.BBM_LICENSE_PUBLIC_KEY || "").trim();
+  if (!value) return null;
+
+  return {
+    publicKey: _validatePublicKey(value, "env:BBM_LICENSE_PUBLIC_KEY"),
+    source: "env:BBM_LICENSE_PUBLIC_KEY",
+  };
+}
+
+function _readPublicKeyFromFile(filePath, sourceLabel = filePath) {
+  const normalizedPath = String(filePath || "").trim();
+  if (!normalizedPath) return null;
+  if (!fs.existsSync(normalizedPath)) {
+    const err = new Error(`PUBLIC_KEY_MISSING:${sourceLabel}`);
+    err.code = "PUBLIC_KEY_MISSING";
+    throw err;
+  }
+
+  const publicKey = fs.readFileSync(normalizedPath, "utf8");
+  return {
+    publicKey: _validatePublicKey(publicKey, sourceLabel),
+    source: sourceLabel,
+  };
+}
+
+function readPublicKey() {
+  const envContent = _readPublicKeyFromEnvContent();
+  if (envContent) return envContent;
+
+  const envPath = String(process.env.BBM_LICENSE_PUBLIC_KEY_PATH || "").trim();
+  if (envPath) {
+    return _readPublicKeyFromFile(envPath, `env:BBM_LICENSE_PUBLIC_KEY_PATH:${envPath}`);
+  }
+
+  return _readPublicKeyFromFile(BUNDLED_PUBLIC_KEY_PATH, BUNDLED_PUBLIC_KEY_PATH);
 }
 
 function verifySignature(license, signature) {
   try {
-    const publicKey = readPublicKey();
+    const { publicKey, source } = readPublicKey();
     const canonical = canonicalize(license);
     const signatureBuffer = Buffer.from(String(signature || ""), "base64");
 
     return {
       valid: crypto.verify(null, Buffer.from(canonical, "utf8"), publicKey, signatureBuffer),
       reason: null,
+      source,
     };
   } catch (err) {
     return {
       valid: false,
       reason: err?.code || "INVALID_SIGNATURE",
+      source: String(err?.message || "").split(":").slice(1).join(":") || null,
     };
   }
 }
@@ -119,7 +153,12 @@ function verifyLicense(licenseData) {
 
   const signatureCheck = verifySignature(license, signature);
   if (!signatureCheck.valid) {
-    return { valid: false, reason: signatureCheck.reason || "INVALID_SIGNATURE", license };
+    return {
+      valid: false,
+      reason: signatureCheck.reason || "INVALID_SIGNATURE",
+      license,
+      publicKeySource: signatureCheck.source || null,
+    };
   }
 
   const currentMachineId = getMachineId();
@@ -139,6 +178,7 @@ function verifyLicense(licenseData) {
       reason: "LICENSE_EXPIRED",
       license,
       machineId: currentMachineId,
+      publicKeySource: signatureCheck.source || null,
       expired: true,
     };
   }
@@ -151,6 +191,7 @@ function verifyLicense(licenseData) {
     reason: null,
     license,
     machineId: currentMachineId,
+    publicKeySource: signatureCheck.source || null,
     expiresSoon: daysRemaining <= 14,
     daysRemaining,
     expired: false,
@@ -158,5 +199,8 @@ function verifyLicense(licenseData) {
 }
 
 module.exports = {
+  canonicalize,
+  readPublicKey,
+  verifySignature,
   verifyLicense,
 };

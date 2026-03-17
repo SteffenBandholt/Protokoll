@@ -335,7 +335,6 @@ export default class SettingsView {
       return "Das Enddatum darf nicht vor dem Startdatum liegen.";
     }
     if (code === "MAX_DEVICES_INVALID") return "Max. Geraete muss mindestens 1 sein.";
-    if (code === "FEATURES_REQUIRED") return "Bitte mindestens ein Feature auswaehlen.";
     if (code === "OUTPUT_FILE_NOT_FOUND") {
       return "Die erzeugte Lizenzdatei wurde im Ausgabeordner nicht gefunden.";
     }
@@ -2104,10 +2103,17 @@ export default class SettingsView {
 
     const featureWrap = document.createElement("div");
     featureWrap.style.display = "flex";
-    featureWrap.style.flexWrap = "wrap";
-    featureWrap.style.gap = "8px 12px";
+    featureWrap.style.flexDirection = "column";
+    featureWrap.style.alignItems = "flex-start";
+    featureWrap.style.gap = "8px";
 
-    const featureInputs = ["app", "pdf", "export", "mail"].map((feature) => {
+    const standardFeaturesInfo = document.createElement("div");
+    standardFeaturesInfo.style.fontSize = "12px";
+    standardFeaturesInfo.style.color = "#475569";
+    standardFeaturesInfo.textContent = "Standard immer aktiv: App, PDF, Export, Mail";
+    featureWrap.appendChild(standardFeaturesInfo);
+
+    const featureInputs = ["audio"].map((feature) => {
       const label = document.createElement("label");
       label.style.display = "inline-flex";
       label.style.alignItems = "center";
@@ -2116,8 +2122,8 @@ export default class SettingsView {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.value = feature;
-      checkbox.checked = true;
-      label.append(checkbox, document.createTextNode(feature));
+      checkbox.checked = false;
+      label.append(checkbox, document.createTextNode("Audio freischalten"));
       featureWrap.appendChild(label);
       return checkbox;
     });
@@ -2156,7 +2162,7 @@ export default class SettingsView {
           durationDays: "30",
           validFrom: todayIso(),
           maxDevices: "2",
-          features: ["app", "pdf", "export", "mail"],
+          features: ["audio"],
         },
         standard365: {
           label: "1 Jahr Standard",
@@ -2164,7 +2170,7 @@ export default class SettingsView {
           durationDays: "365",
           validFrom: todayIso(),
           maxDevices: "1",
-          features: ["app", "pdf", "export"],
+          features: [],
         },
         pro365: {
           label: "1 Jahr Pro",
@@ -2172,7 +2178,7 @@ export default class SettingsView {
           durationDays: "365",
           validFrom: todayIso(),
           maxDevices: "3",
-          features: ["app", "pdf", "export", "mail"],
+          features: ["audio"],
         },
       };
 
@@ -2426,7 +2432,7 @@ export default class SettingsView {
       mkRow("Nutzungstage", inpLicenseDuration),
       mkRow("Gueltig bis", inpLicenseValidUntil),
       mkRow("Max. Geraete", inpLicenseMaxDevices),
-      mkRow("Features", featureWrap),
+      mkRow("Optionales Feature", featureWrap),
       mkRow("Notizen", inpLicenseNotes),
       licenseGenActions,
       licenseGenStatus,

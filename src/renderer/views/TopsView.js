@@ -142,6 +142,10 @@ export default class TopsView {
     this._audioPanel = null;
     this._audioPanelBusy = false;
     this._audioPanelStatusMessage = "";
+    this._audioLicensed = false;
+    this._audioLicenseChecked = false;
+    this._audioLicenseMessage = "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    this._audioLicenseLoading = null;
     this._audioSuggestionMarkTimer = null;
     this._viewMenuOpen = false;
     this._viewMenuDocMouseDown = null;
@@ -1814,6 +1818,104 @@ _isoToDDMMYYYY(iso) {
     return this._audioPanel;
   }
 
+  _formatAudioLicenseMessage(status = null) {
+    if (status?.valid) {
+      return "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    }
+
+    const reason = String(status?.reason || "").trim();
+    switch (reason) {
+      case "NO_LICENSE":
+        return "Audio erfordert eine gueltige Lizenz.";
+      case "LICENSE_EXPIRED":
+        return "Audio ist gesperrt, weil die Lizenz abgelaufen ist.";
+      case "WRONG_MACHINE":
+        return "Audio ist gesperrt, weil diese Lizenz zu einem anderen Rechner gehoert.";
+      case "PUBLIC_KEY_INVALID":
+      case "PUBLIC_KEY_MISSING":
+        return "Audio bleibt gesperrt, weil die lokale Signaturpruefung nicht vollstaendig eingerichtet ist.";
+      default:
+        return "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    }
+  }
+
+  _buildLockedAudioPanelState(message) {
+    return {
+      title: "Sprachdatei auswerten",
+      modeLabel: "Pruefmodus",
+      busy: false,
+      statusMessage: String(message || this._audioLicenseMessage || "").trim(),
+      suggestions: [],
+      audioImport: null,
+      transcript: null,
+      parentOptions: this._getAudioParentOptions(),
+      onImportAudio: async () => {},
+      onCreateDemoSuggestion: async () => {},
+      onApplySuggestion: async () => {},
+      onFocusSuggestion: async () => {},
+      onRejectSuggestion: async () => {},
+    };
+  }
+
+  _setAudioLicenseState(licensed, message = "") {
+    this._audioLicensed = !!licensed;
+    this._audioLicenseChecked = true;
+    this._audioLicenseMessage = this._audioLicensed
+      ? ""
+      : (String(message || "").trim() || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
+
+    if (this.root) {
+      this.applyEditBoxState();
+    }
+
+    if (this._audioPanel && !this._audioLicensed) {
+      this._audioPanelBusy = false;
+      this._audioPanelStatusMessage = this._audioLicenseMessage;
+      this._audioPanel.update(this._buildLockedAudioPanelState(this._audioPanelStatusMessage));
+    }
+  }
+
+  async _loadAudioLicenseState(force = false) {
+    if (!force && this._audioLicenseChecked) return this._audioLicensed;
+    if (!force && this._audioLicenseLoading) return this._audioLicenseLoading;
+
+    const task = (async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseGetStatus !== "function") {
+        this._setAudioLicenseState(false, "Lizenzstatus ist nicht verfuegbar. Audio bleibt gesperrt.");
+        return false;
+      }
+
+      try {
+        const res = await api.licenseGetStatus();
+        const features = Array.isArray(res?.features)
+          ? res.features.map((value) => String(value || "").trim().toLowerCase())
+          : [];
+        const licensed = !!res?.ok && !!res?.valid && features.includes("audio");
+        this._setAudioLicenseState(licensed, this._formatAudioLicenseMessage(res));
+        return licensed;
+      } catch (_err) {
+        this._setAudioLicenseState(false, "Lizenzstatus konnte nicht geladen werden. Audio bleibt gesperrt.");
+        return false;
+      } finally {
+        this._audioLicenseLoading = null;
+      }
+    })();
+
+    this._audioLicenseLoading = task;
+    return task;
+  }
+
+  async _ensureAudioAvailable({ alertOnFailure = true, force = false } = {}) {
+    const licensed = await this._loadAudioLicenseState(force);
+    if (licensed) return true;
+
+    if (alertOnFailure) {
+      alert(this._audioLicenseMessage || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
+    }
+    return false;
+  }
+
   _manualAssignTitle() {
     return "Manuell zuordnen";
   }
@@ -1917,6 +2019,10 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _loadAudioSuggestions() {
+    if (!(await this._ensureAudioAvailable({ alertOnFailure: false }))) {
+      return { suggestions: [], audioImport: null, transcript: null };
+    }
+
     if (!this.meetingId || typeof window?.bbmDb?.audioGetSuggestions !== "function") {
       return { suggestions: [], audioImport: null, transcript: null };
     }
@@ -1939,6 +2045,15 @@ _isoToDDMMYYYY(iso) {
       options && Object.prototype.hasOwnProperty.call(options, "statusMessage")
         ? options.statusMessage
         : undefined;
+
+    if (!(await this._loadAudioLicenseState())) {
+      panel.update(
+        this._buildLockedAudioPanelState(
+          forceMessage !== undefined ? String(forceMessage || "") : this._audioLicenseMessage
+        )
+      );
+      return;
+    }
 
     try {
       const audioState = await this._loadAudioSuggestions();
@@ -1986,6 +2101,12 @@ _isoToDDMMYYYY(iso) {
   async _openAudioPanel() {
     if (!this.meetingId || this.isReadOnly) return;
     const panel = this._getAudioPanel();
+
+    if (!(await this._loadAudioLicenseState())) {
+      panel.open(this._buildLockedAudioPanelState(this._audioLicenseMessage));
+      return;
+    }
+
     panel.open({
       title: "Sprachdatei auswerten",
       modeLabel: "Pr?fmodus",
@@ -2006,6 +2127,7 @@ _isoToDDMMYYYY(iso) {
 
   async _runAudioImportFlow() {
     if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (
       typeof api.audioImport !== "function" ||
@@ -2067,6 +2189,7 @@ _isoToDDMMYYYY(iso) {
 
   async _createDemoAudioSuggestion(demoType) {
     if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioCreateDemoSuggestion !== "function") {
       alert("audioCreateDemoSuggestion ist nicht verfügbar.");
@@ -2095,6 +2218,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _applyAudioSuggestion(suggestion, options = {}) {
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioApplySuggestion !== "function") {
       alert("audioApplySuggestion ist nicht verf?gbar.");
@@ -2128,6 +2252,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _rejectAudioSuggestion(suggestion) {
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioRejectSuggestion !== "function") {
       alert("audioRejectSuggestion ist nicht verfügbar.");
@@ -3401,6 +3526,9 @@ _isoToDDMMYYYY(iso) {
     updateLongToggleUi();
     this._updateCharCounters();
     this._updateTopBarMetaLabels();
+    fireAndForget(async () => {
+      await this._loadAudioLicenseState(true);
+    });
 
     return root;
   }
@@ -4161,9 +4289,11 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
     if (this.btnAudioAnalyze) {
-      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId;
+      const audioLocked = !this._audioLicensed;
+      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId || audioLocked;
       this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
       this.btnAudioAnalyze.style.display = ro || !this.meetingId ? "none" : "";
+      this.btnAudioAnalyze.title = audioLocked ? this._audioLicenseMessage : "Sprachdatei importieren und auswerten";
     }
     if (this.btnTasks) {
       this.btnTasks.disabled = ro || busy || !this.meetingId;

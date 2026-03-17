@@ -22,11 +22,7 @@ const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
 const { registerAudioIpc } = require("./ipc/audioIpc");
 const { registerLicenseIpc } = require("./ipc/licenseIpc");
 const { checkLicense } = require("./licensing/licenseService");
-const {
-  LICENSE_FEATURES,
-  enforceLicensedFeature,
-  toLicenseErrorPayload,
-} = require("./licensing/featureGuard");
+const { toLicenseErrorPayload } = require("./licensing/featureGuard");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -483,8 +479,6 @@ app.whenReady().then(async () => {
 
 ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
   try {
-    enforceLicensedFeature(LICENSE_FEATURES.MAIL_OUTLOOK_DRAFT);
-
     if (process.platform !== "win32") {
       return { ok: false, error: "Outlook-Entwurf ist nur unter Windows verfügbar." };
     }

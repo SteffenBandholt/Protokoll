@@ -7,6 +7,10 @@ const { saveLicenseData } = require("../licensing/licenseStorage");
 const { getMachineId } = require("../licensing/deviceIdentity");
 const { verifyLicense } = require("../licensing/licenseVerifier");
 const { refreshStatus, getStatus } = require("../licensing/licenseService");
+const {
+  normalizeLicensedFeatures,
+  normalizeOptionalLicensedFeatures,
+} = require("../licensing/licenseFeatures");
 
 const LICENSE_FILE_FILTER = [
   {
@@ -43,7 +47,7 @@ function _getExpiryInfo(validUntil) {
 }
 
 function _buildDiagnosticsText(payload) {
-  const features = Array.isArray(payload?.features) ? payload.features : [];
+  const features = normalizeLicensedFeatures(payload?.features);
   return [
     `Lizenzstatus: ${payload?.valid ? "gueltig" : "ungueltig"}`,
     `Grund: ${payload?.reason || "-"}`,
@@ -53,12 +57,14 @@ function _buildDiagnosticsText(payload) {
     `Gueltig bis: ${payload?.validUntil || "-"}`,
     `Machine-ID: ${payload?.machineId || "-"}`,
     `App-Version: ${payload?.appVersion || "-"}`,
+    `Public-Key-Quelle: ${payload?.publicKeySource || "-"}`,
     `Features: ${features.length ? features.join(",") : "-"}`,
   ].join("\n");
 }
 
 function _toStatusPayload(status) {
   const license = status?.license && typeof status.license === "object" ? status.license : {};
+  const effectiveFeatures = normalizeLicensedFeatures(license.features);
   const expiry = _getExpiryInfo(license.validUntil);
   const payload = {
     valid: !!status?.valid,
@@ -69,9 +75,10 @@ function _toStatusPayload(status) {
     licenseId: String(license.licenseId || license.id || "").trim(),
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
-    features: Array.isArray(license.features) ? license.features : [],
+    features: effectiveFeatures,
     machineId: String(status?.machineId || getMachineId() || "").trim(),
     appVersion: String(app?.getVersion?.() || "").trim(),
+    publicKeySource: String(status?.publicKeySource || "").trim(),
     daysRemaining:
       typeof status?.daysRemaining === "number" ? status.daysRemaining : expiry.daysRemaining,
     expiresSoon: typeof status?.expiresSoon === "boolean" ? status.expiresSoon : expiry.expiresSoon,
@@ -135,9 +142,7 @@ function _toEditableLicensePayload(parsed = {}, filePath = "") {
         : Number.isFinite(Number(license.maxDevices))
           ? Number(license.maxDevices)
           : 1,
-    features: Array.isArray(license.features)
-      ? license.features.map((value) => String(value || "").trim()).filter(Boolean)
-      : [],
+    features: normalizeOptionalLicensedFeatures(license.features),
     notes: String(license.notes || "").trim(),
   };
 }
@@ -191,9 +196,7 @@ function _validateGenerationPayload(raw = {}) {
   const explicitValidUntil = _normalizeIsoDate(raw?.validUntil);
   const validUntil = explicitValidUntil || _computeValidUntil(validFrom, durationDays);
   const maxDevices = Number(raw?.maxDevices);
-  const features = Array.isArray(raw?.features)
-    ? raw.features.map((value) => String(value || "").trim()).filter(Boolean)
-    : [];
+  const features = normalizeLicensedFeatures(raw?.features);
   const notes = String(raw?.notes || "").trim();
 
   if (!customerName) throw new Error("CUSTOMER_NAME_REQUIRED");
@@ -204,8 +207,6 @@ function _validateGenerationPayload(raw = {}) {
     throw new Error("VALID_UNTIL_BEFORE_VALID_FROM");
   }
   if (!Number.isFinite(maxDevices) || maxDevices < 1) throw new Error("MAX_DEVICES_INVALID");
-  if (!features.length) throw new Error("FEATURES_REQUIRED");
-
   return {
     product,
     customerName,

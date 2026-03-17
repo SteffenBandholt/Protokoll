@@ -9,6 +9,7 @@ const {
 const audioSuggestionsRepoTests = require("./tests/audioSuggestionsRepo.test.cjs");
 const audioSuggestionApplyTests = require("./tests/audioSuggestionApply.test.cjs");
 const audioMappingTests = require("./tests/audioMapping.test.cjs");
+const licenseVerifierTests = require("./tests/licenseVerifier.test.cjs");
 
 const tests = [];
 let failed = false;
@@ -44,6 +45,7 @@ run("buildStoragePreviewPaths erzeugt Zielordner", () => {
 audioSuggestionsRepoTests(run, { assert });
 audioSuggestionApplyTests(run, { assert });
 audioMappingTests(run, { assert });
+licenseVerifierTests(run, { assert });
 
 (async () => {
   for (const test of tests) {
