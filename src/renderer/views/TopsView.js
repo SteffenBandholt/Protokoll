@@ -2793,7 +2793,7 @@ _isoToDDMMYYYY(iso) {
     };
 
     const btnAudioAnalyze = document.createElement("button");
-    btnAudioAnalyze.textContent = "Sprachdatei auswerten";
+    btnAudioAnalyze.textContent = "Audio";
     btnAudioAnalyze.style.background = "#1565c0";
     btnAudioAnalyze.style.color = "white";
     btnAudioAnalyze.style.border = "1px solid rgba(0,0,0,0.25)";
