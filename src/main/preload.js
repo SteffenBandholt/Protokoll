@@ -63,6 +63,17 @@ contextBridge.exposeInMainWorld("bbmDb", {
   audioRejectSuggestion: (data) => ipcRenderer.invoke("audio:rejectSuggestion", data),
 
   // ============================================================
+  // Lizenzierung
+  // ============================================================
+  licenseGetStatus: () => ipcRenderer.invoke("license:get-status"),
+  licenseRefreshStatus: () => ipcRenderer.invoke("license:refresh-status"),
+  licenseGetDiagnostics: () => ipcRenderer.invoke("license:get-diagnostics"),
+  licenseImport: (data) => ipcRenderer.invoke("license:import", data),
+  licenseLoadForEdit: (data) => ipcRenderer.invoke("license:load-for-edit", data),
+  licenseGenerate: (data) => ipcRenderer.invoke("license:generate", data),
+  licenseOpenOutputDir: (data) => ipcRenderer.invoke("license:open-output-dir", data),
+
+  // ============================================================
   // GLOBAL Firmen
   // ============================================================
   firmsListGlobal: () => ipcRenderer.invoke("firms:listGlobal"),
