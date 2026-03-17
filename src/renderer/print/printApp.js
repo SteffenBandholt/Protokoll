@@ -7,6 +7,8 @@ import { renderV2MiniHeader } from "./v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "./v2/v2LayoutConfig.js";
 
 const app = document.getElementById("app");
+const TODO_PNG = new URL("../assets/todo.png", import.meta.url).href;
+const RED_FLAG_PNG = new URL("../assets/redFlag.png", import.meta.url).href;
 
 function setError(text) {
   if (!app) return;
@@ -49,6 +51,16 @@ function _formatDateIso(value) {
   return `${d}.${m}.${y}`;
 }
 
+function _flag01(value) {
+  if (value === true || value === false) return value;
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase();
+    return s === "1" || s === "true";
+  }
+  const n = Number(value);
+  return Number.isFinite(n) ? n === 1 : false;
+}
+
 function _buildTopRowData(top, longtextOverride, ampelColor) {
   const rawNum =
     top.topNumberText ??
@@ -89,6 +101,8 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   const status = String(top.status || "").trim();
   const due = _formatDateIso(top.due_date || top.dueDate || "");
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
+  const isTask = _flag01(top.is_task ?? top.isTask ?? 0);
+  const isDecision = status.trim().toLowerCase() === "festlegung";
 
   return {
     kind: "top",
@@ -105,6 +119,8 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
     status,
     due,
     resp,
+    isTask,
+    isDecision,
     ampelColor: level === 1 ? null : ampelColor,
   };
 }
@@ -114,6 +130,26 @@ function _el(tag, className, text) {
   if (className) el.className = className;
   if (text != null) el.textContent = text;
   return el;
+}
+
+function _appendMetaMarkers(parent, row) {
+  if (!parent || !row) return;
+  if (row.isTask) {
+    const todo = document.createElement("img");
+    todo.className = "metaMarker todoMarker";
+    todo.src = TODO_PNG;
+    todo.alt = "ToDo";
+    todo.title = "ToDo";
+    parent.appendChild(todo);
+  }
+  if (row.isDecision) {
+    const flag = document.createElement("img");
+    flag.className = "metaMarker decisionFlag";
+    flag.src = RED_FLAG_PNG;
+    flag.alt = "Festlegung";
+    flag.title = "Festlegung";
+    parent.appendChild(flag);
+  }
 }
 
 function _buildTopRowElement(row) {
@@ -168,6 +204,9 @@ function _buildTopRowElement(row) {
   const meta3 = _el("div", "meta3");
   const metaLine1 = _el("div", "metaLine meta1");
   metaLine1.appendChild(_el("span", "metaText", row.status));
+  const markerWrap = _el("span", "metaMarkers");
+  _appendMetaMarkers(markerWrap, row);
+  if (markerWrap.childNodes.length) metaLine1.appendChild(markerWrap);
   if (row.ampelColor) metaLine1.appendChild(_el("span", `ampelDot ${row.ampelColor}`));
   meta3.appendChild(metaLine1);
   meta3.appendChild(_el("div", "metaLine meta2", row.due));

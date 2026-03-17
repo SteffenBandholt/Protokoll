@@ -12,6 +12,7 @@ import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
+const TODO_PNG = new URL("../assets/todo.png", import.meta.url).href;
 const RED_FLAG_PNG = new URL("../assets/redFlag.png", import.meta.url).href;
 
 export default class TopsView {
@@ -60,6 +61,7 @@ export default class TopsView {
     this.selStatus = null;
     this.selResponsible = null;
     this.dueAmpelEl = null;
+    this.statusTaskMarkerEl = null;
     this.statusDecisionFlagEl = null;
 
     this.projectFirms = [];
@@ -1850,10 +1852,25 @@ _isoToDDMMYYYY(iso) {
     return (status || "").toString().trim().toLowerCase() === "festlegung";
   }
 
-  _updateStatusDecisionFlag() {
-    if (!this.statusDecisionFlagEl) return;
-    const show = this._shouldShowDecisionFlag(this.selStatus?.value || this.selectedTop?.status || "");
-    this.statusDecisionFlagEl.style.display = show ? "block" : "none";
+  _shouldShowTaskMarker() {
+    const raw = this.chkTask?.checked ?? this.selectedTop?.is_task ?? this.selectedTop?.isTask ?? 0;
+    if (raw === true || raw === false) return raw;
+    if (typeof raw === "string") {
+      const s = raw.trim().toLowerCase();
+      return s === "1" || s === "true";
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n === 1 : false;
+  }
+
+  _updateStatusMarkers() {
+    if (this.statusTaskMarkerEl) {
+      this.statusTaskMarkerEl.style.display = this._shouldShowTaskMarker() ? "block" : "none";
+    }
+    if (this.statusDecisionFlagEl) {
+      const showDecision = this._shouldShowDecisionFlag(this.selStatus?.value || this.selectedTop?.status || "");
+      this.statusDecisionFlagEl.style.display = showDecision ? "block" : "none";
+    }
   }
 
   _isResponsibleAllSelection() {
@@ -1914,6 +1931,8 @@ _isoToDDMMYYYY(iso) {
 
   _isDecisionTop(top) {
     if (!top || typeof top !== "object") return false;
+    const status = (top.status || "").toString().trim().toLowerCase();
+    if (status === "festlegung") return true;
     const raw = top.is_decision ?? top.isDecision;
     if (raw === true || raw === false) return raw;
     if (typeof raw === "string") {
@@ -3313,18 +3332,9 @@ _isoToDDMMYYYY(iso) {
     btnTask.style.padding = BTN_PAD_ACTION;
     btnTask.style.minHeight = BTN_MIN_H;
 
-    const btnDecision = document.createElement("button");
-    btnDecision.type = "button";
-    btnDecision.textContent = "Festlegung";
-    btnDecision.style.borderRadius = BTN_RADIUS;
-    btnDecision.style.padding = BTN_PAD_ACTION;
-    btnDecision.style.minHeight = BTN_MIN_H;
-
     const updateTaskDecisionUi = () => {
       const taskOn = !!this.chkTask?.checked;
-      const decOn = !!this.chkDecision?.checked;
       const taskDisabled = !!this.chkTask?.disabled;
-      const decisionDisabled = !!this.chkDecision?.disabled;
 
       btnTask.disabled = taskDisabled;
       btnTask.style.opacity = taskDisabled ? "0.55" : "1";
@@ -3332,31 +3342,15 @@ _isoToDDMMYYYY(iso) {
       btnTask.style.background = taskOn ? "#eef7ff" : "#f3f3f3";
       btnTask.style.border = taskOn ? "1px solid #b6d4ff" : "1px solid #ddd";
       btnTask.style.color = taskOn ? "#0b4db4" : "";
-
-      btnDecision.disabled = decisionDisabled;
-      btnDecision.style.opacity = decisionDisabled ? "0.55" : "1";
-      btnDecision.style.cursor = decisionDisabled ? "default" : "pointer";
-      btnDecision.style.background = decOn ? "#fff7ed" : "#f3f3f3";
-      btnDecision.style.border = decOn ? "1px solid #fed7aa" : "1px solid #ddd";
-      btnDecision.style.color = decOn ? "#9a3412" : "";
     };
 
     btnTask.onclick = async () => {
       if (!this.chkTask || this.chkTask.disabled) return;
       this.chkTask.checked = !this.chkTask.checked;
       updateTaskDecisionUi();
+      this._updateStatusMarkers();
       await this._saveMeetingTopPatch(
         { is_task: this.chkTask.checked ? 1 : 0 },
-        { reload: true, pulse: true }
-      );
-    };
-
-    btnDecision.onclick = async () => {
-      if (!this.chkDecision || this.chkDecision.disabled) return;
-      this.chkDecision.checked = !this.chkDecision.checked;
-      updateTaskDecisionUi();
-      await this._saveMeetingTopPatch(
-        { is_decision: this.chkDecision.checked ? 1 : 0 },
         { reload: true, pulse: true }
       );
     };
@@ -3372,7 +3366,7 @@ _isoToDDMMYYYY(iso) {
     titleRight.style.alignItems = "center";
     titleRight.style.gap = "10px";
     titleRight.style.marginLeft = "auto";
-    titleRight.append(btnTask, btnDecision, labHidden);
+    titleRight.append(btnTask, labHidden);
 
     titleLabelRow.append(titleLeft, titleRight);
     titleWrap.append(titleLabelRow, inpTitle);
@@ -3472,8 +3466,8 @@ _isoToDDMMYYYY(iso) {
     dueWrap.append(dueRow);
 
     const statusWrap = mkMetaField("Status");
-    statusWrap.style.width = "calc(100% - 0.5cm)";
-    statusWrap.style.maxWidth = "calc(100% - 0.5cm)";
+    statusWrap.style.width = "100%";
+    statusWrap.style.maxWidth = "100%";
     statusWrap.style.minWidth = "0";
     const statusRow = document.createElement("div");
     statusRow.style.display = "flex";
@@ -3491,6 +3485,21 @@ _isoToDDMMYYYY(iso) {
       opt.textContent = v;
       selStatus.appendChild(opt);
     }
+    const statusMarkers = document.createElement("div");
+    statusMarkers.style.display = "flex";
+    statusMarkers.style.alignItems = "center";
+    statusMarkers.style.gap = "4px";
+    statusMarkers.style.flex = "0 0 auto";
+    statusMarkers.style.marginLeft = "auto";
+    const statusTaskMarker = document.createElement("img");
+    statusTaskMarker.src = TODO_PNG;
+    statusTaskMarker.alt = "ToDo";
+    statusTaskMarker.title = "ToDo";
+    statusTaskMarker.style.width = "14px";
+    statusTaskMarker.style.height = "14px";
+    statusTaskMarker.style.flex = "0 0 14px";
+    statusTaskMarker.style.objectFit = "contain";
+    statusTaskMarker.style.display = "none";
     const statusDecisionFlag = document.createElement("img");
     statusDecisionFlag.src = RED_FLAG_PNG;
     statusDecisionFlag.alt = "Festlegung";
@@ -3500,7 +3509,8 @@ _isoToDDMMYYYY(iso) {
     statusDecisionFlag.style.flex = "0 0 14px";
     statusDecisionFlag.style.objectFit = "contain";
     statusDecisionFlag.style.display = "none";
-    statusRow.append(selStatus, statusDecisionFlag);
+    statusMarkers.append(statusTaskMarker, statusDecisionFlag);
+    statusRow.append(selStatus, statusMarkers);
     statusWrap.append(statusRow);
 
     const respWrap = mkMetaField("Verantw.");
@@ -3545,6 +3555,7 @@ _isoToDDMMYYYY(iso) {
     this.selStatus = selStatus;
     this.selResponsible = selResponsible;
     this.dueAmpelEl = dueAmpel;
+    this.statusTaskMarkerEl = statusTaskMarker;
     this.statusDecisionFlagEl = statusDecisionFlag;
 
     this.chkImportant = chkImportant;
@@ -3713,7 +3724,7 @@ _isoToDDMMYYYY(iso) {
         if (this.inpDueDate) this.inpDueDate.value = dueVal;
       }
       const completedIn = this._isDoneStatus(st) ? this.meetingId : null;
-      this._updateStatusDecisionFlag();
+      this._updateStatusMarkers();
       this._updateDueAmpelFromInputs();
       await this._saveMeetingTopPatch(
         { status: st, due_date: dueVal || null, completed_in_meeting_id: completedIn },
@@ -5148,7 +5159,6 @@ async _closeViewOnly() {
           top.frozenIsCarriedOver
       );
       const isTask = parseFlag(top.is_task ?? top.isTask);
-      const isDecision = parseFlag(top.is_decision ?? top.isDecision);
       const isTouched = parseFlag(
         top.is_touched ??
           top.isTouched ??
@@ -5307,38 +5317,6 @@ const textCol = document.createElement("div");
 
       textCol.append(shortLine);
 
-      if (isTask || isDecision) {
-        const badgeRow = document.createElement("div");
-        badgeRow.style.display = "inline-flex";
-        badgeRow.style.alignItems = "center";
-        badgeRow.style.gap = "6px";
-        badgeRow.style.flexWrap = "wrap";
-
-        const mkBadge = (label, bg, border, color) => {
-          const badge = document.createElement("span");
-          badge.textContent = label;
-          badge.style.display = "inline-flex";
-          badge.style.alignItems = "center";
-          badge.style.justifyContent = "center";
-          badge.style.padding = "1px 6px";
-          badge.style.borderRadius = "999px";
-          badge.style.fontSize = "11px";
-          badge.style.fontWeight = "700";
-          badge.style.background = bg;
-          badge.style.border = `1px solid ${border}`;
-          badge.style.color = color;
-          return badge;
-        };
-
-        if (isTask) {
-          badgeRow.appendChild(mkBadge("ToDo", "#eef7ff", "#b6d4ff", "#0b4db4"));
-        }
-        if (isDecision) {
-          badgeRow.appendChild(mkBadge("Festlegung", "#fff7ed", "#fed7aa", "#9a3412"));
-        }
-        textCol.append(badgeRow);
-      }
-
       let lt = top.longtext ? String(top.longtext) : "";
       if (isOld && isTouched && changedDate) {
         lt = `${lt}${lt ? "\n" : ""}(Text geändert ${changedDate})`;
@@ -5410,6 +5388,18 @@ const textCol = document.createElement("div");
         stTxt.style.flex = "1 1 auto";
         stTxt.style.minWidth = "0";
         stRow.append(stTxt);
+
+        if (isTask) {
+          const taskMarker = document.createElement("img");
+          taskMarker.src = TODO_PNG;
+          taskMarker.alt = "ToDo";
+          taskMarker.title = "ToDo";
+          taskMarker.style.width = "14px";
+          taskMarker.style.height = "14px";
+          taskMarker.style.flex = "0 0 14px";
+          taskMarker.style.objectFit = "contain";
+          stRow.append(taskMarker);
+        }
 
         if (this._shouldShowDecisionFlag(st)) {
           const flag = document.createElement("img");
@@ -5629,7 +5619,7 @@ const textCol = document.createElement("div");
       this._respLegacyReadonly = false;
       this._respDirty = false;
       this._updateDueAmpelFromInputs();
-      this._updateStatusDecisionFlag();
+      this._updateStatusMarkers();
       this._respDirtyTopId = null;
       this._respLastSetTopId = null;
 
@@ -5685,7 +5675,7 @@ const textCol = document.createElement("div");
 
     this._applyProjectDueDefaults(t);
     this._updateDueAmpelFromInputs();
-    this._updateStatusDecisionFlag();
+    this._updateStatusMarkers();
     this._clearLegacyResponsibleOption();
     this._respLegacyReadonly = false;
 

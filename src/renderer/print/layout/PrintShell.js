@@ -4,12 +4,34 @@ import { renderV2MiniHeader } from "../v2/header/MiniHeader.js";
 import { V2_LAYOUT } from "../v2/v2LayoutConfig.js";
 
 const APP_ICON_URL = new URL("../assets/bbm-icon.png", window.location.href).toString();
+const TODO_PNG = new URL("../../assets/todo.png", import.meta.url).href;
+const RED_FLAG_PNG = new URL("../../assets/redFlag.png", import.meta.url).href;
 
 function _el(tag, className, text) {
   const el = document.createElement(tag);
   if (className) el.className = className;
   if (text != null) el.textContent = text;
   return el;
+}
+
+function _appendMetaMarkers(parent, row) {
+  if (!parent || !row) return;
+  if (row.isTask) {
+    const todo = document.createElement("img");
+    todo.className = "metaMarker todoMarker";
+    todo.src = TODO_PNG;
+    todo.alt = "ToDo";
+    todo.title = "ToDo";
+    parent.appendChild(todo);
+  }
+  if (row.isDecision) {
+    const flag = document.createElement("img");
+    flag.className = "metaMarker decisionFlag";
+    flag.src = RED_FLAG_PNG;
+    flag.alt = "Festlegung";
+    flag.title = "Festlegung";
+    parent.appendChild(flag);
+  }
 }
 
 function _buildStarIcon() {
@@ -153,6 +175,9 @@ function _buildTopRow(row) {
   const meta3 = _el("div", "meta3");
   const metaLine1 = _el("div", "metaLine meta1");
   metaLine1.appendChild(_el("span", "metaText", row.status));
+  const markerWrap = _el("span", "metaMarkers");
+  _appendMetaMarkers(markerWrap, row);
+  if (markerWrap.childNodes.length) metaLine1.appendChild(markerWrap);
   if (row.ampelColor) {
     const dot = _el("span", `ampelDot ${row.ampelColor}`);
     metaLine1.appendChild(dot);

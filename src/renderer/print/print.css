@@ -302,9 +302,9 @@ body {
 }
 
 .topsTable .colMeta {
-  width: 15ch;
-  min-width: 15ch;
-  max-width: 15ch;
+  width: 52mm;
+  min-width: 52mm;
+  max-width: 52mm;
   padding-left: 5mm;
   text-align: left;
   font-size: 9.5pt;
@@ -410,7 +410,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 11ch;
+  max-width: none;
   text-align: left;
 }
 
@@ -420,12 +420,26 @@ body {
   gap: 1.5mm;
 }
 
+.topsTable .metaMarkers {
+  display: inline-flex;
+  align-items: center;
+  gap: 1mm;
+  flex: 0 0 auto;
+}
+
 .metaText {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
   flex: 1 1 auto;
+}
+
+.topsTable .metaMarker {
+  width: 3.8mm;
+  height: 3.8mm;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 .ampelDot {

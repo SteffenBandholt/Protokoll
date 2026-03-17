@@ -192,6 +192,23 @@ export default class ProjectFormView {
     }
   }
 
+  _focusPrimaryInput() {
+    if (this.busy) return;
+    const candidates = [this.inpName, this.inpProjectNumber, this.inpShort];
+    for (const el of candidates) {
+      if (!el || el.disabled) continue;
+      try {
+        el.focus();
+        if (el === this.inpName && typeof el.select === "function") {
+          el.select();
+        }
+        return;
+      } catch (_e) {
+        // ignore
+      }
+    }
+  }
+
   _fill(p) {
     const proj = p || {};
 
@@ -1276,6 +1293,7 @@ export default class ProjectFormView {
   }
 
   _closeModal() {
+    this._closeProjectSettingsModal();
     if (!this.overlayEl) return;
     const overlay = this.overlayEl;
     if (this.modalBodyEl) this.modalBodyEl.innerHTML = "";
@@ -1323,8 +1341,8 @@ export default class ProjectFormView {
       this.modalFooterEl.appendChild(this._buildModalFooter());
     }
     this.overlayEl.style.display = "flex";
-    this.overlayEl.focus();
     this._setBusy(this.busy);
+    setTimeout(() => this._focusPrimaryInput(), 0);
   }
 
   async _notifySaved() {
@@ -1354,7 +1372,7 @@ export default class ProjectFormView {
     if (!this.projectId) {
       this._fill({});
       this._setBusy(false); // sets archive disabled properly
-      this.inpName?.focus();
+      this._focusPrimaryInput();
       return;
     }
 
@@ -1388,8 +1406,7 @@ export default class ProjectFormView {
       // Fokus sinnvoll
       setTimeout(() => {
         try {
-          this.inpName?.focus();
-          this.inpName?.select?.();
+          this._focusPrimaryInput();
         } catch (_) {}
       }, 0);
     } finally {

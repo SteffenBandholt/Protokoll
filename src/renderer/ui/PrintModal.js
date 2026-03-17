@@ -34,6 +34,7 @@ import {
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
 
+const TODO_PNG = new URL("../assets/todo.png", import.meta.url).href;
 const RED_FLAG_PNG = new URL("../assets/redFlag.png", import.meta.url).href;
 import { OVERLAY_TOP } from "./zIndex.js";
 import { buildProtocolPdfFileName } from "../utils/protocolPdfNaming.js";
@@ -2837,6 +2838,13 @@ export default class PrintModal {
 
         const statusRaw = (t.status || "").toString().trim();
         const status = this._cut(statusRaw || "?", 20);
+        const taskRaw = t.is_task ?? t.isTask ?? 0;
+        const showTaskMarker =
+          taskRaw === true || taskRaw === false
+            ? taskRaw
+            : typeof taskRaw === "string"
+            ? ["1", "true"].includes(taskRaw.trim().toLowerCase())
+            : Number(taskRaw) === 1;
         const showDecisionFlag = statusRaw.toLowerCase() === "festlegung";
 
         const dueRaw = (t.due_date || t.dueDate || "").toString().trim();
@@ -2857,6 +2865,7 @@ export default class PrintModal {
               </div>
               <div class="metaLine2">
                 <span class="metaText">${this._escapeHtml(status)}</span>
+                ${showTaskMarker ? `<img class="todoMarker" src="${TODO_PNG}" alt="ToDo" />` : ""}
                 ${showDecisionFlag ? `<img class="decisionFlag" src="${RED_FLAG_PNG}" alt="Festlegung" />` : ""}
               </div>
               <div class="metaLine3">${this._escapeHtml(resp)}</div>
@@ -3331,7 +3340,7 @@ export default class PrintModal {
       opacity: 0.95;
     }
 
-    .colMeta { font-size: 9.2pt; color: #222; }
+    .colMeta { font-size: 9.2pt; color: #222; width: 52mm; }
     .metaLine1 {
       display: flex;
       align-items: center;
@@ -3367,6 +3376,12 @@ export default class PrintModal {
       display: flex;
       align-items: center;
       gap: 2mm;
+    }
+    .todoMarker {
+      width: 4mm;
+      height: 4mm;
+      object-fit: contain;
+      flex: 0 0 auto;
     }
     .decisionFlag {
       width: 4mm;
@@ -3702,6 +3717,13 @@ export default class PrintModal {
 
         const statusRaw = (t.status || "").toString().trim();
         const status = this._cut(statusRaw || "?", 20);
+        const taskRaw = t.is_task ?? t.isTask ?? 0;
+        const showTaskMarker =
+          taskRaw === true || taskRaw === false
+            ? taskRaw
+            : typeof taskRaw === "string"
+            ? ["1", "true"].includes(taskRaw.trim().toLowerCase())
+            : Number(taskRaw) === 1;
         const showDecisionFlag = statusRaw.toLowerCase() === "festlegung";
 
         const dueRaw = (t.due_date || t.dueDate || "").toString().trim();
@@ -3722,6 +3744,7 @@ export default class PrintModal {
               </div>
               <div class="metaLine2">
                 <span class="metaText">${this._escapeHtml(status)}</span>
+                ${showTaskMarker ? `<img class="todoMarker" src="${TODO_PNG}" alt="ToDo" />` : ""}
                 ${showDecisionFlag ? `<img class="decisionFlag" src="${RED_FLAG_PNG}" alt="Festlegung" />` : ""}
               </div>
               <div class="metaLine3">${this._escapeHtml(resp)}</div>
@@ -4001,7 +4024,7 @@ export default class PrintModal {
       opacity: 0.95;
     }
 
-    .colMeta { font-size: 9.2pt; color: #222; }
+    .colMeta { font-size: 9.2pt; color: #222; width: 52mm; }
     .metaLine1 {
       display: flex;
       align-items: center;
@@ -4037,6 +4060,12 @@ export default class PrintModal {
       display: flex;
       align-items: center;
       gap: 2mm;
+    }
+    .todoMarker {
+      width: 4mm;
+      height: 4mm;
+      object-fit: contain;
+      flex: 0 0 auto;
     }
     .decisionFlag {
       width: 4mm;
