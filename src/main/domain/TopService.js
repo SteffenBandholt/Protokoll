@@ -581,6 +581,9 @@ class TopService {
     if (statusNorm === "erledigt") {
       dueDate = new Date().toISOString().slice(0, 10);
     }
+    if (statusNorm === "festlegung") {
+      dueDate = new Date().toISOString().slice(0, 10);
+    }
 
     return this.meetingTopsRepo.updateMeetingTop({
       meetingId,

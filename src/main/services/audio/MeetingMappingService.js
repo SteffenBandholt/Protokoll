@@ -1,5 +1,5 @@
 const NEW_POINT_PATTERN =
-  /\b(?:neuer punkt|au[sß]erdem|zus[aä]tzlich|noch ein thema|weiterer punkt)\b/i;
+  /\b(?:neuer top|neuer punkt|neuer unterpunkt|unterpunkt unter|zusaetzlicher top|weiterer punkt|ausserdem|noch ein thema|zusaetzlich)\b/i;
 const ACTIVE_ANCHOR_MAX_WORDS = 12;
 
 function _audioLog(message, extra = null) {
@@ -41,10 +41,14 @@ class MeetingMappingService {
   _normalize(value) {
     return String(value || "")
       .toLocaleLowerCase("de-DE")
-      .replace(/ä/g, "ae")
-      .replace(/ö/g, "oe")
-      .replace(/ü/g, "ue")
-      .replace(/ß/g, "ss")
+      .replace(/[\u00e4\u00c4]/g, "ae")
+      .replace(/[\u00f6\u00d6]/g, "oe")
+      .replace(/[\u00fc\u00dc]/g, "ue")
+      .replace(/\u00df/g, "ss")
+      .replace(/Ã¤/g, "ae")
+      .replace(/Ã¶/g, "oe")
+      .replace(/Ã¼/g, "ue")
+      .replace(/ÃŸ/g, "ss")
       .replace(/[^\p{L}\p{N}\s./-]+/gu, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -104,7 +108,7 @@ class MeetingMappingService {
 
     const preferred = filtered.find((row) => this._safeText(row?.longtext)) || filtered[0] || null;
     if (!preferred?.id) {
-      throw new Error("Kein bestehender TOP für append_to_top gefunden");
+      throw new Error("Kein bestehender TOP fuer append_to_top gefunden");
     }
     return preferred;
   }
@@ -123,7 +127,7 @@ class MeetingMappingService {
     if (levelOne?.id) return levelOne;
 
     const anyVisible = rows.find((row) => Number(row?.is_hidden || 0) !== 1) || null;
-    if (!anyVisible?.id) throw new Error("Kein Parent-TOP für create_child_top gefunden");
+    if (!anyVisible?.id) throw new Error("Kein Parent-TOP fuer create_child_top gefunden");
     return anyVisible;
   }
 
@@ -165,6 +169,17 @@ class MeetingMappingService {
         };
       })
       .filter((entry) => entry.topId && entry.title);
+  }
+
+  _findWorkingCardByTopNumber(topNumber, workingCard) {
+    const normalizedNumber = this._safeText(topNumber).replace(/\//g, ".");
+    if (!normalizedNumber) return null;
+
+    return (
+      workingCard
+        .filter((entry) => this._safeText(entry.number).replace(/\//g, ".") === normalizedNumber)
+        .sort((a, b) => String(b.number).length - String(a.number).length)[0] || null
+    );
   }
 
   _findDirectTopMatch(segmentNormalized, rawSegment, workingCard) {
@@ -227,15 +242,130 @@ class MeetingMappingService {
     return null;
   }
 
+  _extractSpokenTopReference(segmentNormalized, workingCard) {
+    const patterns = [
+      {
+        regex: /\b(?:gehe zu|weiter mit|zum thema)\s+top\s+(\d+(?:[./]\d+)*)\b/i,
+        kind: "context_switch",
+        reasonPrefix: "spoken_context_switch",
+      },
+      {
+        regex: /\b(?:zu|bei|unter)\s+top\s+(\d+(?:[./]\d+)*)\b/i,
+        kind: "direct_reference",
+        reasonPrefix: "spoken_top_reference",
+      },
+      {
+        regex: /\btop\s+(\d+(?:[./]\d+)*)\b/i,
+        kind: "direct_reference",
+        reasonPrefix: "spoken_top_reference",
+      },
+    ];
+
+    for (const pattern of patterns) {
+      const match = segmentNormalized.match(pattern.regex);
+      if (!match || !match[1]) continue;
+      const number = this._safeText(match[1]).replace(/\//g, ".");
+      const entry = this._findWorkingCardByTopNumber(number, workingCard);
+      if (!entry) continue;
+      return {
+        entry,
+        number,
+        kind: pattern.kind,
+        reason: `${pattern.reasonPrefix}:${number}`,
+      };
+    }
+
+    return null;
+  }
+
   _hasNewPointSignal(segmentText) {
-    return NEW_POINT_PATTERN.test(String(segmentText || ""));
+    return NEW_POINT_PATTERN.test(this._normalize(segmentText));
+  }
+
+  _hasNewTopSignal(segmentText) {
+    const normalized = this._normalize(segmentText);
+    return /\b(?:neuer top|neuer punkt|zusaetzlicher top)\b/i.test(normalized);
+  }
+
+  _hasNewChildSignal(segmentText) {
+    const normalized = this._normalize(segmentText);
+    return /\b(?:neuer unterpunkt|unterpunkt unter top|unterpunkt)\b/i.test(normalized);
+  }
+
+  _extractTitleDirective(segmentText) {
+    const cleaned = this._safeText(segmentText);
+    if (!cleaned) return null;
+
+    const match = cleaned.match(
+      /(?:^|[.!?;]\s*)(?:neuer titel|titel|ueberschrift|überschrift)\s*[:,-]?\s+(.+?)(?=(?:[.!?;]+(?:\s|$)|$))/i
+    );
+    if (!match || !match[1]) return null;
+
+    const title = this._safeText(match[1]).replace(/[.!?;]+$/g, "").trim();
+    if (!title) return null;
+
+    return {
+      title,
+      matchText: match[0],
+    };
   }
 
   _stripLeadingContext(segmentText) {
     return String(segmentText || "")
-      .replace(/^(?:neuer punkt|au[sß]erdem|zus[aä]tzlich|noch ein thema|weiterer punkt)\s*[:,-]?\s*/i, "")
+      .replace(
+        /^(?:gehe zu|weiter mit|zum thema)\s+top\s+\d+(?:[./]\d+)*\s*[.!?;,:-]?\s*/i,
+        ""
+      )
+      .replace(/^(?:zu|bei|unter)\s+top\s+\d+(?:[./]\d+)*\s*[.!?;,:-]?\s*/i, "")
+      .replace(/^top\s+\d+(?:[./]\d+)*\s*[.!?;,:-]?\s*/i, "")
+      .replace(
+        /^(?:neuer top|neuer punkt|zusaetzlicher top|neuer unterpunkt|unterpunkt(?:\s+unter\s+top\s+\d+(?:[./]\d+)*)?)\s*[.!?;,:-]?\s*/i,
+        ""
+      )
+      .replace(/^(?:ausserdem|zusaetzlich|noch ein thema|weiterer punkt)\s*[:,-]?\s*/i, "")
       .replace(/^(?:unter|bei|beim|zum thema)\s+[^:.;,-]+[:,-]?\s*/i, "")
+      .replace(/^[.!?;,:-]+\s*/g, "")
       .trim();
+  }
+
+  _stripStructureCommands(segmentText, titleDirective = null) {
+    let cleaned = this._safeText(segmentText);
+    if (!cleaned) return "";
+
+    const patterns = [
+      /^(?:gehe zu|weiter mit|zum thema)\s+top\s+\d+(?:[./]\d+)*\s*[.!?;,:-]?\s*/i,
+      /^(?:zu|bei|unter)\s+top\s+\d+(?:[./]\d+)*\s*[.!?;,:-]?\s*/i,
+      /^top\s+\d+(?:[./]\d+)*\s*[.!?;,:-]?\s*/i,
+      /^(?:neuer top|neuer punkt|zusaetzlicher top)\s*[.!?;,:-]?\s*/i,
+      /^(?:neuer unterpunkt|unterpunkt(?:\s+unter\s+top\s+\d+(?:[./]\d+)*)?)\s*[.!?;,:-]?\s*/i,
+      /^(?:ausserdem|zusaetzlich|noch ein thema|weiterer punkt)\s*[:,-]?\s*/i,
+      /^(?:neuer titel|titel|ueberschrift|überschrift)\s*[:,-]?\s+.+?(?=(?:[.!?;]+(?:\s|$)|$))/i,
+    ];
+
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const trimmed = cleaned.replace(/^[.!?;,:-]+\s*/g, "").trim();
+      if (trimmed !== cleaned) {
+        cleaned = trimmed;
+        changed = true;
+      }
+
+      for (const pattern of patterns) {
+        const next = cleaned.replace(pattern, "").trim();
+        if (next !== cleaned) {
+          cleaned = next;
+          changed = true;
+        }
+      }
+
+      if (titleDirective?.matchText && cleaned.includes(titleDirective.matchText)) {
+        cleaned = cleaned.replace(titleDirective.matchText, " ").replace(/\s+/g, " ").trim();
+        changed = true;
+      }
+    }
+
+    return cleaned.replace(/^[.!?;,:-]+\s*/g, "").trim();
   }
 
   _buildSuggestedTitle(segmentText) {
@@ -264,14 +394,92 @@ class MeetingMappingService {
     return true;
   }
 
+  _mapSpokenStructureSegment(segment, workingCard, context = {}, options = {}) {
+    const segmentText = this._safeText(segment?.text || "");
+    if (!segmentText) return null;
+
+    const segmentNormalized = this._normalize(segmentText);
+    const spokenTop = this._extractSpokenTopReference(segmentNormalized, workingCard);
+    const currentAnchor =
+      context.anchorTopId
+        ? workingCard.find((entry) => String(entry.topId) === String(context.anchorTopId))
+        : null;
+    const titleDirective = this._extractTitleDirective(segmentText);
+    const hasNewChildSignal = this._hasNewChildSignal(segmentText);
+    const hasNewTopSignal = this._hasNewTopSignal(segmentText);
+    const strippedContent = this._stripStructureCommands(segmentText, titleDirective);
+    const parentCandidate = spokenTop?.entry || currentAnchor || null;
+    const titleSuggestion =
+      titleDirective?.title || this._buildSuggestedTitle(strippedContent || segmentText);
+
+    if (hasNewChildSignal || hasNewTopSignal) {
+      if (!spokenTop && !titleDirective && options.phraseTarget?.entry) {
+        return null;
+      }
+
+      if (!parentCandidate?.topId && !titleDirective && !spokenTop) {
+        return null;
+      }
+
+      if (parentCandidate?.topId) {
+        return {
+          type: "create_child_top",
+          parentTopId: parentCandidate.topId,
+          titleSuggestion,
+          textSuggestion: strippedContent,
+          sourceExcerpt: segmentText,
+          mappingReason: hasNewChildSignal
+            ? `spoken_new_child:${this._topLabel(parentCandidate)}`
+            : `spoken_new_point:${this._topLabel(parentCandidate)}`,
+          nextAnchorTopId: parentCandidate.topId,
+        };
+      }
+
+      return {
+        type: "manual_assign_child_top",
+        titleSuggestion,
+        textSuggestion: strippedContent,
+        sourceExcerpt: segmentText,
+        mappingReason: hasNewChildSignal
+          ? "spoken_new_child_without_safe_parent"
+          : "spoken_new_point_without_safe_parent",
+        nextAnchorTopId: null,
+      };
+    }
+
+    if (!spokenTop?.entry) return null;
+
+    if (!strippedContent) {
+      return {
+        nextAnchorTopId: spokenTop.entry.topId,
+        mappingReason: spokenTop.reason,
+      };
+    }
+
+    return {
+      type: "append_to_top",
+      targetTopId: spokenTop.entry.topId,
+      titleSuggestion: null,
+      textSuggestion: strippedContent,
+      sourceExcerpt: segmentText,
+      mappingReason: spokenTop.reason,
+      nextAnchorTopId: spokenTop.entry.topId,
+    };
+  }
+
   _mapSegment(segment, workingCard, context = {}) {
     const segmentText = this._safeText(segment?.text || "");
     if (!segmentText) return null;
 
     const segmentNormalized = this._normalize(segmentText);
+    const phraseTarget = this._extractTargetFromPhrases(segmentNormalized, workingCard);
+    const spokenStructure = this._mapSpokenStructureSegment(segment, workingCard, context, {
+      phraseTarget,
+    });
+    if (spokenStructure) return spokenStructure;
+
     const hasNewPointSignal = this._hasNewPointSignal(segmentText);
     const directTop = this._findDirectTopMatch(segmentNormalized, segmentText, workingCard);
-    const phraseTarget = this._extractTargetFromPhrases(segmentNormalized, workingCard);
     const currentAnchor =
       context.anchorTopId
         ? workingCard.find((entry) => String(entry.topId) === String(context.anchorTopId))
@@ -393,16 +601,16 @@ class MeetingMappingService {
         projectId: meeting.project_id,
         type: "append_to_top",
         targetTopId: target.id,
-        titleSuggestion: "Test: Bestehenden TOP ergänzen",
-        textSuggestion: `Demo-Append: Dieser Text soll an den bestehenden Langtext von "${targetLabel}" angehängt werden.`,
-        sourceExcerpt: `Stub-Ziel für append_to_top: ${targetLabel}`,
+        titleSuggestion: "Test: Bestehenden TOP ergaenzen",
+        textSuggestion: `Demo-Append: Dieser Text soll an den bestehenden Langtext von "${targetLabel}" angehaengt werden.`,
+        sourceExcerpt: `Stub-Ziel fuer append_to_top: ${targetLabel}`,
         confidence: 0.99,
         status: "pending",
         mappingReason: "phase3_demo_append",
       });
       return {
         suggestions: [suggestion],
-        message: `Demo-Vorschlag für append_to_top wurde für "${targetLabel}" angelegt.`,
+        message: `Demo-Vorschlag fuer append_to_top wurde fuer "${targetLabel}" angelegt.`,
       };
     }
 
@@ -419,16 +627,16 @@ class MeetingMappingService {
         projectId: meeting.project_id,
         type: "create_child_top",
         parentTopId: parent.id,
-        titleSuggestion: "Test-Unterpunkt für create_child_top",
+        titleSuggestion: "Test-Unterpunkt fuer create_child_top",
         textSuggestion: `Demo-Child: Dieser neue TOP soll unter "${parentLabel}" angelegt werden.`,
-        sourceExcerpt: `Stub-Parent für create_child_top: ${parentLabel}`,
+        sourceExcerpt: `Stub-Parent fuer create_child_top: ${parentLabel}`,
         confidence: 0.99,
         status: "pending",
         mappingReason: "phase3_demo_child",
       });
       return {
         suggestions: [suggestion],
-        message: `Demo-Vorschlag für create_child_top wurde unter "${parentLabel}" angelegt.`,
+        message: `Demo-Vorschlag fuer create_child_top wurde unter "${parentLabel}" angelegt.`,
       };
     }
 
@@ -448,7 +656,7 @@ class MeetingMappingService {
       });
       return {
         suggestions: [suggestion],
-        message: "Demo-Vorschlag für manual_assign_child_top wurde angelegt.",
+        message: "Demo-Vorschlag fuer manual_assign_child_top wurde angelegt.",
       };
     }
 
@@ -466,7 +674,7 @@ class MeetingMappingService {
     const meeting = this._getMeetingOrThrow(audioImport.meeting_id);
     const transcript = this.transcriptsRepo.getByAudioImportId(audioImportId);
     if (!transcript?.full_text) {
-      throw new Error("Kein Transkript für den Audio-Import vorhanden");
+      throw new Error("Kein Transkript fuer den Audio-Import vorhanden");
     }
 
     const segments = this.segmentationService.segmentTranscript(transcript);
@@ -493,6 +701,14 @@ class MeetingMappingService {
       const mapped = this._mapSegment(segment, workingCard, { anchorTopId });
       if (!mapped) continue;
 
+      if (Object.prototype.hasOwnProperty.call(mapped, "nextAnchorTopId")) {
+        anchorTopId = mapped.nextAnchorTopId || null;
+      }
+
+      if (!mapped.type) {
+        continue;
+      }
+
       const suggestion = this.audioSuggestionsRepo.createSuggestion(
         this._createSuggestionPayload({
           audioImportId,
@@ -501,9 +717,6 @@ class MeetingMappingService {
         })
       );
       created.push(suggestion);
-      if (Object.prototype.hasOwnProperty.call(mapped, "nextAnchorTopId")) {
-        anchorTopId = mapped.nextAnchorTopId || null;
-      }
     }
 
     this.audioImportsRepo.updateStatus({
@@ -523,7 +736,7 @@ class MeetingMappingService {
       segmentCount: segments.length,
       stub: false,
       message:
-        "Transkript wurde segmentiert und konservativ gegen die bestehende TOP-Struktur geprüft. Unsichere Inhalte wurden nach 'Manuell zuordnen' geleitet.",
+        "Transkript wurde segmentiert und konservativ gegen die bestehende TOP-Struktur geprueft. Unsichere Inhalte wurden nach 'Manuell zuordnen' geleitet.",
     };
   }
 }

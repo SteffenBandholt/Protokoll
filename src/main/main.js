@@ -103,6 +103,51 @@ function _resolveProjectRoot() {
   return null;
 }
 
+function _stripWrappingQuotes(value) {
+  const raw = String(value || "");
+  if (raw.length >= 2) {
+    const first = raw[0];
+    const last = raw[raw.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return raw.slice(1, -1);
+    }
+  }
+  return raw;
+}
+
+function _loadDevEnvFile(projectRoot) {
+  if (app.isPackaged || !projectRoot) return [];
+
+  const envPath = path.join(projectRoot, ".env");
+  if (!fs.existsSync(envPath)) return [];
+
+  const loadedKeys = [];
+  const raw = fs.readFileSync(envPath, "utf8");
+  const lines = raw.split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = String(line || "").trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    if (!key) continue;
+    if (String(process.env[key] || "").trim()) continue;
+
+    let value = _stripWrappingQuotes(trimmed.slice(separatorIndex + 1).trim());
+    if (/_PATH$/i.test(key) && value && !path.isAbsolute(value)) {
+      value = path.resolve(projectRoot, value);
+    }
+
+    process.env[key] = value;
+    loadedKeys.push(key);
+  }
+
+  return loadedKeys;
+}
+
 async function _readJsonFile(filePath) {
   const raw = await fs.promises.readFile(filePath, "utf8");
   return JSON.parse(raw);
@@ -372,6 +417,12 @@ async function maybePromptLegacyMigration(win) {
 }
 
 app.whenReady().then(async () => {
+  const projectRoot = _resolveProjectRoot();
+  const loadedDevEnvKeys = _loadDevEnvFile(projectRoot);
+  if (loadedDevEnvKeys.length) {
+    console.log("[main] loaded .env keys:", loadedDevEnvKeys.join(", "));
+  }
+
   // ✅ IPCs zuerst registrieren (verhindert "No handler registered" beim invoke)
   registerProjectsIpc();
   registerMeetingsIpc();

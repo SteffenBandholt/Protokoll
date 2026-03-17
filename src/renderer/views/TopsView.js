@@ -1186,19 +1186,25 @@ _isoToDDMMYYYY(iso) {
     if (this.chkTask && !this.chkTask.disabled) {
       patch.is_task = this.chkTask.checked ? 1 : 0;
     }
-    if (this.chkDecision && !this.chkDecision.disabled) {
-      patch.is_decision = this.chkDecision.checked ? 1 : 0;
-    }
-
-    if (this.inpDueDate && !this.inpDueDate.disabled) {
-      const dueVal = (this.inpDueDate.value || "").trim();
-      patch.due_date = dueVal || null;
-    }
 
     if (this.selStatus && !this.selStatus.disabled) {
       const st = (this.selStatus.value || "").trim();
       patch.status = st || "offen";
       patch.completed_in_meeting_id = this._isDoneStatus(patch.status) ? this.meetingId : null;
+      if (this.chkDecision && !this.chkDecision.disabled) {
+        patch.is_decision = this._isDecisionStatus(patch.status) ? 1 : 0;
+      }
+    } else if (this.chkDecision && !this.chkDecision.disabled) {
+      patch.is_decision = this.chkDecision.checked ? 1 : 0;
+    }
+
+    if (this.inpDueDate && !this.inpDueDate.disabled) {
+      let dueVal = (this.inpDueDate.value || "").trim();
+      if (this._isDecisionStatus(patch.status)) {
+        dueVal = this._todayISO();
+        this.inpDueDate.value = dueVal;
+      }
+      patch.due_date = dueVal || null;
     }
 
     if (this.selResponsible && !this.selResponsible.disabled) {
@@ -1987,6 +1993,8 @@ _isoToDDMMYYYY(iso) {
     const st = (status || "").toString().trim().toLowerCase();
     return st === "erledigt"
       ? "gruen"
+      : st === "festlegung"
+      ? "gruen"
       : st === "blockiert" || st === "verzug"
       ? "rot"
       : !this._parseYmdDate(dueDateStr)
@@ -2010,6 +2018,20 @@ _isoToDDMMYYYY(iso) {
     const ampelCompute = createAmpelComputer(this.items || [], this._ampelBaseDate(), overrides);
     const color = t ? ampelCompute(t) : null;
     this._applyAmpelDotColor(this.dueAmpelEl, color);
+  }
+
+  _applyDecisionStatusToInputs(status) {
+    const isDecisionStatus = this._isDecisionStatus(status);
+    if (this.chkDecision) {
+      this.chkDecision.checked = isDecisionStatus;
+    }
+    if (isDecisionStatus && this.inpDueDate && !this.inpDueDate.disabled) {
+      this.inpDueDate.value = this._todayISO();
+      if (this.selectedTop?.id) {
+        this._dueDirty = true;
+        this._dueDirtyTopId = this.selectedTop.id;
+      }
+    }
   }
 
   _isResponsibleAllSelection() {
@@ -2050,6 +2072,11 @@ _isoToDDMMYYYY(iso) {
     return st === "erledigt";
   }
 
+  _isDecisionStatus(status) {
+    const st = (status || "").toString().trim().toLowerCase();
+    return st === "festlegung";
+  }
+
   _shouldHideDoneTop(top) {
     if (Number(top?.is_hidden ?? top?.isHidden ?? 0) === 1) return true;
     const meeting = this.meetingMeta || { id: this.meetingId };
@@ -2070,6 +2097,7 @@ _isoToDDMMYYYY(iso) {
 
   _isDecisionTop(top) {
     if (!top || typeof top !== "object") return false;
+    if (this._isDecisionStatus(top?.status)) return true;
     const raw = top.is_decision ?? top.isDecision;
     if (raw === true || raw === false) return raw;
     if (typeof raw === "string") {
@@ -3065,13 +3093,6 @@ _isoToDDMMYYYY(iso) {
     btnTask.style.padding = BTN_PAD_ACTION;
     btnTask.style.minHeight = BTN_MIN_H;
 
-    const btnDecision = document.createElement("button");
-    btnDecision.type = "button";
-    btnDecision.textContent = "Festlegung";
-    btnDecision.style.borderRadius = BTN_RADIUS;
-    btnDecision.style.padding = BTN_PAD_ACTION;
-    btnDecision.style.minHeight = BTN_MIN_H;
-
     let statusTodoIcon = null;
     let statusDecisionIcon = null;
 
@@ -3080,22 +3101,14 @@ _isoToDDMMYYYY(iso) {
       const decOn = !!this.chkDecision?.checked;
 
       const taskDisabled = !!this.chkTask?.disabled;
-      const decisionDisabled = !!this.chkDecision?.disabled;
 
       btnTask.disabled = taskDisabled;
       btnTask.style.opacity = taskDisabled ? "0.55" : "1";
       btnTask.style.cursor = taskDisabled ? "default" : "pointer";
-      btnDecision.disabled = decisionDisabled;
-      btnDecision.style.opacity = decisionDisabled ? "0.55" : "1";
-      btnDecision.style.cursor = decisionDisabled ? "default" : "pointer";
 
       btnTask.style.background = taskOn ? "#eef7ff" : "#f3f3f3";
       btnTask.style.border = taskOn ? "1px solid #b6d4ff" : "1px solid #ddd";
       btnTask.style.color = taskOn ? "#0b4db4" : "";
-
-      btnDecision.style.background = decOn ? "#fff7ed" : "#f3f3f3";
-      btnDecision.style.border = decOn ? "1px solid #fed7aa" : "1px solid #ddd";
-      btnDecision.style.color = decOn ? "#9a3412" : "";
 
       if (statusTodoIcon) statusTodoIcon.style.display = taskOn ? "inline-block" : "none";
       if (statusDecisionIcon) statusDecisionIcon.style.display = decOn ? "inline-block" : "none";
@@ -3112,26 +3125,13 @@ _isoToDDMMYYYY(iso) {
       await this._saveMeetingTopPatch({ is_task: this.chkTask.checked ? 1 : 0 }, { reload: true, pulse: true });
     };
 
-    btnDecision.onclick = async () => {
-      if (this.isReadOnly || !this.selectedTop) return;
-      if (!this.chkDecision || this.chkDecision.disabled) return;
-      this.chkDecision.checked = !this.chkDecision.checked;
-      updateTaskDecisionUi();
-      await this._saveMeetingTopPatch({ is_decision: this.chkDecision.checked ? 1 : 0 }, { reload: true, pulse: true });
-    };
-
     btnTask.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== " ") return;
       e.preventDefault();
       btnTask.click();
     });
-    btnDecision.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      btnDecision.click();
-    });
 
-    addActions.append(btnTask, btnDecision);
+    addActions.append(btnTask);
 
     const headerActions = document.createElement("div");
     headerActions.style.display = "inline-flex";
@@ -3377,11 +3377,11 @@ _isoToDDMMYYYY(iso) {
     selStatus.style.width = "calc(100% + 3mm - 12mm)";
     selStatus.style.flex = "1 1 auto";
     selStatus.style.minWidth = "0";
-    const statusOptions = ["offen", "in arbeit", "erledigt", "blockiert", "verzug"];
+    const statusOptions = ["offen", "in arbeit", "erledigt", "festlegung", "blockiert", "verzug"];
     for (const v of statusOptions) {
       const opt = document.createElement("option");
       opt.value = v;
-      opt.textContent = v;
+      opt.textContent = v === "festlegung" ? "Festlegung" : v;
       selStatus.appendChild(opt);
     }
     const statusRow = document.createElement("div");
@@ -3634,12 +3634,18 @@ _isoToDDMMYYYY(iso) {
       if (selStatus.disabled) return;
       if (!this.selectedTop) return;
       const st = (selStatus.value || "").trim() || "offen";
+      this._applyDecisionStatusToInputs(st);
       const completedIn = this._isDoneStatus(st) ? this.meetingId : null;
+      const patch = {
+        status: st,
+        completed_in_meeting_id: completedIn,
+        is_decision: this._isDecisionStatus(st) ? 1 : 0,
+      };
+      if (this._isDecisionStatus(st)) {
+        patch.due_date = this._todayISO();
+      }
       this._updateDueAmpelFromInputs();
-      await this._saveMeetingTopPatch(
-        { status: st, completed_in_meeting_id: completedIn },
-        { reload: true, pulse: true }
-      );
+      await this._saveMeetingTopPatch(patch, { reload: true, pulse: true });
       this._renderListOnly();
     });
 
@@ -3912,8 +3918,8 @@ _renderIdleState() {
       const img = document.createElement("img");
       img.src = EMPTY_LEVEL1_HINT_PNG;
       img.alt = "Hinweis Protokoll neu";
-      img.style.width = "220px";
-      img.style.maxWidth = "70%";
+      img.style.width = "110px";
+      img.style.maxWidth = "35%";
       img.style.height = "auto";
       img.style.objectFit = "contain";
       wrap.appendChild(img);
@@ -5482,8 +5488,8 @@ const textCol = document.createElement("div");
       const img = document.createElement("img");
       img.src = EMPTY_LEVEL1_HINT_PNG;
       img.alt = "Hinweis erstes Level 1";
-      img.style.width = "220px";
-      img.style.maxWidth = "70%";
+      img.style.width = "110px";
+      img.style.maxWidth = "35%";
       img.style.height = "auto";
       img.style.objectFit = "contain";
 
@@ -5672,7 +5678,10 @@ const textCol = document.createElement("div");
     this.chkHidden.checked = Number(t.is_hidden) === 1;
     if (this.chkImportant) this.chkImportant.checked = Number(t.is_important) === 1;
     if (this.chkTask) this.chkTask.checked = Number(t.is_task ?? t.isTask ?? 0) === 1;
-    if (this.chkDecision) this.chkDecision.checked = Number(t.is_decision ?? t.isDecision ?? 0) === 1;
+    if (this.chkDecision) {
+      this.chkDecision.checked =
+        this._isDecisionStatus(t.status) || Number(t.is_decision ?? t.isDecision ?? 0) === 1;
+    }
 
     if (this.inpDueDate) {
       const dueRaw = t.due_date ?? t.dueDate ?? "";
@@ -5683,6 +5692,10 @@ const textCol = document.createElement("div");
     if (this.selStatus) {
       const st = (t.status || "").toString().trim();
       this.selStatus.value = st || "offen";
+    }
+
+    if (this._isDecisionStatus(t.status) && this.inpDueDate && !this.inpDueDate.value) {
+      this.inpDueDate.value = this._todayISO();
     }
 
     this._applyProjectDueDefaults(t);

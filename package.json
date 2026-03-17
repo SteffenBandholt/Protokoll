@@ -7,6 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
+    "setup:whisper:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/setup-whisper-dev.ps1",
     "pack": "electron-builder --dir",
     "dist": "node scripts/dist.cjs",
     "test": "node scripts/test.cjs",

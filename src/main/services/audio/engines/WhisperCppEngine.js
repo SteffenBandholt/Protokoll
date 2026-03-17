@@ -12,16 +12,27 @@ function _fileExists(filePath) {
   }
 }
 
-function _resolveExistingFile(candidates) {
+function _directoryExists(dirPath) {
+  if (!dirPath) return false;
+  try {
+    return fs.statSync(dirPath).isDirectory();
+  } catch (_err) {
+    return false;
+  }
+}
+
+function _resolveExistingFile(candidates, fileNames = []) {
   for (const candidate of candidates) {
     const value = String(candidate || "").trim();
     if (!value) continue;
 
     if (_fileExists(value)) return value;
 
-    if (fs.existsSync(value)) {
-      const derived = path.join(value, process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli");
-      if (_fileExists(derived)) return derived;
+    if (_directoryExists(value)) {
+      for (const fileName of fileNames) {
+        const derived = path.join(value, fileName);
+        if (_fileExists(derived)) return derived;
+      }
     }
   }
   return null;
@@ -73,6 +84,8 @@ class WhisperCppEngine {
     return [
       process.env.BBM_WHISPER_CPP_PATH,
       process.env.WHISPER_CPP_PATH,
+      path.join(this.workspaceRoot, "dev", "tools", "whisper.cpp"),
+      path.join(this.workspaceRoot, "dev", "tools", "whisper.cpp", "Release"),
       path.join(this.workspaceRoot, "vendor", "whisper.cpp", exeName),
       path.join(this.workspaceRoot, "tools", "whisper.cpp", exeName),
       path.join(this.workspaceRoot, "bin", exeName),
@@ -85,6 +98,8 @@ class WhisperCppEngine {
     return [
       process.env.BBM_WHISPER_MODEL_PATH,
       process.env.WHISPER_MODEL_PATH,
+      path.join(this.workspaceRoot, "dev", "models"),
+      path.join(this.workspaceRoot, "dev", "models", "whisper"),
       executableDir ? path.join(executableDir, "models", "ggml-base.bin") : null,
       executableDir ? path.join(executableDir, "..", "models", "ggml-base.bin") : null,
       path.join(this.workspaceRoot, "models", "ggml-base.bin"),
@@ -97,14 +112,30 @@ class WhisperCppEngine {
     return [
       process.env.BBM_FFMPEG_PATH,
       process.env.FFMPEG_PATH,
+      path.join(this.workspaceRoot, "dev", "tools", "ffmpeg"),
+      path.join(this.workspaceRoot, "dev", "tools", "ffmpeg", "bin"),
       _findExecutableOnPath(exeName),
     ];
   }
 
   getAvailability() {
-    const executablePath = _resolveExistingFile(this._getExecutableCandidates());
-    const modelPath = _resolveExistingFile(this._getModelCandidates(executablePath));
-    const ffmpegPath = _resolveExistingFile(this._getFfmpegCandidates());
+    const exeName = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli";
+    const ffmpegName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+    const executablePath = _resolveExistingFile(this._getExecutableCandidates(), [
+      exeName,
+      path.join("Release", exeName),
+      path.join("build", "bin", exeName),
+      path.join("build", "bin", "Release", exeName),
+      path.join("bin", exeName),
+    ]);
+    const modelPath = _resolveExistingFile(this._getModelCandidates(executablePath), [
+      "ggml-base.bin",
+      path.join("models", "ggml-base.bin"),
+    ]);
+    const ffmpegPath = _resolveExistingFile(this._getFfmpegCandidates(), [
+      ffmpegName,
+      path.join("bin", ffmpegName),
+    ]);
 
     return {
       available: !!(executablePath && modelPath),
@@ -127,7 +158,7 @@ class WhisperCppEngine {
     }
 
     throw new Error(
-      `Lokale Transkription ist vorbereitet, aber noch nicht lauffähig: ${missing.join("; ")}`
+      `Lokale Transkription ist vorbereitet, aber noch nicht lauffaehig: ${missing.join("; ")}`
     );
   }
 
@@ -139,7 +170,7 @@ class WhisperCppEngine {
 
     if (!ffmpegPath) {
       throw new Error(
-        "Für Nicht-WAV-Dateien wird ffmpeg benötigt. Entweder WAV importieren oder BBM_FFMPEG_PATH setzen."
+        "Fuer Nicht-WAV-Dateien wird ffmpeg benoetigt. Entweder WAV importieren oder BBM_FFMPEG_PATH setzen."
       );
     }
 

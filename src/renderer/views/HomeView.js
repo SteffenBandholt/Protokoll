@@ -171,8 +171,8 @@ export default class HomeView {
     bgImg.src = "./assets/icon-BBM.png";
     bgImg.alt = "";
     bgImg.style.display = "block";
-    bgImg.style.width = "clamp(220px, 28vw, 420px)";
-    bgImg.style.maxWidth = "70%";
+    bgImg.style.width = "clamp(55px, 7vw, 105px)";
+    bgImg.style.maxWidth = "17.5%";
     bgImg.style.height = "auto";
     bgImg.style.objectFit = "contain";
 

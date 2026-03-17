@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const img = document.createElement("img");
     img.src = "./assets/icon-BBM.png";
     img.alt = "BBM";
-    img.style.width = "clamp(200px, 26vw, 360px)";
+    img.style.width = "clamp(50px, 6.5vw, 90px)";
     img.style.height = "auto";
     img.style.objectFit = "contain";
 
