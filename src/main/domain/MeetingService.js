@@ -48,6 +48,19 @@ function _isDoneStatus(status) {
   return String(status || "").trim().toLowerCase() === "erledigt";
 }
 
+function isMeetingTopTask(top) {
+  if (!top || typeof top !== "object") return false;
+  const raw = top.is_task !== undefined ? top.is_task : top.isTask;
+  return Number(raw) === 1 || raw === true;
+}
+
+function _isOverdueTask(top, todayTs) {
+  if (!top) return false;
+  if (_isDoneStatus(top.status)) return false;
+  const dueTs = _parseYmdTs(top.due_date);
+  return Number.isFinite(dueTs) && dueTs < todayTs;
+}
+
 function _parseYmdTs(value) {
   const s = String(value || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return Number.POSITIVE_INFINITY;
@@ -204,6 +217,23 @@ class MeetingService {
     }
 
     return meeting;
+  }
+
+  listProjectTasks(projectId, statusFilter) {
+    if (!projectId) throw new Error("projectId required");
+
+    const rows = this.meetingTopsRepo.listLatestByProject(projectId) || [];
+    let out = rows.filter((r) => isMeetingTopTask(r));
+    if (statusFilter === "open") {
+      out = out.filter((r) => !_isDoneStatus(r.status));
+    } else if (statusFilter === "completed") {
+      out = out.filter((r) => _isDoneStatus(r.status));
+    }
+    const todayTs = _parseYmdTs(new Date().toISOString());
+    return out.map((r) => ({
+      ...r,
+      is_overdue: _isOverdueTask(r, todayTs),
+    }));
   }
 
   _buildTodoSnapshot(meeting) {

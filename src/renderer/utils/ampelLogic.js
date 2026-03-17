@@ -28,6 +28,7 @@ function computeSingleAmpel(top, today) {
   if (status === "blockiert") return "blau";
   if (status === "verzug") return "rot";
   if (status === "erledigt") return "gruen";
+  if (status === "festlegung") return "gruen";
 
   const isDateRelevant = status === "offen" || status === "in arbeit";
   if (!isDateRelevant) return null;

@@ -55,6 +55,8 @@ class TopService {
 
           // ✅ „angefasst“ (nur fürs UI-Farbverhalten)
           is_touched: r.is_touched ?? 0,
+          is_task: r.is_task ?? 0,
+          is_decision: r.is_decision ?? 0,
 
           // Verantwortlich (optional, kommt aus meeting_tops)
           responsible_kind: r.responsible_kind ?? null,
@@ -119,6 +121,8 @@ class TopService {
 
           // ✅ „angefasst“ (für Anzeige, auch wenn Meeting read-only)
           is_touched: r.is_touched ?? 0,
+          is_task: r.is_task ?? 0,
+          is_decision: r.is_decision ?? 0,
 
           // Verantwortlich (optional, nicht „frozen“, aber soll angezeigt werden)
           responsible_kind: r.responsible_kind ?? null,
@@ -436,6 +440,10 @@ class TopService {
 
       "is_important",
       "isImportant",
+      "is_task",
+      "isTask",
+      "is_decision",
+      "isDecision",
 
       "responsible_kind",
       "responsible_id",
@@ -482,6 +490,14 @@ class TopService {
         ? patch.is_important
         : (patch.isImportant !== undefined ? patch.isImportant : undefined);
 
+    const isTask =
+      patch.is_task !== undefined ? patch.is_task : (patch.isTask !== undefined ? patch.isTask : undefined);
+
+    const isDecision =
+      patch.is_decision !== undefined
+        ? patch.is_decision
+        : (patch.isDecision !== undefined ? patch.isDecision : undefined);
+
     const completedIn =
       patch.completed_in_meeting_id !== undefined
         ? patch.completed_in_meeting_id
@@ -494,6 +510,8 @@ class TopService {
       patch.longtext !== undefined ||
       completedIn !== undefined ||
       imp !== undefined ||
+      isTask !== undefined ||
+      isDecision !== undefined ||
       rk !== undefined ||
       ri !== undefined ||
       rl !== undefined;
@@ -545,6 +563,8 @@ class TopService {
       completed_in_meeting_id: completedIn,
 
       is_important: imp,
+      is_task: isTask,
+      is_decision: isDecision,
 
       responsible_kind: rk,
       responsible_id: ri,

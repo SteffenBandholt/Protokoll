@@ -80,9 +80,12 @@ class AmpelService {
       return { color: "rot", reason: "Status ist Verzug" };
     }
 
-    // 3) Erledigt -> Grün
+    // 3) Erledigt / Festlegung -> Grün
     if (status === "erledigt") {
       return { color: "gruen", reason: "TOP ist erledigt" };
+    }
+    if (status === "festlegung") {
+      return { color: "gruen", reason: "Status ist Festlegung" };
     }
 
     // 4) Datumslogik nur für offen / in arbeit (gemäß deinem Stand)

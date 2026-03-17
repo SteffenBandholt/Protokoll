@@ -12,6 +12,7 @@ import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
+const RED_FLAG_PNG = new URL("../assets/redFlag.png", import.meta.url).href;
 
 export default class TopsView {
   constructor({ router, projectId, meetingId }) {
@@ -40,6 +41,7 @@ export default class TopsView {
 
     this.btnAmpelToggle = null;
     this.btnTasks = null;
+    this.btnProjectTasks = null;
     this.box = null;
     this.topBarEl = null;
     this.editMetaCol = null;
@@ -51,11 +53,14 @@ export default class TopsView {
 
     this.chkImportant = null;
     this.chkHidden = null;
+    this.chkTask = null;
+    this.chkDecision = null;
 
     this.inpDueDate = null;
     this.selStatus = null;
     this.selResponsible = null;
     this.dueAmpelEl = null;
+    this.statusDecisionFlagEl = null;
 
     this.projectFirms = [];
     this._projectFirmsLoaded = false;
@@ -111,6 +116,7 @@ export default class TopsView {
     this._saveInfoTimer = null;
     this._userSelectedTop = false;
     this._updateAmpelToggleUi = null;
+    this._updateTaskDecisionUi = null;
     // Layout: pinned bars
     this._fixedResizeObs = null;
     this._fixedHorzResizeObs = null;
@@ -151,6 +157,7 @@ export default class TopsView {
     this._viewMenuDocMouseDown = null;
     this._viewMenuEl = null;
     this._viewMenuBtn = null;
+    this._projectTasksOverlayEl = null;
   }
 
   _updateTopBarProtocolTitle() {
@@ -246,6 +253,168 @@ export default class TopsView {
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const yyyy = String(d.getFullYear());
     return `${dd}.${mm}.${yyyy}`;
+  }
+
+  _closeProjectTasksPopup() {
+    if (this._projectTasksOverlayEl && this._projectTasksOverlayEl.parentElement) {
+      this._projectTasksOverlayEl.parentElement.removeChild(this._projectTasksOverlayEl);
+    }
+    this._projectTasksOverlayEl = null;
+  }
+
+  async _openProjectTasksPopup() {
+    if (this._projectTasksOverlayEl) return;
+
+    const api = window.bbmDb || {};
+    if (typeof api.meetingsListProjectTasks !== "function") {
+      alert("Aufgabenliste ist nicht verfuegbar.");
+      return;
+    }
+    if (!this.projectId) {
+      alert("Projekt nicht gefunden.");
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "1400";
+    overlay.tabIndex = -1;
+
+    const card = document.createElement("div");
+    applyPopupCardStyle(card);
+    card.style.width = "min(900px, calc(100vw - 24px))";
+    card.style.maxHeight = "80vh";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.overflow = "hidden";
+    card.style.background = "#fff";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "10px";
+    header.style.padding = "12px 16px";
+    header.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Projekt-Aufgaben";
+    title.style.fontWeight = "800";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.style.marginLeft = "auto";
+    btnClose.onclick = () => this._closeProjectTasksPopup();
+
+    header.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.flex = "1 1 auto";
+    body.style.overflow = "auto";
+    body.style.padding = "12px 16px";
+    body.textContent = "Lade...";
+
+    const renderTasks = (rows) => {
+      body.innerHTML = "";
+      const list = Array.isArray(rows) ? rows : [];
+      title.textContent = `Projekt-Aufgaben (${list.length})`;
+
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "Keine Aufgaben vorhanden.";
+        empty.style.opacity = "0.75";
+        body.appendChild(empty);
+        return;
+      }
+
+      const wrap = document.createElement("div");
+      wrap.style.display = "grid";
+      wrap.style.gap = "8px";
+
+      const mkMeta = (label, value) => {
+        const el = document.createElement("div");
+        el.textContent = `${label}: ${value}`;
+        return el;
+      };
+
+      for (const t of list) {
+        const item = document.createElement("div");
+        item.style.border = "1px solid #e5e7eb";
+        item.style.borderRadius = "8px";
+        item.style.padding = "8px 10px";
+        item.style.display = "grid";
+        item.style.gap = "6px";
+
+        const titleEl = document.createElement("div");
+        titleEl.textContent = String(t?.title || t?.short_text || t?.shortText || "(ohne Bezeichnung)");
+        titleEl.style.fontWeight = "600";
+
+        const meta = document.createElement("div");
+        meta.style.display = "flex";
+        meta.style.flexWrap = "wrap";
+        meta.style.gap = "8px";
+        meta.style.fontSize = "12px";
+        meta.style.color = "#374151";
+
+        const resp = String(t?.responsible_label || t?.responsibleLabel || "").trim() || "-";
+        const dueRaw = t?.due_date ?? t?.dueDate ?? "";
+        const due = this._formatDateToDdMmYyyy(dueRaw) || String(dueRaw || "").trim() || "-";
+        const statusRaw = String(t?.status || "").trim();
+        const status = statusRaw || "-";
+        const meetingRef = String(t?.meeting_id ?? t?.meetingId ?? "").trim() || "-";
+
+        if (statusRaw && statusRaw.toLowerCase() !== "erledigt") {
+          item.style.borderColor = "#b6d4ff";
+          item.style.background = "#eef7ff";
+        }
+
+        meta.append(mkMeta("Verantw.", resp));
+        meta.append(mkMeta("Faellig", due));
+        meta.append(mkMeta("Status", status));
+        meta.append(mkMeta("Meeting", meetingRef));
+
+        item.append(titleEl, meta);
+        wrap.appendChild(item);
+      }
+
+      body.appendChild(wrap);
+    };
+
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) this._closeProjectTasksPopup();
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      this._closeProjectTasksPopup();
+    });
+
+    card.append(header, body);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    this._projectTasksOverlayEl = overlay;
+    try {
+      overlay.focus();
+    } catch (_e) {
+      // ignore
+    }
+
+    try {
+      const res = await api.meetingsListProjectTasks({ projectId: this.projectId });
+      if (!res?.ok) {
+        body.textContent = res?.error || "Aufgaben konnten nicht geladen werden.";
+        return;
+      }
+      renderTasks(res.list || []);
+    } catch (err) {
+      body.textContent = err?.message || "Aufgaben konnten nicht geladen werden.";
+    }
   }
 
   _parseMeetingTitleParts() {
@@ -895,6 +1064,7 @@ _isoToDDMMYYYY(iso) {
       if (this.btnCloseMeeting) this.btnCloseMeeting.disabled = true;
       if (this.btnAudioAnalyze) this.btnAudioAnalyze.disabled = true;
       if (this.btnTasks) this.btnTasks.disabled = true;
+      if (this.btnProjectTasks) this.btnProjectTasks.disabled = true;
 
       if (this.btnMove) this.btnMove.disabled = true;
       if (this.btnSaveTop) this.btnSaveTop.disabled = true;
@@ -908,6 +1078,8 @@ _isoToDDMMYYYY(iso) {
       if (this.selResponsible) this.selResponsible.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkHidden) this.chkHidden.disabled = true;
+      if (this.chkTask) this.chkTask.disabled = true;
+      if (this.chkDecision) this.chkDecision.disabled = true;
 
       return;
     }
@@ -944,6 +1116,8 @@ _isoToDDMMYYYY(iso) {
     }
     if (this.chkHidden?.disabled) delete nextPatch.is_hidden;
     if (this.chkImportant?.disabled) delete nextPatch.is_important;
+    if (this.chkTask?.disabled) delete nextPatch.is_task;
+    if (this.chkDecision?.disabled) delete nextPatch.is_decision;
 
     if (Number(selectedInItems.is_carried_over) === 1) {
       delete nextPatch.title;
@@ -975,6 +1149,8 @@ _isoToDDMMYYYY(iso) {
         }
         if (nextPatch.is_hidden !== undefined) t.is_hidden = nextPatch.is_hidden ? 1 : 0;
         if (nextPatch.is_important !== undefined) t.is_important = nextPatch.is_important ? 1 : 0;
+        if (nextPatch.is_task !== undefined) t.is_task = nextPatch.is_task ? 1 : 0;
+        if (nextPatch.is_decision !== undefined) t.is_decision = nextPatch.is_decision ? 1 : 0;
         if (nextPatch.responsible_kind !== undefined) t.responsible_kind = nextPatch.responsible_kind;
         if (nextPatch.responsible_id !== undefined) t.responsible_id = nextPatch.responsible_id;
         if (nextPatch.responsible_label !== undefined) t.responsible_label = nextPatch.responsible_label;
@@ -1008,6 +1184,14 @@ _isoToDDMMYYYY(iso) {
 
     if (this.chkImportant && !this.chkImportant.disabled) {
       patch.is_important = this.chkImportant.checked ? 1 : 0;
+    }
+
+    if (this.chkTask && !this.chkTask.disabled) {
+      patch.is_task = this.chkTask.checked ? 1 : 0;
+    }
+
+    if (this.chkDecision && !this.chkDecision.disabled) {
+      patch.is_decision = this.chkDecision.checked ? 1 : 0;
     }
 
     if (this.inpDueDate && !this.inpDueDate.disabled) {
@@ -1635,6 +1819,8 @@ _isoToDDMMYYYY(iso) {
     const st = (status || "").toString().trim().toLowerCase();
     return st === "erledigt"
       ? "gruen"
+      : st === "festlegung"
+      ? "gruen"
       : st === "blockiert" || st === "verzug"
       ? "rot"
       : !this._parseYmdDate(dueDateStr)
@@ -1658,6 +1844,16 @@ _isoToDDMMYYYY(iso) {
     const ampelCompute = createAmpelComputer(this.items || [], this._ampelBaseDate(), overrides);
     const color = t ? ampelCompute(t) : null;
     this._applyAmpelDotColor(this.dueAmpelEl, color);
+  }
+
+  _shouldShowDecisionFlag(status) {
+    return (status || "").toString().trim().toLowerCase() === "festlegung";
+  }
+
+  _updateStatusDecisionFlag() {
+    if (!this.statusDecisionFlagEl) return;
+    const show = this._shouldShowDecisionFlag(this.selStatus?.value || this.selectedTop?.status || "");
+    this.statusDecisionFlagEl.style.display = show ? "block" : "none";
   }
 
   _isResponsibleAllSelection() {
@@ -2628,6 +2824,31 @@ _isoToDDMMYYYY(iso) {
       btnLongToggle.click();
     });
 
+    const btnProjectTasks = document.createElement("button");
+    btnProjectTasks.type = "button";
+    btnProjectTasks.textContent = "Aufgaben";
+    btnProjectTasks.style.display = "inline-flex";
+    btnProjectTasks.style.alignItems = "center";
+    btnProjectTasks.style.justifyContent = "center";
+    btnProjectTasks.style.gap = "6px";
+    btnProjectTasks.style.padding = BTN_PAD;
+    btnProjectTasks.style.borderRadius = BTN_RADIUS;
+    btnProjectTasks.style.cursor = "pointer";
+    btnProjectTasks.style.border = "1px solid #ddd";
+    btnProjectTasks.style.background = "#f3f3f3";
+    btnProjectTasks.style.minHeight = BTN_MIN_H;
+    btnProjectTasks.style.flex = "0 0 auto";
+    btnProjectTasks.style.minWidth = "96px";
+    btnProjectTasks.title = "Projektweite ToDo-Liste anzeigen";
+    btnProjectTasks.onclick = async () => {
+      await this._openProjectTasksPopup();
+    };
+    btnProjectTasks.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      btnProjectTasks.click();
+    });
+
     this._loadLongtextSetting()
       .then(() => {
         updateLongToggleUi();
@@ -2870,6 +3091,7 @@ _isoToDDMMYYYY(iso) {
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
     actionBtnsWrap.append(
       viewWrap,
+      btnProjectTasks,
       btnAmpelToggle,
       btnLongToggle,
       btnAudioAnalyze,
@@ -3060,6 +3282,12 @@ _isoToDDMMYYYY(iso) {
     const chkHidden = document.createElement("input");
     chkHidden.type = "checkbox";
 
+    const chkTask = document.createElement("input");
+    chkTask.type = "checkbox";
+
+    const chkDecision = document.createElement("input");
+    chkDecision.type = "checkbox";
+
     const titleWrap = document.createElement("div");
     titleWrap.style.display = "flex";
     titleWrap.style.flexDirection = "column";
@@ -3078,6 +3306,61 @@ _isoToDDMMYYYY(iso) {
     const labImportant = makeToggleLabel("wichtig", chkImportant);
     const labHidden = makeToggleLabel("TOP ausblenden", chkHidden);
 
+    const btnTask = document.createElement("button");
+    btnTask.type = "button";
+    btnTask.textContent = "ToDo";
+    btnTask.style.borderRadius = BTN_RADIUS;
+    btnTask.style.padding = BTN_PAD_ACTION;
+    btnTask.style.minHeight = BTN_MIN_H;
+
+    const btnDecision = document.createElement("button");
+    btnDecision.type = "button";
+    btnDecision.textContent = "Festlegung";
+    btnDecision.style.borderRadius = BTN_RADIUS;
+    btnDecision.style.padding = BTN_PAD_ACTION;
+    btnDecision.style.minHeight = BTN_MIN_H;
+
+    const updateTaskDecisionUi = () => {
+      const taskOn = !!this.chkTask?.checked;
+      const decOn = !!this.chkDecision?.checked;
+      const taskDisabled = !!this.chkTask?.disabled;
+      const decisionDisabled = !!this.chkDecision?.disabled;
+
+      btnTask.disabled = taskDisabled;
+      btnTask.style.opacity = taskDisabled ? "0.55" : "1";
+      btnTask.style.cursor = taskDisabled ? "default" : "pointer";
+      btnTask.style.background = taskOn ? "#eef7ff" : "#f3f3f3";
+      btnTask.style.border = taskOn ? "1px solid #b6d4ff" : "1px solid #ddd";
+      btnTask.style.color = taskOn ? "#0b4db4" : "";
+
+      btnDecision.disabled = decisionDisabled;
+      btnDecision.style.opacity = decisionDisabled ? "0.55" : "1";
+      btnDecision.style.cursor = decisionDisabled ? "default" : "pointer";
+      btnDecision.style.background = decOn ? "#fff7ed" : "#f3f3f3";
+      btnDecision.style.border = decOn ? "1px solid #fed7aa" : "1px solid #ddd";
+      btnDecision.style.color = decOn ? "#9a3412" : "";
+    };
+
+    btnTask.onclick = async () => {
+      if (!this.chkTask || this.chkTask.disabled) return;
+      this.chkTask.checked = !this.chkTask.checked;
+      updateTaskDecisionUi();
+      await this._saveMeetingTopPatch(
+        { is_task: this.chkTask.checked ? 1 : 0 },
+        { reload: true, pulse: true }
+      );
+    };
+
+    btnDecision.onclick = async () => {
+      if (!this.chkDecision || this.chkDecision.disabled) return;
+      this.chkDecision.checked = !this.chkDecision.checked;
+      updateTaskDecisionUi();
+      await this._saveMeetingTopPatch(
+        { is_decision: this.chkDecision.checked ? 1 : 0 },
+        { reload: true, pulse: true }
+      );
+    };
+
     const titleLeft = document.createElement("div");
     titleLeft.style.display = "inline-flex";
     titleLeft.style.alignItems = "center";
@@ -3089,7 +3372,7 @@ _isoToDDMMYYYY(iso) {
     titleRight.style.alignItems = "center";
     titleRight.style.gap = "10px";
     titleRight.style.marginLeft = "auto";
-    titleRight.append(labHidden);
+    titleRight.append(btnTask, btnDecision, labHidden);
 
     titleLabelRow.append(titleLeft, titleRight);
     titleWrap.append(titleLabelRow, inpTitle);
@@ -3189,18 +3472,36 @@ _isoToDDMMYYYY(iso) {
     dueWrap.append(dueRow);
 
     const statusWrap = mkMetaField("Status");
+    statusWrap.style.width = "calc(100% - 0.5cm)";
+    statusWrap.style.maxWidth = "calc(100% - 0.5cm)";
+    statusWrap.style.minWidth = "0";
+    const statusRow = document.createElement("div");
+    statusRow.style.display = "flex";
+    statusRow.style.alignItems = "center";
+    statusRow.style.gap = "6px";
+    statusRow.style.marginLeft = "-3mm";
+    statusRow.style.width = "calc(100% + 3mm)";
     const selStatus = document.createElement("select");
-    selStatus.style.width = "100%";
-    selStatus.style.marginLeft = "-3mm";
-    selStatus.style.width = "calc(100% + 3mm)";
-    const statusOptions = ["offen", "in arbeit", "erledigt", "blockiert", "verzug"];
+    selStatus.style.flex = "1 1 auto";
+    selStatus.style.minWidth = "0";
+    const statusOptions = ["offen", "in arbeit", "festlegung", "erledigt", "blockiert", "verzug"];
     for (const v of statusOptions) {
       const opt = document.createElement("option");
       opt.value = v;
       opt.textContent = v;
       selStatus.appendChild(opt);
     }
-    statusWrap.append(selStatus);
+    const statusDecisionFlag = document.createElement("img");
+    statusDecisionFlag.src = RED_FLAG_PNG;
+    statusDecisionFlag.alt = "Festlegung";
+    statusDecisionFlag.title = "Festlegung";
+    statusDecisionFlag.style.width = "14px";
+    statusDecisionFlag.style.height = "14px";
+    statusDecisionFlag.style.flex = "0 0 14px";
+    statusDecisionFlag.style.objectFit = "contain";
+    statusDecisionFlag.style.display = "none";
+    statusRow.append(selStatus, statusDecisionFlag);
+    statusWrap.append(statusRow);
 
     const respWrap = mkMetaField("Verantw.");
     const selResponsible = document.createElement("select");
@@ -3229,6 +3530,7 @@ _isoToDDMMYYYY(iso) {
     this.btnAudioAnalyze = btnAudioAnalyze;
     this.btnAmpelToggle = btnAmpelToggle;
     this.btnTasks = viewBtn;
+    this.btnProjectTasks = btnProjectTasks;
     this._viewMenuEl = viewMenu;
     this._viewMenuBtn = viewBtn;
 
@@ -3243,9 +3545,13 @@ _isoToDDMMYYYY(iso) {
     this.selStatus = selStatus;
     this.selResponsible = selResponsible;
     this.dueAmpelEl = dueAmpel;
+    this.statusDecisionFlagEl = statusDecisionFlag;
 
     this.chkImportant = chkImportant;
     this.chkHidden = chkHidden;
+    this.chkTask = chkTask;
+    this.chkDecision = chkDecision;
+    this._updateTaskDecisionUi = updateTaskDecisionUi;
 
     this.titleCountEl = titleCount;
     this.longCountEl = longCount;
@@ -3263,6 +3569,7 @@ _isoToDDMMYYYY(iso) {
     this.topsTitleEl = topsText;
     this._updateAmpelToggleUi = updateAmpelToggleUi;
     updateAmpelToggleUi();
+    updateTaskDecisionUi();
     this._updateTopBarProtocolTitle();
 
     // layout spacers
@@ -3400,10 +3707,16 @@ _isoToDDMMYYYY(iso) {
       if (selStatus.disabled) return;
       if (!this.selectedTop) return;
       const st = (selStatus.value || "").trim() || "offen";
+      let dueVal = (this.inpDueDate?.value || "").trim();
+      if (st.toLowerCase() === "festlegung") {
+        dueVal = this._todayISO();
+        if (this.inpDueDate) this.inpDueDate.value = dueVal;
+      }
       const completedIn = this._isDoneStatus(st) ? this.meetingId : null;
+      this._updateStatusDecisionFlag();
       this._updateDueAmpelFromInputs();
       await this._saveMeetingTopPatch(
-        { status: st, completed_in_meeting_id: completedIn },
+        { status: st, due_date: dueVal || null, completed_in_meeting_id: completedIn },
         { reload: true, pulse: true }
       );
       this._renderListOnly();
@@ -3596,6 +3909,7 @@ _renderIdleState() {
     dis(this.btnAmpelToggle);
     dis(this.btnLongToggle);
     dis(this.btnTasks);
+    dis(this.btnProjectTasks);
     dis(this.btnEndMeeting);
     dis(this.btnAudioAnalyze);
 
@@ -4301,6 +4615,11 @@ async _closeViewOnly() {
       this.btnTasks.style.display = ro || !this.meetingId ? "none" : "";
       if (this.btnTasks.disabled) this._setViewMenuOpen(false);
     }
+    if (this.btnProjectTasks) {
+      this.btnProjectTasks.disabled = busy || !this.projectId;
+      this.btnProjectTasks.style.opacity = this.btnProjectTasks.disabled ? "0.65" : "1";
+      this.btnProjectTasks.style.display = this.meetingId ? "" : "none";
+    }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
       this.btnCloseMeeting.style.opacity = this.btnCloseMeeting.disabled ? "0.65" : "1";
@@ -4828,6 +5147,8 @@ async _closeViewOnly() {
           top.frozen_is_carried_over ??
           top.frozenIsCarriedOver
       );
+      const isTask = parseFlag(top.is_task ?? top.isTask);
+      const isDecision = parseFlag(top.is_decision ?? top.isDecision);
       const isTouched = parseFlag(
         top.is_touched ??
           top.isTouched ??
@@ -4986,6 +5307,38 @@ const textCol = document.createElement("div");
 
       textCol.append(shortLine);
 
+      if (isTask || isDecision) {
+        const badgeRow = document.createElement("div");
+        badgeRow.style.display = "inline-flex";
+        badgeRow.style.alignItems = "center";
+        badgeRow.style.gap = "6px";
+        badgeRow.style.flexWrap = "wrap";
+
+        const mkBadge = (label, bg, border, color) => {
+          const badge = document.createElement("span");
+          badge.textContent = label;
+          badge.style.display = "inline-flex";
+          badge.style.alignItems = "center";
+          badge.style.justifyContent = "center";
+          badge.style.padding = "1px 6px";
+          badge.style.borderRadius = "999px";
+          badge.style.fontSize = "11px";
+          badge.style.fontWeight = "700";
+          badge.style.background = bg;
+          badge.style.border = `1px solid ${border}`;
+          badge.style.color = color;
+          return badge;
+        };
+
+        if (isTask) {
+          badgeRow.appendChild(mkBadge("ToDo", "#eef7ff", "#b6d4ff", "#0b4db4"));
+        }
+        if (isDecision) {
+          badgeRow.appendChild(mkBadge("Festlegung", "#fff7ed", "#fed7aa", "#9a3412"));
+        }
+        textCol.append(badgeRow);
+      }
+
       let lt = top.longtext ? String(top.longtext) : "";
       if (isOld && isTouched && changedDate) {
         lt = `${lt}${lt ? "\n" : ""}(Text geändert ${changedDate})`;
@@ -5044,8 +5397,31 @@ const textCol = document.createElement("div");
         if (dot) dueRow.append(dot);
 
         const stRow = document.createElement("div");
-        stRow.textContent = `${st}`;
-        stRow.style.whiteSpace = "nowrap";
+        stRow.style.display = "flex";
+        stRow.style.alignItems = "center";
+        stRow.style.gap = "8px";
+        stRow.style.width = "100%";
+
+        const stTxt = document.createElement("span");
+        stTxt.textContent = `${st}`;
+        stTxt.style.whiteSpace = "nowrap";
+        stTxt.style.overflow = "hidden";
+        stTxt.style.textOverflow = "ellipsis";
+        stTxt.style.flex = "1 1 auto";
+        stTxt.style.minWidth = "0";
+        stRow.append(stTxt);
+
+        if (this._shouldShowDecisionFlag(st)) {
+          const flag = document.createElement("img");
+          flag.src = RED_FLAG_PNG;
+          flag.alt = "Festlegung";
+          flag.title = "Festlegung";
+          flag.style.width = "14px";
+          flag.style.height = "14px";
+          flag.style.flex = "0 0 14px";
+          flag.style.objectFit = "contain";
+          stRow.append(flag);
+        }
 
         const respRow = document.createElement("div");
         respRow.textContent = `${resp}`;
@@ -5243,6 +5619,8 @@ const textCol = document.createElement("div");
       if (this.taLongtext) this.taLongtext.value = "";
       this.chkHidden.checked = false;
       if (this.chkImportant) this.chkImportant.checked = false;
+      if (this.chkTask) this.chkTask.checked = false;
+      if (this.chkDecision) this.chkDecision.checked = false;
 
       if (this.inpDueDate) this.inpDueDate.value = "";
       if (this.selStatus) this.selStatus.value = "offen";
@@ -5251,6 +5629,7 @@ const textCol = document.createElement("div");
       this._respLegacyReadonly = false;
       this._respDirty = false;
       this._updateDueAmpelFromInputs();
+      this._updateStatusDecisionFlag();
       this._respDirtyTopId = null;
       this._respLastSetTopId = null;
 
@@ -5261,6 +5640,8 @@ const textCol = document.createElement("div");
       if (this.selResponsible) this.selResponsible.disabled = true;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
+      if (this.chkTask) this.chkTask.disabled = true;
+      if (this.chkDecision) this.chkDecision.disabled = true;
 
       if (this.btnSaveTop) {
         this.btnSaveTop.disabled = true;
@@ -5275,6 +5656,7 @@ const textCol = document.createElement("div");
       this._updateDeleteControls();
       this._updateCreateChildControls();
       this._updateCharCounters();
+      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
       return;
     }
 
@@ -5287,6 +5669,8 @@ const textCol = document.createElement("div");
 
     this.chkHidden.checked = Number(t.is_hidden) === 1;
     if (this.chkImportant) this.chkImportant.checked = Number(t.is_important) === 1;
+    if (this.chkTask) this.chkTask.checked = Number(t.is_task ?? t.isTask ?? 0) === 1;
+    if (this.chkDecision) this.chkDecision.checked = Number(t.is_decision ?? t.isDecision ?? 0) === 1;
 
     if (this.inpDueDate) {
       const dueRaw = t.due_date ?? t.dueDate ?? "";
@@ -5294,13 +5678,14 @@ const textCol = document.createElement("div");
       this.inpDueDate.value = dueVal ? dueVal.slice(0, 10) : "";
     }
 
-    if (this.selStatus) {
-      const st = (t.status || "").toString().trim();
-      this.selStatus.value = st || "offen";
-    }
+      if (this.selStatus) {
+        const st = (t.status || "").toString().trim();
+        this.selStatus.value = st || "offen";
+      }
 
     this._applyProjectDueDefaults(t);
     this._updateDueAmpelFromInputs();
+    this._updateStatusDecisionFlag();
     this._clearLegacyResponsibleOption();
     this._respLegacyReadonly = false;
 
@@ -5342,6 +5727,8 @@ const textCol = document.createElement("div");
       if (this.selResponsible) this.selResponsible.disabled = true;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
+      if (this.chkTask) this.chkTask.disabled = true;
+      if (this.chkDecision) this.chkDecision.disabled = true;
 
       if (this.btnSaveTop) {
         this.btnSaveTop.disabled = true;
@@ -5356,6 +5743,7 @@ const textCol = document.createElement("div");
       this._updateMoveControls();
       this._updateDeleteControls();
       this._updateCreateChildControls();
+      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
       return;
     }
 
@@ -5367,6 +5755,8 @@ const textCol = document.createElement("div");
 
     this.chkHidden.disabled = false;
     if (this.chkImportant) this.chkImportant.disabled = false;
+    if (this.chkTask) this.chkTask.disabled = false;
+    if (this.chkDecision) this.chkDecision.disabled = false;
 
     if (this.btnSaveTop) {
       this.btnSaveTop.disabled = false;
@@ -5386,6 +5776,7 @@ const textCol = document.createElement("div");
     this._updateMoveControls();
     this._updateCreateChildControls();
     this._updateDeleteControls();
+    if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
   }
 
   async createTop(level, parentTopId) {
@@ -5615,5 +6006,6 @@ const textCol = document.createElement("div");
     if (this._viewMenuEl && this._viewMenuEl.parentNode) {
       this._viewMenuEl.parentNode.removeChild(this._viewMenuEl);
     }
+    this._closeProjectTasksPopup();
   }
 }

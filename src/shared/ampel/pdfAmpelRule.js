@@ -83,6 +83,7 @@ export function computeAmpelColorForTop({ top, childrenColors, now } = {}) {
   if (status === "blockiert") return "blue";
   if (status === "verzug") return "red";
   if (status === "erledigt") return "green";
+  if (status === "festlegung") return "green";
 
   const isDateRelevant = status === "offen" || status === "in arbeit";
   if (!isDateRelevant) return null;

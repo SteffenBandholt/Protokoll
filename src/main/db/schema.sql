@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS meeting_tops (
   longtext TEXT,
 
   is_carried_over INTEGER NOT NULL DEFAULT 0,
+  is_task INTEGER NOT NULL DEFAULT 0,
+  is_decision INTEGER NOT NULL DEFAULT 0,
   completed_in_meeting_id TEXT,
 
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),

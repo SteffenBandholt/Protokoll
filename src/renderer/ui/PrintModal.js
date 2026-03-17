@@ -33,6 +33,8 @@ import {
 } from "../../shared/ampel/pdfAmpelRule.js";
 import { applyPopupButtonStyle } from "./popupButtonStyles.js";
 import { createPopupOverlay, stylePopupCard, registerPopupCloseHandlers } from "./popupCommon.js";
+
+const RED_FLAG_PNG = new URL("../assets/redFlag.png", import.meta.url).href;
 import { OVERLAY_TOP } from "./zIndex.js";
 import { buildProtocolPdfFileName } from "../utils/protocolPdfNaming.js";
 
@@ -2835,6 +2837,7 @@ export default class PrintModal {
 
         const statusRaw = (t.status || "").toString().trim();
         const status = this._cut(statusRaw || "?", 20);
+        const showDecisionFlag = statusRaw.toLowerCase() === "festlegung";
 
         const dueRaw = (t.due_date || t.dueDate || "").toString().trim();
         const due = dueRaw ? this._fmtDateYYYYMMDD(dueRaw) : "?";
@@ -2852,7 +2855,10 @@ export default class PrintModal {
                 <span class="metaText">${this._escapeHtml(due)}</span>
                 ${dotHtml}
               </div>
-              <div class="metaLine2">${this._escapeHtml(status)}</div>
+              <div class="metaLine2">
+                <span class="metaText">${this._escapeHtml(status)}</span>
+                ${showDecisionFlag ? `<img class="decisionFlag" src="${RED_FLAG_PNG}" alt="Festlegung" />` : ""}
+              </div>
               <div class="metaLine3">${this._escapeHtml(resp)}</div>
             `;
 
@@ -3357,6 +3363,17 @@ export default class PrintModal {
       text-overflow: clip;
       color: #222;
     }
+    .metaLine2 {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+    }
+    .decisionFlag {
+      width: 4mm;
+      height: 4mm;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
 
     .footerBlock {
       margin-top: 10mm;
@@ -3685,6 +3702,7 @@ export default class PrintModal {
 
         const statusRaw = (t.status || "").toString().trim();
         const status = this._cut(statusRaw || "?", 20);
+        const showDecisionFlag = statusRaw.toLowerCase() === "festlegung";
 
         const dueRaw = (t.due_date || t.dueDate || "").toString().trim();
         const due = dueRaw ? this._fmtDateYYYYMMDD(dueRaw) : "?";
@@ -3702,7 +3720,10 @@ export default class PrintModal {
                 <span class="metaText">${this._escapeHtml(due)}</span>
                 ${dotHtml}
               </div>
-              <div class="metaLine2">${this._escapeHtml(status)}</div>
+              <div class="metaLine2">
+                <span class="metaText">${this._escapeHtml(status)}</span>
+                ${showDecisionFlag ? `<img class="decisionFlag" src="${RED_FLAG_PNG}" alt="Festlegung" />` : ""}
+              </div>
               <div class="metaLine3">${this._escapeHtml(resp)}</div>
             `;
 
@@ -4003,6 +4024,26 @@ export default class PrintModal {
     }
     .dot.fill { border: 0.2mm solid rgba(0,0,0,0.25); }
     .dot.empty { background: transparent; border: 0.2mm solid #aaa; }
+
+    .metaLine2,
+    .metaLine3 {
+      margin-top: 1.0mm;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: clip;
+      color: #222;
+    }
+    .metaLine2 {
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+    }
+    .decisionFlag {
+      width: 4mm;
+      height: 4mm;
+      object-fit: contain;
+      flex: 0 0 auto;
+    }
 
     .empty {
       padding: 3mm 2mm;
