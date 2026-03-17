@@ -7,6 +7,7 @@ import { shouldShowTopForMeeting, shouldGrayTopForMeeting } from "../utils/topVi
 import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
+import { POPOVER_MENU } from "../ui/zIndex.js";
 import AudioSuggestionsPanel from "../ui/AudioSuggestionsPanel.js";
 import { fireAndForget } from "../utils/async.js";
 
@@ -151,6 +152,11 @@ export default class TopsView {
     this._audioPanelBusy = false;
     this._audioPanelStatusMessage = "";
     this._audioSuggestionMarkTimer = null;
+    this._viewMenuOpen = false;
+    this._viewMenuDocMouseDown = null;
+    this._viewMenuWrap = null;
+    this._viewMenuEl = null;
+    this._viewMenuBtn = null;
   }
 
   _updateTopBarProtocolTitle() {
@@ -2157,6 +2163,41 @@ _isoToDDMMYYYY(iso) {
     this.topMetaEl.append(mk("Fertig bis"), mk("Status"), mk("verantw"));
   }
 
+  _viewFilterLabel(mode) {
+    const key = String(mode || "all").trim().toLowerCase();
+    if (key === "tasks") return "Aufgaben";
+    if (key === "verzug") return "Verzug";
+    if (key === "decisions") return "Festlegungen";
+    return "Alle";
+  }
+
+  _setViewMenuOpen(nextOpen) {
+    this._viewMenuOpen = !!nextOpen;
+    if (this._viewMenuEl) {
+      this._viewMenuEl.style.display = this._viewMenuOpen ? "flex" : "none";
+      if (this._viewMenuOpen) {
+        this._positionViewMenu();
+      }
+    }
+    if (this._viewMenuBtn) {
+      this._viewMenuBtn.setAttribute("aria-expanded", this._viewMenuOpen ? "true" : "false");
+    }
+  }
+
+  _positionViewMenu() {
+    if (!this._viewMenuEl || !this._viewMenuBtn) return;
+    const menuEl = this._viewMenuEl;
+    const btnRect = this._viewMenuBtn.getBoundingClientRect();
+    const gap = 4;
+    const viewportPad = 8;
+    menuEl.style.top = `${Math.round(btnRect.bottom + gap)}px`;
+    menuEl.style.left = "0px";
+    const menuWidth = Math.ceil(menuEl.getBoundingClientRect().width || menuEl.offsetWidth || 190);
+    const maxLeft = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad);
+    const targetLeft = Math.round(btnRect.right - menuWidth);
+    menuEl.style.left = `${Math.min(maxLeft, Math.max(viewportPad, targetLeft))}px`;
+  }
+
   _getAudioPanel() {
     if (!this._audioPanel) {
       this._audioPanel = new AudioSuggestionsPanel();
@@ -2915,46 +2956,138 @@ _isoToDDMMYYYY(iso) {
       btnAmpelToggle.click();
     });
 
-    const viewWrap = document.createElement("div");
-    viewWrap.style.display = "inline-flex";
-    viewWrap.style.alignItems = "center";
-    viewWrap.style.gap = "6px";
-
-    const viewLabel = document.createElement("div");
-    viewLabel.textContent = "Ansicht";
-    viewLabel.style.fontWeight = "600";
-    viewLabel.style.whiteSpace = "nowrap";
-
-    const viewSelect = document.createElement("select");
-    viewSelect.style.border = "1px solid #ddd";
-    viewSelect.style.background = "#f3f3f3";
-    viewSelect.style.padding = BTN_PAD;
-    viewSelect.style.borderRadius = BTN_RADIUS;
-    viewSelect.style.cursor = "pointer";
-    viewSelect.style.minHeight = BTN_MIN_H;
-    viewSelect.title = "Ansicht";
-
-    const optAll = document.createElement("option");
-    optAll.value = "all";
-    optAll.textContent = "Alle";
-    const optTasks = document.createElement("option");
-    optTasks.value = "tasks";
-    optTasks.textContent = "Aufgaben";
-    const optOverdue = document.createElement("option");
-    optOverdue.value = "verzug";
-    optOverdue.textContent = "Verzug";
-    const optDecisions = document.createElement("option");
-    optDecisions.value = "decisions";
-    optDecisions.textContent = "Festlegungen";
-
-    viewSelect.append(optAll, optTasks, optOverdue, optDecisions);
-    viewSelect.value = this.viewFilter;
-    viewSelect.onchange = () => {
-      this.viewFilter = viewSelect.value || "all";
-      this._renderListOnly();
+    const applyTopActionTextButtonStyle = (btn) => {
+      if (!btn) return;
+      btn.style.display = "inline-flex";
+      btn.style.alignItems = "center";
+      btn.style.justifyContent = "center";
+      btn.style.border = "none";
+      btn.style.background = "transparent";
+      btn.style.color = "var(--header-text)";
+      btn.style.padding = "0 2px 2px";
+      btn.style.margin = "0";
+      btn.style.minHeight = "0";
+      btn.style.lineHeight = "1.25";
+      btn.style.fontSize = "13px";
+      btn.style.fontWeight = "700";
+      btn.style.borderRadius = "0";
+      btn.style.borderBottom = "2.5px solid currentColor";
+      btn.style.borderBottomColor = "currentColor";
+      btn.style.cursor = "pointer";
+      btn.style.whiteSpace = "nowrap";
+      btn.onmouseenter = () => {
+        if (btn.disabled) return;
+        btn.style.borderBottomColor = "#ff8c00";
+      };
+      btn.onmouseleave = () => {
+        btn.style.borderBottomColor = "currentColor";
+      };
     };
 
-    viewWrap.append(viewLabel, viewSelect);
+    const viewWrap = document.createElement("div");
+    viewWrap.style.position = "relative";
+    viewWrap.style.display = "inline-flex";
+    viewWrap.style.alignItems = "center";
+    viewWrap.style.flex = "0 0 172px";
+
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.title = "Ansicht";
+    viewBtn.setAttribute("aria-haspopup", "menu");
+    applyTopActionTextButtonStyle(viewBtn);
+    viewBtn.style.width = "172px";
+
+    const viewMenu = document.createElement("div");
+    viewMenu.style.position = "fixed";
+    viewMenu.style.top = "0";
+    viewMenu.style.left = "0";
+    viewMenu.style.minWidth = "190px";
+    viewMenu.style.maxWidth = "calc(100vw - 16px)";
+    viewMenu.style.display = "none";
+    viewMenu.style.flexDirection = "column";
+    viewMenu.style.gap = "0";
+    viewMenu.style.padding = "4px";
+    viewMenu.style.border = "1px solid var(--card-border)";
+    viewMenu.style.borderRadius = "8px";
+    viewMenu.style.background = "var(--card-bg)";
+    viewMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
+    viewMenu.style.zIndex = String(POPOVER_MENU);
+
+    const updateViewMenuUi = () => {
+      viewBtn.textContent = `Ansicht: ${this._viewFilterLabel(this.viewFilter)}`;
+      Array.from(viewMenu.querySelectorAll("button[data-view-filter]")).forEach((item) => {
+        const active = item.getAttribute("data-view-filter") === this.viewFilter;
+        item.style.background = active ? "var(--btn-outline-hover-bg)" : "transparent";
+        item.style.fontWeight = active ? "700" : "400";
+      });
+    };
+
+    const mkViewItem = (value, label) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.textContent = label;
+      item.setAttribute("data-view-filter", value);
+      item.style.display = "block";
+      item.style.width = "100%";
+      item.style.textAlign = "left";
+      item.style.border = "none";
+      item.style.background = "transparent";
+      item.style.color = "var(--text-main)";
+      item.style.padding = "8px 10px";
+      item.style.borderRadius = "6px";
+      item.style.minHeight = "30px";
+      item.style.cursor = "pointer";
+      item.onmouseenter = () => {
+        item.style.background = "var(--btn-outline-hover-bg)";
+      };
+      item.onmouseleave = () => {
+        if (item.getAttribute("data-view-filter") !== this.viewFilter) {
+          item.style.background = "transparent";
+        }
+      };
+      item.onclick = () => {
+        this.viewFilter = value;
+        updateViewMenuUi();
+        this._setViewMenuOpen(false);
+        this._renderListOnly();
+      };
+      return item;
+    };
+
+    viewMenu.append(
+      mkViewItem("all", "Alle"),
+      mkViewItem("tasks", "Aufgaben"),
+      mkViewItem("verzug", "Verzug"),
+      mkViewItem("decisions", "Festlegungen")
+    );
+    updateViewMenuUi();
+    document.body.appendChild(viewMenu);
+
+    viewBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (viewBtn.disabled) return;
+      this._setViewMenuOpen(!this._viewMenuOpen);
+    };
+    viewBtn.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      viewBtn.click();
+    });
+
+    if (this._viewMenuDocMouseDown) {
+      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
+      this._viewMenuDocMouseDown = null;
+    }
+    this._viewMenuDocMouseDown = (e) => {
+      if (!this._viewMenuOpen) return;
+      if (viewWrap.contains(e.target)) return;
+      if (viewMenu.contains(e.target)) return;
+      this._setViewMenuOpen(false);
+    };
+    document.addEventListener("mousedown", this._viewMenuDocMouseDown, true);
+
+    viewWrap.append(viewBtn);
 
     // Topbar: fixed
     const topBar = document.createElement("div");
@@ -3461,7 +3594,10 @@ _isoToDDMMYYYY(iso) {
     this.btnLongToggle = btnLongToggle;
     this.btnAudioAnalyze = btnAudioAnalyze;
     this.btnAmpelToggle = btnAmpelToggle;
-    this.btnTasks = viewSelect;
+    this.btnTasks = viewBtn;
+    this._viewMenuWrap = viewWrap;
+    this._viewMenuEl = viewMenu;
+    this._viewMenuBtn = viewBtn;
 
     this.topBarEl = topBar;
     this.box = box;
@@ -6005,6 +6141,14 @@ const textCol = document.createElement("div");
   }
 
   async destroy() {
+    if (this._viewMenuDocMouseDown) {
+      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
+      this._viewMenuDocMouseDown = null;
+    }
+    this._setViewMenuOpen(false);
+    if (this._viewMenuEl && this._viewMenuEl.parentNode) {
+      this._viewMenuEl.parentNode.removeChild(this._viewMenuEl);
+    }
     try {
       if (this._audioPanel && typeof this._audioPanel.destroy === "function") {
         this._audioPanel.destroy();
