@@ -2956,46 +2956,49 @@ _isoToDDMMYYYY(iso) {
       btnAmpelToggle.click();
     });
 
-    const applyTopActionTextButtonStyle = (btn) => {
-      if (!btn) return;
-      btn.style.display = "inline-flex";
-      btn.style.alignItems = "center";
-      btn.style.justifyContent = "center";
-      btn.style.border = "none";
-      btn.style.background = "transparent";
-      btn.style.color = "var(--header-text)";
-      btn.style.padding = "0 2px 2px";
-      btn.style.margin = "0";
-      btn.style.minHeight = "0";
-      btn.style.lineHeight = "1.25";
-      btn.style.fontSize = "13px";
-      btn.style.fontWeight = "700";
-      btn.style.borderRadius = "0";
-      btn.style.borderBottom = "2.5px solid currentColor";
-      btn.style.borderBottomColor = "currentColor";
-      btn.style.cursor = "pointer";
-      btn.style.whiteSpace = "nowrap";
-      btn.onmouseenter = () => {
-        if (btn.disabled) return;
-        btn.style.borderBottomColor = "#ff8c00";
-      };
-      btn.onmouseleave = () => {
-        btn.style.borderBottomColor = "currentColor";
-      };
-    };
-
     const viewWrap = document.createElement("div");
     viewWrap.style.position = "relative";
     viewWrap.style.display = "inline-flex";
     viewWrap.style.alignItems = "center";
-    viewWrap.style.flex = "0 0 172px";
+    viewWrap.style.flex = "0 0 auto";
 
     const viewBtn = document.createElement("button");
     viewBtn.type = "button";
     viewBtn.title = "Ansicht";
     viewBtn.setAttribute("aria-haspopup", "menu");
-    applyTopActionTextButtonStyle(viewBtn);
-    viewBtn.style.width = "172px";
+    viewBtn.style.display = "inline-flex";
+    viewBtn.style.alignItems = "center";
+    viewBtn.style.justifyContent = "space-between";
+    viewBtn.style.gap = "8px";
+    viewBtn.style.padding = BTN_PAD;
+    viewBtn.style.borderRadius = BTN_RADIUS;
+    viewBtn.style.cursor = "pointer";
+    viewBtn.style.border = "1px solid #ddd";
+    viewBtn.style.background = "#f3f3f3";
+    viewBtn.style.color = "#222";
+    viewBtn.style.minHeight = BTN_MIN_H;
+    viewBtn.style.minWidth = "96px";
+    viewBtn.style.fontSize = "13px";
+    viewBtn.style.fontWeight = "600";
+    viewBtn.style.lineHeight = "1.25";
+    viewBtn.style.whiteSpace = "nowrap";
+    viewBtn.onmouseenter = () => {
+      if (viewBtn.disabled) return;
+      viewBtn.style.background = "#ececec";
+      viewBtn.style.borderColor = "#cfcfcf";
+    };
+    viewBtn.onmouseleave = () => {
+      viewBtn.style.background = "#f3f3f3";
+      viewBtn.style.borderColor = "#ddd";
+    };
+
+    const viewBtnLabel = document.createElement("span");
+    viewBtnLabel.textContent = "Ansicht";
+    const viewBtnCaret = document.createElement("span");
+    viewBtnCaret.textContent = "v";
+    viewBtnCaret.style.fontSize = "11px";
+    viewBtnCaret.style.opacity = "0.75";
+    viewBtn.append(viewBtnLabel, viewBtnCaret);
 
     const viewMenu = document.createElement("div");
     viewMenu.style.position = "fixed";
@@ -3014,7 +3017,9 @@ _isoToDDMMYYYY(iso) {
     viewMenu.style.zIndex = String(POPOVER_MENU);
 
     const updateViewMenuUi = () => {
-      viewBtn.textContent = `Ansicht: ${this._viewFilterLabel(this.viewFilter)}`;
+      const filterLabel = this._viewFilterLabel(this.viewFilter);
+      viewBtn.title = `Ansicht: ${filterLabel}`;
+      viewBtn.setAttribute("aria-label", `Ansicht: ${filterLabel}`);
       Array.from(viewMenu.querySelectorAll("button[data-view-filter]")).forEach((item) => {
         const active = item.getAttribute("data-view-filter") === this.viewFilter;
         item.style.background = active ? "var(--btn-outline-hover-bg)" : "transparent";
