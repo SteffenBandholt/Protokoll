@@ -17,7 +17,7 @@ const { createWhisperCppEngine } = require("../services/audio/engines/WhisperCpp
 const AUDIO_FILE_FILTER = [
   {
     name: "Audio",
-    extensions: ["mp3", "wav", "m4a", "aac", "ogg", "flac", "wma"],
+    extensions: ["mp3", "mp4", "wav", "m4a", "aac", "ogg", "flac", "wma"],
   },
 ];
 

@@ -74,7 +74,7 @@ module.exports = (run, { assert }) => {
     const service = new TranscriptSegmentationService();
     const segments = service.segmentTranscript({
       full_text:
-        "Bei Fundament fehlt noch die Freigabe.\n\nAußerdem noch ein Thema: Statikunterlagen fehlen noch.",
+        "Bei Fundament fehlt noch die Freigabe.\n\nAusserdem noch ein Thema: Statikunterlagen fehlen noch.",
     });
 
     assert.equal(segments.length, 2);
@@ -111,16 +111,68 @@ module.exports = (run, { assert }) => {
     assert.ok(ctx.transcriptWrites[0].segmentsJson);
   });
 
-  run("MeetingMappingService erzeugt create_child_top bei 'Neuer Punkt unter ...'", () => {
+  run("MeetingMappingService erkennt gesprochene TOP-Referenzen vor dem Freitext-Mapping", () => {
     const ctx = createAnalyzeContext({
-      transcriptText: "Neuer Punkt unter Rohbau: Gerüstprüfung nächste Woche.",
+      transcriptText: "TOP 3 Beim Fundament fehlt noch die Freigabe.",
+      tops: [
+        {
+          id: "top-fundament",
+          project_id: "project-1",
+          parent_top_id: null,
+          level: 1,
+          number: 3,
+          title: "Fundament",
+          longtext: "",
+          is_hidden: 0,
+        },
+      ],
+    });
+
+    ctx.service.analyze({ audioImportId: "audio-1" });
+
+    assert.equal(ctx.createdSuggestions.length, 1);
+    assert.equal(ctx.createdSuggestions[0].type, "append_to_top");
+    assert.equal(ctx.createdSuggestions[0].targetTopId, "top-fundament");
+    assert.equal(ctx.createdSuggestions[0].textSuggestion, "Beim Fundament fehlt noch die Freigabe.");
+    assert.match(ctx.createdSuggestions[0].mappingReason, /spoken_top_reference:3/i);
+  });
+
+  run("MeetingMappingService setzt bei reinem Kontextwechsel nur den Anker", () => {
+    const ctx = createAnalyzeContext({
+      transcriptText: ["Gehe zu TOP 4.", "Pruefung naechste Woche."].join("\n\n"),
       tops: [
         {
           id: "top-rohbau",
           project_id: "project-1",
           parent_top_id: null,
           level: 1,
-          number: 3,
+          number: 4,
+          title: "Rohbau",
+          longtext: "",
+          is_hidden: 0,
+        },
+      ],
+    });
+
+    ctx.service.analyze({ audioImportId: "audio-1" });
+
+    assert.equal(ctx.createdSuggestions.length, 1);
+    assert.equal(ctx.createdSuggestions[0].type, "append_to_top");
+    assert.equal(ctx.createdSuggestions[0].targetTopId, "top-rohbau");
+    assert.equal(ctx.createdSuggestions[0].textSuggestion, "Pruefung naechste Woche.");
+    assert.match(ctx.createdSuggestions[0].mappingReason, /context_anchor_append/i);
+  });
+
+  run("MeetingMappingService erzeugt create_child_top bei gesprochenem Unterpunkt mit Titel", () => {
+    const ctx = createAnalyzeContext({
+      transcriptText: "Gehe zu TOP 4. Neuer Unterpunkt. Titel Geruestpruefung. Pruefung naechste Woche.",
+      tops: [
+        {
+          id: "top-rohbau",
+          project_id: "project-1",
+          parent_top_id: null,
+          level: 1,
+          number: 4,
           title: "Rohbau",
           longtext: "",
           is_hidden: 0,
@@ -133,10 +185,65 @@ module.exports = (run, { assert }) => {
     assert.equal(ctx.createdSuggestions.length, 1);
     assert.equal(ctx.createdSuggestions[0].type, "create_child_top");
     assert.equal(ctx.createdSuggestions[0].parentTopId, "top-rohbau");
-    assert.match(ctx.createdSuggestions[0].titleSuggestion, /Gerüstprüfung|Geruestpruefung|nächste Woche/i);
+    assert.equal(ctx.createdSuggestions[0].titleSuggestion, "Geruestpruefung");
+    assert.equal(ctx.createdSuggestions[0].textSuggestion, "Pruefung naechste Woche.");
+    assert.match(ctx.createdSuggestions[0].mappingReason, /spoken_new_child/i);
   });
 
-  run("MeetingMappingService nutzt den aktiven TOP-Anker für kurze Folgeaussagen", () => {
+  run("MeetingMappingService bleibt ohne sicheren Parent bei neuem TOP konservativ", () => {
+    const ctx = createAnalyzeContext({
+      transcriptText: "Neuer TOP. Titel Sicherheitspruefung. Pruefung am Donnerstag.",
+      tops: [
+        {
+          id: "top-fundament",
+          project_id: "project-1",
+          parent_top_id: null,
+          level: 1,
+          number: 2,
+          title: "Fundament",
+          longtext: "",
+          is_hidden: 0,
+        },
+      ],
+    });
+
+    ctx.service.analyze({ audioImportId: "audio-1" });
+
+    assert.equal(ctx.createdSuggestions.length, 1);
+    assert.equal(ctx.createdSuggestions[0].type, "manual_assign_child_top");
+    assert.equal(ctx.createdSuggestions[0].titleSuggestion, "Sicherheitspruefung");
+    assert.equal(ctx.createdSuggestions[0].textSuggestion, "Pruefung am Donnerstag.");
+    assert.match(ctx.createdSuggestions[0].mappingReason, /spoken_new_point_without_safe_parent/i);
+  });
+
+  run("MeetingMappingService nutzt Kontextwechsel plus neuen Punkt fuer create_child_top", () => {
+    const ctx = createAnalyzeContext({
+      transcriptText: "Weiter mit TOP 2. Neuer Punkt. Titel Freigabe. Statiker fehlt noch.",
+      tops: [
+        {
+          id: "top-statiker",
+          project_id: "project-1",
+          parent_top_id: null,
+          level: 1,
+          number: 2,
+          title: "Statik",
+          longtext: "",
+          is_hidden: 0,
+        },
+      ],
+    });
+
+    ctx.service.analyze({ audioImportId: "audio-1" });
+
+    assert.equal(ctx.createdSuggestions.length, 1);
+    assert.equal(ctx.createdSuggestions[0].type, "create_child_top");
+    assert.equal(ctx.createdSuggestions[0].parentTopId, "top-statiker");
+    assert.equal(ctx.createdSuggestions[0].titleSuggestion, "Freigabe");
+    assert.equal(ctx.createdSuggestions[0].textSuggestion, "Statiker fehlt noch.");
+    assert.match(ctx.createdSuggestions[0].mappingReason, /spoken_new_point/i);
+  });
+
+  run("MeetingMappingService nutzt den aktiven TOP-Anker fuer kurze Folgeaussagen", () => {
     const ctx = createAnalyzeContext({
       transcriptText: [
         "Beim Fundament fehlt noch die Freigabe.",
@@ -216,7 +323,7 @@ module.exports = (run, { assert }) => {
     const ctx = createAnalyzeContext({
       transcriptText: [
         "Beim Fundament fehlt noch die Freigabe.",
-        "Außerdem neuer Punkt unter Rohbau: Gerüstprüfung nächste Woche.",
+        "Ausserdem neuer Punkt unter Rohbau: Geruestpruefung naechste Woche.",
       ].join("\n\n"),
       tops: [
         {

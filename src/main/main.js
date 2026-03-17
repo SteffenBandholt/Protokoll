@@ -20,6 +20,13 @@ const { registerProjectSettingsIpc } = require("./ipc/projectSettingsIpc");
 const { registerEditorIpc } = require("./ipc/editorIpc");
 const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
 const { registerAudioIpc } = require("./ipc/audioIpc");
+const { registerLicenseIpc } = require("./ipc/licenseIpc");
+const { checkLicense } = require("./licensing/licenseService");
+const {
+  LICENSE_FEATURES,
+  enforceLicensedFeature,
+  toLicenseErrorPayload,
+} = require("./licensing/featureGuard");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -48,6 +55,10 @@ function resolveIconPath() {
 }
 
 const DEV_ONLY_ERROR = "Nur im Entwicklermodus verfuegbar.";
+
+function _getPackagedPackageJsonPath() {
+  return path.join(app.getAppPath(), "package.json");
+}
 
 function _findPackageJsonUp(startDir) {
   if (!startDir) return null;
@@ -90,6 +101,51 @@ function _resolveProjectRoot() {
     if (pkgPath) return path.dirname(pkgPath);
   }
   return null;
+}
+
+function _stripWrappingQuotes(value) {
+  const raw = String(value || "");
+  if (raw.length >= 2) {
+    const first = raw[0];
+    const last = raw[raw.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return raw.slice(1, -1);
+    }
+  }
+  return raw;
+}
+
+function _loadDevEnvFile(projectRoot) {
+  if (app.isPackaged || !projectRoot) return [];
+
+  const envPath = path.join(projectRoot, ".env");
+  if (!fs.existsSync(envPath)) return [];
+
+  const loadedKeys = [];
+  const raw = fs.readFileSync(envPath, "utf8");
+  const lines = raw.split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = String(line || "").trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) continue;
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    if (!key) continue;
+    if (String(process.env[key] || "").trim()) continue;
+
+    let value = _stripWrappingQuotes(trimmed.slice(separatorIndex + 1).trim());
+    if (/_PATH$/i.test(key) && value && !path.isAbsolute(value)) {
+      value = path.resolve(projectRoot, value);
+    }
+
+    process.env[key] = value;
+    loadedKeys.push(key);
+  }
+
+  return loadedKeys;
 }
 
 async function _readJsonFile(filePath) {
@@ -144,7 +200,9 @@ function _bumpSemver(version, kind) {
 }
 
 async function _loadRepoVersionFiles(projectRoot) {
-  const packagePath = path.join(projectRoot, "package.json");
+  const packagePath = app.isPackaged
+    ? _getPackagedPackageJsonPath()
+    : path.join(projectRoot, "package.json");
   if (!fs.existsSync(packagePath)) {
     throw new Error("package.json nicht gefunden.");
   }
@@ -227,7 +285,7 @@ async function _writeRepoBuildChannel(next) {
 // ✅ für EXE: buildChannel aus gepackter package.json (extraMetadata)
 function _readPackagedBuildChannel() {
   try {
-    const pkgPath = path.join(app.getAppPath(), "package.json");
+    const pkgPath = _getPackagedPackageJsonPath();
     const raw = fs.readFileSync(pkgPath, "utf8");
     const data = JSON.parse(raw);
     const ch = _normalizeChannel(data?.buildChannel);
@@ -359,6 +417,12 @@ async function maybePromptLegacyMigration(win) {
 }
 
 app.whenReady().then(async () => {
+  const projectRoot = _resolveProjectRoot();
+  const loadedDevEnvKeys = _loadDevEnvFile(projectRoot);
+  if (loadedDevEnvKeys.length) {
+    console.log("[main] loaded .env keys:", loadedDevEnvKeys.join(", "));
+  }
+
   // ✅ IPCs zuerst registrieren (verhindert "No handler registered" beim invoke)
   registerProjectsIpc();
   registerMeetingsIpc();
@@ -371,6 +435,14 @@ app.whenReady().then(async () => {
   registerEditorIpc({ getMainWindow: () => mainWindow });
   registerProjectTransferIpc();
   registerAudioIpc();
+  registerLicenseIpc();
+
+  try {
+    const licenseStatus = checkLicense();
+    console.log("[license] startup check:", licenseStatus?.valid ? "VALID" : licenseStatus?.reason || "UNKNOWN");
+  } catch (err) {
+    console.error("[license] startup check failed:", err?.stack || err?.message || String(err));
+  }
 
   // ============================================================
   // ✅ Build Channel IPCs
@@ -411,6 +483,8 @@ app.whenReady().then(async () => {
 
 ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
   try {
+    enforceLicensedFeature(LICENSE_FEATURES.MAIL_OUTLOOK_DRAFT);
+
     if (process.platform !== "win32") {
       return { ok: false, error: "Outlook-Entwurf ist nur unter Windows verfügbar." };
     }
@@ -543,7 +617,7 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
 
     return result;
   } catch (err) {
-    return { ok: false, error: err?.message || String(err) };
+    return err?.licenseError ? toLicenseErrorPayload(err) : { ok: false, error: err?.message || String(err) };
   }
 });
 
@@ -714,7 +788,7 @@ ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
   });
 
   console.log(
-    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, projectTransfer, audio, app:*"
+    "[main] IPC registered: projects, meetings, tops, projectFirms, participants, print, settings, projectSettings, projectTransfer, audio, license, app:*"
   );
 
   // Fenster erst danach (damit Renderer nichts "zu früh" invoken kann)
