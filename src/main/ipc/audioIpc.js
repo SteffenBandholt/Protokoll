@@ -9,6 +9,7 @@ const audioImportsRepo = require("../db/audioImportsRepo");
 const transcriptsRepo = require("../db/transcriptsRepo");
 const audioSuggestionsRepo = require("../db/audioSuggestionsRepo");
 const audioTermCorrectionsRepo = require("../db/audioTermCorrectionsRepo");
+const appSettingsRepo = require("../db/appSettingsRepo");
 const { createAudioImportService } = require("../services/audio/AudioImportService");
 const { createTranscriptionService } = require("../services/audio/TranscriptionService");
 const {
@@ -75,6 +76,7 @@ function registerAudioIpc() {
     audioImportsRepo,
     transcriptsRepo,
     engine: transcriptionEngine,
+    appSettingsRepo,
   });
   const segmentationService = createTranscriptSegmentationService();
   const mappingService = createMeetingMappingService({
@@ -120,6 +122,24 @@ function registerAudioIpc() {
       return { ok: true, audioImport };
     } catch (err) {
       return _toAudioErrorPayload(err);
+    }
+  });
+
+  ipcMain.handle("audio:whisperModelsStatus", async () => {
+    try {
+      const base = transcriptionEngine.getModelAvailability("ggml-base.bin");
+      const small = transcriptionEngine.getModelAvailability("ggml-small.bin");
+      const medium = transcriptionEngine.getModelAvailability("ggml-medium.bin");
+      return {
+        ok: true,
+        models: {
+          fast: { fileName: "ggml-base.bin", available: !!base?.available },
+          balanced: { fileName: "ggml-small.bin", available: !!small?.available },
+          best: { fileName: "ggml-medium.bin", available: !!medium?.available },
+        },
+      };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
     }
   });
 

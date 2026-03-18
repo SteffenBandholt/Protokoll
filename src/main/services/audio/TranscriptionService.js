@@ -6,8 +6,10 @@ function _audioLog(message, extra = null) {
   console.info("[AUDIO] Transcribe", message);
 }
 
+const MODEL_SETTING_KEY = "audio.whisper.quality";
+
 class TranscriptionService {
-  constructor({ meetingsRepo, audioImportsRepo, transcriptsRepo, engine }) {
+  constructor({ meetingsRepo, audioImportsRepo, transcriptsRepo, engine, appSettingsRepo }) {
     if (!meetingsRepo) throw new Error("TranscriptionService: meetingsRepo required");
     if (!audioImportsRepo) throw new Error("TranscriptionService: audioImportsRepo required");
     if (!transcriptsRepo) throw new Error("TranscriptionService: transcriptsRepo required");
@@ -17,6 +19,18 @@ class TranscriptionService {
     this.audioImportsRepo = audioImportsRepo;
     this.transcriptsRepo = transcriptsRepo;
     this.engine = engine;
+    this.appSettingsRepo = appSettingsRepo || null;
+  }
+
+  _resolveModelFileName() {
+    if (!this.appSettingsRepo || typeof this.appSettingsRepo.appSettingsGetMany !== "function") {
+      return "ggml-base.bin";
+    }
+    const data = this.appSettingsRepo.appSettingsGetMany([MODEL_SETTING_KEY]) || {};
+    const raw = String(data[MODEL_SETTING_KEY] || "").trim().toLowerCase();
+    if (raw === "best") return "ggml-medium.bin";
+    if (raw === "balanced") return "ggml-small.bin";
+    return "ggml-base.bin";
   }
 
   _loadOpenMeeting(audioImport) {
@@ -49,6 +63,7 @@ class TranscriptionService {
       const result = await this.engine.transcribe({
         filePath: audioImport.file_path,
         language,
+        modelFileName: this._resolveModelFileName(),
         audioImport,
       });
 
