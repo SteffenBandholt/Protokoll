@@ -47,6 +47,12 @@ function findRepoRoot(start) {
   return null;
 }
 
+function assertFileExists(label, filePath) {
+  if (fs.existsSync(filePath)) return;
+  console.error(`[dist] Fehler: ${label} fehlt: ${filePath}`);
+  process.exit(1);
+}
+
 function main() {
   const repoRoot = findRepoRoot(process.cwd());
   if (!repoRoot) {
@@ -60,6 +66,14 @@ function main() {
     console.error("[dist] Fehler: package.json konnte nicht gelesen werden.");
     process.exit(1);
   }
+
+  // Pre-Build-Check: Audio Runtime Dateien
+  assertFileExists(
+    "whisper-cli.exe",
+    path.join(repoRoot, "dev", "tools", "whisper.cpp", "Release", "whisper-cli.exe")
+  );
+  assertFileExists("Whisper Modell", path.join(repoRoot, "dev", "models", "ggml-base.bin"));
+  assertFileExists("ffmpeg.exe", path.join(repoRoot, "dev", "tools", "ffmpeg", "ffmpeg.exe"));
 
   const baseBuild = pkg.build || {};
   const baseVersion = String(pkg.version || "").trim() || "0.0.0";

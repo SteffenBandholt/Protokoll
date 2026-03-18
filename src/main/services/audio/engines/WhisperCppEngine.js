@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { app } = require("electron");
 const { spawn } = require("child_process");
 
 function _fileExists(filePath) {
@@ -44,6 +45,15 @@ function _findExecutableOnPath(executableName) {
   return _resolveExistingFile(segments.map((segment) => path.join(segment, executableName)));
 }
 
+function _getResourcesRoot() {
+  if (process.resourcesPath) return process.resourcesPath;
+  try {
+    return app?.isPackaged ? process.resourcesPath : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
 function _runProcess(command, args, { cwd } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -72,6 +82,20 @@ function _runProcess(command, args, { cwd } = {}) {
   });
 }
 
+function _audioLog(message, extra = null) {
+  if (extra && typeof extra === "object") {
+    console.info("[AUDIO] Transcribe", message, extra);
+    return;
+  }
+  console.info("[AUDIO] Transcribe", message);
+}
+
+function _isTruthString(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return false;
+  return ["1", "true", "yes", "on"].includes(raw);
+}
+
 class WhisperCppEngine {
   constructor(options = {}) {
     this.workspaceRoot =
@@ -81,9 +105,14 @@ class WhisperCppEngine {
 
   _getExecutableCandidates() {
     const exeName = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli";
+    const resourcesRoot = _getResourcesRoot();
+    const packaged = resourcesRoot
+      ? [path.join(resourcesRoot, "audio", "whisper"), path.join(resourcesRoot, "audio", "whisper", exeName)]
+      : [];
     return [
       process.env.BBM_WHISPER_CPP_PATH,
       process.env.WHISPER_CPP_PATH,
+      ...packaged,
       path.join(this.workspaceRoot, "dev", "tools", "whisper.cpp"),
       path.join(this.workspaceRoot, "dev", "tools", "whisper.cpp", "Release"),
       path.join(this.workspaceRoot, "vendor", "whisper.cpp", exeName),
@@ -95,9 +124,14 @@ class WhisperCppEngine {
 
   _getModelCandidates(executablePath) {
     const executableDir = executablePath ? path.dirname(executablePath) : null;
+    const resourcesRoot = _getResourcesRoot();
+    const packaged = resourcesRoot
+      ? [path.join(resourcesRoot, "audio", "models"), path.join(resourcesRoot, "audio", "models", "ggml-base.bin")]
+      : [];
     return [
       process.env.BBM_WHISPER_MODEL_PATH,
       process.env.WHISPER_MODEL_PATH,
+      ...packaged,
       path.join(this.workspaceRoot, "dev", "models"),
       path.join(this.workspaceRoot, "dev", "models", "whisper"),
       executableDir ? path.join(executableDir, "models", "ggml-base.bin") : null,
@@ -109,9 +143,14 @@ class WhisperCppEngine {
 
   _getFfmpegCandidates() {
     const exeName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+    const resourcesRoot = _getResourcesRoot();
+    const packaged = resourcesRoot
+      ? [path.join(resourcesRoot, "audio", "ffmpeg"), path.join(resourcesRoot, "audio", "ffmpeg", exeName)]
+      : [];
     return [
       process.env.BBM_FFMPEG_PATH,
       process.env.FFMPEG_PATH,
+      ...packaged,
       path.join(this.workspaceRoot, "dev", "tools", "ffmpeg"),
       path.join(this.workspaceRoot, "dev", "tools", "ffmpeg", "bin"),
       _findExecutableOnPath(exeName),
@@ -147,6 +186,12 @@ class WhisperCppEngine {
 
   _ensureAvailable() {
     const availability = this.getAvailability();
+    if (_isTruthString(process.env.BBM_DEV_AUDIO_FFMPEG_LOG)) {
+      _audioLog("ffmpeg-check", {
+        available: !!availability.ffmpegPath,
+        ffmpegPath: availability.ffmpegPath || null,
+      });
+    }
     if (availability.available) return availability;
 
     const missing = [];

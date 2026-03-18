@@ -8,6 +8,7 @@ const MIME_BY_EXT = {
   ".m4a": "audio/mp4",
   ".aac": "audio/aac",
   ".ogg": "audio/ogg",
+  ".webm": "audio/webm",
   ".flac": "audio/flac",
   ".wma": "audio/x-ms-wma",
 };

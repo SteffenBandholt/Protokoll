@@ -48,6 +48,20 @@
       "node_modules/better-sqlite3/**",
       "node_modules/archiver/**"
     ],
+    "extraResources": [
+      {
+        "from": "dev/tools/whisper.cpp/Release",
+        "to": "audio/whisper"
+      },
+      {
+        "from": "dev/models/ggml-base.bin",
+        "to": "audio/models/ggml-base.bin"
+      },
+      {
+        "from": "dev/tools/ffmpeg",
+        "to": "audio/ffmpeg"
+      }
+    ],
     "win": {
       "icon": "build/bbm-icon.ico",
       "target": [
