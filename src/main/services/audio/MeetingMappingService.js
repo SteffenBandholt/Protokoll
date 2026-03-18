@@ -1,6 +1,39 @@
 const NEW_POINT_PATTERN =
   /\b(?:neuer top|neuer punkt|neuer unterpunkt|unterpunkt unter|zusaetzlicher top|weiterer punkt|ausserdem|noch ein thema|zusaetzlich)\b/i;
 const ACTIVE_ANCHOR_MAX_WORDS = 12;
+const TRAILING_STOP_WORDS = new Set([
+  "mit",
+  "ist",
+  "sind",
+  "wird",
+  "werden",
+  "war",
+  "waren",
+  "muss",
+  "muessen",
+  "soll",
+  "sollen",
+  "noch",
+  "zu",
+  "auf",
+  "fuer",
+  "von",
+  "im",
+  "am",
+  "an",
+  "der",
+  "die",
+  "das",
+  "und",
+  "oder",
+  "bei",
+  "beim",
+  "zum",
+  "zur",
+  "des",
+  "den",
+  "dem",
+]);
 
 function _audioLog(message, extra = null) {
   if (extra && typeof extra === "object") {
@@ -369,14 +402,91 @@ class MeetingMappingService {
   }
 
   _buildSuggestedTitle(segmentText) {
-    const cleaned = this._stripLeadingContext(segmentText).replace(/[.!?;]+$/g, "").trim();
+    const cleaned = this._cleanupTranscribedText(this._stripLeadingContext(segmentText))
+      .replace(/[.!?;]+$/g, "")
+      .trim();
+    return this._deriveTitleFromText(cleaned);
+  }
+
+  _cleanupTranscribedText(text) {
+    let cleaned = this._safeText(text);
+    if (!cleaned) return "";
+
+    cleaned = cleaned.replace(/\s{2,}/g, " ");
+    cleaned = cleaned.replace(/\s+([,.;:!?])/g, "$1");
+    cleaned = cleaned.replace(/([,.;:!?])([^\s])/g, "$1 $2");
+    cleaned = cleaned.replace(/([,.;:!?])\1+/g, "$1");
+    cleaned = cleaned.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+    cleaned = cleaned.replace(/\)\s*(\w)/g, ") $1");
+    cleaned = cleaned.replace(/\s+$/g, "").trim();
+
+    if (/^[a-z\u00e4\u00f6\u00fc]/.test(cleaned)) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.slice(1);
+    }
+
+    cleaned = this._applyDomainDictionary(cleaned);
+    return cleaned;
+  }
+
+  _applyDomainDictionary(text) {
+    let out = String(text || "");
+    const replaceWord = (pattern, replacement) => {
+      out = out.replace(pattern, (match) => {
+        const first = match[0];
+        if (first && first === first.toUpperCase()) {
+          return replacement[0].toUpperCase() + replacement.slice(1);
+        }
+        return replacement;
+      });
+    };
+
+    replaceWord(/\brohrbau\b/gi, "Rohbau");
+    replaceWord(/\bschallung\b/gi, "Schalung");
+    replaceWord(/\bbewehrung\b/gi, "Bewehrung");
+    replaceWord(/\bbetonage\b/gi, "Betonage");
+    replaceWord(/\bfreigabe\b/gi, "Freigabe");
+    replaceWord(/\bnachtrag\b/gi, "Nachtrag");
+    replaceWord(/\bschacht\s?hoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthohen\b/gi, "Schachthöhen");
+    replaceWord(/\bsohlen\b/gi, "Sohlen");
+    replaceWord(/\babsteckung\b/gi, "Absteckung");
+    replaceWord(/\bgeruestpruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bgeruest pruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bstatik\b/gi, "Statik");
+    replaceWord(/\bbauzaun\b/gi, "Bauzaun");
+
+    out = out.replace(/\bSchachthöhen\s+Sohlen\b/gi, "Schachthöhen (Sohlen)");
+    return out;
+  }
+
+  _deriveTitleFromText(text) {
+    const cleaned = this._cleanupTranscribedText(text).replace(/^[.!?;,:-]+\s*/g, "").trim();
     if (!cleaned) return "Neuer Punkt";
 
-    const basis = cleaned.includes(":") ? cleaned.split(":").pop().trim() : cleaned;
-    const words = basis.split(/\s+/).filter(Boolean).slice(0, 7);
+    const dotIndex = cleaned.indexOf(".");
+    const commaIndex = cleaned.indexOf(",");
+    const cutIndex = dotIndex >= 0 ? dotIndex : commaIndex >= 0 ? commaIndex : -1;
+
+    let title =
+      cutIndex >= 0
+        ? cleaned.slice(0, cutIndex).trim()
+        : cleaned.length > 80
+        ? cleaned.slice(0, 80).trim()
+        : cleaned;
+
+    title = title.replace(/[.!?;,]+$/g, "").trim();
+    if (!title) return "Neuer Punkt";
+
+    const words = title.split(/\s+/).filter(Boolean);
+    while (words.length > 2) {
+      const last = this._normalize(words[words.length - 1]);
+      if (!TRAILING_STOP_WORDS.has(last)) break;
+      words.pop();
+    }
     const compact = words.join(" ").trim();
-    if (!compact) return "Neuer Punkt";
-    return compact.length > 80 ? `${compact.slice(0, 77).trim()}...` : compact;
+    if (compact.length >= 6) return compact;
+    return title;
   }
 
   _shouldUseActiveAnchor(segment, { hasNewPointSignal, directTop, phraseTarget, currentAnchor }) {

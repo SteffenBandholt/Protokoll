@@ -136,3 +136,15 @@ CREATE TABLE IF NOT EXISTS audio_suggestions (
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS audio_term_corrections (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  wrong_term TEXT NOT NULL,
+  correct_term TEXT NOT NULL,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);

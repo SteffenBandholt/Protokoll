@@ -68,6 +68,8 @@ contextBridge.exposeInMainWorld("bbmDb", {
   audioCreateDemoSuggestion: (data) => ipcRenderer.invoke("audio:createDemoSuggestion", data),
   audioApplySuggestion: (data) => ipcRenderer.invoke("audio:applySuggestion", data),
   audioRejectSuggestion: (data) => ipcRenderer.invoke("audio:rejectSuggestion", data),
+  audioTermCorrectionsList: (data) => ipcRenderer.invoke("audio:termCorrectionsList", data),
+  audioTermCorrectionUpsert: (data) => ipcRenderer.invoke("audio:termCorrectionUpsert", data),
 
   // ============================================================
   // Lizenzierung

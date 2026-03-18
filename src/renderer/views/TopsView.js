@@ -165,6 +165,10 @@ export default class TopsView {
     this._audioDictationTarget = null;
     this._audioRecorder = null;
     this._audioStream = null;
+    this._lastDictation = null;
+    this._termCorrections = new Map();
+    this._termPromptEl = null;
+    this._termPromptCleanup = null;
     this._audioLicensed = false;
     this._audioLicenseChecked = false;
     this._audioLicenseMessage = "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
@@ -2596,6 +2600,7 @@ _isoToDDMMYYYY(iso) {
         this.inpTitle.focus();
         this.inpTitle.select?.();
       }
+      this._lastDictation = { field: "shortText", text: next, at: Date.now() };
     } else if (targetField === "longText") {
       const current = this.taLongtext ? String(this.taLongtext.value || "") : "";
       const joined = current ? `${current.replace(/\s+$/g, "")}\n${text}` : text;
@@ -2604,9 +2609,294 @@ _isoToDDMMYYYY(iso) {
         this.taLongtext.value = this._clampStr(next, this._longMax());
         this.taLongtext.focus();
       }
+      this._lastDictation = { field: "longText", text: text, at: Date.now() };
     }
 
     this._updateCharCounters();
+  }
+
+  _cleanupDictationText(text) {
+    let cleaned = String(text || "").trim();
+    if (!cleaned) return "";
+
+    cleaned = cleaned.replace(/\s{2,}/g, " ");
+    cleaned = cleaned.replace(/\s+([,.;:!?])/g, "$1");
+    cleaned = cleaned.replace(/([,.;:!?])([^\s])/g, "$1 $2");
+    cleaned = cleaned.replace(/([,.;:!?])\1+/g, "$1");
+    cleaned = cleaned.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+    cleaned = cleaned.replace(/\)\s*(\w)/g, ") $1");
+    cleaned = cleaned.replace(/\s+$/g, "").trim();
+
+    if (/^[a-z\u00e4\u00f6\u00fc]/.test(cleaned)) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.slice(1);
+    }
+
+    return this._applyDictationDictionary(cleaned);
+  }
+
+  _normalizeTerm(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  _applyDictationDictionary(text) {
+    let out = String(text || "");
+    const replaceWord = (pattern, replacement) => {
+      out = out.replace(pattern, (match) => {
+        const first = match[0];
+        if (first && first === first.toUpperCase()) {
+          return replacement[0].toUpperCase() + replacement.slice(1);
+        }
+        return replacement;
+      });
+    };
+
+    replaceWord(/\brohrbau\b/gi, "Rohbau");
+    replaceWord(/\bschallung\b/gi, "Schalung");
+    replaceWord(/\bbewehrung\b/gi, "Bewehrung");
+    replaceWord(/\bbetonage\b/gi, "Betonage");
+    replaceWord(/\bfreigabe\b/gi, "Freigabe");
+    replaceWord(/\bnachtrag\b/gi, "Nachtrag");
+    replaceWord(/\bschacht\s?hoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthohen\b/gi, "Schachthöhen");
+    replaceWord(/\bsohlen\b/gi, "Sohlen");
+    replaceWord(/\babsteckung\b/gi, "Absteckung");
+    replaceWord(/\bgeruestpruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bgeruest pruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bstatik\b/gi, "Statik");
+    replaceWord(/\bbauzaun\b/gi, "Bauzaun");
+
+    out = out.replace(/\bSchachthöhen\s+Sohlen\b/gi, "Schachthöhen (Sohlen)");
+    out = this._applyProjectTermCorrections(out);
+    return out;
+  }
+
+  _applyProjectTermCorrections(text) {
+    let out = String(text || "");
+    if (!this._termCorrections || this._termCorrections.size === 0) return out;
+
+    for (const [wrongTerm, correctTerm] of this._termCorrections.entries()) {
+      if (!wrongTerm || !correctTerm) continue;
+      const pattern = new RegExp(`\\b${wrongTerm.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "gi");
+      out = out.replace(pattern, (match) => {
+        const first = match[0];
+        if (first && first === first.toUpperCase()) {
+          return correctTerm[0].toUpperCase() + correctTerm.slice(1);
+        }
+        return correctTerm;
+      });
+    }
+
+    return out;
+  }
+
+  async _loadProjectTermCorrections(force = false) {
+    if (!this.projectId) return;
+    if (!force && this._termCorrections?.size) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioTermCorrectionsList !== "function") return;
+
+    try {
+      const res = await api.audioTermCorrectionsList({ projectId: this.projectId });
+      if (!res?.ok) return;
+      const map = new Map();
+      const list = Array.isArray(res.list) ? res.list : [];
+      for (const row of list) {
+        const wrong = String(row?.wrong_term || row?.wrongTerm || "").trim();
+        const correct = String(row?.correct_term || row?.correctTerm || "").trim();
+        if (!wrong || !correct) continue;
+        map.set(this._normalizeTerm(wrong), correct);
+      }
+      this._termCorrections = map;
+    } catch (_err) {
+      // ignore
+    }
+  }
+
+  _detectSimpleTermCorrection(originalText, editedText) {
+    const original = this._cleanupDictationText(originalText);
+    const edited = this._cleanupDictationText(editedText);
+    if (!original || !edited) return null;
+    if (original === edited) return null;
+
+    const wordRe = /[\p{L}\p{N}\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df-]+/gu;
+    const origWords = original.match(wordRe) || [];
+    const editWords = edited.match(wordRe) || [];
+    if (origWords.length === 0 || editWords.length === 0) return null;
+    if (origWords.length !== editWords.length) return null;
+
+    let diffIndex = -1;
+    for (let i = 0; i < origWords.length; i += 1) {
+      if (origWords[i].toLowerCase() !== editWords[i].toLowerCase()) {
+        if (diffIndex !== -1) return null;
+        diffIndex = i;
+      }
+    }
+    if (diffIndex === -1) return null;
+
+    const wrongTerm = origWords[diffIndex].trim();
+    const correctTerm = editWords[diffIndex].trim();
+    if (!wrongTerm || !correctTerm) return null;
+    if (wrongTerm.length < 3 || correctTerm.length < 3) return null;
+    if (wrongTerm.length > 40 || correctTerm.length > 40) return null;
+    if (wrongTerm.toLowerCase() === correctTerm.toLowerCase()) return null;
+
+    return { wrongTerm, correctTerm };
+  }
+
+  _showTermCorrectionPrompt({ field, wrongTerm, correctTerm, anchorEl }) {
+    if (!anchorEl) return;
+    if (this._termPromptEl) {
+      this._termPromptEl.remove();
+      this._termPromptEl = null;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.gap = "10px";
+    wrap.style.marginTop = "6px";
+    wrap.style.padding = "6px 10px";
+    wrap.style.border = "1px solid #ffe0b2";
+    wrap.style.background = "#fff8e1";
+    wrap.style.borderRadius = "6px";
+    wrap.style.fontSize = "12px";
+    wrap.style.color = "#5d4037";
+
+    const text = document.createElement("div");
+    text.textContent = `Korrektur merken? "${wrongTerm}" → "${correctTerm}"`;
+
+    const btnYes = document.createElement("button");
+    btnYes.type = "button";
+    btnYes.textContent = "Ja";
+    btnYes.style.border = "1px solid #cfd8dc";
+    btnYes.style.background = "#f7f9fb";
+    btnYes.style.borderRadius = "6px";
+    btnYes.style.padding = "3px 8px";
+    btnYes.style.cursor = "pointer";
+
+    const btnNo = document.createElement("button");
+    btnNo.type = "button";
+    btnNo.textContent = "Nein";
+    btnNo.style.border = "1px solid #cfd8dc";
+    btnNo.style.background = "#f7f9fb";
+    btnNo.style.borderRadius = "6px";
+    btnNo.style.padding = "3px 8px";
+    btnNo.style.cursor = "pointer";
+
+    wrap.append(text, btnYes, btnNo);
+    anchorEl.insertAdjacentElement("afterend", wrap);
+    this._termPromptEl = wrap;
+
+    const cleanup = () => {
+      if (this._termPromptEl) this._termPromptEl.remove();
+      this._termPromptEl = null;
+      if (this._termPromptCleanup) this._termPromptCleanup = null;
+    };
+
+    btnNo.onclick = () => cleanup();
+    btnYes.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.audioTermCorrectionUpsert === "function" && this.projectId) {
+        await api.audioTermCorrectionUpsert({
+          projectId: this.projectId,
+          wrongTerm,
+          correctTerm,
+        });
+        this._termCorrections.set(this._normalizeTerm(wrongTerm), correctTerm);
+      }
+      cleanup();
+    };
+
+    this._termPromptCleanup = cleanup;
+  }
+
+  _maybeOfferTermCorrection(field, newValue, anchorEl) {
+    const last = this._lastDictation;
+    if (!last || last.field !== field) return;
+    const maxAgeMs = 10 * 60 * 1000;
+    if (Date.now() - (last.at || 0) > maxAgeMs) {
+      this._lastDictation = null;
+      return;
+    }
+
+    const correction = this._detectSimpleTermCorrection(last.text || "", newValue || "");
+    this._lastDictation = null;
+    if (!correction) return;
+
+    const normalizedWrong = this._normalizeTerm(correction.wrongTerm);
+    if (this._termCorrections.has(normalizedWrong)) return;
+    this._showTermCorrectionPrompt({
+      field,
+      wrongTerm: correction.wrongTerm,
+      correctTerm: correction.correctTerm,
+      anchorEl,
+    });
+  }
+
+  _deriveShortTextFromDictation(text) {
+    const cleaned = this._cleanupDictationText(text).replace(/^[.!?;,:-]+\s*/g, "").trim();
+    if (!cleaned) return "";
+
+    const dotIndex = cleaned.indexOf(".");
+    const commaIndex = cleaned.indexOf(",");
+    const cutIndex = dotIndex >= 0 ? dotIndex : commaIndex >= 0 ? commaIndex : -1;
+    let title =
+      cutIndex >= 0
+        ? cleaned.slice(0, cutIndex).trim()
+        : cleaned.length > 80
+        ? cleaned.slice(0, 80).trim()
+        : cleaned;
+
+    title = title.replace(/[.!?;,]+$/g, "").trim();
+    if (!title) return cleaned;
+
+    const stop = new Set([
+      "mit",
+      "ist",
+      "sind",
+      "wird",
+      "werden",
+      "war",
+      "waren",
+      "muss",
+      "muessen",
+      "soll",
+      "sollen",
+      "noch",
+      "zu",
+      "auf",
+      "fuer",
+      "von",
+      "im",
+      "am",
+      "an",
+      "der",
+      "die",
+      "das",
+      "und",
+      "oder",
+      "bei",
+      "beim",
+      "zum",
+      "zur",
+      "des",
+      "den",
+      "dem",
+    ]);
+
+    const words = title.split(/\s+/).filter(Boolean);
+    while (words.length > 2) {
+      const last = words[words.length - 1].toLowerCase();
+      if (!stop.has(last)) break;
+      words.pop();
+    }
+    const compact = words.join(" ").trim();
+    if (compact.length >= 6) return compact;
+    return title;
   }
 
   async _runFieldDictation(targetField) {
@@ -2724,7 +3014,13 @@ _isoToDDMMYYYY(iso) {
         alert("Transkription ist leer.");
         return;
       }
-      this._applyDictationTextToField(targetField || "longText", transcriptText);
+      const cleanedText = this._cleanupDictationText(transcriptText);
+      if (targetField === "shortText") {
+        const shortText = this._deriveShortTextFromDictation(cleanedText) || cleanedText;
+        this._applyDictationTextToField("shortText", shortText);
+      } else {
+        this._applyDictationTextToField(targetField || "longText", cleanedText);
+      }
     } catch (err) {
       alert(err?.message || String(err));
     } finally {
@@ -4287,6 +4583,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normTitle(inpTitle.value);
+      this._maybeOfferTermCorrection("shortText", v, inpTitle);
       inpTitle.value = this._clampStr(v, this._titleMax());
       this._updateCharCounters();
 
@@ -4299,6 +4596,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (inpTitle.disabled || !this.selectedTop) return;
         const v = this._normTitle(inpTitle.value);
+        this._maybeOfferTermCorrection("shortText", v, inpTitle);
         inpTitle.value = this._clampStr(v, this._titleMax());
         this._updateCharCounters();
 
@@ -4326,6 +4624,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normLong(taLong.value);
+      this._maybeOfferTermCorrection("longText", v, taLong);
       taLong.value = this._clampStr(taLong.value, this._longMax());
       this._updateCharCounters();
 
@@ -4338,6 +4637,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (taLong.disabled || !this.selectedTop) return;
         const v = this._normLong(taLong.value);
+        this._maybeOfferTermCorrection("longText", v, taLong);
         taLong.value = this._clampStr(taLong.value, this._longMax());
         this._updateCharCounters();
 
@@ -4603,6 +4903,7 @@ _isoToDDMMYYYY(iso) {
     }
 
     await this._loadProjectDates();
+    await this._loadProjectTermCorrections(true);
     await this._loadAmpelSetting();
     await this._loadTextLimitsSetting();
     await this.reloadList(true);

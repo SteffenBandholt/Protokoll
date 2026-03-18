@@ -8,6 +8,7 @@ const meetingTopsRepo = require("../db/meetingTopsRepo");
 const audioImportsRepo = require("../db/audioImportsRepo");
 const transcriptsRepo = require("../db/transcriptsRepo");
 const audioSuggestionsRepo = require("../db/audioSuggestionsRepo");
+const audioTermCorrectionsRepo = require("../db/audioTermCorrectionsRepo");
 const { createAudioImportService } = require("../services/audio/AudioImportService");
 const { createTranscriptionService } = require("../services/audio/TranscriptionService");
 const {
@@ -286,6 +287,39 @@ function registerAudioIpc() {
       if (!suggestion) return { ok: false, error: "Vorschlag nicht gefunden" };
       const updatedSuggestion = audioSuggestionsRepo.markRejected({ suggestionId });
       return { ok: true, suggestion: updatedSuggestion, message: "Vorschlag verworfen." };
+    } catch (err) {
+      return _toAudioErrorPayload(err);
+    }
+  });
+
+  ipcMain.handle("audio:termCorrectionsList", async (_evt, payload) => {
+    try {
+      _ensureAudioLicensed();
+      const projectId = String(payload?.projectId || "").trim();
+      if (!projectId) return { ok: false, error: "projectId fehlt" };
+      const list = audioTermCorrectionsRepo.listByProject(projectId);
+      return { ok: true, list };
+    } catch (err) {
+      return _toAudioErrorPayload(err);
+    }
+  });
+
+  ipcMain.handle("audio:termCorrectionUpsert", async (_evt, payload) => {
+    try {
+      _ensureAudioLicensed();
+      const projectId = String(payload?.projectId || "").trim();
+      const wrongTerm = String(payload?.wrongTerm || "").trim();
+      const correctTerm = String(payload?.correctTerm || "").trim();
+      if (!projectId) return { ok: false, error: "projectId fehlt" };
+      if (!wrongTerm) return { ok: false, error: "wrongTerm fehlt" };
+      if (!correctTerm) return { ok: false, error: "correctTerm fehlt" };
+
+      const entry = audioTermCorrectionsRepo.upsertCorrection({
+        projectId,
+        wrongTerm,
+        correctTerm,
+      });
+      return { ok: true, entry };
     } catch (err) {
       return _toAudioErrorPayload(err);
     }
