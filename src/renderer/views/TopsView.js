@@ -66,6 +66,7 @@ export default class TopsView {
     this.dueAmpelEl = null;
     this.statusTaskMarkerEl = null;
     this.statusDecisionFlagEl = null;
+    this._todoStatusOptionEl = null;
 
     this.projectFirms = [];
     this._projectFirmsLoaded = false;
@@ -1234,9 +1235,6 @@ _isoToDDMMYYYY(iso) {
       patch.is_important = this.chkImportant.checked ? 1 : 0;
     }
 
-    if (this.chkTask && !this.chkTask.disabled) {
-      patch.is_task = this.chkTask.checked ? 1 : 0;
-    }
 
     if (this.chkDecision && !this.chkDecision.disabled) {
       patch.is_decision = this.chkDecision.checked ? 1 : 0;
@@ -2098,7 +2096,11 @@ _isoToDDMMYYYY(iso) {
   _formatStatus(v) {
     const s = (v || "").toString().trim();
     if (!s) return "Alle";
-    return s.toLowerCase() === "alle" ? "Alle" : s;
+    const lower = s.toLowerCase();
+    if (lower === "alle") return "Alle";
+    if (lower === "festlegung") return "Festgelegt";
+    if (lower === "todo") return "ToDo";
+    return s;
   }
 
   _formatResponsible(top) {
@@ -2212,11 +2214,14 @@ _isoToDDMMYYYY(iso) {
   }
 
   _shouldShowDecisionFlag(status) {
-    return (status || "").toString().trim().toLowerCase() === "festlegung";
+    const s = (status || "").toString().trim().toLowerCase();
+    return s === "festlegung" || s === "festgelegt";
   }
 
   _shouldShowTaskMarker() {
-    const raw = this.chkTask?.checked ?? this.selectedTop?.is_task ?? this.selectedTop?.isTask ?? 0;
+    const statusRaw = (this.selStatus?.value || this.selectedTop?.status || "").toString();
+    if (statusRaw.trim().toLowerCase() === "todo") return true;
+    const raw = this.selectedTop?.is_task ?? this.selectedTop?.isTask ?? 0;
     if (raw === true || raw === false) return raw;
     if (typeof raw === "string") {
       const s = raw.trim().toLowerCase();
@@ -2224,6 +2229,26 @@ _isoToDDMMYYYY(iso) {
     }
     const n = Number(raw);
     return Number.isFinite(n) ? n === 1 : false;
+  }
+
+  _hasTodoResponsibleSelection() {
+    if (!this.selResponsible) return false;
+    const parsed = this._parseResponsibleOptionValue(this.selResponsible.value);
+    if (!parsed || !parsed.id || parsed.kind === "all") return false;
+    const lbl = this._getResponsibleLabelForSelection(this.selResponsible, parsed);
+    const txt = (lbl || "").toString().trim();
+    return !!txt && txt !== "-";
+  }
+
+  _updateTodoStatusAvailability() {
+    if (!this.selStatus || !this._todoStatusOptionEl) return;
+    const allowed = this._hasTodoResponsibleSelection();
+    this._todoStatusOptionEl.disabled = !allowed;
+    this._todoStatusOptionEl.title = allowed ? "" : "ToDo nur mit Verantwortlich";
+    if (!allowed && String(this.selStatus.value || "").trim().toLowerCase() === "todo") {
+      this.selStatus.value = "-";
+      this._updateStatusMarkers();
+    }
   }
 
   _updateStatusMarkers() {
@@ -4226,9 +4251,6 @@ _isoToDDMMYYYY(iso) {
     const chkHidden = document.createElement("input");
     chkHidden.type = "checkbox";
 
-    const chkTask = document.createElement("input");
-    chkTask.type = "checkbox";
-
     const chkDecision = document.createElement("input");
     chkDecision.type = "checkbox";
 
@@ -4250,35 +4272,7 @@ _isoToDDMMYYYY(iso) {
     const labImportant = makeToggleLabel("wichtig", chkImportant);
     const labHidden = makeToggleLabel("TOP ausblenden", chkHidden);
 
-    const btnTask = document.createElement("button");
-    btnTask.type = "button";
-    btnTask.textContent = "ToDo";
-    btnTask.style.borderRadius = BTN_RADIUS;
-    btnTask.style.padding = BTN_PAD_ACTION;
-    btnTask.style.minHeight = BTN_MIN_H;
-
-    const updateTaskDecisionUi = () => {
-      const taskOn = !!this.chkTask?.checked;
-      const taskDisabled = !!this.chkTask?.disabled;
-
-      btnTask.disabled = taskDisabled;
-      btnTask.style.opacity = taskDisabled ? "0.55" : "1";
-      btnTask.style.cursor = taskDisabled ? "default" : "pointer";
-      btnTask.style.background = taskOn ? "#eef7ff" : "#f3f3f3";
-      btnTask.style.border = taskOn ? "1px solid #b6d4ff" : "1px solid #ddd";
-      btnTask.style.color = taskOn ? "#0b4db4" : "";
-    };
-
-    btnTask.onclick = async () => {
-      if (!this.chkTask || this.chkTask.disabled) return;
-      this.chkTask.checked = !this.chkTask.checked;
-      updateTaskDecisionUi();
-      this._updateStatusMarkers();
-      await this._saveMeetingTopPatch(
-        { is_task: this.chkTask.checked ? 1 : 0 },
-        { reload: true, pulse: true }
-      );
-    };
+    const updateTaskDecisionUi = () => {};
 
     const titleLeft = document.createElement("div");
     titleLeft.style.display = "inline-flex";
@@ -4303,7 +4297,7 @@ _isoToDDMMYYYY(iso) {
     titleRight.style.alignItems = "center";
     titleRight.style.gap = "10px";
     titleRight.style.marginLeft = "auto";
-    titleRight.append(btnTask, labHidden);
+    titleRight.append(labHidden);
 
     titleLabelRow.append(titleLeft, titleRight);
     titleWrap.append(titleLabelRow, inpTitle);
@@ -4431,11 +4425,24 @@ _isoToDDMMYYYY(iso) {
     selStatus.style.minWidth = "0";
     selStatus.style.position = "relative";
     selStatus.style.zIndex = "21";
-    const statusOptions = ["alle", "offen", "in arbeit", "festlegung", "erledigt", "blockiert", "verzug"];
+    const statusOptions = [
+      "alle",
+      "festlegung",
+      "todo",
+      "-",
+      "in arbeit",
+      "erledigt",
+      "blockiert",
+      "verzug",
+    ];
     for (const v of statusOptions) {
       const opt = document.createElement("option");
       opt.value = v;
-      opt.textContent = v;
+      if (v === "alle") opt.textContent = "Alle";
+      else if (v === "festlegung") opt.textContent = "Festgelegt";
+      else if (v === "todo") opt.textContent = "ToDo";
+      else opt.textContent = v;
+      if (v === "todo") this._todoStatusOptionEl = opt;
       selStatus.appendChild(opt);
     }
     const statusMarkers = document.createElement("div");
@@ -4523,7 +4530,7 @@ _isoToDDMMYYYY(iso) {
 
     this.chkImportant = chkImportant;
     this.chkHidden = chkHidden;
-    this.chkTask = chkTask;
+    this.chkTask = null;
     this.chkDecision = chkDecision;
     this._updateTaskDecisionUi = updateTaskDecisionUi;
 
@@ -4686,6 +4693,12 @@ _isoToDDMMYYYY(iso) {
       if (!this.selectedTop) return;
       const rawStatus = (selStatus.value || "").trim();
       const st = rawStatus && rawStatus.toLowerCase() === "alle" ? "" : rawStatus;
+      const stLower = (st || "").toString().trim().toLowerCase();
+      if (stLower === "todo" && !this._hasTodoResponsibleSelection()) {
+        selStatus.value = "-";
+        this._updateStatusMarkers();
+        return;
+      }
       let dueVal = (this.inpDueDate?.value || "").trim();
       if (!st && this.projectEndDate) {
         const startIso = this.projectStartDate || "";
@@ -4694,7 +4707,7 @@ _isoToDDMMYYYY(iso) {
           if (this.inpDueDate) this.inpDueDate.value = dueVal;
         }
       }
-      if (st.toLowerCase() === "festlegung") {
+      if (stLower === "festlegung") {
         dueVal = this._todayISO();
         if (this.inpDueDate) this.inpDueDate.value = dueVal;
       }
@@ -4702,7 +4715,12 @@ _isoToDDMMYYYY(iso) {
       this._updateStatusMarkers();
       this._updateDueAmpelFromInputs();
       await this._saveMeetingTopPatch(
-        { status: st, due_date: dueVal || null, completed_in_meeting_id: completedIn },
+        {
+          status: st,
+          due_date: dueVal || null,
+          completed_in_meeting_id: completedIn,
+          is_task: stLower === "todo" ? 1 : 0,
+        },
         { reload: true, pulse: true }
       );
       this._renderListOnly();
@@ -4773,6 +4791,12 @@ _isoToDDMMYYYY(iso) {
           this._contactLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
           this._renderListOnly();
         }
+        this._updateTodoStatusAvailability();
+        if (!this._hasTodoResponsibleSelection() && (this.selStatus?.value || "").toLowerCase() === "todo") {
+          this.selStatus.value = "-";
+          this._updateStatusMarkers();
+          await this._saveMeetingTopPatch({ status: "-", is_task: 0 }, { reload: true, pulse: true });
+        }
         return;
       }
 
@@ -4822,6 +4846,7 @@ _isoToDDMMYYYY(iso) {
         }
         this._renderListOnly();
       }
+      this._updateTodoStatusAvailability();
     });
 
     selContactPerson.addEventListener("change", async () => {
@@ -6235,7 +6260,8 @@ async _closeViewOnly() {
           top.frozen_is_carried_over ??
           top.frozenIsCarriedOver
       );
-      const isTask = parseFlag(top.is_task ?? top.isTask);
+      const statusLower = String(top.status || "").trim().toLowerCase();
+      const isTask = statusLower === "todo" || parseFlag(top.is_task ?? top.isTask);
       const isTouched = parseFlag(
         top.is_touched ??
           top.isTouched ??
@@ -6699,7 +6725,7 @@ const textCol = document.createElement("div");
       if (this.chkDecision) this.chkDecision.checked = false;
 
       if (this.inpDueDate) this.inpDueDate.value = "";
-      if (this.selStatus) this.selStatus.value = "offen";
+      if (this.selStatus) this.selStatus.value = "alle";
       if (this.selResponsible) this.selResponsible.value = "";
       if (this.selContactPerson) this.selContactPerson.value = "";
       this._clearLegacyResponsibleOption();
@@ -6769,12 +6795,18 @@ const textCol = document.createElement("div");
 
       if (this.selStatus) {
         const st = (t.status || "").toString().trim();
-        this.selStatus.value = st ? st : "alle";
+        const stLower = st.toLowerCase();
+        if (!st && (Number(t.is_task ?? t.isTask ?? 0) === 1)) {
+          this.selStatus.value = "todo";
+        } else {
+          this.selStatus.value = st ? st : "alle";
+        }
       }
 
     this._applyProjectDueDefaults(t);
     this._updateDueAmpelFromInputs();
     this._updateStatusMarkers();
+    this._updateTodoStatusAvailability();
     this._clearLegacyResponsibleOption();
     this._clearLegacyContactPersonOption();
     this._respLegacyReadonly = false;

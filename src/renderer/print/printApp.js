@@ -108,14 +108,21 @@ function _buildTopRowData(top, longtextOverride, ampelColor, projectEndDate = ""
   const longtext =
     longtextOverride != null ? String(longtextOverride) : String(top.longtext || "").trim();
   const statusRaw = String(top.status || "").trim();
+  const statusLower = statusRaw.toLowerCase();
   const status =
-    statusRaw && statusRaw.toLowerCase() === "alle" ? "Alle" : statusRaw || "Alle";
+    statusRaw && statusLower === "alle"
+      ? "Alle"
+      : statusRaw && statusLower === "festlegung"
+      ? "Festgelegt"
+      : statusRaw && statusLower === "todo"
+      ? "ToDo"
+      : statusRaw || "Alle";
   const dueRaw = _resolveDueForDisplay(top.due_date || top.dueDate || "", statusRaw, projectEndDate);
   const due = _formatDateIso(dueRaw);
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
   const contactPerson = String(top.contact_person_label || top.contactPersonLabel || "").trim();
-  const isTask = _flag01(top.is_task ?? top.isTask ?? 0);
-  const isDecision = statusRaw.trim().toLowerCase() === "festlegung";
+  const isTask = statusLower === "todo" || _flag01(top.is_task ?? top.isTask ?? 0);
+  const isDecision = ["festlegung", "festgelegt"].includes(statusRaw.trim().toLowerCase());
 
   return {
     kind: "top",
