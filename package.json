@@ -54,8 +54,8 @@
         "to": "audio/whisper"
       },
       {
-        "from": "dev/models/ggml-base.bin",
-        "to": "audio/models/ggml-base.bin"
+        "from": "dev/models",
+        "to": "audio/models"
       },
       {
         "from": "dev/tools/ffmpeg",

@@ -72,7 +72,9 @@ function main() {
     "whisper-cli.exe",
     path.join(repoRoot, "dev", "tools", "whisper.cpp", "Release", "whisper-cli.exe")
   );
-  assertFileExists("Whisper Modell", path.join(repoRoot, "dev", "models", "ggml-base.bin"));
+  assertFileExists("Whisper Modell (base)", path.join(repoRoot, "dev", "models", "ggml-base.bin"));
+  assertFileExists("Whisper Modell (small)", path.join(repoRoot, "dev", "models", "ggml-small.bin"));
+  assertFileExists("Whisper Modell (medium)", path.join(repoRoot, "dev", "models", "ggml-medium.bin"));
   assertFileExists("ffmpeg.exe", path.join(repoRoot, "dev", "tools", "ffmpeg", "ffmpeg.exe"));
 
   const baseBuild = pkg.build || {};

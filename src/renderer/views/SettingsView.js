@@ -1435,22 +1435,23 @@ export default class SettingsView {
 
     const fontScaleBox = document.createElement("div");
     applyPopupCardStyle(fontScaleBox);
-    fontScaleBox.style.padding = "8px 10px";
-    fontScaleBox.style.maxWidth = "720px";
+    fontScaleBox.style.padding = "6px 8px";
+    fontScaleBox.style.maxWidth = "680px";
     fontScaleBox.style.marginTop = "0";
-    fontScaleBox.style.width = "calc(100% - 1cm)";
+    fontScaleBox.style.width = "calc(100% - 8mm)";
     fontScaleBox.style.justifySelf = "end";
     fontScaleBox.style.marginLeft = "auto";
 
     const fontScaleTitle = document.createElement("div");
     fontScaleTitle.textContent = "Top-Liste (Schriftgrößen)";
     fontScaleTitle.style.fontWeight = "bold";
-    fontScaleTitle.style.marginBottom = "6px";
+    fontScaleTitle.style.marginBottom = "4px";
+    fontScaleTitle.style.fontSize = "13px";
 
     const fontScaleMsg = document.createElement("div");
-    fontScaleMsg.style.fontSize = "12px";
+    fontScaleMsg.style.fontSize = "11px";
     fontScaleMsg.style.opacity = "0.75";
-    fontScaleMsg.style.marginTop = "4px";
+    fontScaleMsg.style.marginTop = "2px";
 
     let fontScaleMsgTimer = null;
     const setFontScaleMsg = (txt) => {
@@ -1469,9 +1470,9 @@ export default class SettingsView {
     const mkScaleGroup = (labelText, buttons) => {
       const wrap = document.createElement("div");
       wrap.style.display = "grid";
-      wrap.style.gridTemplateColumns = "140px 1fr";
+      wrap.style.gridTemplateColumns = "120px 1fr";
       wrap.style.alignItems = "center";
-      wrap.style.gap = "8px";
+      wrap.style.gap = "6px";
 
       const lab = document.createElement("div");
       lab.textContent = labelText;
@@ -1488,11 +1489,12 @@ export default class SettingsView {
 
     const applyScaleBtnBase = (btn) => {
       btn.type = "button";
-      btn.style.padding = "5px 8px";
+      btn.style.padding = "3px 6px";
       btn.style.borderRadius = "8px";
       btn.style.border = "1px solid rgba(0,0,0,0.18)";
       btn.style.cursor = "pointer";
-      btn.style.minHeight = "24px";
+      btn.style.minHeight = "20px";
+      btn.style.fontSize = "11px";
       btn.style.boxShadow = "none";
       btn.style.transition = "background 120ms ease, box-shadow 120ms ease, border-color 120ms ease";
     };
@@ -1599,28 +1601,29 @@ export default class SettingsView {
 
     const rowList = mkScaleGroup("Top-Liste", [btnListSmall, btnListMedium, btnListLarge]);
     const rowEdit = mkScaleGroup("Editbox", [btnEditSmall, btnEditLarge]);
-    rowList.style.marginBottom = "8px";
+    rowList.style.marginBottom = "6px";
 
     fontScaleBox.append(fontScaleTitle, rowList, rowEdit, fontScaleMsg);
 
     const whisperBox = document.createElement("div");
     applyPopupCardStyle(whisperBox);
-    whisperBox.style.padding = "8px 10px";
-    whisperBox.style.maxWidth = "720px";
+    whisperBox.style.padding = "6px 8px";
+    whisperBox.style.maxWidth = "680px";
     whisperBox.style.marginTop = "0";
-    whisperBox.style.width = "calc(100% - 1cm)";
+    whisperBox.style.width = "calc(100% - 8mm)";
     whisperBox.style.justifySelf = "end";
     whisperBox.style.marginLeft = "auto";
 
     const whisperTitle = document.createElement("div");
     whisperTitle.textContent = "Spracherkennung (Qualität)";
     whisperTitle.style.fontWeight = "bold";
-    whisperTitle.style.marginBottom = "6px";
+    whisperTitle.style.marginBottom = "4px";
+    whisperTitle.style.fontSize = "13px";
 
     const whisperMsg = document.createElement("div");
-    whisperMsg.style.fontSize = "12px";
+    whisperMsg.style.fontSize = "11px";
     whisperMsg.style.opacity = "0.75";
-    whisperMsg.style.marginTop = "4px";
+    whisperMsg.style.marginTop = "2px";
 
     let whisperQuality = "fast";
     let whisperModels = {
@@ -4043,11 +4046,14 @@ export default class SettingsView {
     btnOpenThemePopup.type = "button";
     btnOpenThemePopup.textContent = "Farbschema öffnen";
     btnOpenThemePopup.style.width = "100%";
+    btnOpenThemePopup.style.fontSize = "11px";
+    btnOpenThemePopup.style.padding = "4px 8px";
+    btnOpenThemePopup.style.minHeight = "22px";
     applyPopupButtonStyle(btnOpenThemePopup, { variant: "primary" });
     btnOpenThemePopup.onclick = () => openThemePopup();
 
     const themeBtnWrap = document.createElement("div");
-    themeBtnWrap.style.width = "calc(100% - 1cm)";
+    themeBtnWrap.style.width = "calc(100% - 8mm)";
     themeBtnWrap.style.marginLeft = "auto";
     themeBtnWrap.style.display = "flex";
     themeBtnWrap.style.justifyContent = "center";
@@ -4056,18 +4062,18 @@ export default class SettingsView {
     const userRightCol = document.createElement("div");
     userRightCol.style.display = "grid";
     userRightCol.style.gridTemplateColumns = "1fr";
-    userRightCol.style.gap = "10px";
+    userRightCol.style.gap = "6px";
     userRightCol.style.alignContent = "start";
     userRightCol.append(fontScaleBox, themeBtnWrap, whisperBox);
 
     const userTopRow = document.createElement("div");
     userTopRow.style.display = "grid";
     userTopRow.style.gridTemplateColumns = "minmax(0, 360px) minmax(0, 360px)";
-    userTopRow.style.gap = "14px";
+    userTopRow.style.gap = "8px";
     userTopRow.style.alignItems = "start";
     userTopRow.style.width = "100%";
-    userTopRow.style.maxWidth = "720px";
-    userTopRow.style.marginTop = "10px";
+    userTopRow.style.maxWidth = "680px";
+    userTopRow.style.marginTop = "6px";
     userTopRow.append(userBox, userRightCol);
 
     const openSettingsModal = ({ title, content, saveFn, closeOnly = false }) => {
@@ -4857,21 +4863,56 @@ export default class SettingsView {
     if (this.settingsModalEl) {
       const titleNorm = String(title || "").trim().toLowerCase();
       const isCompactPopup = titleNorm === "nutzereinstellungen" || titleNorm === "entwicklung";
+      const isUserSettingsPopup = titleNorm === "nutzereinstellungen";
       const isPrintSettingsPopup = titleNorm === "druckeinstellungen";
       const isLayoutPopup = titleNorm === "druck-layout";
       if (isPrintSettingsPopup) {
         this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
       } else if (isLayoutPopup) {
         this.settingsModalEl.style.width = "min(344px, calc(100vw - 24px))";
+      } else if (isUserSettingsPopup) {
+        this.settingsModalEl.style.width = "min(720px, calc(100vw - 24px))";
       } else if (isCompactPopup) {
         this.settingsModalEl.style.width = "min(760px, calc(100vw - 24px))";
       } else {
         this.settingsModalEl.style.width = "min(980px, calc(100vw - 24px))";
       }
+      this.settingsModalEl.style.fontSize = isUserSettingsPopup ? "12px" : "13px";
+      this.settingsModalEl.style.lineHeight = isUserSettingsPopup ? "1.25" : "1.35";
       const footerInner = this.settingsModalFooterEl?.firstElementChild;
       if (footerInner) {
-        footerInner.style.maxWidth = isPrintSettingsPopup ? "600px" : "720px";
+        footerInner.style.maxWidth = isPrintSettingsPopup ? "600px" : isUserSettingsPopup ? "640px" : "720px";
       }
+    }
+    if (this.settingsModalBodyEl) {
+      const titleNorm = String(title || "").trim().toLowerCase();
+      const isUserSettingsPopup = titleNorm === "nutzereinstellungen";
+      this.settingsModalBodyEl.style.gap = isUserSettingsPopup ? "6px" : "10px";
+      this.settingsModalBodyEl.style.padding = isUserSettingsPopup ? "8px 10px" : "12px";
+      this.settingsModalBodyEl.style.overflowX = isUserSettingsPopup ? "hidden" : "auto";
+    }
+    if (this.settingsModalTitleEl) {
+      const titleNorm = String(title || "").trim().toLowerCase();
+      this.settingsModalTitleEl.style.fontSize = titleNorm === "nutzereinstellungen" ? "14px" : "";
+    }
+    if (this.settingsModalFooterEl) {
+      const titleNorm = String(title || "").trim().toLowerCase();
+      const isUserSettingsPopup = titleNorm === "nutzereinstellungen";
+      this.settingsModalFooterEl.style.padding = isUserSettingsPopup ? "6px 10px" : "10px 12px";
+    }
+    if (this.settingsModalSaveBtn) {
+      const titleNorm = String(title || "").trim().toLowerCase();
+      const isUserSettingsPopup = titleNorm === "nutzereinstellungen";
+      this.settingsModalSaveBtn.style.fontSize = isUserSettingsPopup ? "11px" : "";
+      this.settingsModalSaveBtn.style.padding = isUserSettingsPopup ? "4px 10px" : "";
+      this.settingsModalSaveBtn.style.minHeight = isUserSettingsPopup ? "22px" : "";
+    }
+    if (this.settingsModalCloseBtn) {
+      const titleNorm = String(title || "").trim().toLowerCase();
+      const isUserSettingsPopup = titleNorm === "nutzereinstellungen";
+      this.settingsModalCloseBtn.style.fontSize = isUserSettingsPopup ? "11px" : "";
+      this.settingsModalCloseBtn.style.padding = isUserSettingsPopup ? "4px 8px" : "";
+      this.settingsModalCloseBtn.style.minHeight = isUserSettingsPopup ? "22px" : "";
     }
     this.settingsModalBodyEl.innerHTML = "";
     const nodes = Array.isArray(content) ? content : [content];
