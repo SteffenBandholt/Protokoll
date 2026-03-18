@@ -80,6 +80,7 @@ export function computeAmpelColorForTop({ top, childrenColors, now } = {}) {
   const dueDate = _parseYmdToLocalDateOnly(top?.due_date ?? top?.dueDate ?? null);
   const today = _toLocalDateOnly(now instanceof Date ? now : new Date()) || _toLocalDateOnly(new Date());
 
+  if (!status || status === "alle") return "green";
   if (status === "blockiert") return "blue";
   if (status === "verzug") return "red";
   if (status === "erledigt") return "green";

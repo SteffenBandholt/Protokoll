@@ -51,6 +51,15 @@ function _formatDateIso(value) {
   return `${d}.${m}.${y}`;
 }
 
+function _resolveDueForDisplay(dueRaw, statusRaw, projectEndDate) {
+  const status = String(statusRaw || "").trim().toLowerCase();
+  const due = String(dueRaw || "").trim();
+  if ((!status || status === "alle") && !due && projectEndDate) {
+    return projectEndDate;
+  }
+  return due;
+}
+
 function _flag01(value) {
   if (value === true || value === false) return value;
   if (typeof value === "string") {
@@ -61,7 +70,7 @@ function _flag01(value) {
   return Number.isFinite(n) ? n === 1 : false;
 }
 
-function _buildTopRowData(top, longtextOverride, ampelColor) {
+function _buildTopRowData(top, longtextOverride, ampelColor, projectEndDate = "") {
   const rawNum =
     top.topNumberText ??
     top.top_nr ??
@@ -98,12 +107,15 @@ function _buildTopRowData(top, longtextOverride, ampelColor) {
   const title = String(top.title || "").trim() || "(ohne Bezeichnung)";
   const longtext =
     longtextOverride != null ? String(longtextOverride) : String(top.longtext || "").trim();
-  const status = String(top.status || "").trim();
-  const due = _formatDateIso(top.due_date || top.dueDate || "");
+  const statusRaw = String(top.status || "").trim();
+  const status =
+    statusRaw && statusRaw.toLowerCase() === "alle" ? "Alle" : statusRaw || "Alle";
+  const dueRaw = _resolveDueForDisplay(top.due_date || top.dueDate || "", statusRaw, projectEndDate);
+  const due = _formatDateIso(dueRaw);
   const resp = String(top.responsible_label || top.responsibleLabel || "").trim();
   const contactPerson = String(top.contact_person_label || top.contactPersonLabel || "").trim();
   const isTask = _flag01(top.is_task ?? top.isTask ?? 0);
-  const isDecision = status.trim().toLowerCase() === "festlegung";
+  const isDecision = statusRaw.trim().toLowerCase() === "festlegung";
 
   return {
     kind: "top",
@@ -884,6 +896,9 @@ function _findSplitText(ctx, rowData, maxLines) {
 function _paginateTops(data) {
   const projectLabel = _projectLabel(data.project);
   const docLabel = _docLabel(data.mode);
+  const projectEndDate = String(
+    data?.project?.end_date ?? data?.project?.endDate ?? ""
+  ).slice(0, 10);
   const ctxFirst = _createMeasureContext({ type: "tops", projectLabel, docLabel, data, headerKind: "full" });
   const ctxNext = _createMeasureContext({ type: "tops", projectLabel, docLabel, data, headerKind: "mini" });
   const rowMeasureCtx = ctxNext || ctxFirst;
@@ -935,8 +950,8 @@ function _paginateTops(data) {
 
   const items = tops.map((t) => {
     const ampelColor = getAmpelColor(t);
-    const fullRow = _buildTopRowData(t, null, ampelColor);
-    const baseRow = t.longtext ? _buildTopRowData(t, "", ampelColor) : fullRow;
+    const fullRow = _buildTopRowData(t, null, ampelColor, projectEndDate);
+    const baseRow = t.longtext ? _buildTopRowData(t, "", ampelColor, projectEndDate) : fullRow;
     const fullMeasure = rowMeasureCtx.measureRow(_buildTopRowElement(fullRow));
     const baseMeasure = rowMeasureCtx.measureRow(_buildTopRowElement(baseRow));
     const lineHeight = fullMeasure.lineHeight || baseMeasure.lineHeight || 14;
@@ -1064,7 +1079,7 @@ function _paginateTops(data) {
 
     let text = item.fullRow.longtext;
     while (text) {
-      const rowData = _buildTopRowData(item.top, text, item.ampelColor);
+      const rowData = _buildTopRowData(item.top, text, item.ampelColor, projectEndDate);
       const measure = rowMeasureCtx.measureRow(_buildTopRowElement(rowData));
       const rowHeight = measure.height;
 
@@ -1090,10 +1105,10 @@ function _paginateTops(data) {
         continue;
       }
 
-      const part1Data = _buildTopRowData(item.top, part1, item.ampelColor);
+      const part1Data = _buildTopRowData(item.top, part1, item.ampelColor, projectEndDate);
       const part1Measure = rowMeasureCtx.measureRow(_buildTopRowElement(part1Data));
       const part2Text = text.slice(part1.length).trimStart();
-      const part2Data = _buildTopRowData(item.top, part2Text, item.ampelColor);
+      const part2Data = _buildTopRowData(item.top, part2Text, item.ampelColor, projectEndDate);
       const part2Measure = rowMeasureCtx.measureRow(_buildTopRowElement(part2Data));
       if (part1Measure.longLines < MIN_LINES_PAGE_END || part2Measure.longLines < MIN_LINES_NEXT_PAGE) {
         if (!currentPage.table.rows.length) {

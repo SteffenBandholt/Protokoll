@@ -393,7 +393,7 @@ export default class TopsView {
         const dueRaw = t?.due_date ?? t?.dueDate ?? "";
         const due = this._formatDateToDdMmYyyy(dueRaw) || String(dueRaw || "").trim() || "-";
         const statusRaw = String(t?.status || "").trim();
-        const status = statusRaw || "-";
+        const status = this._formatStatus(statusRaw);
         const meetingRef = String(t?.meeting_id ?? t?.meetingId ?? "").trim() || "-";
 
         if (statusRaw && statusRaw.toLowerCase() !== "erledigt") {
@@ -1248,8 +1248,9 @@ _isoToDDMMYYYY(iso) {
     }
 
     if (this.selStatus && !this.selStatus.disabled) {
-      const st = (this.selStatus.value || "").trim();
-      patch.status = st || "offen";
+      const rawStatus = (this.selStatus.value || "").trim();
+      const st = rawStatus && rawStatus.toLowerCase() === "alle" ? "" : rawStatus;
+      patch.status = st;
       patch.completed_in_meeting_id = this._isDoneStatus(patch.status) ? this.meetingId : null;
     }
 
@@ -2084,9 +2085,20 @@ _isoToDDMMYYYY(iso) {
     return s;
   }
 
+  _resolveDisplayDueForTop(top) {
+    const dueRaw = top?.due_date ?? top?.dueDate ?? "";
+    const statusRaw = String(top?.status || "").trim().toLowerCase();
+    if ((!statusRaw || statusRaw === "alle") && this.projectEndDate) {
+      const dueStr = String(dueRaw || "").trim();
+      if (!dueStr) return this.projectEndDate;
+    }
+    return dueRaw;
+  }
+
   _formatStatus(v) {
     const s = (v || "").toString().trim();
-    return s ? s : "—";
+    if (!s) return "Alle";
+    return s.toLowerCase() === "alle" ? "Alle" : s;
   }
 
   _formatResponsible(top) {
@@ -2172,7 +2184,7 @@ _isoToDDMMYYYY(iso) {
       : st === "blockiert" || st === "verzug"
       ? "rot"
       : !this._parseYmdDate(dueDateStr)
-      ? "grau"
+      ? "gruen"
       : this._parseYmdDate(dueDateStr).getTime() < this._todayStart().getTime()
       ? "rot"
       : this._parseYmdDate(dueDateStr).getTime() <=
@@ -2183,7 +2195,12 @@ _isoToDDMMYYYY(iso) {
 
   _updateDueAmpelFromInputs() {
     const dueVal = (this.inpDueDate?.value || "").trim();
-    const statusVal = (this.selStatus?.value || "").trim() || "offen";
+    const rawStatusVal = (this.selStatus?.value || "").trim();
+    if (rawStatusVal && rawStatusVal.toLowerCase() === "alle") {
+      this._applyAmpelDotColor(this.dueAmpelEl, "gruen");
+      return;
+    }
+    const statusVal = rawStatusVal || "offen";
     const t = this.selectedTop;
     const overrides = new Map();
     if (t && t.id) {
@@ -2236,9 +2253,13 @@ _isoToDDMMYYYY(iso) {
     const current = (this.inpDueDate.value || "").trim();
     const startDate = this.projectStartDate;
     const endDate = this.projectEndDate;
+    const statusRaw = (this.selStatus?.value || "").trim().toLowerCase();
+    const isStatusAll = statusRaw === "alle";
 
     let nextVal = "";
-    if (this._isResponsibleAllSelection() && endDate) {
+    if (endDate && (!current || (isStatusAll && current === (startDate || "")))) {
+      nextVal = endDate;
+    } else if (this._isResponsibleAllSelection() && endDate) {
       if (!current || current === (startDate || "")) {
         nextVal = endDate;
       }
@@ -4403,10 +4424,14 @@ _isoToDDMMYYYY(iso) {
     statusRow.style.gap = "6px";
     statusRow.style.marginLeft = "-3mm";
     statusRow.style.width = "calc(100% + 3mm)";
+    statusRow.style.position = "relative";
+    statusRow.style.zIndex = "20";
     const selStatus = document.createElement("select");
     selStatus.style.flex = "1 1 auto";
     selStatus.style.minWidth = "0";
-    const statusOptions = ["offen", "in arbeit", "festlegung", "erledigt", "blockiert", "verzug"];
+    selStatus.style.position = "relative";
+    selStatus.style.zIndex = "21";
+    const statusOptions = ["alle", "offen", "in arbeit", "festlegung", "erledigt", "blockiert", "verzug"];
     for (const v of statusOptions) {
       const opt = document.createElement("option");
       opt.value = v;
@@ -4659,8 +4684,16 @@ _isoToDDMMYYYY(iso) {
       if (this.isReadOnly) return;
       if (selStatus.disabled) return;
       if (!this.selectedTop) return;
-      const st = (selStatus.value || "").trim() || "offen";
+      const rawStatus = (selStatus.value || "").trim();
+      const st = rawStatus && rawStatus.toLowerCase() === "alle" ? "" : rawStatus;
       let dueVal = (this.inpDueDate?.value || "").trim();
+      if (!st && this.projectEndDate) {
+        const startIso = this.projectStartDate || "";
+        if (!dueVal || dueVal === startIso) {
+          dueVal = this.projectEndDate;
+          if (this.inpDueDate) this.inpDueDate.value = dueVal;
+        }
+      }
       if (st.toLowerCase() === "festlegung") {
         dueVal = this._todayISO();
         if (this.inpDueDate) this.inpDueDate.value = dueVal;
@@ -6392,7 +6425,7 @@ const textCol = document.createElement("div");
         metaCol.style.paddingLeft = "10px";
         metaCol.style.borderLeft = "1px solid rgba(0,0,0,0.08)";
 
-        const due = this._formatDue(top.due_date);
+        const due = this._formatDue(this._resolveDisplayDueForTop(top));
         const st = this._formatStatus(top.status);
         const resp = this._formatResponsible(top);
         const contact = this._formatContactPerson(top);
@@ -6736,7 +6769,7 @@ const textCol = document.createElement("div");
 
       if (this.selStatus) {
         const st = (t.status || "").toString().trim();
-        this.selStatus.value = st || "offen";
+        this.selStatus.value = st ? st : "alle";
       }
 
     this._applyProjectDueDefaults(t);

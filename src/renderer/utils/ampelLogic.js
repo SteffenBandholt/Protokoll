@@ -25,6 +25,7 @@ function computeSingleAmpel(top, today) {
   const dueDate = parseYmdToLocalDateOnly(top?.due_date ?? top?.dueDate ?? null);
   const base = today || toLocalDateOnly(new Date());
 
+  if (!status || status === "alle") return "gruen";
   if (status === "blockiert") return "blau";
   if (status === "verzug") return "rot";
   if (status === "erledigt") return "gruen";
