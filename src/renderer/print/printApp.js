@@ -134,6 +134,35 @@ function _el(tag, className, text) {
   return el;
 }
 
+function _summarizePagesForLog(pages = []) {
+  return pages.map((p, idx) => {
+    const rows = p?.table?.rows || [];
+    return {
+      index: idx,
+      rows: rows.map((r) => r?.numText || r?.title || r?.position || r?.kind || "?"),
+      topsTail: !!p?.topsTail,
+      legend: !!p?.topsTail?.showLegend,
+      interlude: !!p?.topsTail?.interludeText,
+      footerNote: !!p?.footerNote,
+    };
+  });
+}
+
+function _logRenderedPages(root) {
+  try {
+    const pages = Array.from(root?.querySelectorAll?.(".page") || []);
+    const out = pages.map((page, idx) => {
+      const numbers = Array.from(page.querySelectorAll(".topNumber")).map((el) =>
+        String(el.textContent || "").trim()
+      );
+      return { index: idx, topNumbers: numbers };
+    });
+    console.log("[PAGES_DOM]", out);
+  } catch (err) {
+    console.log("[PAGES_DOM] failed", err?.message || String(err));
+  }
+}
+
 function _appendMetaMarkers(parent, row) {
   if (!parent || !row) return;
   if (row.isTask) {
@@ -791,6 +820,13 @@ function _createMeasureContext({ type, projectLabel, docLabel, data, headerKind 
   const footerReserveMm = Number(data?.v2Layout?.footerReserveMm);
   const footerReservePx = _mmToPx(Number.isFinite(footerReserveMm) ? footerReserveMm : 12);
   const maxBodyHeight = Math.max(0, innerHeight - offset - footerReservePx);
+  console.log(
+    `[PAGINATION:CTX] type=${type} headerKind=${headerKind} innerHeight=${innerHeight.toFixed(
+      2
+    )} padTop=${padTop.toFixed(2)} padBottom=${padBottom.toFixed(2)} offset=${offset.toFixed(
+      2
+    )} footerReservePx=${footerReservePx.toFixed(2)} maxBodyHeight=${maxBodyHeight.toFixed(2)}`
+  );
 
   const measureRow = (rowEl) => {
     tbody.innerHTML = "";
@@ -868,6 +904,13 @@ function _paginateTops(data) {
   const introHeights = introPlan.heights;
   let pageIndex = 0;
   let firstPageBodyHeight = Math.max(0, firstCap - (introHeights[0] || 0));
+  console.log(
+    `[PAGINATION:INTRO] firstCap=${firstCap.toFixed(2)} introHeight=${(introHeights[0] || 0).toFixed(
+      2
+    )} firstPageBodyHeight=${firstPageBodyHeight.toFixed(2)} preRemarksHeight=${preRemarksHeight.toFixed(
+      2
+    )}`
+  );
 
   const tops = Array.isArray(data.tops) ? data.tops : [];
   const ampelMap = computeAmpelMapForTops({
@@ -917,6 +960,7 @@ function _paginateTops(data) {
     table: { type: "tops", rows: [] },
   };
   let remaining = firstPageBodyHeight;
+  console.log(`[PAGINATION:REMAIN] initFirst=${remaining.toFixed(2)}`);
 
   const pushPage = () => {
     pages.push(currentPage);
@@ -931,11 +975,19 @@ function _paginateTops(data) {
       table: { type: "tops", rows: [] },
     };
     remaining = Math.max(0, cap - introHeight);
+    console.log(
+      `[PAGINATION:PAGE] pageIndex=${pageIndex} cap=${cap.toFixed(2)} introHeight=${introHeight.toFixed(
+        2
+      )} remaining=${remaining.toFixed(2)}`
+    );
   };
 
   const addRow = (rowData, rowHeight) => {
     currentPage.table.rows.push(rowData);
     remaining -= rowHeight;
+    console.log(
+      `[PAGINATION:REMAIN] afterAddRow(${rowData?.numText || rowData?.title || "row"})=${remaining.toFixed(2)}`
+    );
   };
 
   const ensurePreRemarksPlaced = () => {
@@ -946,12 +998,18 @@ function _paginateTops(data) {
       if (preRemarksHeight > pageCap) {
         currentPage.preRemarks = preRemarks;
         remaining = Math.max(0, remaining - preRemarksHeight);
+        console.log(
+          `[PAGINATION:PRE] preRemarksHeight=${preRemarksHeight.toFixed(2)} remaining=${remaining.toFixed(2)}`
+        );
         preRemarksPending = false;
         return;
       }
       if (remaining >= preRemarksHeight) {
         currentPage.preRemarks = preRemarks;
         remaining -= preRemarksHeight;
+        console.log(
+          `[PAGINATION:PRE] preRemarksHeight=${preRemarksHeight.toFixed(2)} remaining=${remaining.toFixed(2)}`
+        );
         preRemarksPending = false;
         return;
       }
@@ -963,6 +1021,9 @@ function _paginateTops(data) {
   const MIN_LINES_NEXT_PAGE = 3;
   const FIT_EPS_PX = 2;
   const _fits = (need, available) => need <= available + FIT_EPS_PX;
+  const _logRemaining = (label) => {
+    console.log(`[PAGINATION:REMAIN] ${label}=${remaining.toFixed(2)}`);
+  };
   const _debugDecision = (decision, item, available) => {
     const level = item?.fullRow?.level ?? item?.level ?? null;
     console.log(
@@ -974,6 +1035,13 @@ function _paginateTops(data) {
     const item = items[i];
     const level = item.fullRow.level;
     ensurePreRemarksPlaced();
+    if (String(item.fullRow.numText || "").trim() === "1.1") {
+      console.log(
+        `[PAGINATION:TOP] num=1.1 remaining=${remaining.toFixed(2)} fullHeight=${item.fullHeight.toFixed(
+          2
+        )} level=${level}`
+      );
+    }
 
     if (_fits(item.fullHeight, remaining)) {
       _debugDecision("fits", item, remaining);
@@ -1054,6 +1122,8 @@ function _paginateTops(data) {
     });
   }
 
+  console.log("[PAGES_AFTER_PAGINATION]", _summarizePagesForLog(pages));
+
   const tailHeight = _measureTopsTailHeight(data);
   const pageCapAt = (idx) => (idx === 0 ? firstCap : nextCap);
   const introHeightAt = (idx, page) => {
@@ -1090,24 +1160,35 @@ function _paginateTops(data) {
     const cap = pageCapAt(lastTopsIdx);
     const introH = introHeightAt(lastTopsIdx, page);
     const preRemarksH = page?.preRemarks ? preRemarksHeight : 0;
-    const usedWithTail = rowsHeightAt(page) + tailHeight;
+    const rowsH = rowsHeightAt(page);
+    const usedWithTail = rowsH + tailHeight;
     const allowed = Math.max(0, cap - introH - preRemarksH);
+    const remainingForTail = Math.max(0, allowed - rowsH);
+    console.log(
+      `[PAGINATION:TAIL] lastTopsIdx=${lastTopsIdx} tailHeight=${tailHeight.toFixed(
+        2
+      )} rowsHeight=${rowsH.toFixed(2)} introH=${introH.toFixed(2)} preRemarksH=${preRemarksH.toFixed(
+        2
+      )} allowed=${allowed.toFixed(2)} remaining=${remainingForTail.toFixed(2)} decision=${
+        usedWithTail <= allowed ? "samePage" : "moveRow"
+      }`
+    );
     if (usedWithTail <= allowed) break;
 
     if ((page?.table?.rows || []).length === 0) {
       pages.splice(lastTopsIdx + 1, 0, makeEmptyTopsPage());
+      console.log("[PAGINATION:TAIL] insertedEmptyTopsPage", { insertAt: lastTopsIdx + 1 });
       break;
     }
 
-    const movedRow = page.table.rows.pop();
     const insertIdx = lastTopsIdx + 1;
     let nextPage = pages[insertIdx];
     if (String(nextPage?.table?.type || "") !== "tops") {
       nextPage = makeEmptyTopsPage();
       pages.splice(insertIdx, 0, nextPage);
+      console.log("[PAGINATION:TAIL] createdNextTopsPage", { insertAt: insertIdx });
     }
-    nextPage.table.rows.unshift(movedRow);
-    lastTopsIdx = findLastTopsIdx();
+    break;
   }
 
   const total = pages.length || 1;
@@ -1300,9 +1381,11 @@ async function handleInit(payload) {
     }
 
     const pages = _buildPages(data);
+    console.log("[PAGES_BEFORE_RENDER]", _summarizePagesForLog(pages));
     const root = renderPrint({ pages, data });
     app.innerHTML = "";
     app.appendChild(root);
+    _logRenderedPages(root);
     window.bbmPrint.ready({ jobId: payload?.jobId || null, ok: true });
   } catch (err) {
     setError(err?.message || "Daten konnten nicht geladen werden.");
