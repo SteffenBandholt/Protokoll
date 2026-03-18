@@ -3470,9 +3470,10 @@ _isoToDDMMYYYY(iso) {
       this._topsLimitsListenerBound = true;
     }
 
-    const BTN_MIN_H = "26px";
-    const BTN_PAD = "2px 8px";
-    const BTN_PAD_ACTION = "3px 9px";
+    const BTN_MIN_H = "0";
+    const BTN_PAD = "1px 6px";
+    const BTN_PAD_ACTION = "2px 6px";
+    const BTN_FONT_SIZE = "8pt";
     const BTN_RADIUS = "6px";
 
     // ✅ feste Höhe der Buttonbar (ausgerichtet auf "Langtext an")
@@ -3482,6 +3483,8 @@ _isoToDDMMYYYY(iso) {
       b.style.minHeight = BTN_MIN_H;
       b.style.padding = BTN_PAD;
       b.style.borderRadius = BTN_RADIUS;
+      b.style.fontSize = BTN_FONT_SIZE;
+      b.style.lineHeight = "1.2";
       b.style.flex = "0 0 auto";
     };
 
@@ -3767,8 +3770,10 @@ _isoToDDMMYYYY(iso) {
     btnLongToggle.style.border = "1px solid #ddd";
     btnLongToggle.style.background = "#f3f3f3";
     btnLongToggle.style.minHeight = BTN_MIN_H;
+    btnLongToggle.style.fontSize = BTN_FONT_SIZE;
+    btnLongToggle.style.lineHeight = "1.2";
     btnLongToggle.style.flex = "0 0 auto";
-    btnLongToggle.style.minWidth = "118px";
+    btnLongToggle.style.minWidth = "86px";
     btnLongToggle.title = "Langtext in der TOP-Liste anzeigen/ausblenden";
 
     const updateLongToggleUi = () => {
@@ -3806,8 +3811,10 @@ _isoToDDMMYYYY(iso) {
     btnProjectTasks.style.border = "1px solid #ddd";
     btnProjectTasks.style.background = "#f3f3f3";
     btnProjectTasks.style.minHeight = BTN_MIN_H;
+    btnProjectTasks.style.fontSize = BTN_FONT_SIZE;
+    btnProjectTasks.style.lineHeight = "1.2";
     btnProjectTasks.style.flex = "0 0 auto";
-    btnProjectTasks.style.minWidth = "96px";
+    btnProjectTasks.style.minWidth = "72px";
     btnProjectTasks.title = "Projektweite ToDo-Liste anzeigen";
     btnProjectTasks.onclick = async () => {
       await this._openProjectTasksPopup();
@@ -3850,8 +3857,10 @@ _isoToDDMMYYYY(iso) {
     btnAmpelToggle.style.border = "1px solid #ddd";
     btnAmpelToggle.style.background = "#f3f3f3";
     btnAmpelToggle.style.minHeight = BTN_MIN_H;
+    btnAmpelToggle.style.fontSize = BTN_FONT_SIZE;
+    btnAmpelToggle.style.lineHeight = "1.2";
     btnAmpelToggle.style.flex = "0 0 auto";
-    btnAmpelToggle.style.minWidth = "118px";
+    btnAmpelToggle.style.minWidth = "78px";
     btnAmpelToggle.title = "Ampel an/aus";
 
     const updateAmpelToggleUi = () => {
@@ -3897,10 +3906,10 @@ _isoToDDMMYYYY(iso) {
     viewBtn.style.background = "#f3f3f3";
     viewBtn.style.color = "#222";
     viewBtn.style.minHeight = BTN_MIN_H;
-    viewBtn.style.minWidth = "96px";
-    viewBtn.style.fontSize = "13px";
+    viewBtn.style.minWidth = "64px";
+    viewBtn.style.fontSize = BTN_FONT_SIZE;
     viewBtn.style.fontWeight = "600";
-    viewBtn.style.lineHeight = "1.25";
+    viewBtn.style.lineHeight = "1.2";
     viewBtn.style.whiteSpace = "nowrap";
     viewBtn.onmouseenter = () => {
       if (viewBtn.disabled) return;
@@ -4157,6 +4166,8 @@ _isoToDDMMYYYY(iso) {
     btnMove.style.borderRadius = BTN_RADIUS;
     btnMove.style.padding = BTN_PAD_ACTION;
     btnMove.style.minHeight = BTN_MIN_H;
+    btnMove.style.fontSize = BTN_FONT_SIZE;
+    btnMove.style.lineHeight = "1.2";
     btnMove.onclick = () => this.toggleMoveMode();
 
     const btnSaveTop = document.createElement("button");
@@ -4164,6 +4175,8 @@ _isoToDDMMYYYY(iso) {
     btnSaveTop.style.borderRadius = BTN_RADIUS;
     btnSaveTop.style.padding = BTN_PAD_ACTION;
     btnSaveTop.style.minHeight = BTN_MIN_H;
+    btnSaveTop.style.fontSize = BTN_FONT_SIZE;
+    btnSaveTop.style.lineHeight = "1.2";
 
     btnSaveTop.addEventListener("mousedown", () => {
       this._suppressBlurOnce = true;
@@ -4188,6 +4201,8 @@ _isoToDDMMYYYY(iso) {
     btnTrashTop.style.borderRadius = BTN_RADIUS;
     btnTrashTop.style.padding = BTN_PAD_ACTION;
     btnTrashTop.style.minHeight = BTN_MIN_H;
+    btnTrashTop.style.fontSize = BTN_FONT_SIZE;
+    btnTrashTop.style.lineHeight = "1.2";
     btnTrashTop.addEventListener("pointerdown", (e) => {
       this._suppressBlurOnce = true;
       e.preventDefault();
@@ -4290,14 +4305,14 @@ _isoToDDMMYYYY(iso) {
       await this._runFieldDictation("shortText");
     };
 
-    titleLeft.append(lblTitleText, titleCount, labImportant, btnTitleDictate);
+    titleLeft.append(lblTitleText, titleCount, btnTitleDictate);
 
     const titleRight = document.createElement("div");
     titleRight.style.display = "inline-flex";
     titleRight.style.alignItems = "center";
     titleRight.style.gap = "10px";
     titleRight.style.marginLeft = "auto";
-    titleRight.append(labHidden);
+    titleRight.append(labImportant, labHidden);
 
     titleLabelRow.append(titleLeft, titleRight);
     titleWrap.append(titleLabelRow, inpTitle);
