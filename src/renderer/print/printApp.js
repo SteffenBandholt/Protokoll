@@ -961,25 +961,36 @@ function _paginateTops(data) {
 
   const MIN_LINES_PAGE_END = 3;
   const MIN_LINES_NEXT_PAGE = 3;
+  const FIT_EPS_PX = 2;
+  const _fits = (need, available) => need <= available + FIT_EPS_PX;
+  const _debugDecision = (decision, item, available) => {
+    const level = item?.fullRow?.level ?? item?.level ?? null;
+    console.log(
+      `[PAGINATION] decision=${decision} remaining=${available?.toFixed?.(2) ?? available} fullHeight=${item?.fullHeight?.toFixed?.(2) ?? item?.fullHeight} level=${level}`
+    );
+  };
 
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
     const level = item.fullRow.level;
     ensurePreRemarksPlaced();
 
-    if (item.fullHeight <= remaining) {
+    if (_fits(item.fullHeight, remaining)) {
+      _debugDecision("fits", item, remaining);
       addRow(item.fullRow, item.fullHeight);
       continue;
     }
 
     if (level === 1) {
+      _debugDecision("newPage(level1)", item, remaining);
       if (currentPage.table.rows.length) pushPage();
       addRow(item.fullRow, item.fullHeight);
       continue;
     }
 
     const minSplitHeight = item.baseHeight + MIN_LINES_PAGE_END * item.lineHeight;
-    if (remaining < minSplitHeight) {
+    if (remaining + FIT_EPS_PX < minSplitHeight) {
+      _debugDecision("newPage(minSplit)", item, remaining);
       if (currentPage.table.rows.length) pushPage();
     }
 
@@ -989,13 +1000,13 @@ function _paginateTops(data) {
       const measure = rowMeasureCtx.measureRow(_buildTopRowElement(rowData));
       const rowHeight = measure.height;
 
-      if (rowHeight <= remaining) {
+      if (_fits(rowHeight, remaining)) {
         addRow(rowData, rowHeight);
         break;
       }
 
       const minHeight = item.baseHeight + MIN_LINES_PAGE_END * item.lineHeight;
-      if (remaining < minHeight) {
+      if (remaining + FIT_EPS_PX < minHeight) {
         if (!currentPage.table.rows.length) {
           addRow(rowData, rowHeight);
           break;

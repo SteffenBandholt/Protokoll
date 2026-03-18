@@ -148,6 +148,9 @@ contextBridge.exposeInMainWorld("bbmDb", {
 
   openQuickAssist: () => ipcRenderer.invoke("app:openQuickAssist"),
 
+  // DEV: Audio Override Status
+  devAudioUnlockStatus: () => ipcRenderer.invoke("dev:audioUnlockStatus"),
+
   // ✅ Build-Kanal Umschalten (schreibt channel.json im Repo) – nur DEV-Umgebung
   devBuildChannelGet: () => ipcRenderer.invoke("dev:buildChannelGet"),
   devBuildChannelSet: (payload) => ipcRenderer.invoke("dev:buildChannelSet", payload),

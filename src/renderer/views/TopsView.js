@@ -162,6 +162,9 @@ export default class TopsView {
     this._audioLicenseChecked = false;
     this._audioLicenseMessage = "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
     this._audioLicenseLoading = null;
+    this._audioDevOverride = false;
+    this._audioDevOverrideChecked = false;
+    this._audioDevOverrideLoading = null;
     this._audioSuggestionMarkTimer = null;
     this._viewMenuOpen = false;
     this._viewMenuDocMouseDown = null;
@@ -2422,6 +2425,12 @@ _isoToDDMMYYYY(iso) {
     if (!force && this._audioLicenseLoading) return this._audioLicenseLoading;
 
     const task = (async () => {
+      const devOverride = await this._loadAudioDevOverrideState(force);
+      if (devOverride) {
+        this._setAudioLicenseState(true, "");
+        return true;
+      }
+
       const api = window.bbmDb || {};
       if (typeof api.licenseGetStatus !== "function") {
         this._setAudioLicenseState(false, "Lizenzstatus ist nicht verfuegbar. Audio bleibt gesperrt.");
@@ -2445,6 +2454,37 @@ _isoToDDMMYYYY(iso) {
     })();
 
     this._audioLicenseLoading = task;
+    return task;
+  }
+
+  async _loadAudioDevOverrideState(force = false) {
+    if (!force && this._audioDevOverrideChecked) return this._audioDevOverride;
+    if (!force && this._audioDevOverrideLoading) return this._audioDevOverrideLoading;
+
+    const task = (async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devAudioUnlockStatus !== "function") {
+        this._audioDevOverride = false;
+        this._audioDevOverrideChecked = true;
+        return false;
+      }
+
+      try {
+        const res = await api.devAudioUnlockStatus();
+        const enabled = !!res?.ok && !!res?.enabled;
+        this._audioDevOverride = enabled;
+        this._audioDevOverrideChecked = true;
+        return enabled;
+      } catch (_err) {
+        this._audioDevOverride = false;
+        this._audioDevOverrideChecked = true;
+        return false;
+      } finally {
+        this._audioDevOverrideLoading = null;
+      }
+    })();
+
+    this._audioDevOverrideLoading = task;
     return task;
   }
 

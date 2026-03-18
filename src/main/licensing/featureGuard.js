@@ -35,8 +35,27 @@ function createLicenseBadgeText(licenseInfo = {}) {
   return parts.join(" | ");
 }
 
+function _readEnvFlag(name) {
+  const raw = String(process.env[name] || "").trim().toLowerCase();
+  if (!raw) return null;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return null;
+}
+
+function isDevAudioOverrideEnabled() {
+  // Dev override: set BBM_DEV_UNLOCK_AUDIO=true (DEV only).
+  const explicit = _readEnvFlag("BBM_DEV_UNLOCK_AUDIO");
+  if (explicit === true) return !app.isPackaged;
+  if (explicit === false) return false;
+  return !app.isPackaged;
+}
+
 function enforceLicensedFeature(feature) {
   const normalizedFeature = String(feature || "").trim().toLowerCase();
+  if (normalizedFeature === LICENSE_FEATURES.AUDIO && isDevAudioOverrideEnabled()) {
+    return _extractLicenseInfo(getStatus({ fresh: true }));
+  }
   if (isStandardLicensedFeature(normalizedFeature)) {
     return _extractLicenseInfo(getStatus({ fresh: true }));
   }
@@ -147,5 +166,6 @@ module.exports = {
   LICENSE_FEATURES,
   createLicenseBadgeText,
   enforceLicensedFeature,
+  isDevAudioOverrideEnabled,
   toLicenseErrorPayload,
 };
