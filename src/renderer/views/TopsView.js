@@ -230,11 +230,13 @@ export default class TopsView {
     host.style.alignItems = "flex-start";
     host.style.gap = "1px";
     host.style.lineHeight = "1.1";
+    host.style.fontSize = "10pt";
 
     const labelLine = document.createElement("div");
     labelLine.textContent = "Protokoll";
     labelLine.style.color = "#000";
     labelLine.style.fontWeight = "600";
+    labelLine.style.fontSize = "10pt";
     host.appendChild(labelLine);
 
     const firstLineBase =
@@ -248,11 +250,13 @@ export default class TopsView {
       line1.textContent = `${firstLineSafe} (geschlossen) read only`.trim();
       line1.style.color = "#b71c1c";
       line1.style.fontWeight = "700";
+      line1.style.fontSize = "10pt";
     } else {
       const green = document.createElement("span");
       green.textContent = firstLineSafe;
       green.style.color = "#1b5e20";
       green.style.fontWeight = "700";
+      green.style.fontSize = "10pt";
       line1.appendChild(green);
     }
     host.appendChild(line1);
@@ -262,6 +266,7 @@ export default class TopsView {
       line2.textContent = meetingKeyword;
       line2.style.color = isClosedMeeting ? "#b71c1c" : "#1b5e20";
       line2.style.fontWeight = "700";
+      line2.style.fontSize = "10pt";
       host.appendChild(line2);
     }
 
@@ -4242,6 +4247,7 @@ _isoToDDMMYYYY(iso) {
       lab.style.userSelect = "none";
       const t = document.createElement("span");
       t.textContent = text;
+      t.style.fontSize = "10pt";
       lab.append(inputEl, t);
       return lab;
     };
@@ -4272,15 +4278,16 @@ _isoToDDMMYYYY(iso) {
     const titleWrap = document.createElement("div");
     titleWrap.style.display = "flex";
     titleWrap.style.flexDirection = "column";
-    titleWrap.style.gap = "4px";
+    titleWrap.style.gap = "2px";
 
     const titleLabelRow = document.createElement("div");
     titleLabelRow.style.display = "flex";
     titleLabelRow.style.alignItems = "center";
-    titleLabelRow.style.gap = "10px";
+    titleLabelRow.style.gap = "6px";
 
     const lblTitleText = document.createElement("span");
     lblTitleText.textContent = "Kurztext";
+    lblTitleText.style.fontSize = "10pt";
 
     const titleCount = makeCountBadge(`${this._titleMax()}`);
 
@@ -4292,7 +4299,7 @@ _isoToDDMMYYYY(iso) {
     const titleLeft = document.createElement("div");
     titleLeft.style.display = "inline-flex";
     titleLeft.style.alignItems = "center";
-    titleLeft.style.gap = "10px";
+    titleLeft.style.gap = "6px";
     const btnTitleDictate = document.createElement("button");
     btnTitleDictate.type = "button";
     btnTitleDictate.textContent = "Diktat";
@@ -4310,7 +4317,7 @@ _isoToDDMMYYYY(iso) {
     const titleRight = document.createElement("div");
     titleRight.style.display = "inline-flex";
     titleRight.style.alignItems = "center";
-    titleRight.style.gap = "10px";
+    titleRight.style.gap = "6px";
     titleRight.style.marginLeft = "auto";
     titleRight.append(labImportant, labHidden);
 
@@ -4320,23 +4327,24 @@ _isoToDDMMYYYY(iso) {
     const longWrap = document.createElement("div");
     longWrap.style.display = "flex";
     longWrap.style.flexDirection = "column";
-    longWrap.style.gap = "4px";
-    longWrap.style.marginTop = "10px";
+    longWrap.style.gap = "2px";
+    longWrap.style.marginTop = "6px";
 
     const longLabelRow = document.createElement("div");
     longLabelRow.style.display = "flex";
     longLabelRow.style.alignItems = "center";
-    longLabelRow.style.gap = "10px";
+    longLabelRow.style.gap = "6px";
 
     const lblLongText = document.createElement("span");
     lblLongText.textContent = "Langtext";
+    lblLongText.style.fontSize = "10pt";
 
     const longCount = makeCountBadge(`${this._longMax()}`);
 
     const longLeft = document.createElement("div");
     longLeft.style.display = "inline-flex";
     longLeft.style.alignItems = "center";
-    longLeft.style.gap = "10px";
+    longLeft.style.gap = "6px";
     const btnLongDictate = document.createElement("button");
     btnLongDictate.type = "button";
     btnLongDictate.textContent = "Diktat";
@@ -4367,12 +4375,12 @@ _isoToDDMMYYYY(iso) {
     const editorRow = document.createElement("div");
     editorRow.style.display = "flex";
     editorRow.style.alignItems = "stretch";
-    editorRow.style.gap = "12px";
+    editorRow.style.gap = "8px";
 
     const leftCol = document.createElement("div");
     leftCol.style.display = "flex";
     leftCol.style.flexDirection = "column";
-    leftCol.style.gap = "10px";
+    leftCol.style.gap = "6px";
     leftCol.style.flex = "1 1 auto";
     leftCol.append(titleWrap, longWrap);
 
@@ -4385,7 +4393,7 @@ _isoToDDMMYYYY(iso) {
     const metaCol = document.createElement("div");
     metaCol.style.display = "flex";
     metaCol.style.flexDirection = "column";
-    metaCol.style.gap = "10px";
+    metaCol.style.gap = "6px";
     metaCol.style.flex = "0 0 114px";
     metaCol.style.width = "114px";
     metaCol.style.minWidth = "114px";
@@ -4396,11 +4404,11 @@ _isoToDDMMYYYY(iso) {
       const wrap = document.createElement("div");
       wrap.style.display = "flex";
       wrap.style.flexDirection = "column";
-      wrap.style.gap = "4px";
+      wrap.style.gap = "2px";
 
       const lab = document.createElement("span");
       lab.textContent = labelText;
-      lab.style.fontSize = "12px";
+      lab.style.fontSize = "10pt";
       lab.style.opacity = "0.8";
 
       wrap.append(lab);
@@ -4411,7 +4419,7 @@ _isoToDDMMYYYY(iso) {
     const dueRow = document.createElement("div");
     dueRow.style.display = "flex";
     dueRow.style.alignItems = "center";
-    dueRow.style.gap = "6px";
+    dueRow.style.gap = "4px";
     const inpDueDate = document.createElement("input");
     inpDueDate.type = "date";
     inpDueDate.style.width = "100%";
@@ -4430,7 +4438,7 @@ _isoToDDMMYYYY(iso) {
     const statusRow = document.createElement("div");
     statusRow.style.display = "flex";
     statusRow.style.alignItems = "center";
-    statusRow.style.gap = "6px";
+    statusRow.style.gap = "4px";
     statusRow.style.marginLeft = "-3mm";
     statusRow.style.width = "calc(100% + 3mm)";
     statusRow.style.position = "relative";
