@@ -1,4 +1,7 @@
 const { BrowserWindow, dialog, ipcMain } = require("electron");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
 const meetingsRepo = require("../db/meetingsRepo");
 const meetingTopsRepo = require("../db/meetingTopsRepo");
@@ -18,6 +21,7 @@ const {
   enforceLicensedFeature,
   toLicenseErrorPayload,
 } = require("../licensing/featureGuard");
+const { isDevAudioSuggestionsEnabled } = require("../licensing/featureGuard");
 
 const AUDIO_FILE_FILTER = [
   {
@@ -50,6 +54,16 @@ function _toAudioErrorPayload(err) {
   }
 
   return { ok: false, error: err?.stack || err?.message || String(err) };
+}
+
+function _inferAudioExt(mimeType) {
+  const normalized = String(mimeType || "").toLowerCase().trim();
+  if (normalized.includes("audio/webm")) return ".webm";
+  if (normalized.includes("audio/ogg")) return ".ogg";
+  if (normalized.includes("audio/wav")) return ".wav";
+  if (normalized.includes("audio/mpeg")) return ".mp3";
+  if (normalized.includes("audio/mp4")) return ".m4a";
+  return ".webm";
 }
 
 function registerAudioIpc() {
@@ -131,9 +145,46 @@ function registerAudioIpc() {
     }
   });
 
+  ipcMain.handle("audio:transcribeBlob", async (_evt, payload) => {
+    try {
+      _ensureAudioLicensed();
+      const meetingId = String(payload?.meetingId || "").trim();
+      if (!meetingId) return { ok: false, error: "meetingId fehlt" };
+      const projectId = payload?.projectId || null;
+      const base64 = String(payload?.base64 || "").trim();
+      if (!base64) return { ok: false, error: "audioPayload fehlt" };
+
+      const mimeType = String(payload?.mimeType || "audio/webm").trim() || "audio/webm";
+      const ext = _inferAudioExt(mimeType);
+      const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "bbm-dictation-"));
+      const filePath = path.join(tempDir, `dictation${ext}`);
+      const buffer = Buffer.from(base64, "base64");
+      await fs.promises.writeFile(filePath, buffer);
+
+      const audioImport = audioImportService.importAudio({
+        meetingId,
+        projectId,
+        filePath,
+        processingMode: "dictation",
+      });
+
+      const result = await transcriptionService.transcribe({ audioImportId: audioImport.id });
+      return { ok: true, audioImport, ...result };
+    } catch (err) {
+      return _toAudioErrorPayload(err);
+    }
+  });
+
   ipcMain.handle("audio:analyze", async (_evt, payload) => {
     try {
       _ensureAudioLicensed();
+      if (!isDevAudioSuggestionsEnabled()) {
+        return {
+          ok: false,
+          error:
+            "Audio-Mapping ist deaktiviert. Bitte die feldgebundene Spracheingabe (Diktat) verwenden.",
+        };
+      }
       const audioImportId = String(payload?.audioImportId || "").trim();
       if (!audioImportId) return { ok: false, error: "audioImportId fehlt" };
       const result = mappingService.analyze({

@@ -39,6 +39,8 @@ export default class TopsView {
     this.btnCloseMeeting = null; // "Schließen"
     this.btnLongToggle = null;
     this.btnAudioAnalyze = null;
+    this.btnTitleDictate = null;
+    this.btnLongDictate = null;
 
     this.btnAmpelToggle = null;
     this.btnTasks = null;
@@ -158,6 +160,11 @@ export default class TopsView {
     this._audioPanel = null;
     this._audioPanelBusy = false;
     this._audioPanelStatusMessage = "";
+    this._audioDictationBusy = false;
+    this._audioDictationActive = false;
+    this._audioDictationTarget = null;
+    this._audioRecorder = null;
+    this._audioStream = null;
     this._audioLicensed = false;
     this._audioLicenseChecked = false;
     this._audioLicenseMessage = "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
@@ -165,6 +172,9 @@ export default class TopsView {
     this._audioDevOverride = false;
     this._audioDevOverrideChecked = false;
     this._audioDevOverrideLoading = null;
+    this._audioSuggestionsDevEnabled = false;
+    this._audioSuggestionsDevChecked = false;
+    this._audioSuggestionsDevLoading = null;
     this._audioSuggestionMarkTimer = null;
     this._viewMenuOpen = false;
     this._viewMenuDocMouseDown = null;
@@ -1076,6 +1086,8 @@ _isoToDDMMYYYY(iso) {
       if (this.btnEndMeeting) this.btnEndMeeting.disabled = true;
       if (this.btnCloseMeeting) this.btnCloseMeeting.disabled = true;
       if (this.btnAudioAnalyze) this.btnAudioAnalyze.disabled = true;
+      if (this.btnTitleDictate) this.btnTitleDictate.disabled = true;
+      if (this.btnLongDictate) this.btnLongDictate.disabled = true;
       if (this.btnTasks) this.btnTasks.disabled = true;
       if (this.btnProjectTasks) this.btnProjectTasks.disabled = true;
 
@@ -2408,6 +2420,7 @@ _isoToDDMMYYYY(iso) {
     this._audioLicenseMessage = this._audioLicensed
       ? ""
       : (String(message || "").trim() || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
+    this._updateDictationButtons();
 
     if (this.root) {
       this.applyEditBoxState();
@@ -2426,6 +2439,7 @@ _isoToDDMMYYYY(iso) {
 
     const task = (async () => {
       const devOverride = await this._loadAudioDevOverrideState(force);
+      await this._loadAudioSuggestionsDevFlag(force);
       if (devOverride) {
         this._setAudioLicenseState(true, "");
         return true;
@@ -2488,6 +2502,39 @@ _isoToDDMMYYYY(iso) {
     return task;
   }
 
+  async _loadAudioSuggestionsDevFlag(force = false) {
+    if (!force && this._audioSuggestionsDevChecked) return this._audioSuggestionsDevEnabled;
+    if (!force && this._audioSuggestionsDevLoading) return this._audioSuggestionsDevLoading;
+
+    const task = (async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devAudioSuggestionsEnabled !== "function") {
+        this._audioSuggestionsDevEnabled = false;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      }
+
+      try {
+        const res = await api.devAudioSuggestionsEnabled();
+        this._audioSuggestionsDevEnabled = !!res?.ok && !!res?.enabled;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      } catch (_err) {
+        this._audioSuggestionsDevEnabled = false;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      } finally {
+        this._audioSuggestionsDevLoading = null;
+      }
+    })();
+
+    this._audioSuggestionsDevLoading = task;
+    return task;
+  }
+
   async _ensureAudioAvailable({ alertOnFailure = true, force = false } = {}) {
     const licensed = await this._loadAudioLicenseState(force);
     if (licensed) return true;
@@ -2496,6 +2543,194 @@ _isoToDDMMYYYY(iso) {
       alert(this._audioLicenseMessage || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
     }
     return false;
+  }
+
+  _updateDictationButtons() {
+    const baseDisabled =
+      this.isReadOnly || this._busy || this._audioDictationBusy || !this.meetingId || !this.selectedTop;
+    const audioLocked = !this._audioLicensed;
+    const isRecording = !!this._audioDictationActive;
+    const activeTarget = this._audioDictationTarget;
+
+    if (this.btnTitleDictate) {
+      const disabled =
+        baseDisabled || audioLocked || !!this.inpTitle?.disabled || (isRecording && activeTarget !== "shortText");
+      this.btnTitleDictate.disabled = disabled;
+      this.btnTitleDictate.style.opacity = disabled ? "0.6" : "1";
+      this.btnTitleDictate.textContent =
+        isRecording && activeTarget === "shortText" ? "Stop" : "Diktat";
+      this.btnTitleDictate.style.background =
+        isRecording && activeTarget === "shortText" ? "#ffebee" : "#f7f9fb";
+      this.btnTitleDictate.style.color =
+        isRecording && activeTarget === "shortText" ? "#b71c1c" : "#0b4db4";
+      this.btnTitleDictate.title = audioLocked
+        ? this._audioLicenseMessage
+        : "Spracheingabe fuer Kurztext";
+    }
+
+    if (this.btnLongDictate) {
+      const disabled =
+        baseDisabled || audioLocked || !!this.taLongtext?.disabled || (isRecording && activeTarget !== "longText");
+      this.btnLongDictate.disabled = disabled;
+      this.btnLongDictate.style.opacity = disabled ? "0.6" : "1";
+      this.btnLongDictate.textContent =
+        isRecording && activeTarget === "longText" ? "Stop" : "Diktat";
+      this.btnLongDictate.style.background =
+        isRecording && activeTarget === "longText" ? "#ffebee" : "#f7f9fb";
+      this.btnLongDictate.style.color =
+        isRecording && activeTarget === "longText" ? "#b71c1c" : "#0b4db4";
+      this.btnLongDictate.title = audioLocked
+        ? this._audioLicenseMessage
+        : "Spracheingabe fuer Langtext";
+    }
+  }
+
+  _applyDictationTextToField(targetField, transcriptText) {
+    const text = String(transcriptText || "").trim();
+    if (!text) return;
+
+    if (targetField === "shortText") {
+      const next = this._normTitle(text);
+      if (this.inpTitle) {
+        this.inpTitle.value = this._clampStr(next, this._titleMax());
+        this.inpTitle.focus();
+        this.inpTitle.select?.();
+      }
+    } else if (targetField === "longText") {
+      const current = this.taLongtext ? String(this.taLongtext.value || "") : "";
+      const joined = current ? `${current.replace(/\s+$/g, "")}\n${text}` : text;
+      const next = this._normLong(joined);
+      if (this.taLongtext) {
+        this.taLongtext.value = this._clampStr(next, this._longMax());
+        this.taLongtext.focus();
+      }
+    }
+
+    this._updateCharCounters();
+  }
+
+  async _runFieldDictation(targetField) {
+    if (this._audioDictationActive && this._audioDictationTarget === targetField) {
+      await this._stopFieldDictation();
+      return;
+    }
+    await this._startFieldDictation(targetField);
+  }
+
+  async _startFieldDictation(targetField) {
+    if (!(await this._ensureAudioAvailable())) return;
+    if (this._audioDictationBusy || this._audioDictationActive) return;
+    if (!this.selectedTop) return;
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      alert("Mikrofonaufnahme wird nicht unterstuetzt.");
+      return;
+    }
+
+    this._audioDictationBusy = true;
+    this._updateDictationButtons();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      const mimeType =
+        preferredTypes.find((type) => window.MediaRecorder?.isTypeSupported?.(type)) || "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event?.data && event.data.size > 0) chunks.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        await this._handleDictationBlob(blob, recorder._bbmTargetField || targetField);
+      };
+
+      recorder.start();
+      recorder._bbmTargetField = targetField;
+      this._audioRecorder = recorder;
+      this._audioStream = stream;
+      this._audioDictationActive = true;
+      this._audioDictationTarget = targetField;
+    } catch (err) {
+      alert(err?.message || String(err));
+    } finally {
+      this._audioDictationBusy = false;
+      this._updateDictationButtons();
+    }
+  }
+
+  async _stopFieldDictation() {
+    if (!this._audioRecorder) return;
+    try {
+      this._audioRecorder.stop();
+    } catch (_err) {
+      // ignore
+    }
+    if (this._audioStream) {
+      this._audioStream.getTracks().forEach((track) => track.stop());
+    }
+    this._audioRecorder = null;
+    this._audioStream = null;
+    this._audioDictationActive = false;
+    this._audioDictationTarget = null;
+    this._updateDictationButtons();
+  }
+
+  async _handleDictationBlob(blob, targetField) {
+    if (!blob || !blob.size) {
+      alert("Aufnahme ist leer.");
+      return;
+    }
+
+    const api = window.bbmDb || {};
+    if (typeof api.audioTranscribeBlob !== "function") {
+      alert("Audio-Transkription ist nicht verfuegbar.");
+      return;
+    }
+
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = String(reader.result || "");
+        const payload = result.includes(",") ? result.split(",").pop() : result;
+        resolve(payload || "");
+      };
+      reader.onerror = () => reject(reader.error || new Error("Datei konnte nicht gelesen werden"));
+      reader.readAsDataURL(blob);
+    });
+
+    this._audioDictationBusy = true;
+    this._updateDictationButtons();
+
+    try {
+      const res = await api.audioTranscribeBlob({
+        meetingId: this.meetingId,
+        projectId: this.projectId || null,
+        mimeType: blob.type || "audio/webm",
+        base64,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Transkription fehlgeschlagen.");
+      }
+      const transcriptText = String(res?.transcript?.full_text || "").trim();
+      if (!transcriptText) {
+        alert("Transkription ist leer.");
+        return;
+      }
+      this._applyDictationTextToField(targetField || "longText", transcriptText);
+    } catch (err) {
+      alert(err?.message || String(err));
+    } finally {
+      this._audioDictationBusy = false;
+      this._updateDictationButtons();
+    }
   }
 
   _manualAssignTitle() {
@@ -2575,6 +2810,7 @@ _isoToDDMMYYYY(iso) {
     this.selectedTop = target;
     this._userSelectedTop = true;
     this.applyEditBoxState();
+    this._updateDictationButtons();
     this._updateMoveControls();
     this._updateDeleteControls();
     this._updateCreateChildControls();
@@ -2686,6 +2922,10 @@ _isoToDDMMYYYY(iso) {
 
     if (!(await this._loadAudioLicenseState())) {
       panel.open(this._buildLockedAudioPanelState(this._audioLicenseMessage));
+      return;
+    }
+    if (!(await this._loadAudioSuggestionsDevFlag())) {
+      alert("Audio-Suggestions sind nur in der Entwicklung verfuegbar.");
       return;
     }
 
@@ -3109,6 +3349,7 @@ _isoToDDMMYYYY(iso) {
     btnAudioAnalyze.style.background = "#1565c0";
     btnAudioAnalyze.style.color = "white";
     btnAudioAnalyze.style.border = "1px solid rgba(0,0,0,0.25)";
+    btnAudioAnalyze.style.display = "none";
     styleBtnBase(btnAudioAnalyze);
     btnAudioAnalyze.onclick = async () => {
       if (this._busy || this.isReadOnly || !this.meetingId) return;
@@ -3726,7 +3967,19 @@ _isoToDDMMYYYY(iso) {
     titleLeft.style.display = "inline-flex";
     titleLeft.style.alignItems = "center";
     titleLeft.style.gap = "10px";
-    titleLeft.append(lblTitleText, titleCount, labImportant);
+    const btnTitleDictate = document.createElement("button");
+    btnTitleDictate.type = "button";
+    btnTitleDictate.textContent = "Diktat";
+    btnTitleDictate.title = "Spracheingabe fuer Kurztext";
+    btnTitleDictate.style.border = "1px solid #cfd8dc";
+    btnTitleDictate.style.background = "#f7f9fb";
+    btnTitleDictate.style.color = "#0b4db4";
+    styleBtnBase(btnTitleDictate);
+    btnTitleDictate.onclick = async () => {
+      await this._runFieldDictation("shortText");
+    };
+
+    titleLeft.append(lblTitleText, titleCount, labImportant, btnTitleDictate);
 
     const titleRight = document.createElement("div");
     titleRight.style.display = "inline-flex";
@@ -3758,7 +4011,19 @@ _isoToDDMMYYYY(iso) {
     longLeft.style.display = "inline-flex";
     longLeft.style.alignItems = "center";
     longLeft.style.gap = "10px";
-    longLeft.append(lblLongText, longCount);
+    const btnLongDictate = document.createElement("button");
+    btnLongDictate.type = "button";
+    btnLongDictate.textContent = "Diktat";
+    btnLongDictate.title = "Spracheingabe fuer Langtext";
+    btnLongDictate.style.border = "1px solid #cfd8dc";
+    btnLongDictate.style.background = "#f7f9fb";
+    btnLongDictate.style.color = "#0b4db4";
+    styleBtnBase(btnLongDictate);
+    btnLongDictate.onclick = async () => {
+      await this._runFieldDictation("longText");
+    };
+
+    longLeft.append(lblLongText, longCount, btnLongDictate);
 
     longLabelRow.append(longLeft);
 
@@ -3912,6 +4177,8 @@ _isoToDDMMYYYY(iso) {
     this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
     this.btnAudioAnalyze = btnAudioAnalyze;
+    this.btnTitleDictate = btnTitleDictate;
+    this.btnLongDictate = btnLongDictate;
     this.btnAmpelToggle = btnAmpelToggle;
     this.btnTasks = viewBtn;
     this.btnProjectTasks = btnProjectTasks;
@@ -5085,11 +5352,17 @@ async _closeViewOnly() {
     }
     if (this.btnAudioAnalyze) {
       const audioLocked = !this._audioLicensed;
-      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId || audioLocked;
+      const allowLegacy = !!this._audioSuggestionsDevEnabled;
+      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId || audioLocked || !allowLegacy;
       this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
-      this.btnAudioAnalyze.style.display = ro || !this.meetingId ? "none" : "";
-      this.btnAudioAnalyze.title = audioLocked ? this._audioLicenseMessage : "Sprachdatei importieren und auswerten";
+      this.btnAudioAnalyze.style.display = allowLegacy ? "" : "none";
+      this.btnAudioAnalyze.title = audioLocked
+        ? this._audioLicenseMessage
+        : allowLegacy
+        ? "Audio-Suggestions (DEV)"
+        : "Audio-Mapping ist deaktiviert";
     }
+      this._updateDictationButtons();
     if (this.btnTasks) {
       this.btnTasks.disabled = ro || busy || !this.meetingId;
       this.btnTasks.style.opacity = this.btnTasks.disabled ? "0.65" : "1";

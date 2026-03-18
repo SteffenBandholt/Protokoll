@@ -62,6 +62,7 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // ============================================================
   audioImport: (data) => ipcRenderer.invoke("audio:import", data),
   audioTranscribe: (data) => ipcRenderer.invoke("audio:transcribe", data),
+  audioTranscribeBlob: (data) => ipcRenderer.invoke("audio:transcribeBlob", data),
   audioAnalyze: (data) => ipcRenderer.invoke("audio:analyze", data),
   audioGetSuggestions: (data) => ipcRenderer.invoke("audio:getSuggestions", data),
   audioCreateDemoSuggestion: (data) => ipcRenderer.invoke("audio:createDemoSuggestion", data),
@@ -150,6 +151,8 @@ contextBridge.exposeInMainWorld("bbmDb", {
 
   // DEV: Audio Override Status
   devAudioUnlockStatus: () => ipcRenderer.invoke("dev:audioUnlockStatus"),
+  // DEV: Audio Suggestions (legacy) Toggle
+  devAudioSuggestionsEnabled: () => ipcRenderer.invoke("dev:audioSuggestionsEnabled"),
 
   // ✅ Build-Kanal Umschalten (schreibt channel.json im Repo) – nur DEV-Umgebung
   devBuildChannelGet: () => ipcRenderer.invoke("dev:buildChannelGet"),

@@ -22,7 +22,11 @@ const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
 const { registerAudioIpc } = require("./ipc/audioIpc");
 const { registerLicenseIpc } = require("./ipc/licenseIpc");
 const { checkLicense } = require("./licensing/licenseService");
-const { toLicenseErrorPayload, isDevAudioOverrideEnabled } = require("./licensing/featureGuard");
+const {
+  toLicenseErrorPayload,
+  isDevAudioOverrideEnabled,
+  isDevAudioSuggestionsEnabled,
+} = require("./licensing/featureGuard");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -475,13 +479,21 @@ app.whenReady().then(async () => {
     }
   });
 
-  ipcMain.handle("dev:audioUnlockStatus", async () => {
-    try {
-      return { ok: true, enabled: !!isDevAudioOverrideEnabled() };
-    } catch (err) {
-      return { ok: false, error: err?.message || String(err), enabled: false };
-    }
-  });
+ipcMain.handle("dev:audioUnlockStatus", async () => {
+  try {
+    return { ok: true, enabled: !!isDevAudioOverrideEnabled() };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err), enabled: false };
+  }
+});
+
+ipcMain.handle("dev:audioSuggestionsEnabled", async () => {
+  try {
+    return { ok: true, enabled: !!isDevAudioSuggestionsEnabled() };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err), enabled: false };
+  }
+});
 
 
 

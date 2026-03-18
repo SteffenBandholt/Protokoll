@@ -51,6 +51,14 @@ function isDevAudioOverrideEnabled() {
   return !app.isPackaged;
 }
 
+function isDevAudioSuggestionsEnabled() {
+  // Dev-only legacy audio suggestions flow.
+  const explicit = _readEnvFlag("BBM_DEV_ENABLE_AUDIO_SUGGESTIONS");
+  if (explicit === true) return !app.isPackaged;
+  if (explicit === false) return false;
+  return false;
+}
+
 function enforceLicensedFeature(feature) {
   const normalizedFeature = String(feature || "").trim().toLowerCase();
   if (normalizedFeature === LICENSE_FEATURES.AUDIO && isDevAudioOverrideEnabled()) {
@@ -167,5 +175,6 @@ module.exports = {
   createLicenseBadgeText,
   enforceLicensedFeature,
   isDevAudioOverrideEnabled,
+  isDevAudioSuggestionsEnabled,
   toLicenseErrorPayload,
 };
