@@ -370,6 +370,13 @@
   height: var(--v2-mini-gap-line-body, 3mm);
 }
 
+/* v2: Meta-Spalte schmaler (2.5 cm), rechtsbündig bleibt */
+.printV2Root .topsTable .colMeta {
+  width: 32mm;
+  min-width: 32mm;
+  max-width: 32mm;
+}
+
 /* Teilnehmerliste (Protokoll) */
 .printV2Root .v2ParticipantsBlock {
   margin: 0 0 3mm 0;

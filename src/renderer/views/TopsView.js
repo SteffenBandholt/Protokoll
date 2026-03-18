@@ -2809,20 +2809,21 @@ _isoToDDMMYYYY(iso) {
     wrap.style.display = "flex";
     wrap.style.alignItems = "center";
     wrap.style.gap = "10px";
-    wrap.style.marginTop = "6px";
-    wrap.style.padding = "6px 10px";
+    wrap.style.marginTop = "4px";
+    wrap.style.padding = "4px 8px";
     wrap.style.border = "1px solid #ffe0b2";
     wrap.style.background = "#fff8e1";
     wrap.style.borderRadius = "6px";
     wrap.style.fontSize = "12px";
     wrap.style.color = "#5d4037";
+    wrap.style.zIndex = "5";
 
     const text = document.createElement("div");
-    text.textContent = `Korrektur merken? "${wrongTerm}" → "${correctTerm}"`;
+    text.textContent = `Korrektur merken? '${wrongTerm}' → '${correctTerm}'`;
 
     const btnYes = document.createElement("button");
     btnYes.type = "button";
-    btnYes.textContent = "Ja";
+    btnYes.textContent = "Merken";
     btnYes.style.border = "1px solid #cfd8dc";
     btnYes.style.background = "#f7f9fb";
     btnYes.style.borderRadius = "6px";
@@ -2880,12 +2881,38 @@ _isoToDDMMYYYY(iso) {
 
     const normalizedWrong = this._normalizeTerm(correction.wrongTerm);
     if (this._termCorrections.has(normalizedWrong)) return;
+    this._pendingTermPrompt = {
+      field,
+      wrongTerm: correction.wrongTerm,
+      correctTerm: correction.correctTerm,
+      topId: this.selectedTop?.id ?? null,
+      at: Date.now(),
+    };
     this._showTermCorrectionPrompt({
       field,
       wrongTerm: correction.wrongTerm,
       correctTerm: correction.correctTerm,
       anchorEl,
     });
+  }
+
+  _tryShowPendingTermPrompt() {
+    const pending = this._pendingTermPrompt;
+    if (!pending) return;
+    if (!this.selectedTop || !this._sameTopId(this.selectedTop.id, pending.topId)) return;
+    if (Date.now() - (pending.at || 0) > 2 * 60 * 1000) {
+      this._pendingTermPrompt = null;
+      return;
+    }
+    const anchorEl = pending.field === "shortText" ? this.inpTitle : this.taLongtext;
+    if (!anchorEl) return;
+    this._showTermCorrectionPrompt({
+      field: pending.field,
+      wrongTerm: pending.wrongTerm,
+      correctTerm: pending.correctTerm,
+      anchorEl,
+    });
+    this._pendingTermPrompt = null;
   }
 
   _deriveShortTextFromDictation(text) {
@@ -6740,6 +6767,8 @@ const textCol = document.createElement("div");
     }
 
     if (!t) {
+      if (this._termPromptCleanup) this._termPromptCleanup();
+      this._pendingTermPrompt = null;
       this.inpTitle.value = "";
       if (this.taLongtext) this.taLongtext.value = "";
       this.chkHidden.checked = false;
@@ -6830,6 +6859,7 @@ const textCol = document.createElement("div");
     this._updateDueAmpelFromInputs();
     this._updateStatusMarkers();
     this._updateTodoStatusAvailability();
+    this._tryShowPendingTermPrompt();
     this._clearLegacyResponsibleOption();
     this._clearLegacyContactPersonOption();
     this._respLegacyReadonly = false;
