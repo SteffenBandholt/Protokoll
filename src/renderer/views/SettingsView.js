@@ -4512,6 +4512,19 @@ export default class SettingsView {
       },
     });
 
+    const tileLicense = mkTile({
+      titleText: "Lizenz",
+      subText: "Lizenzstatus & Verwaltung",
+      onClick: async () => {
+        const content = this._createLicenseSettingsContent();
+        openSettingsModal({
+          title: "Lizenz",
+          content: [content],
+          closeOnly: true,
+        });
+      },
+    });
+
     const tileDev = mkTile({
       titleText: "Entwicklung",
       subText: "Versionierung, Farben einstellen, DB-Diagnose",
@@ -4542,7 +4555,7 @@ export default class SettingsView {
       },
     });
 
-    tiles.append(tileUser, tilePrint);
+    tiles.append(tileUser, tilePrint, tileLicense);
     (async () => {
       const api = window.bbmDb || {};
       if (typeof api.appIsPackaged !== "function") {
