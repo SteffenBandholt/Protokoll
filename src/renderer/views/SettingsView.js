@@ -2952,7 +2952,39 @@ export default class SettingsView {
 
     dictionaryBox.append(dictionaryTitle, dictionaryHint, btnDictionaryOpen);
 
-    devRightCol.append(devDefaultsBox, dictionaryBox, topsLimitBox, trialBox);
+    const licenseBox = document.createElement("div");
+    applyPopupCardStyle(licenseBox);
+    licenseBox.style.padding = "8px 10px";
+    licenseBox.style.maxWidth = "720px";
+    licenseBox.style.marginTop = "0";
+    licenseBox.style.display = "grid";
+    licenseBox.style.gap = "6px";
+
+    const licenseTitle = document.createElement("div");
+    licenseTitle.textContent = "Lizenz";
+    licenseTitle.style.fontWeight = "700";
+
+    const licenseHint = document.createElement("div");
+    licenseHint.style.fontSize = "12px";
+    licenseHint.style.opacity = "0.8";
+    licenseHint.textContent = "Lizenzstatus & Verwaltung";
+
+    const btnLicenseOpen = document.createElement("button");
+    btnLicenseOpen.type = "button";
+    btnLicenseOpen.textContent = "Lizenz ?ffnen";
+    applyPopupButtonStyle(btnLicenseOpen);
+    btnLicenseOpen.onclick = async () => {
+      const content = this._createLicenseSettingsContent();
+      this._openSettingsModal({
+        title: "Lizenz",
+        content: [content],
+        closeOnly: true,
+      });
+    };
+
+    licenseBox.append(licenseTitle, licenseHint, btnLicenseOpen);
+
+    devRightCol.append(devDefaultsBox, licenseBox, dictionaryBox, topsLimitBox, trialBox);
     devTopCardsRow.append(versionBox, devRightCol);
 
     const themeBox = document.createElement("div");
