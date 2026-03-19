@@ -30,7 +30,8 @@ class TranscriptionService {
     const raw = String(data[MODEL_SETTING_KEY] || "").trim().toLowerCase();
     if (raw === "best") return "ggml-medium.bin";
     if (raw === "balanced") return "ggml-small.bin";
-    return "ggml-base.bin";
+    if (raw === "fast") return "ggml-base.bin";
+    return "ggml-medium.bin";
   }
 
   _loadOpenMeeting(audioImport) {
