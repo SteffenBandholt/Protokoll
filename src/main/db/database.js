@@ -844,6 +844,40 @@ function ensureAppSettingsSchema(dbConn) {
   }
 }
 
+function ensureDictionarySchema(dbConn) {
+  if (!tableExists(dbConn, "dictionary_suggestions")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS dictionary_suggestions (
+        norm_key TEXT PRIMARY KEY,
+        term TEXT NOT NULL,
+        variants_json TEXT,
+        frequency INTEGER NOT NULL DEFAULT 0,
+        source_path TEXT,
+        source_excerpt TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      );
+    `);
+  }
+
+  if (!tableExists(dbConn, "dictionary_terms")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS dictionary_terms (
+        norm_key TEXT PRIMARY KEY,
+        term TEXT NOT NULL,
+        variants_json TEXT,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      );
+    `);
+  }
+
+  dbConn.exec(`CREATE INDEX IF NOT EXISTS idx_dictionary_suggestions_status ON dictionary_suggestions(status);`);
+  dbConn.exec(`CREATE INDEX IF NOT EXISTS idx_dictionary_terms_active ON dictionary_terms(is_active);`);
+}
+
 // ✅ Nutzerdaten (Name 1/2, Straße, PLZ, Ort)
 function ensureUserProfileSchema(dbConn) {
   if (!tableExists(dbConn, "user_profile")) {
@@ -1115,6 +1149,7 @@ function ensureSchema(dbConn) {
   ensureProjectCandidatesSchema(dbConn);
   ensureMeetingParticipantsSchema(dbConn);
 
+  ensureDictionarySchema(dbConn);
   ensureAppSettingsSchema(dbConn);
 }
 

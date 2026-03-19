@@ -1914,7 +1914,34 @@ export default class SettingsView {
     );
     devDefaultsBox.append(devDefaultsTitle, devDefaultsHint, devDefaultsActions, devDefaultsStatus);
 
-    devRightCol.append(devDefaultsBox, topsLimitBox, trialBox);
+    const dictionaryBox = document.createElement("div");
+    applyPopupCardStyle(dictionaryBox);
+    dictionaryBox.style.padding = "8px 10px";
+    dictionaryBox.style.maxWidth = "720px";
+    dictionaryBox.style.marginTop = "0";
+    dictionaryBox.style.display = "grid";
+    dictionaryBox.style.gap = "6px";
+
+    const dictionaryTitle = document.createElement("div");
+    dictionaryTitle.textContent = "Wörterbuch";
+    dictionaryTitle.style.fontWeight = "700";
+
+    const dictionaryHint = document.createElement("div");
+    dictionaryHint.style.fontSize = "12px";
+    dictionaryHint.style.opacity = "0.8";
+    dictionaryHint.textContent = "Fachbegriffe aus Ordnern sammeln, gruppieren und prüfen.";
+
+    const btnDictionaryOpen = document.createElement("button");
+    btnDictionaryOpen.type = "button";
+    btnDictionaryOpen.textContent = "Wörterbuch öffnen";
+    applyPopupButtonStyle(btnDictionaryOpen);
+    btnDictionaryOpen.onclick = async () => {
+      await this._openDictionaryPopup();
+    };
+
+    dictionaryBox.append(dictionaryTitle, dictionaryHint, btnDictionaryOpen);
+
+    devRightCol.append(devDefaultsBox, dictionaryBox, topsLimitBox, trialBox);
     devTopCardsRow.append(versionBox, devRightCol);
 
     const themeBox = document.createElement("div");
@@ -3850,6 +3877,716 @@ export default class SettingsView {
     return root;
   }
 
+  async _openDictionaryPopup() {
+    const api = window.bbmDb || {};
+    if (typeof api.dictionaryListSuggestions !== "function") {
+      alert("Wörterbuch ist nicht verfügbar (IPC fehlt).");
+      return;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "grid";
+    wrap.style.gap = "10px";
+    wrap.style.minWidth = "min(680px, calc(100vw - 60px))";
+    wrap.style.maxWidth = "860px";
+
+    const mkCard = () => {
+      const card = document.createElement("div");
+      applyPopupCardStyle(card);
+      card.style.padding = "10px 12px";
+      card.style.display = "grid";
+      card.style.gap = "8px";
+      return card;
+    };
+
+    const sourceCard = mkCard();
+    const sourceTitle = document.createElement("div");
+    sourceTitle.textContent = "Quelle wählen";
+    sourceTitle.style.fontWeight = "800";
+
+    const sourceRow = document.createElement("div");
+    sourceRow.style.display = "flex";
+    sourceRow.style.alignItems = "center";
+    sourceRow.style.gap = "8px";
+    sourceRow.style.flexWrap = "wrap";
+
+    const btnPickFolder = document.createElement("button");
+    btnPickFolder.type = "button";
+    btnPickFolder.textContent = "Ordner auswählen";
+    applyPopupButtonStyle(btnPickFolder, { variant: "primary" });
+
+    const sourcePath = document.createElement("div");
+    sourcePath.style.fontSize = "12px";
+    sourcePath.style.padding = "6px 8px";
+    sourcePath.style.borderRadius = "8px";
+    sourcePath.style.background = "#f8fafc";
+    sourcePath.style.border = "1px solid rgba(0,0,0,0.1)";
+    sourcePath.style.flex = "1 1 auto";
+    sourcePath.style.minWidth = "220px";
+    sourcePath.textContent = "Kein Ordner ausgewählt";
+
+    sourceRow.append(btnPickFolder, sourcePath);
+    sourceCard.append(sourceTitle, sourceRow);
+
+    const scanCard = mkCard();
+    const scanTitle = document.createElement("div");
+    scanTitle.textContent = "Suche / Analyse";
+    scanTitle.style.fontWeight = "800";
+
+    const scanRow = document.createElement("div");
+    scanRow.style.display = "flex";
+    scanRow.style.alignItems = "center";
+    scanRow.style.gap = "8px";
+    scanRow.style.flexWrap = "wrap";
+
+    const btnScan = document.createElement("button");
+    btnScan.type = "button";
+    btnScan.textContent = "Suche starten";
+    applyPopupButtonStyle(btnScan);
+
+    const scanStatus = document.createElement("div");
+    scanStatus.style.fontSize = "12px";
+    scanStatus.style.opacity = "0.85";
+    scanStatus.textContent = "";
+
+    scanRow.append(btnScan, scanStatus);
+
+    const progressList = document.createElement("div");
+    progressList.style.display = "grid";
+    progressList.style.gap = "4px";
+    progressList.style.fontSize = "12px";
+
+    const progressFiles = document.createElement("div");
+    const progressCurrent = document.createElement("div");
+    const progressTerms = document.createElement("div");
+    const progressOk = document.createElement("div");
+    const progressFail = document.createElement("div");
+    progressFiles.textContent = "Dateien gefunden: -";
+    progressCurrent.textContent = "Aktuelle Datei: -";
+    progressTerms.textContent = "Vorschläge gesammelt: -";
+    progressOk.textContent = "Erfolgreich verarbeitet: -";
+    progressFail.textContent = "Fehlgeschlagen: -";
+    progressList.append(progressFiles, progressCurrent, progressTerms, progressOk, progressFail);
+
+    const errorList = document.createElement("div");
+    errorList.style.display = "grid";
+    errorList.style.gap = "4px";
+    errorList.style.fontSize = "11px";
+    errorList.style.color = "#b91c1c";
+
+    scanCard.append(scanTitle, scanRow, progressList, errorList);
+
+    const resultCard = mkCard();
+    const resultTitle = document.createElement("div");
+    resultTitle.textContent = "Ergebnisliste";
+    resultTitle.style.fontWeight = "800";
+
+    const resultHint = document.createElement("div");
+    resultHint.style.fontSize = "12px";
+    resultHint.style.opacity = "0.8";
+    resultHint.textContent = "Keine automatische Übernahme – bitte einzeln prüfen.";
+
+    const resultHead = document.createElement("div");
+    resultHead.style.display = "grid";
+    resultHead.style.gridTemplateColumns =
+      "26px minmax(160px, 1.2fr) minmax(160px, 1fr) 80px minmax(160px, 1fr)";
+    resultHead.style.gap = "6px";
+    resultHead.style.fontSize = "10px";
+    resultHead.style.fontWeight = "700";
+    resultHead.style.textTransform = "uppercase";
+    resultHead.style.color = "#475569";
+    resultHead.style.borderBottom = "1px solid rgba(0,0,0,0.08)";
+    resultHead.style.paddingBottom = "4px";
+    resultHead.append(
+      Object.assign(document.createElement("div"), { textContent: "" }),
+      Object.assign(document.createElement("div"), { textContent: "Begriff" }),
+      Object.assign(document.createElement("div"), { textContent: "Varianten" }),
+      Object.assign(document.createElement("div"), { textContent: "Häufigkeit" }),
+      Object.assign(document.createElement("div"), { textContent: "Quelle" })
+    );
+
+    const bulkActions = document.createElement("div");
+    bulkActions.style.display = "flex";
+    bulkActions.style.gap = "6px";
+    bulkActions.style.flexWrap = "wrap";
+    bulkActions.style.alignItems = "center";
+
+    const btnSelectAll = document.createElement("button");
+    btnSelectAll.type = "button";
+    btnSelectAll.textContent = "Alle auswählen";
+    applyPopupButtonStyle(btnSelectAll);
+    btnSelectAll.style.fontSize = "11px";
+    btnSelectAll.style.padding = "3px 8px";
+    btnSelectAll.style.minHeight = "22px";
+
+    const btnSelectNone = document.createElement("button");
+    btnSelectNone.type = "button";
+    btnSelectNone.textContent = "Alle abwählen";
+    applyPopupButtonStyle(btnSelectNone);
+    btnSelectNone.style.fontSize = "11px";
+    btnSelectNone.style.padding = "3px 8px";
+    btnSelectNone.style.minHeight = "22px";
+
+    const btnBulkAccept = document.createElement("button");
+    btnBulkAccept.type = "button";
+    btnBulkAccept.textContent = "Ausgewählte übernehmen";
+    applyPopupButtonStyle(btnBulkAccept, { variant: "primary" });
+    btnBulkAccept.style.fontSize = "11px";
+    btnBulkAccept.style.padding = "3px 8px";
+    btnBulkAccept.style.minHeight = "22px";
+
+    const btnBulkReject = document.createElement("button");
+    btnBulkReject.type = "button";
+    btnBulkReject.textContent = "Ausgewählte verwerfen";
+    applyPopupButtonStyle(btnBulkReject);
+    btnBulkReject.style.fontSize = "11px";
+    btnBulkReject.style.padding = "3px 8px";
+    btnBulkReject.style.minHeight = "22px";
+
+    bulkActions.append(btnSelectAll, btnSelectNone, btnBulkAccept, btnBulkReject);
+
+    const resultList = document.createElement("div");
+    resultList.style.display = "grid";
+    resultList.style.gap = "3px";
+
+    resultCard.append(resultTitle, resultHint, bulkActions, resultHead, resultList);
+
+    const acceptedCard = mkCard();
+    const acceptedTitle = document.createElement("div");
+    acceptedTitle.textContent = "Übernommene Wörter";
+    acceptedTitle.style.fontWeight = "800";
+
+    const acceptedList = document.createElement("div");
+    acceptedList.style.display = "grid";
+    acceptedList.style.gap = "6px";
+
+    acceptedCard.append(acceptedTitle, acceptedList);
+
+    wrap.append(sourceCard, scanCard, resultCard, acceptedCard);
+
+    let selectedDir = "";
+    let busy = false;
+    let lastScanFileCount = 0;
+    const selectedKeys = new Set();
+
+    const setBusy = (isBusy) => {
+      busy = !!isBusy;
+      btnPickFolder.disabled = busy;
+      btnScan.disabled = busy;
+      btnPickFolder.style.opacity = busy ? "0.6" : "1";
+      btnScan.style.opacity = busy ? "0.6" : "1";
+      updateBulkButtons();
+    };
+
+    const setSourcePath = (value) => {
+      selectedDir = String(value || "").trim();
+      sourcePath.textContent = selectedDir || "Kein Ordner ausgewählt";
+    };
+
+    const setProgress = ({ total = "-", current = "-", terms = "-", ok = "-", fail = "-" } = {}) => {
+      progressFiles.textContent = `Dateien gefunden: ${total}`;
+      progressCurrent.textContent = `Aktuelle Datei: ${current}`;
+      progressTerms.textContent = `Vorschläge gesammelt: ${terms}`;
+      progressOk.textContent = `Erfolgreich verarbeitet: ${ok}`;
+      progressFail.textContent = `Fehlgeschlagen: ${fail}`;
+    };
+
+    const parseVariants = (raw) => {
+      try {
+        const parsed = JSON.parse(raw || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const calcEditDistance = (a, b) => {
+      const s = String(a || "");
+      const t = String(b || "");
+      if (!s) return t.length;
+      if (!t) return s.length;
+      const dp = Array.from({ length: s.length + 1 }, () => new Array(t.length + 1).fill(0));
+      for (let i = 0; i <= s.length; i += 1) dp[i][0] = i;
+      for (let j = 0; j <= t.length; j += 1) dp[0][j] = j;
+      for (let i = 1; i <= s.length; i += 1) {
+        for (let j = 1; j <= t.length; j += 1) {
+          const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,
+            dp[i][j - 1] + 1,
+            dp[i - 1][j - 1] + cost
+          );
+        }
+      }
+      return dp[s.length][t.length];
+    };
+
+    const pickGroupTerm = (entries) => {
+      if (!entries.length) return "";
+      let best = entries[0];
+      for (const e of entries) {
+        const count = Number(e.count || 0);
+        const bestCount = Number(best.count || 0);
+        if (count > bestCount) {
+          best = e;
+          continue;
+        }
+        if (count === bestCount && String(e.term || "").length < String(best.term || "").length) {
+          best = e;
+        }
+      }
+      return String(best.term || best.normKey || "").trim();
+    };
+
+    const groupCollectedTerms = (entries) => {
+      const groups = [];
+      const sorted = [...entries].sort((a, b) => String(a.normKey || "").length - String(b.normKey || "").length);
+
+      const canJoinGroup = (entry, group) => {
+        const a = String(entry.normKey || "");
+        const b = String(group.baseNorm || "");
+        if (!a || !b) return false;
+        if (a === b) return true;
+        if (a.startsWith(b) && b.length >= 5) return true;
+        if (b.startsWith(a) && a.length >= 5) return true;
+        if (Math.abs(a.length - b.length) <= 2 && a.length <= 8) {
+          return calcEditDistance(a, b) <= 1;
+        }
+        if (Math.abs(a.length - b.length) <= 3 && a.length <= 10) {
+          return calcEditDistance(a, b) <= 2;
+        }
+        return false;
+      };
+
+      for (const entry of sorted) {
+        let target = null;
+        for (const group of groups) {
+          if (canJoinGroup(entry, group)) {
+            target = group;
+            break;
+          }
+        }
+        if (!target) {
+          target = {
+            baseNorm: entry.normKey,
+            entries: [],
+            variants: new Set(),
+            total: 0,
+            sourcePath: entry.sourcePath,
+            sourceExcerpt: entry.sourceExcerpt,
+          };
+          groups.push(target);
+        }
+        target.entries.push(entry);
+        target.total += Number(entry.count || 0);
+        for (const v of entry.variants || []) target.variants.add(v);
+        if (!target.sourcePath) target.sourcePath = entry.sourcePath;
+        if (!target.sourceExcerpt) target.sourceExcerpt = entry.sourceExcerpt;
+      }
+
+      return groups.map((group) => {
+        const term = pickGroupTerm(group.entries);
+        return {
+          normKey: String(group.baseNorm || "").trim(),
+          term: term || String(group.baseNorm || "").trim(),
+          variants: Array.from(group.variants),
+          frequency: group.total,
+          sourcePath: group.sourcePath,
+          sourceExcerpt: group.sourceExcerpt,
+        };
+      });
+    };
+
+    const updateBulkButtons = () => {
+      const hasSelection = selectedKeys.size > 0;
+      btnBulkAccept.disabled = busy || !hasSelection;
+      btnBulkReject.disabled = busy || !hasSelection;
+      btnSelectAll.disabled = busy;
+      btnSelectNone.disabled = busy;
+      btnBulkAccept.style.opacity = btnBulkAccept.disabled ? "0.6" : "1";
+      btnBulkReject.style.opacity = btnBulkReject.disabled ? "0.6" : "1";
+      btnSelectAll.style.opacity = btnSelectAll.disabled ? "0.6" : "1";
+      btnSelectNone.style.opacity = btnSelectNone.disabled ? "0.6" : "1";
+    };
+
+    const renderSuggestions = (rows) => {
+      resultList.innerHTML = "";
+      selectedKeys.clear();
+      const filtered = (rows || []).filter((r) => {
+        const status = String(r?.status || "").trim().toLowerCase();
+        return status === "pending" || status === "deferred";
+      });
+      if (!filtered.length) {
+        const empty = document.createElement("div");
+        empty.textContent = lastScanFileCount > 0
+          ? "Dateien erkannt, aber noch keine extrahierbaren Texttreffer (z.B. nur PDFs)."
+          : "Keine offenen Vorschläge.";
+        empty.style.fontSize = "12px";
+        empty.style.opacity = "0.75";
+        resultList.append(empty);
+        return;
+      }
+      for (const row of filtered) {
+        const status = String(row?.status || "").trim().toLowerCase();
+        const variants = parseVariants(row?.variants_json).slice(0, 6);
+        const variantText = variants.join(", ");
+        const frequency = Number(row?.frequency || 0);
+        const sourceText = String(row?.source_path || "").trim();
+        const excerptText = String(row?.source_excerpt || "").trim();
+
+        const rowEl = document.createElement("div");
+        rowEl.style.display = "grid";
+        rowEl.style.gridTemplateColumns =
+          "26px minmax(160px, 1.2fr) minmax(160px, 1fr) 70px minmax(160px, 1fr)";
+        rowEl.style.gap = "6px";
+        rowEl.style.alignItems = "center";
+        rowEl.style.padding = "4px 2px";
+        rowEl.style.borderBottom = "1px solid rgba(0,0,0,0.06)";
+
+        const checkWrap = document.createElement("div");
+        checkWrap.style.display = "flex";
+        checkWrap.style.alignItems = "center";
+        const check = document.createElement("input");
+        check.type = "checkbox";
+        check.dataset.key = String(row?.norm_key || "");
+        checkWrap.append(check);
+
+        const termEl = document.createElement("div");
+        termEl.style.fontWeight = "700";
+        termEl.style.fontSize = "12px";
+        termEl.textContent = String(row?.term || row?.norm_key || "").trim();
+
+        const variantsEl = document.createElement("div");
+        variantsEl.style.fontSize = "11px";
+        variantsEl.style.color = "#475569";
+        variantsEl.textContent = variantText || "-";
+
+        const freqEl = document.createElement("div");
+        freqEl.style.fontVariantNumeric = "tabular-nums";
+        freqEl.style.fontSize = "11px";
+        freqEl.textContent = Number.isFinite(frequency) ? String(frequency) : "0";
+
+        const sourceEl = document.createElement("div");
+        sourceEl.style.fontSize = "10px";
+        sourceEl.style.color = "#475569";
+        const sourceName = sourceText ? sourceText.split(/[\\/]/).pop() : "-";
+        sourceEl.textContent = sourceName || "-";
+        if (excerptText) {
+          const excerptEl = document.createElement("div");
+          excerptEl.style.fontSize = "9px";
+          excerptEl.style.opacity = "0.7";
+          excerptEl.textContent = excerptText;
+          sourceEl.append(excerptEl);
+        }
+
+        rowEl.append(checkWrap, termEl, variantsEl, freqEl, sourceEl);
+        resultList.append(rowEl);
+
+        check.onchange = () => {
+          if (check.checked) {
+            selectedKeys.add(String(row?.norm_key || ""));
+          } else {
+            selectedKeys.delete(String(row?.norm_key || ""));
+          }
+          updateBulkButtons();
+        };
+
+      }
+      updateBulkButtons();
+    };
+
+    const renderTerms = (rows) => {
+      acceptedList.innerHTML = "";
+      if (!rows || !rows.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "Noch keine übernommenen Wörter.";
+        empty.style.fontSize = "12px";
+        empty.style.opacity = "0.75";
+        acceptedList.append(empty);
+        return;
+      }
+      for (const row of rows) {
+        const rowEl = document.createElement("div");
+        rowEl.style.display = "grid";
+        rowEl.style.gridTemplateColumns = "minmax(180px, 1fr) minmax(160px, 1fr) minmax(200px, 1fr)";
+        rowEl.style.gap = "8px";
+        rowEl.style.alignItems = "center";
+        rowEl.style.padding = "6px 4px";
+        rowEl.style.borderBottom = "1px solid rgba(0,0,0,0.06)";
+
+        const termEl = document.createElement("div");
+        termEl.style.fontWeight = "700";
+        termEl.textContent = String(row?.term || row?.norm_key || "").trim();
+
+        const variants = parseVariants(row?.variants_json).slice(0, 6);
+        const variantsEl = document.createElement("div");
+        variantsEl.style.fontSize = "12px";
+        variantsEl.style.color = "#475569";
+        variantsEl.textContent = variants.join(", ") || "-";
+
+        const actionsEl = document.createElement("div");
+        actionsEl.style.display = "flex";
+        actionsEl.style.gap = "6px";
+        actionsEl.style.flexWrap = "wrap";
+
+        const isActive = Number(row?.is_active || 0) === 1;
+        const btnToggle = document.createElement("button");
+        btnToggle.type = "button";
+        btnToggle.textContent = isActive ? "Deaktivieren" : "Aktivieren";
+        applyPopupButtonStyle(btnToggle);
+
+        const btnDelete = document.createElement("button");
+        btnDelete.type = "button";
+        btnDelete.textContent = "Löschen";
+        btnDelete.style.background = "#c62828";
+        btnDelete.style.color = "white";
+        btnDelete.style.border = "1px solid rgba(0,0,0,0.25)";
+        btnDelete.style.borderRadius = "6px";
+        btnDelete.style.padding = "6px 10px";
+
+        actionsEl.append(btnToggle, btnDelete);
+        rowEl.append(termEl, variantsEl, actionsEl);
+        acceptedList.append(rowEl);
+
+        btnToggle.onclick = async () => {
+          if (busy) return;
+          const res = await api.dictionarySetTermActive({
+            normKey: row?.norm_key,
+            isActive: !isActive,
+          });
+          if (!res?.ok) {
+            alert(res?.error || "Status konnte nicht geändert werden.");
+            return;
+          }
+          await loadAllLists();
+        };
+
+        btnDelete.onclick = async () => {
+          if (busy) return;
+          const ok = confirm("Wort wirklich löschen?");
+          if (!ok) return;
+          const res = await api.dictionaryDeleteTerm({ normKey: row?.norm_key });
+          if (!res?.ok) {
+            alert(res?.error || "Löschen fehlgeschlagen.");
+            return;
+          }
+          await loadAllLists();
+        };
+      }
+    };
+
+    const loadAllLists = async () => {
+      const resSuggestions = await api.dictionaryListSuggestions();
+      if (resSuggestions?.ok) {
+        renderSuggestions(resSuggestions.suggestions || []);
+      } else {
+        renderSuggestions([]);
+      }
+      const resTerms = await api.dictionaryListTerms();
+      if (resTerms?.ok) {
+        renderTerms(resTerms.terms || []);
+      } else {
+        renderTerms([]);
+      }
+    };
+
+    const runBulkUpdate = async (status) => {
+      if (busy || selectedKeys.size === 0) return;
+      setBusy(true);
+      const keys = Array.from(selectedKeys);
+      for (const normKey of keys) {
+        const res = await api.dictionaryUpdateSuggestionStatus({ normKey, status });
+        if (!res?.ok) {
+          alert(res?.error || "Sammelaktion fehlgeschlagen.");
+          break;
+        }
+      }
+      await loadAllLists();
+      setBusy(false);
+    };
+
+    btnSelectAll.onclick = () => {
+      if (busy) return;
+      const checks = resultList.querySelectorAll("input[type='checkbox']");
+      checks.forEach((inp) => {
+        inp.checked = true;
+      });
+      selectedKeys.clear();
+      checks.forEach((inp) => {
+        const key = String(inp.dataset.key || "").trim();
+        if (key) selectedKeys.add(key);
+      });
+      updateBulkButtons();
+    };
+
+    btnSelectNone.onclick = () => {
+      if (busy) return;
+      const checks = resultList.querySelectorAll("input[type='checkbox']");
+      checks.forEach((inp) => {
+        inp.checked = false;
+      });
+      selectedKeys.clear();
+      updateBulkButtons();
+    };
+
+    btnBulkAccept.onclick = async () => {
+      await runBulkUpdate("accepted");
+    };
+
+    btnBulkReject.onclick = async () => {
+      await runBulkUpdate("rejected");
+    };
+
+    btnPickFolder.onclick = async () => {
+      if (busy) return;
+      if (typeof api.selectDirectory !== "function") {
+        alert("Ordnerauswahl ist nicht verfügbar.");
+        return;
+      }
+      const res = await api.selectDirectory({ title: "Ordner für Wörterbuch wählen" });
+      if (!res?.ok) {
+        alert(res?.error || "Ordner konnte nicht geöffnet werden.");
+        return;
+      }
+      if (res.canceled) return;
+      const nextPath = Array.isArray(res.filePaths) ? res.filePaths[0] : "";
+      if (nextPath) setSourcePath(nextPath);
+    };
+
+    btnScan.onclick = async () => {
+      if (busy) return;
+      if (!selectedDir) {
+        alert("Bitte zuerst einen Ordner auswählen.");
+        return;
+      }
+      if (typeof api.dictionaryListFiles !== "function" || typeof api.dictionaryExtractTermsFromFile !== "function") {
+        alert("Wörterbuch-Scan ist nicht verfügbar.");
+        return;
+      }
+
+      setBusy(true);
+      scanStatus.textContent = "Suche läuft...";
+      setProgress({ total: "-", current: "-", terms: "0", ok: "0", fail: "0" });
+      errorList.innerHTML = "";
+
+      const fileRes = await api.dictionaryListFiles({ dirPath: selectedDir });
+      if (!fileRes?.ok) {
+        scanStatus.textContent = fileRes?.error || "Ordner konnte nicht gelesen werden.";
+        lastScanFileCount = 0;
+        setBusy(false);
+        return;
+      }
+
+      const files = Array.isArray(fileRes.files) ? fileRes.files : [];
+      if (!files.length) {
+        scanStatus.textContent = "Keine passenden Dateien gefunden.";
+        setProgress({ total: "0", current: "-", terms: "0", ok: "0", fail: "0" });
+        lastScanFileCount = 0;
+        setBusy(false);
+        return;
+      }
+
+      lastScanFileCount = files.length;
+      const collected = new Map();
+      let pdfNoTextCount = 0;
+      let noTermsCount = 0;
+      let errorCount = 0;
+      let okCount = 0;
+      setProgress({ total: files.length, current: "-", terms: "0", ok: "0", fail: "0" });
+
+      for (let i = 0; i < files.length; i += 1) {
+        const filePath = files[i];
+        const fileName = filePath.split(/[\\/]/).pop();
+        setProgress({
+          total: files.length,
+          current: fileName || filePath,
+          terms: collected.size,
+          ok: okCount,
+          fail: errorCount,
+        });
+        const res = await api.dictionaryExtractTermsFromFile({ filePath });
+        if (!res?.ok) {
+          errorCount += 1;
+          const msg = String(res?.error || "Unbekannter Fehler").trim();
+          const item = document.createElement("div");
+          item.textContent = `${fileName || filePath} → ${msg}`;
+          errorList.append(item);
+        } else if (res?.note === "pdf_no_text") {
+          pdfNoTextCount += 1;
+          const item = document.createElement("div");
+          item.textContent = `${fileName || filePath} → kein Text extrahierbar`;
+          errorList.append(item);
+        } else if (res?.note === "no_terms") {
+          noTermsCount += 1;
+          const item = document.createElement("div");
+          item.textContent = `${fileName || filePath} → keine verwertbaren Begriffe`;
+          errorList.append(item);
+        } else {
+          okCount += 1;
+        }
+        if (res?.ok && Array.isArray(res.terms)) {
+          for (const term of res.terms) {
+            const normKey = String(term?.normKey || "").trim();
+            if (!normKey) continue;
+            let entry = collected.get(normKey);
+            if (!entry) {
+              entry = {
+                normKey,
+                term: Array.isArray(term?.variants) && term.variants[0] ? term.variants[0] : normKey,
+                count: 0,
+                variants: new Set(),
+                sourcePath: filePath,
+                sourceExcerpt: String(term?.excerpt || "").trim(),
+              };
+              collected.set(normKey, entry);
+            }
+            entry.count += Number(term?.count || 0);
+            const variants = Array.isArray(term?.variants) ? term.variants : [];
+            for (const v of variants) {
+              if (!v) continue;
+              entry.variants.add(v);
+            }
+          }
+        }
+        setProgress({
+          total: files.length,
+          current: fileName || filePath,
+          terms: collected.size,
+          ok: okCount,
+          fail: errorCount,
+        });
+      }
+
+      const rawEntries = Array.from(collected.values());
+      const payload = groupCollectedTerms(rawEntries);
+
+      if (payload.length && typeof api.dictionaryApplyScanResults === "function") {
+        const saveRes = await api.dictionaryApplyScanResults({ suggestions: payload });
+        if (!saveRes?.ok) {
+          scanStatus.textContent = saveRes?.error || "Speichern fehlgeschlagen.";
+          setBusy(false);
+          return;
+        }
+      }
+
+      const summaryParts = [];
+      if (pdfNoTextCount > 0) summaryParts.push(`PDFs ohne Text: ${pdfNoTextCount}`);
+      if (noTermsCount > 0) summaryParts.push(`Dateien ohne Treffer: ${noTermsCount}`);
+      if (errorCount > 0) summaryParts.push(`Fehler: ${errorCount}`);
+      const summary = summaryParts.length ? ` (${summaryParts.join(", ")})` : "";
+      scanStatus.textContent = `Suche abgeschlossen: ${payload.length} Vorschläge${summary}`;
+      await loadAllLists();
+      setBusy(false);
+    };
+
+    await loadAllLists();
+    this._openSettingsModal({
+      title: "Wörterbuch",
+      content: [wrap],
+      closeOnly: true,
+    });
+  }
+
   async load() {
     await this._reload();
   }
@@ -3859,7 +4596,12 @@ export default class SettingsView {
     this.settingsModalTitleEl.textContent = (title || "").toString();
     if (this.settingsModalEl) {
       const titleNorm = String(title || "").trim().toLowerCase();
-      const isCompactPopup = titleNorm === "nutzereinstellungen" || titleNorm === "entwicklung";
+      const isCompactPopup =
+        titleNorm === "nutzereinstellungen" ||
+        titleNorm === "entwicklung" ||
+        titleNorm === "woerterbuch" ||
+        titleNorm === "wörterbuch";
+      const isUserSettingsPopup = titleNorm === "nutzereinstellungen";
       const isPrintSettingsPopup = titleNorm === "druckeinstellungen";
       const isLayoutPopup = titleNorm === "druck-layout";
       if (isPrintSettingsPopup) {

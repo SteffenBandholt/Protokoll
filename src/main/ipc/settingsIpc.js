@@ -28,6 +28,145 @@ const SETTINGS_PIN_KEYS = [
   "security.settingsPinSalt",
   "security.settingsPinHash",
 ];
+const DICTIONARY_ALLOWED_EXTENSIONS = new Set([
+  ".txt",
+  ".md",
+  ".csv",
+  ".json",
+  ".log",
+  ".xml",
+  ".html",
+  ".htm",
+  ".rtf",
+  ".pdf",
+]);
+const DICTIONARY_IGNORE_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  "out",
+  "coverage",
+  ".vs",
+  ".vscode",
+  ".idea",
+  "tmp",
+  "temp",
+]);
+const DICTIONARY_MAX_FILE_SIZE = 10 * 1024 * 1024;
+const DICTIONARY_STOPWORDS = new Set([
+  "der",
+  "die",
+  "das",
+  "den",
+  "dem",
+  "des",
+  "und",
+  "oder",
+  "nicht",
+  "ein",
+  "eine",
+  "einer",
+  "einem",
+  "einen",
+  "mit",
+  "ohne",
+  "im",
+  "in",
+  "am",
+  "an",
+  "auf",
+  "ueber",
+  "über",
+  "unter",
+  "bei",
+  "nach",
+  "vor",
+  "bis",
+  "aus",
+  "fuer",
+  "fur",
+  "von",
+  "ist",
+  "sind",
+  "war",
+  "waren",
+  "wird",
+  "werden",
+  "auch",
+  "nur",
+  "als",
+  "wie",
+  "zum",
+  "zur",
+  "dass",
+  "bitte",
+  "heute",
+  "morgen",
+  "gestern",
+  "immer",
+  "sofort",
+  "erfolgt",
+  "naechste",
+  "nächste",
+  "naechster",
+  "naechstes",
+  "wichtig",
+  "neu",
+  "fertig",
+  "pruefen",
+  "prüfen",
+  "machen",
+  "gemacht",
+  "geht",
+  "gehen",
+  "kommt",
+  "kommen",
+  "einfach",
+  "planen",
+  "geplant",
+  "klären",
+  "klaeren",
+  "haus",
+  "schule",
+  "geraet",
+  "gerät",
+  "ordnung",
+  "arbeits",
+  "protokoll",
+  "baubesprechung",
+  "offen",
+  "erledigt",
+  "status",
+  "datum",
+  "nr",
+  "seite",
+]);
+const DICTIONARY_MIN_LEN = 5;
+const DICTIONARY_SHORT_EXCEPTIONS = new Set([
+  "sohl",
+  "sohle",
+  "rohr",
+  "deck",
+  "deckel",
+  "wand",
+  "dach",
+  "fahr",
+  "plan",
+  "bema",
+  "bemaß",
+  "ava",
+  "tga",
+]);
+const DICTIONARY_FRAGMENT_TOKENS = new Set([
+  "fangung",
+  "entwaesse",
+  "entwaess",
+  "leitungs",
+  "sohl",
+  "verleg",
+  "unterf",
+]);
 
 function _normalizePin(raw) {
   return String(raw == null ? "" : raw).replace(/\D+/g, "").slice(0, 4);
@@ -123,6 +262,168 @@ function _normalizeRoleOrder(raw, labelsMap) {
 
   if (!out.includes(FALLBACK_ROLE_CODE)) out.push(FALLBACK_ROLE_CODE);
   return out;
+}
+
+function _normalizeDictionaryTerm(raw) {
+  const lower = String(raw || "").toLowerCase();
+  const swapped = lower
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss");
+  return swapped.replace(/[^a-z0-9]/g, "");
+}
+
+async function _loadPdfJs() {
+  try {
+    // Lazy-load to avoid startup penalty if PDFs are not used.
+    // eslint-disable-next-line global-require
+    return require("pdfjs-dist/legacy/build/pdf.js");
+  } catch (_err) {
+    try {
+      const mod = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      return mod?.getDocument ? mod : mod?.default || mod;
+    } catch (err) {
+      console.warn("[dictionary] pdfjs-dist fehlt", err?.message || err);
+      return null;
+    }
+  }
+}
+
+async function _extractPdfText(filePath) {
+  const pdfjs = await _loadPdfJs();
+  if (!pdfjs) return { ok: false, error: "PDF-Text kann nicht gelesen werden (pdfjs-dist fehlt)." };
+  const buffer = fs.readFileSync(filePath);
+  const data = new Uint8Array(buffer);
+  const loadingTask = pdfjs.getDocument({ data, disableWorker: true });
+  const pdf = await loadingTask.promise;
+  let fullText = "";
+  for (let p = 1; p <= pdf.numPages; p += 1) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const pageText = (content.items || []).map((item) => item.str).join(" ");
+    fullText += `${pageText}\n`;
+  }
+  return { ok: true, text: fullText, pages: pdf.numPages };
+}
+
+function _cleanPdfText(raw) {
+  let text = String(raw || "");
+  text = text.replace(/\r\n?/g, "\n");
+  text = text.replace(/(\w)[-]\n(\w)/g, "$1$2");
+  const lines = text.split("\n").map((line) => String(line || "").trim());
+  const cleaned = [];
+  for (const line of lines) {
+    if (!line) continue;
+    if (line.length <= 2) continue;
+    if (/^[-_]{3,}$/.test(line)) continue;
+    if (/^[\d\s.,;:/-]+$/.test(line)) continue;
+    if ((line.match(/\|/g) || []).length >= 2) continue;
+    cleaned.push(line);
+  }
+  text = cleaned.join("\n");
+  text = text.replace(/([^\n])\n([^\n])/g, "$1 $2");
+  text = text.replace(/\s{2,}/g, " ");
+  return text.trim();
+}
+
+function _isLikelyTextBuffer(buffer) {
+  if (!buffer || !buffer.length) return false;
+  for (let i = 0; i < Math.min(buffer.length, 2048); i += 1) {
+    if (buffer[i] === 0) return false;
+  }
+  return true;
+}
+
+function _extractDictionaryTermsFromText(text) {
+  const out = new Map();
+  const pattern = /[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9\-_/]{2,}/g;
+  let match = null;
+  while ((match = pattern.exec(text)) !== null) {
+    const token = match[0] || "";
+    if (token.length > 60) continue;
+    if (/^[-_]/.test(token) || /[-_]$/.test(token)) continue;
+    const norm = _normalizeDictionaryTerm(token);
+    if (norm.length < 3) continue;
+    if (norm.length < DICTIONARY_MIN_LEN && !DICTIONARY_SHORT_EXCEPTIONS.has(norm)) continue;
+    if (/^\d+$/.test(norm)) continue;
+    if (/^\d{1,2}[./-]\d{1,2}([./-]\d{2,4})?$/.test(token)) continue;
+    if (/^\d{4}[./-]\d{1,2}[./-]\d{1,2}$/.test(token)) continue;
+    if (DICTIONARY_STOPWORDS.has(norm)) continue;
+    if (DICTIONARY_STOPWORDS.has(String(token || "").toLowerCase())) continue;
+    if (DICTIONARY_FRAGMENT_TOKENS.has(norm)) continue;
+    if (/^[a-zäöüß]+$/.test(token) && norm.length <= 5 && !DICTIONARY_SHORT_EXCEPTIONS.has(norm)) {
+      continue;
+    }
+    if (/[a-z]/.test(token) && /[A-ZÄÖÜ]/.test(token) === false && token.length <= 5) {
+      continue;
+    }
+    let entry = out.get(norm);
+    if (!entry) {
+      entry = {
+        normKey: norm,
+        count: 0,
+        variants: new Set(),
+        firstIndex: match.index,
+      };
+      out.set(norm, entry);
+    }
+    entry.count += 1;
+    entry.variants.add(token);
+  }
+
+  const entries = [];
+  for (const entry of out.values()) {
+    const start = Math.max(0, (entry.firstIndex || 0) - 40);
+    const end = Math.min(text.length, (entry.firstIndex || 0) + 60);
+    const excerpt = String(text.slice(start, end)).replace(/\s+/g, " ").trim();
+    entries.push({
+      normKey: entry.normKey,
+      count: entry.count,
+      variants: Array.from(entry.variants),
+      excerpt,
+    });
+  }
+  return entries;
+}
+
+function _listDictionaryFiles(rootDir) {
+  const files = [];
+  const stack = [rootDir];
+  while (stack.length) {
+    const current = stack.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const name = entry.name || "";
+      if (!name) continue;
+      const fullPath = path.join(current, name);
+      if (entry.isDirectory()) {
+        if (DICTIONARY_IGNORE_DIRS.has(name)) continue;
+        if (name.startsWith(".")) continue;
+        stack.push(fullPath);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      const ext = path.extname(name).toLowerCase();
+      if (!DICTIONARY_ALLOWED_EXTENSIONS.has(ext)) continue;
+      let size = 0;
+      try {
+        size = fs.statSync(fullPath).size;
+      } catch {
+        continue;
+      }
+      if (size > DICTIONARY_MAX_FILE_SIZE) continue;
+      files.push(fullPath);
+    }
+  }
+  files.sort((a, b) => a.localeCompare(b));
+  return files;
 }
 
 function registerSettingsIpc() {
@@ -455,6 +756,264 @@ function registerSettingsIpc() {
   ipcMain.handle("db:diagnostics", async () => {
     try {
       return { ok: true, data: getDatabaseDiagnostics() };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:listFiles", async (_evt, payload) => {
+    try {
+      const dirPath = String(payload?.dirPath || "").trim();
+      if (!dirPath) return { ok: false, error: "dirPath fehlt" };
+      if (!fs.existsSync(dirPath)) return { ok: false, error: "Ordner nicht gefunden" };
+      const stat = fs.statSync(dirPath);
+      if (!stat.isDirectory()) return { ok: false, error: "Pfad ist kein Ordner" };
+      const files = _listDictionaryFiles(dirPath);
+      return { ok: true, files, totalCount: files.length };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:extractTermsFromFile", async (_evt, payload) => {
+    try {
+      const filePath = String(payload?.filePath || "").trim();
+      if (!filePath) return { ok: false, error: "filePath fehlt" };
+      if (!fs.existsSync(filePath)) return { ok: false, error: "Datei nicht gefunden" };
+      const stat = fs.statSync(filePath);
+      if (!stat.isFile()) return { ok: false, error: "Pfad ist keine Datei" };
+      if (stat.size > DICTIONARY_MAX_FILE_SIZE) {
+        return { ok: false, error: "Datei ist zu groß" };
+      }
+      const ext = path.extname(filePath).toLowerCase();
+      if (ext === ".pdf") {
+        const pdfRes = await _extractPdfText(filePath);
+        if (!pdfRes.ok) return { ok: false, error: pdfRes.error || "PDF konnte nicht gelesen werden." };
+        const cleaned = _cleanPdfText(pdfRes.text || "");
+        if (!cleaned) {
+          return { ok: true, filePath, terms: [], note: "pdf_no_text" };
+        }
+        const terms = _extractDictionaryTermsFromText(cleaned);
+        if (!terms.length) {
+          return { ok: true, filePath, terms: [], note: "no_terms" };
+        }
+        return { ok: true, filePath, terms };
+      }
+
+      const buffer = fs.readFileSync(filePath);
+      if (!_isLikelyTextBuffer(buffer)) {
+        return { ok: false, error: "Keine Textdatei" };
+      }
+      const text = buffer.toString("utf8");
+      const terms = _extractDictionaryTermsFromText(text);
+      if (!terms.length) return { ok: true, filePath, terms: [], note: "no_terms" };
+      return { ok: true, filePath, terms };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:applyScanResults", async (_evt, payload) => {
+    try {
+      const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
+      const db = initDatabase();
+      const now = new Date().toISOString();
+      const selectStmt = db.prepare(
+        "SELECT norm_key, term, variants_json, frequency, status, source_path, source_excerpt FROM dictionary_suggestions WHERE norm_key = ?"
+      );
+      const insertStmt = db.prepare(`
+        INSERT INTO dictionary_suggestions
+          (norm_key, term, variants_json, frequency, source_path, source_excerpt, status, created_at, updated_at)
+        VALUES
+          (@norm_key, @term, @variants_json, @frequency, @source_path, @source_excerpt, @status, @created_at, @updated_at)
+      `);
+      const updateStmt = db.prepare(`
+        UPDATE dictionary_suggestions
+        SET term=@term, variants_json=@variants_json, frequency=@frequency, source_path=@source_path,
+            source_excerpt=@source_excerpt, status=@status, updated_at=@updated_at
+        WHERE norm_key=@norm_key
+      `);
+
+      const tx = db.transaction(() => {
+        for (const item of suggestions) {
+          const normKey = String(item?.normKey || "").trim();
+          if (!normKey) continue;
+          const term = String(item?.term || "").trim() || normKey;
+          const variants = Array.isArray(item?.variants) ? item.variants.map((v) => String(v || "").trim()).filter(Boolean) : [];
+          const frequency = Number(item?.frequency || 0);
+          const sourcePath = String(item?.sourcePath || "").trim();
+          const sourceExcerpt = String(item?.sourceExcerpt || "").trim();
+          const existing = selectStmt.get(normKey);
+
+          if (!existing) {
+            insertStmt.run({
+              norm_key: normKey,
+              term,
+              variants_json: JSON.stringify(Array.from(new Set(variants))),
+              frequency: Number.isFinite(frequency) && frequency > 0 ? Math.floor(frequency) : 0,
+              source_path: sourcePath,
+              source_excerpt: sourceExcerpt,
+              status: "pending",
+              created_at: now,
+              updated_at: now,
+            });
+            continue;
+          }
+
+          let existingVariants = [];
+          try {
+            const parsed = JSON.parse(existing.variants_json || "[]");
+            if (Array.isArray(parsed)) existingVariants = parsed;
+          } catch {
+            existingVariants = [];
+          }
+          const mergedVariants = Array.from(new Set([...existingVariants, ...variants])).slice(0, 12);
+          const mergedFrequency = Math.max(0, Number(existing.frequency || 0)) + (Number.isFinite(frequency) ? Math.max(0, Math.floor(frequency)) : 0);
+          const nextStatus = String(existing.status || "pending").trim() || "pending";
+          updateStmt.run({
+            norm_key: normKey,
+            term: existing.term || term,
+            variants_json: JSON.stringify(mergedVariants),
+            frequency: mergedFrequency,
+            source_path: existing.source_path || sourcePath,
+            source_excerpt: existing.source_excerpt || sourceExcerpt,
+            status: nextStatus,
+            updated_at: now,
+          });
+        }
+      });
+      tx();
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:listSuggestions", async () => {
+    try {
+      const db = initDatabase();
+      const rows = db.prepare(`
+        SELECT norm_key, term, variants_json, frequency, source_path, source_excerpt, status, created_at, updated_at
+        FROM dictionary_suggestions
+        ORDER BY
+          CASE status
+            WHEN 'pending' THEN 0
+            WHEN 'deferred' THEN 1
+            WHEN 'accepted' THEN 2
+            WHEN 'rejected' THEN 3
+            ELSE 4
+          END,
+          frequency DESC,
+          term ASC
+      `).all();
+      return { ok: true, suggestions: rows || [] };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:updateSuggestionStatus", async (_evt, payload) => {
+    try {
+      const normKey = String(payload?.normKey || "").trim();
+      const status = String(payload?.status || "").trim().toLowerCase();
+      const allowed = new Set(["pending", "accepted", "rejected", "deferred"]);
+      if (!normKey) return { ok: false, error: "normKey fehlt" };
+      if (!allowed.has(status)) return { ok: false, error: "Status ungueltig" };
+      const db = initDatabase();
+      const now = new Date().toISOString();
+      const suggestion = db.prepare(
+        "SELECT norm_key, term, variants_json, status FROM dictionary_suggestions WHERE norm_key = ?"
+      ).get(normKey);
+      if (!suggestion) return { ok: false, error: "Vorschlag nicht gefunden" };
+
+      if (status === "accepted") {
+        const termRow = db.prepare(
+          "SELECT norm_key, variants_json FROM dictionary_terms WHERE norm_key = ?"
+        ).get(normKey);
+        let mergedVariants = [];
+        let suggestionVariants = [];
+        try {
+          const parsed = JSON.parse(suggestion.variants_json || "[]");
+          if (Array.isArray(parsed)) suggestionVariants = parsed;
+        } catch {
+          suggestionVariants = [];
+        }
+        if (termRow) {
+          let existingVariants = [];
+          try {
+            const parsed = JSON.parse(termRow.variants_json || "[]");
+            if (Array.isArray(parsed)) existingVariants = parsed;
+          } catch {
+            existingVariants = [];
+          }
+          mergedVariants = Array.from(new Set([...existingVariants, ...suggestionVariants])).slice(0, 12);
+          db.prepare(`
+            UPDATE dictionary_terms
+            SET term=?, variants_json=?, is_active=1, updated_at=?
+            WHERE norm_key=?
+          `).run(suggestion.term, JSON.stringify(mergedVariants), now, normKey);
+        } else {
+          mergedVariants = Array.from(new Set([...suggestionVariants])).slice(0, 12);
+          db.prepare(`
+            INSERT INTO dictionary_terms
+              (norm_key, term, variants_json, is_active, created_at, updated_at)
+            VALUES
+              (?, ?, ?, 1, ?, ?)
+          `).run(normKey, suggestion.term, JSON.stringify(mergedVariants), now, now);
+        }
+      }
+
+      db.prepare(`
+        UPDATE dictionary_suggestions
+        SET status=?, updated_at=?
+        WHERE norm_key=?
+      `).run(status, now, normKey);
+
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:listTerms", async () => {
+    try {
+      const db = initDatabase();
+      const rows = db.prepare(`
+        SELECT norm_key, term, variants_json, is_active, created_at, updated_at
+        FROM dictionary_terms
+        ORDER BY term ASC
+      `).all();
+      return { ok: true, terms: rows || [] };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:setTermActive", async (_evt, payload) => {
+    try {
+      const normKey = String(payload?.normKey || "").trim();
+      const isActive = payload?.isActive ? 1 : 0;
+      if (!normKey) return { ok: false, error: "normKey fehlt" };
+      const db = initDatabase();
+      const now = new Date().toISOString();
+      db.prepare(`
+        UPDATE dictionary_terms
+        SET is_active=?, updated_at=?
+        WHERE norm_key=?
+      `).run(isActive, now, normKey);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
+
+  ipcMain.handle("dictionary:deleteTerm", async (_evt, payload) => {
+    try {
+      const normKey = String(payload?.normKey || "").trim();
+      if (!normKey) return { ok: false, error: "normKey fehlt" };
+      const db = initDatabase();
+      db.prepare("DELETE FROM dictionary_terms WHERE norm_key=?").run(normKey);
+      return { ok: true };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
     }

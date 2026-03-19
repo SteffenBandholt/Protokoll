@@ -73,3 +73,24 @@ CREATE TABLE IF NOT EXISTS meeting_tops (
   FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
   FOREIGN KEY (top_id) REFERENCES tops(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS dictionary_suggestions (
+  norm_key TEXT PRIMARY KEY,
+  term TEXT NOT NULL,
+  variants_json TEXT,
+  frequency INTEGER NOT NULL DEFAULT 0,
+  source_path TEXT,
+  source_excerpt TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS dictionary_terms (
+  norm_key TEXT PRIMARY KEY,
+  term TEXT NOT NULL,
+  variants_json TEXT,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);

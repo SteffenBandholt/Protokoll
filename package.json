@@ -20,7 +20,8 @@
     "electron-builder": "^24.13.3"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.6.2",
+    "pdfjs-dist": "^4.10.38"
   },
   "build": {
     "appId": "de.bbm.baubesprechungsmanager",
