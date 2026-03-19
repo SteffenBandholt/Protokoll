@@ -1040,6 +1040,7 @@ export default class SettingsView {
     const TRIAL_ENABLED_KEY = "trial.enabled";
     const TOPS_FONT_LIST_KEY = "tops.fontscale.list";
     const TOPS_FONT_EDIT_KEY = "tops.fontscale.editbox";
+    const AUDIO_WHISPER_QUALITY_KEY = "audio.whisper.quality";
     const PRINT_V2_PAD_LEFT_KEY = "print.v2.pagePadLeftMm";
     const PRINT_V2_PAD_RIGHT_KEY = "print.v2.pagePadRightMm";
     const PRINT_V2_PAD_TOP_KEY = "print.v2.pagePadTopMm";
@@ -1619,6 +1620,119 @@ export default class SettingsView {
     rowList.style.marginBottom = "8px";
 
     fontScaleBox.append(fontScaleTitle, rowList, rowEdit, fontScaleMsg);
+
+    const whisperBox = document.createElement("div");
+    applyPopupCardStyle(whisperBox);
+    whisperBox.style.padding = "6px 8px";
+    whisperBox.style.maxWidth = "680px";
+    whisperBox.style.marginTop = "0";
+    whisperBox.style.width = "calc(100% - 8mm)";
+    whisperBox.style.justifySelf = "end";
+    whisperBox.style.marginLeft = "auto";
+
+    const whisperTitle = document.createElement("div");
+    whisperTitle.textContent = "Spracherkennung (Qualit?t)";
+    whisperTitle.style.fontWeight = "bold";
+    whisperTitle.style.marginBottom = "4px";
+    whisperTitle.style.fontSize = "13px";
+
+    const whisperMsg = document.createElement("div");
+    whisperMsg.style.fontSize = "11px";
+    whisperMsg.style.opacity = "0.75";
+    whisperMsg.style.marginTop = "2px";
+
+    let whisperQuality = "fast";
+    let whisperModels = {
+      fast: { available: true },
+      balanced: { available: true },
+      best: { available: true },
+    };
+
+    const btnWhisperFast = document.createElement("button");
+    btnWhisperFast.textContent = "Schnell";
+    applyScaleBtnBase(btnWhisperFast);
+    const btnWhisperBalanced = document.createElement("button");
+    btnWhisperBalanced.textContent = "Ausgewogen";
+    applyScaleBtnBase(btnWhisperBalanced);
+    const btnWhisperBest = document.createElement("button");
+    btnWhisperBest.textContent = "Beste Qualit?t";
+    applyScaleBtnBase(btnWhisperBest);
+
+    const setWhisperBtnEnabled = (btn, enabled) => {
+      btn.disabled = !enabled;
+      btn.style.opacity = enabled ? "1" : "0.55";
+      btn.style.cursor = enabled ? "pointer" : "default";
+      btn.title = enabled ? "" : "Modell nicht installiert";
+    };
+
+    const applyWhisperUi = () => {
+      setScaleBtnActive(btnWhisperFast, whisperQuality === "fast");
+      setScaleBtnActive(btnWhisperBalanced, whisperQuality === "balanced");
+      setScaleBtnActive(btnWhisperBest, whisperQuality === "best");
+      setWhisperBtnEnabled(btnWhisperFast, !!whisperModels.fast?.available);
+      setWhisperBtnEnabled(btnWhisperBalanced, !!whisperModels.balanced?.available);
+      setWhisperBtnEnabled(btnWhisperBest, !!whisperModels.best?.available);
+      const current = whisperModels[whisperQuality];
+      whisperMsg.textContent = current && current.available ? "" : "Modell nicht installiert.";
+    };
+
+    const loadWhisperQualitySettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsGetMany === "function") {
+        const res = await api.appSettingsGetMany([AUDIO_WHISPER_QUALITY_KEY]);
+        if (res?.ok) {
+          const raw = String(res.data?.[AUDIO_WHISPER_QUALITY_KEY] || "").trim().toLowerCase();
+          whisperQuality = ["fast", "balanced", "best"].includes(raw) ? raw : "fast";
+        }
+      }
+      if (typeof api.audioWhisperModelsStatus === "function") {
+        const res = await api.audioWhisperModelsStatus();
+        if (res?.ok && res.models) whisperModels = res.models;
+      }
+      applyWhisperUi();
+    };
+
+    const saveWhisperQualitySettings = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.appSettingsSetMany !== "function") {
+        whisperMsg.textContent = "Settings-API fehlt (IPC noch nicht aktiv).";
+        return false;
+      }
+      const res = await api.appSettingsSetMany({
+        [AUDIO_WHISPER_QUALITY_KEY]: whisperQuality,
+      });
+      if (!res?.ok) {
+        whisperMsg.textContent = res?.error || "Speichern fehlgeschlagen";
+        return false;
+      }
+      whisperMsg.textContent = "Gespeichert";
+      setTimeout(() => {
+        if (whisperMsg.textContent === "Gespeichert") whisperMsg.textContent = "";
+      }, 900);
+      return true;
+    };
+
+    btnWhisperFast.onclick = async () => {
+      if (!whisperModels.fast?.available) return;
+      whisperQuality = "fast";
+      applyWhisperUi();
+      await saveWhisperQualitySettings();
+    };
+    btnWhisperBalanced.onclick = async () => {
+      if (!whisperModels.balanced?.available) return;
+      whisperQuality = "balanced";
+      applyWhisperUi();
+      await saveWhisperQualitySettings();
+    };
+    btnWhisperBest.onclick = async () => {
+      if (!whisperModels.best?.available) return;
+      whisperQuality = "best";
+      applyWhisperUi();
+      await saveWhisperQualitySettings();
+    };
+
+    const whisperRow = mkScaleGroup("Modell", [btnWhisperFast, btnWhisperBalanced, btnWhisperBest]);
+    whisperBox.append(whisperTitle, whisperRow, whisperMsg);
 
     const devTopCardsRow = document.createElement("div");
     devTopCardsRow.style.display = "grid";
@@ -4642,7 +4756,12 @@ export default class SettingsView {
         tabDb.style.gap = "10px";
         tabDb.append(dbDiagBox);
 
-        const tabTools = document.createElement("div");
+        const tabWhisper = document.createElement("div");
+    tabWhisper.style.display = "grid";
+    tabWhisper.style.gap = "10px";
+    tabWhisper.append(whisperBox);
+
+    const tabTools = document.createElement("div");
         tabTools.style.display = "grid";
         tabTools.style.gap = "10px";
         tabTools.append(dictionaryBox, printBox, topsLimitBox);
@@ -4651,11 +4770,19 @@ export default class SettingsView {
           { key: "version", label: "Versionierung", el: tabVersion },
           { key: "license", label: "Lizenz / bearbeiten", el: tabLicense },
           { key: "db", label: "DB-Diagnose", el: tabDb },
+          { key: "whisper", label: "Whisper Modelle", el: tabWhisper },
           { key: "tools", label: "W?rterbuch / Druck / TOP-Liste", el: tabTools },
         ];
 
         const tabButtons = new Map();
+        let whisperLoaded = false;
         const setDevTab = (key) => {
+          if (key === "whisper" && !whisperLoaded) {
+            whisperLoaded = true;
+            if (typeof loadWhisperQualitySettings === "function") {
+              loadWhisperQualitySettings();
+            }
+          }
           devTabs.forEach((tab) => {
             const isActive = tab.key === key;
             tab.el.style.display = isActive ? "grid" : "none";
@@ -4681,10 +4808,11 @@ export default class SettingsView {
           makeDevTabButton("Versionierung", "version"),
           makeDevTabButton("Lizenz / bearbeiten", "license"),
           makeDevTabButton("DB-Diagnose", "db"),
+          makeDevTabButton("Whisper Modelle", "whisper"),
           makeDevTabButton("W?rterbuch / Druck / TOP-Liste", "tools")
         );
 
-        devTabBody.append(tabVersion, tabLicense, tabDb, tabTools);
+        devTabBody.append(tabVersion, tabLicense, tabDb, tabWhisper, tabTools);
         devTabWrap.append(devTabHead, devTabBody);
         setDevTab("version");
 

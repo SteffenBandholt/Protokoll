@@ -73,6 +73,21 @@ contextBridge.exposeInMainWorld("bbmDb", {
   audioTermCorrectionUpsert: (data) => ipcRenderer.invoke("audio:termCorrectionUpsert", data),
 
   // ============================================================
+  // Audio / KI
+  // ============================================================
+  audioImport: (data) => ipcRenderer.invoke("audio:import", data),
+  audioTranscribe: (data) => ipcRenderer.invoke("audio:transcribe", data),
+  audioTranscribeBlob: (data) => ipcRenderer.invoke("audio:transcribeBlob", data),
+  audioAnalyze: (data) => ipcRenderer.invoke("audio:analyze", data),
+  audioGetSuggestions: (data) => ipcRenderer.invoke("audio:getSuggestions", data),
+  audioCreateDemoSuggestion: (data) => ipcRenderer.invoke("audio:createDemoSuggestion", data),
+  audioApplySuggestion: (data) => ipcRenderer.invoke("audio:applySuggestion", data),
+  audioRejectSuggestion: (data) => ipcRenderer.invoke("audio:rejectSuggestion", data),
+  audioWhisperModelsStatus: () => ipcRenderer.invoke("audio:whisperModelsStatus"),
+  audioTermCorrectionsList: (data) => ipcRenderer.invoke("audio:termCorrectionsList", data),
+  audioTermCorrectionUpsert: (data) => ipcRenderer.invoke("audio:termCorrectionUpsert", data),
+
+  // ============================================================
   // GLOBAL Firmen
   // ============================================================
   firmsListGlobal: () => ipcRenderer.invoke("firms:listGlobal"),
@@ -199,6 +214,11 @@ contextBridge.exposeInMainWorld("bbmDb", {
   licenseLoadForEdit: (data) => ipcRenderer.invoke("license:load-for-edit", data),
   licenseGenerate: (data) => ipcRenderer.invoke("license:generate", data),
   licenseOpenOutputDir: (data) => ipcRenderer.invoke("license:open-output-dir", data),
+
+  // DEV: Audio Override Status
+  devAudioUnlockStatus: () => ipcRenderer.invoke("dev:audioUnlockStatus"),
+  // DEV: Audio Suggestions (legacy) Toggle
+  devAudioSuggestionsEnabled: () => ipcRenderer.invoke("dev:audioSuggestionsEnabled"),
 
   // ============================================================
   // Editor

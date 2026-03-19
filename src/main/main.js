@@ -21,6 +21,12 @@ const { registerEditorIpc } = require("./ipc/editorIpc");
 const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
 const { registerLicenseIpc } = require("./ipc/licenseIpc");
 const { registerAudioIpc } = require("./ipc/audioIpc");
+const { checkLicense } = require("./licensing/licenseService");
+const {
+  toLicenseErrorPayload,
+  isDevAudioOverrideEnabled,
+  isDevAudioSuggestionsEnabled,
+} = require("./licensing/featureGuard");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -409,7 +415,21 @@ app.whenReady().then(async () => {
     }
   });
 
+  ipcMain.handle("dev:audioUnlockStatus", async () => {
+    try {
+      return { ok: true, enabled: !!isDevAudioOverrideEnabled() };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
 
+  ipcMain.handle("dev:audioSuggestionsEnabled", async () => {
+    try {
+      return { ok: true, enabled: !!isDevAudioSuggestionsEnabled() };
+    } catch (err) {
+      return { ok: false, error: err?.message || String(err) };
+    }
+  });
 
 ipcMain.handle("mail:createOutlookDraft", async (_event, payload) => {
   try {
