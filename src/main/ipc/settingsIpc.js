@@ -295,7 +295,17 @@ async function _extractPdfText(filePath) {
   if (!pdfjs) return { ok: false, error: "PDF-Text kann nicht gelesen werden (pdfjs-dist fehlt)." };
   const buffer = fs.readFileSync(filePath);
   const data = new Uint8Array(buffer);
-  const loadingTask = pdfjs.getDocument({ data, disableWorker: true });
+  const standardFontsPath = path.resolve(__dirname, "../../../node_modules/pdfjs-dist/standard_fonts/");
+  const cmapsPath = path.resolve(__dirname, "../../../node_modules/pdfjs-dist/cmaps/");
+  const standardFontDataUrl = require("node:url").pathToFileURL(standardFontsPath).href;
+  const cMapUrl = require("node:url").pathToFileURL(cmapsPath).href;
+  const loadingTask = pdfjs.getDocument({
+    data,
+    disableWorker: true,
+    standardFontDataUrl,
+    cMapUrl,
+    cMapPacked: true,
+  });
   const pdf = await loadingTask.promise;
   let fullText = "";
   for (let p = 1; p <= pdf.numPages; p += 1) {
@@ -904,6 +914,7 @@ function registerSettingsIpc() {
             WHEN 'rejected' THEN 3
             ELSE 4
           END,
+          LENGTH(term) DESC,
           frequency DESC,
           term ASC
       `).all();
