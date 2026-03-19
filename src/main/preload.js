@@ -166,6 +166,20 @@ contextBridge.exposeInMainWorld("bbmDb", {
   personsImportApplyStaging: (data) => ipcRenderer.invoke("persons:importApplyStaging", data),
 
   // ============================================================
+  // Lizenzierung (DEV + Diagnose)
+  // ============================================================
+  licenseGetStatus: () => ipcRenderer.invoke("license:get-status"),
+  licenseGetDiagnostics: () => ipcRenderer.invoke("license:get-diagnostics"),
+  licenseImport: (data) => ipcRenderer.invoke("license:import", data),
+  licenseDelete: () => ipcRenderer.invoke("license:delete"),
+  licenseGetInstalled: () => ipcRenderer.invoke("license:get-installed"),
+  licenseCreateRequest: (data) => ipcRenderer.invoke("license:create-request", data),
+  licenseLoadRequestForGenerate: (data) => ipcRenderer.invoke("license:load-request-for-generate", data),
+  licenseLoadForEdit: (data) => ipcRenderer.invoke("license:load-for-edit", data),
+  licenseGenerate: (data) => ipcRenderer.invoke("license:generate", data),
+  licenseOpenOutputDir: (data) => ipcRenderer.invoke("license:open-output-dir", data),
+
+  // ============================================================
   // Editor
   // ============================================================
   editorOpen: (data) => ipcRenderer.invoke("editor:open", data),

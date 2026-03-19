@@ -19,6 +19,7 @@ const { registerSettingsIpc } = require("./ipc/settingsIpc");
 const { registerProjectSettingsIpc } = require("./ipc/projectSettingsIpc");
 const { registerEditorIpc } = require("./ipc/editorIpc");
 const { registerProjectTransferIpc } = require("./ipc/projectTransferIpc");
+const { registerLicenseIpc } = require("./ipc/licenseIpc");
 const { appSettingsGetMany, appSettingsSetMany } = require("./db/appSettingsRepo");
 const { getDatabaseDiagnostics, importLegacyIntoActive } = require("./db/database");
 const firmsRepo = require("./db/firmsRepo");
@@ -369,6 +370,7 @@ app.whenReady().then(async () => {
   registerProjectSettingsIpc();
   registerEditorIpc({ getMainWindow: () => mainWindow });
   registerProjectTransferIpc();
+  registerLicenseIpc();
 
   // ============================================================
   // ✅ Build Channel IPCs
