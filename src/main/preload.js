@@ -34,6 +34,12 @@ contextBridge.exposeInMainWorld("bbmDb", {
   meetingsCreate: (data) => ipcRenderer.invoke("meetings:create", data),
   meetingsClose: (meetingId) => ipcRenderer.invoke("meetings:close", meetingId),
   meetingsUpdateTitle: (data) => ipcRenderer.invoke("meetings:updateTitle", data),
+  meetingsListProjectTasks: (payload) => {
+    if (payload && typeof payload === "object") {
+      return ipcRenderer.invoke("meetings:listProjectTasks", payload);
+    }
+    return ipcRenderer.invoke("meetings:listProjectTasks", { projectId: payload });
+  },
 
   // ============================================================
   // TOPs
@@ -50,6 +56,17 @@ contextBridge.exposeInMainWorld("bbmDb", {
   topsShiftRight: (data) => ipcRenderer.invoke("tops:shiftRight", data),
   meetingTopsUpdate: (data) => ipcRenderer.invoke("meetingTops:update", data),
   meetingTopsFixNumberGap: (data) => ipcRenderer.invoke("meetingTops:fixNumberGap", data),
+
+  // ============================================================
+  // Audio / KI
+  // ============================================================
+  audioImport: (data) => ipcRenderer.invoke("audio:import", data),
+  audioTranscribe: (data) => ipcRenderer.invoke("audio:transcribe", data),
+  audioAnalyze: (data) => ipcRenderer.invoke("audio:analyze", data),
+  audioGetSuggestions: (data) => ipcRenderer.invoke("audio:getSuggestions", data),
+  audioCreateDemoSuggestion: (data) => ipcRenderer.invoke("audio:createDemoSuggestion", data),
+  audioApplySuggestion: (data) => ipcRenderer.invoke("audio:applySuggestion", data),
+  audioRejectSuggestion: (data) => ipcRenderer.invoke("audio:rejectSuggestion", data),
 
   // ============================================================
   // GLOBAL Firmen

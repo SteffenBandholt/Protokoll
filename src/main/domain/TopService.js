@@ -56,10 +56,17 @@ class TopService {
           // ✅ „angefasst“ (nur fürs UI-Farbverhalten)
           is_touched: r.is_touched ?? 0,
 
+          // Task / Decision
+          is_task: r.is_task ?? 0,
+          is_decision: r.is_decision ?? 0,
+
           // Verantwortlich (optional, kommt aus meeting_tops)
           responsible_kind: r.responsible_kind ?? null,
           responsible_id: r.responsible_id ?? null,
           responsible_label: r.responsible_label ?? null,
+          contact_kind: r.contact_kind ?? null,
+          contact_person_id: r.contact_person_id ?? null,
+          contact_label: r.contact_label ?? null,
 
           frozen_at: r.frozen_at,
           frozen_title: r.frozen_title,
@@ -120,10 +127,17 @@ class TopService {
           // ✅ „angefasst“ (für Anzeige, auch wenn Meeting read-only)
           is_touched: r.is_touched ?? 0,
 
+          // Task / Decision
+          is_task: r.is_task ?? 0,
+          is_decision: r.is_decision ?? 0,
+
           // Verantwortlich (optional, nicht „frozen“, aber soll angezeigt werden)
           responsible_kind: r.responsible_kind ?? null,
           responsible_id: r.responsible_id ?? null,
           responsible_label: r.responsible_label ?? null,
+          contact_kind: r.contact_kind ?? null,
+          contact_person_id: r.contact_person_id ?? null,
+          contact_label: r.contact_label ?? null,
 
           frozen_at: r.frozen_at,
           frozen_title: r.frozen_title,
@@ -186,14 +200,6 @@ class TopService {
     const nowForOpen = new Date();
     const closeTime = meeting.updated_at ? new Date(meeting.updated_at) : new Date();
 
-    const childrenByParent = new Map();
-    for (const t of items) {
-      const pid = t.parent_top_id || null;
-      if (!pid) continue;
-      if (!childrenByParent.has(pid)) childrenByParent.set(pid, []);
-      childrenByParent.get(pid).push(t.id);
-    }
-
     const ampelCache = new Map();
     const computeAmpelForId = (id) => {
       if (ampelCache.has(id)) return ampelCache.get(id);
@@ -209,14 +215,6 @@ class TopService {
         const v = { color: t.frozen_ampel_color, reason: t.frozen_ampel_reason || "" };
         ampelCache.set(id, v);
         return v;
-      }
-
-      const childIds = childrenByParent.get(id) || [];
-      if (childIds.length > 0) {
-        const childAmpels = childIds.map((cid) => computeAmpelForId(cid));
-        const agg = ampelService.aggregateChildren(childAmpels);
-        ampelCache.set(id, agg);
-        return agg;
       }
 
       const own = ampelService.evaluateTop(
@@ -280,11 +278,12 @@ class TopService {
       title,
     });
 
+    const todayIso = new Date().toISOString().slice(0, 10);
     this.meetingTopsRepo.attachTopToMeeting({
       meetingId,
       topId: created.id,
       status: "offen",
-      dueDate: null,
+      dueDate: todayIso,
       longtext: null,
       isCarriedOver: false,
     });
@@ -437,12 +436,24 @@ class TopService {
       "is_important",
       "isImportant",
 
+      "is_task",
+      "isTask",
+      "is_decision",
+      "isDecision",
+
       "responsible_kind",
       "responsible_id",
       "responsible_label",
       "responsibleKind",
       "responsibleId",
       "responsibleLabel",
+
+      "contact_kind",
+      "contact_person_id",
+      "contact_label",
+      "contactKind",
+      "contactPersonId",
+      "contactLabel",
     ]);
 
     for (const k of Object.keys(patch)) {
@@ -477,10 +488,35 @@ class TopService {
         ? patch.responsible_label
         : (patch.responsibleLabel !== undefined ? patch.responsibleLabel : undefined);
 
+    const ck =
+      patch.contact_kind !== undefined
+        ? patch.contact_kind
+        : (patch.contactKind !== undefined ? patch.contactKind : undefined);
+
+    const cp =
+      patch.contact_person_id !== undefined
+        ? patch.contact_person_id
+        : (patch.contactPersonId !== undefined ? patch.contactPersonId : undefined);
+
+    const cl =
+      patch.contact_label !== undefined
+        ? patch.contact_label
+        : (patch.contactLabel !== undefined ? patch.contactLabel : undefined);
+
     const imp =
       patch.is_important !== undefined
         ? patch.is_important
         : (patch.isImportant !== undefined ? patch.isImportant : undefined);
+
+    const isTask =
+      patch.is_task !== undefined
+        ? patch.is_task
+        : (patch.isTask !== undefined ? patch.isTask : undefined);
+
+    const isDecision =
+      patch.is_decision !== undefined
+        ? patch.is_decision
+        : (patch.isDecision !== undefined ? patch.isDecision : undefined);
 
     const completedIn =
       patch.completed_in_meeting_id !== undefined
@@ -494,9 +530,14 @@ class TopService {
       patch.longtext !== undefined ||
       completedIn !== undefined ||
       imp !== undefined ||
+      isTask !== undefined ||
+      isDecision !== undefined ||
       rk !== undefined ||
       ri !== undefined ||
-      rl !== undefined;
+      rl !== undefined ||
+      ck !== undefined ||
+      cp !== undefined ||
+      cl !== undefined;
 
     if (!meetingFieldsTouched) {
       return this.meetingTopsRepo.getMeetingTop(meetingId, topId);
@@ -504,7 +545,7 @@ class TopService {
 
     const status = patch.status !== undefined ? patch.status : existingMt.status;
 
-    const dueDate =
+    let dueDate =
       patch.dueDate !== undefined
         ? patch.dueDate
         : (patch.due_date !== undefined ? patch.due_date : existingMt.due_date);
@@ -536,6 +577,11 @@ class TopService {
       }
     }
 
+    const statusNorm = String(status || "").trim().toLowerCase();
+    if (statusNorm === "erledigt") {
+      dueDate = new Date().toISOString().slice(0, 10);
+    }
+
     return this.meetingTopsRepo.updateMeetingTop({
       meetingId,
       topId,
@@ -545,10 +591,16 @@ class TopService {
       completed_in_meeting_id: completedIn,
 
       is_important: imp,
+      is_task: isTask,
+      is_decision: isDecision,
 
       responsible_kind: rk,
       responsible_id: ri,
       responsible_label: rl,
+
+      contact_kind: ck,
+      contact_person_id: cp,
+      contact_label: cl,
 
       is_touched: touch,
     });

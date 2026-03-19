@@ -245,6 +245,31 @@ function ensureMeetingTopsResponsibleColumns(dbConn) {
   addCol("responsible_label", "TEXT");
 }
 
+function ensureMeetingTopsContactColumns(dbConn) {
+  if (!tableExists(dbConn, "meeting_tops")) return;
+
+  const addCol = (name, sqlType) => {
+    if (!columnExists(dbConn, "meeting_tops", name)) {
+      dbConn.exec(`ALTER TABLE meeting_tops ADD COLUMN ${name} ${sqlType};`);
+    }
+  };
+
+  addCol("contact_kind", "TEXT");
+  addCol("contact_person_id", "TEXT");
+  addCol("contact_label", "TEXT");
+}
+
+function ensureMeetingTopsTaskFlagColumns(dbConn) {
+  if (!tableExists(dbConn, "meeting_tops")) return;
+
+  if (!columnExists(dbConn, "meeting_tops", "is_task")) {
+    dbConn.exec(`ALTER TABLE meeting_tops ADD COLUMN is_task INTEGER NOT NULL DEFAULT 0;`);
+  }
+  if (!columnExists(dbConn, "meeting_tops", "is_decision")) {
+    dbConn.exec(`ALTER TABLE meeting_tops ADD COLUMN is_decision INTEGER NOT NULL DEFAULT 0;`);
+  }
+}
+
 function ensureTopsSoftDeleteColumns(dbConn) {
   if (!tableExists(dbConn, "tops")) return;
 
@@ -278,6 +303,180 @@ function ensureMeetingsNextMeetingColumns(dbConn) {
   addCol("next_meeting_time", "TEXT");
   addCol("next_meeting_place", "TEXT");
   addCol("next_meeting_extra", "TEXT");
+}
+
+function ensureAudioImportsSchema(dbConn) {
+  if (!tableExists(dbConn, "audio_imports")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS audio_imports (
+        id TEXT PRIMARY KEY,
+        meeting_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        original_file_name TEXT,
+        mime_type TEXT,
+        processing_mode TEXT NOT NULL DEFAULT 'review',
+        status TEXT NOT NULL DEFAULT 'imported',
+        error_message TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+    `);
+  } else {
+    const addCol = (name, sqlType) => {
+      if (!columnExists(dbConn, "audio_imports", name)) {
+        dbConn.exec(`ALTER TABLE audio_imports ADD COLUMN ${name} ${sqlType};`);
+      }
+    };
+
+    addCol("meeting_id", "TEXT");
+    addCol("project_id", "TEXT");
+    addCol("file_path", "TEXT");
+    addCol("original_file_name", "TEXT");
+    addCol("mime_type", "TEXT");
+    addCol("processing_mode", "TEXT NOT NULL DEFAULT 'review'");
+    addCol("status", "TEXT NOT NULL DEFAULT 'imported'");
+    addCol("error_message", "TEXT");
+    addCol(
+      "created_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+    addCol(
+      "updated_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+  }
+
+  dbConn.exec(`
+    CREATE INDEX IF NOT EXISTS idx_audio_imports_meeting_id
+    ON audio_imports (meeting_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_imports_project_id
+    ON audio_imports (project_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_imports_status
+    ON audio_imports (status);
+  `);
+}
+
+function ensureTranscriptsSchema(dbConn) {
+  if (!tableExists(dbConn, "transcripts")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS transcripts (
+        id TEXT PRIMARY KEY,
+        audio_import_id TEXT NOT NULL UNIQUE,
+        engine TEXT,
+        language TEXT,
+        full_text TEXT,
+        segments_json TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (audio_import_id) REFERENCES audio_imports(id) ON DELETE CASCADE
+      );
+    `);
+  } else {
+    const addCol = (name, sqlType) => {
+      if (!columnExists(dbConn, "transcripts", name)) {
+        dbConn.exec(`ALTER TABLE transcripts ADD COLUMN ${name} ${sqlType};`);
+      }
+    };
+
+    addCol("audio_import_id", "TEXT");
+    addCol("engine", "TEXT");
+    addCol("language", "TEXT");
+    addCol("full_text", "TEXT");
+    addCol("segments_json", "TEXT");
+    addCol(
+      "created_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+    addCol(
+      "updated_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+  }
+
+  dbConn.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_transcripts_audio_import_id
+    ON transcripts (audio_import_id);
+  `);
+}
+
+function ensureAudioSuggestionsSchema(dbConn) {
+  if (!tableExists(dbConn, "audio_suggestions")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS audio_suggestions (
+        id TEXT PRIMARY KEY,
+        audio_import_id TEXT NOT NULL,
+        meeting_id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        target_top_id TEXT,
+        parent_top_id TEXT,
+        title_suggestion TEXT,
+        text_suggestion TEXT,
+        source_excerpt TEXT,
+        confidence REAL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        mapping_reason TEXT,
+        applied_at TEXT,
+        rejected_at TEXT,
+        applied_target_top_id TEXT,
+        applied_parent_top_id TEXT,
+        applied_with_override INTEGER NOT NULL DEFAULT 0,
+        apply_error TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (audio_import_id) REFERENCES audio_imports(id) ON DELETE CASCADE,
+        FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+    `);
+  } else {
+    const addCol = (name, sqlType) => {
+      if (!columnExists(dbConn, "audio_suggestions", name)) {
+        dbConn.exec(`ALTER TABLE audio_suggestions ADD COLUMN ${name} ${sqlType};`);
+      }
+    };
+
+    addCol("audio_import_id", "TEXT");
+    addCol("meeting_id", "TEXT");
+    addCol("project_id", "TEXT");
+    addCol("type", "TEXT");
+    addCol("target_top_id", "TEXT");
+    addCol("parent_top_id", "TEXT");
+    addCol("title_suggestion", "TEXT");
+    addCol("text_suggestion", "TEXT");
+    addCol("source_excerpt", "TEXT");
+    addCol("confidence", "REAL");
+    addCol("status", "TEXT NOT NULL DEFAULT 'pending'");
+    addCol("mapping_reason", "TEXT");
+    addCol("applied_at", "TEXT");
+    addCol("rejected_at", "TEXT");
+    addCol("applied_target_top_id", "TEXT");
+    addCol("applied_parent_top_id", "TEXT");
+    addCol("applied_with_override", "INTEGER NOT NULL DEFAULT 0");
+    addCol("apply_error", "TEXT");
+    addCol(
+      "created_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+    addCol(
+      "updated_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+  }
+
+  dbConn.exec(`
+    CREATE INDEX IF NOT EXISTS idx_audio_suggestions_audio_import_id
+    ON audio_suggestions (audio_import_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_suggestions_meeting_id
+    ON audio_suggestions (meeting_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_suggestions_project_id
+    ON audio_suggestions (project_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_suggestions_status
+    ON audio_suggestions (status);
+  `);
 }
 
 function ensureFirmsAndPersonsSchema(dbConn) {
@@ -1042,6 +1241,8 @@ function migrateLegacyTopsToMeetingTops(dbConn) {
   ensureMeetingTopsTouchedColumn(dbConn);
   ensureMeetingTopsCompletedColumn(dbConn);
   ensureMeetingTopsResponsibleColumns(dbConn);
+  ensureMeetingTopsContactColumns(dbConn);
+  ensureMeetingTopsTaskFlagColumns(dbConn);
   ensureTopsSoftDeleteColumns(dbConn);
 }
 
@@ -1140,6 +1341,8 @@ function ensureSchema(dbConn) {
   ensureMeetingTopsTouchedColumn(dbConn);
   ensureMeetingTopsCompletedColumn(dbConn);
   ensureMeetingTopsResponsibleColumns(dbConn);
+  ensureMeetingTopsContactColumns(dbConn);
+  ensureMeetingTopsTaskFlagColumns(dbConn);
   ensureTopsSoftDeleteColumns(dbConn);
   ensureFirmsAndPersonsSchema(dbConn);
   ensureProjectGlobalFirmsSchema(dbConn);
@@ -1148,6 +1351,9 @@ function ensureSchema(dbConn) {
   ensureProjectSettingsSchema(dbConn);
   ensureProjectCandidatesSchema(dbConn);
   ensureMeetingParticipantsSchema(dbConn);
+  ensureAudioImportsSchema(dbConn);
+  ensureTranscriptsSchema(dbConn);
+  ensureAudioSuggestionsSchema(dbConn);
 
   ensureDictionarySchema(dbConn);
   ensureAppSettingsSchema(dbConn);

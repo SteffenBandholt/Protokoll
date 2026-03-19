@@ -82,6 +82,12 @@ function attachTopToMeeting({
   is_touched = undefined,
   isTouched = undefined,
 
+  // optional (neu): Task/Decision Flags
+  is_task = undefined,
+  isTask = undefined,
+  is_decision = undefined,
+  isDecision = undefined,
+
   // optional (neu): Verantwortlich
   responsible_kind = undefined,
   responsible_id = undefined,
@@ -89,6 +95,14 @@ function attachTopToMeeting({
   responsibleKind = undefined,
   responsibleId = undefined,
   responsibleLabel = undefined,
+
+  // optional (neu): Ansprechpartner
+  contact_kind = undefined,
+  contact_person_id = undefined,
+  contact_label = undefined,
+  contactKind = undefined,
+  contactPersonId = undefined,
+  contactLabel = undefined,
 }) {
   const db = initDatabase();
   if (!meetingId) throw new Error("meetingId required");
@@ -138,11 +152,25 @@ function attachTopToMeeting({
     vals.push(touchedRaw === undefined ? 0 : _normBool01(touchedRaw));
   }
 
+  // Task/Decision Flags (nur wenn Spalten existieren)
+  const hasIsTask = _hasCol(db, "is_task");
+  const hasIsDecision = _hasCol(db, "is_decision");
+  const isTaskRaw = is_task !== undefined ? is_task : (isTask !== undefined ? isTask : undefined);
+  const isDecisionRaw =
+    is_decision !== undefined ? is_decision : (isDecision !== undefined ? isDecision : undefined);
+  if (hasIsTask) {
+    cols.push("is_task");
+    vals.push(isTaskRaw === undefined ? 0 : _normBool01(isTaskRaw));
+  }
+  if (hasIsDecision) {
+    cols.push("is_decision");
+    vals.push(isDecisionRaw === undefined ? 0 : _normBool01(isDecisionRaw));
+  }
+
   // Verantwortlich (nur wenn Spalten existieren)
   const hasRK = _hasCol(db, "responsible_kind");
   const hasRI = _hasCol(db, "responsible_id");
   const hasRL = _hasCol(db, "responsible_label");
-
   const rk =
     responsible_kind !== undefined
       ? responsible_kind
@@ -165,6 +193,32 @@ function attachTopToMeeting({
   if (hasRL) {
     cols.push("responsible_label");
     vals.push(rl === undefined ? null : rl);
+  }
+
+  // Ansprechpartner (nur wenn Spalten existieren)
+  const hasCK = _hasCol(db, "contact_kind");
+  const hasCP = _hasCol(db, "contact_person_id");
+  const hasCL = _hasCol(db, "contact_label");
+
+  const ck = contact_kind !== undefined ? contact_kind : (contactKind !== undefined ? contactKind : undefined);
+  const cp =
+    contact_person_id !== undefined
+      ? contact_person_id
+      : (contactPersonId !== undefined ? contactPersonId : undefined);
+  const cl =
+    contact_label !== undefined ? contact_label : (contactLabel !== undefined ? contactLabel : undefined);
+
+  if (hasCK) {
+    cols.push("contact_kind");
+    vals.push(ck === undefined ? null : ck);
+  }
+  if (hasCP) {
+    cols.push("contact_person_id");
+    vals.push(cp === undefined ? null : cp);
+  }
+  if (hasCL) {
+    cols.push("contact_label");
+    vals.push(cl === undefined ? null : cl);
   }
 
   if (hasCreatedAt) {
@@ -206,6 +260,12 @@ function updateMeetingTop({
   is_touched = undefined,
   isTouched = undefined,
 
+  // optional (neu): Task/Decision Flags
+  is_task = undefined,
+  isTask = undefined,
+  is_decision = undefined,
+  isDecision = undefined,
+
   // optional (neu): Verantwortlich
   responsible_kind = undefined,
   responsible_id = undefined,
@@ -213,6 +273,14 @@ function updateMeetingTop({
   responsibleKind = undefined,
   responsibleId = undefined,
   responsibleLabel = undefined,
+
+  // optional (neu): Ansprechpartner
+  contact_kind = undefined,
+  contact_person_id = undefined,
+  contact_label = undefined,
+  contactKind = undefined,
+  contactPersonId = undefined,
+  contactLabel = undefined,
 }) {
   const db = initDatabase();
   if (!meetingId) throw new Error("meetingId required");
@@ -244,6 +312,23 @@ function updateMeetingTop({
   if (hasTouched && touchedRaw !== undefined) {
     sets.push("is_touched = ?");
     vals.push(_normBool01(touchedRaw));
+  }
+
+  // Task/Decision Flags nur updaten, wenn:
+  // - Spalte existiert
+  // - und Wert explizit übergeben wurde (undefined = nicht anfassen)
+  const hasIsTask = _hasCol(db, "is_task");
+  const hasIsDecision = _hasCol(db, "is_decision");
+  const isTaskRaw = is_task !== undefined ? is_task : (isTask !== undefined ? isTask : undefined);
+  const isDecisionRaw =
+    is_decision !== undefined ? is_decision : (isDecision !== undefined ? isDecision : undefined);
+  if (hasIsTask && isTaskRaw !== undefined) {
+    sets.push("is_task = ?");
+    vals.push(_normBool01(isTaskRaw));
+  }
+  if (hasIsDecision && isDecisionRaw !== undefined) {
+    sets.push("is_decision = ?");
+    vals.push(_normBool01(isDecisionRaw));
   }
 
   const hasCompleted = _hasCol(db, "completed_in_meeting_id");
@@ -287,6 +372,34 @@ function updateMeetingTop({
     vals.push(rl);
   }
 
+  // Ansprechpartner nur updaten, wenn:
+  // - Spalten existieren
+  // - und Wert explizit übergeben wurde (undefined = nicht anfassen; null = löschen)
+  const hasCK = _hasCol(db, "contact_kind");
+  const hasCP = _hasCol(db, "contact_person_id");
+  const hasCL = _hasCol(db, "contact_label");
+
+  const ck = contact_kind !== undefined ? contact_kind : (contactKind !== undefined ? contactKind : undefined);
+  const cp =
+    contact_person_id !== undefined
+      ? contact_person_id
+      : (contactPersonId !== undefined ? contactPersonId : undefined);
+  const cl =
+    contact_label !== undefined ? contact_label : (contactLabel !== undefined ? contactLabel : undefined);
+
+  if (hasCK && ck !== undefined) {
+    sets.push("contact_kind = ?");
+    vals.push(ck);
+  }
+  if (hasCP && cp !== undefined) {
+    sets.push("contact_person_id = ?");
+    vals.push(cp);
+  }
+  if (hasCL && cl !== undefined) {
+    sets.push("contact_label = ?");
+    vals.push(cl);
+  }
+
   if (hasUpdatedAt) {
     sets.push("updated_at = ?");
     vals.push(now);
@@ -317,6 +430,10 @@ function listJoinedByMeeting(meetingId) {
   // Touched (optional)
   const touchedSel = _hasCol(db, "is_touched") ? "mt.is_touched" : "0";
 
+  // Task/Decision (optional)
+  const isTaskSel = _hasCol(db, "is_task") ? "mt.is_task" : "0";
+  const isDecisionSel = _hasCol(db, "is_decision") ? "mt.is_decision" : "0";
+
   // Completed-in (optional)
   const completedSel = _hasCol(db, "completed_in_meeting_id")
     ? "mt.completed_in_meeting_id"
@@ -326,6 +443,11 @@ function listJoinedByMeeting(meetingId) {
   const rkSel = _hasCol(db, "responsible_kind") ? "mt.responsible_kind" : "NULL AS responsible_kind";
   const riSel = _hasCol(db, "responsible_id") ? "mt.responsible_id" : "NULL AS responsible_id";
   const rlSel = _hasCol(db, "responsible_label") ? "mt.responsible_label" : "NULL AS responsible_label";
+
+  // Ansprechpartner (optional)
+  const ckSel = _hasCol(db, "contact_kind") ? "mt.contact_kind" : "NULL AS contact_kind";
+  const cpSel = _hasCol(db, "contact_person_id") ? "mt.contact_person_id" : "NULL AS contact_person_id";
+  const clSel = _hasCol(db, "contact_label") ? "mt.contact_label" : "NULL AS contact_label";
 
   // Änderungszeitpunkt (optional)
   const updatedSel = _hasCol(db, "updated_at") ? "mt.updated_at" : "NULL AS updated_at";
@@ -359,12 +481,17 @@ function listJoinedByMeeting(meetingId) {
         mt.is_carried_over,
         ${impSel} AS is_important,
         ${touchedSel} AS is_touched,
+        ${isTaskSel} AS is_task,
+        ${isDecisionSel} AS is_decision,
         ${updatedSel},
         ${completedSel} AS completed_in_meeting_id,
 
         ${rkSel},
         ${riSel},
         ${rlSel},
+        ${ckSel},
+        ${cpSel},
+        ${clSel},
 
         ${f("frozen_at")},
         ${f("frozen_title")},
@@ -395,6 +522,10 @@ function listLatestByProject(projectId) {
   // Touched (optional)
   const touchedSel = _hasCol(db, "is_touched") ? "mt.is_touched" : "0";
 
+  // Task/Decision (optional)
+  const isTaskSel = _hasCol(db, "is_task") ? "mt.is_task" : "0";
+  const isDecisionSel = _hasCol(db, "is_decision") ? "mt.is_decision" : "0";
+
   // Completed-in (optional)
   const completedSel = _hasCol(db, "completed_in_meeting_id")
     ? "mt.completed_in_meeting_id"
@@ -404,6 +535,11 @@ function listLatestByProject(projectId) {
   const rkSel = _hasCol(db, "responsible_kind") ? "mt.responsible_kind" : "NULL AS responsible_kind";
   const riSel = _hasCol(db, "responsible_id") ? "mt.responsible_id" : "NULL AS responsible_id";
   const rlSel = _hasCol(db, "responsible_label") ? "mt.responsible_label" : "NULL AS responsible_label";
+
+  // Ansprechpartner (optional)
+  const ckSel = _hasCol(db, "contact_kind") ? "mt.contact_kind" : "NULL AS contact_kind";
+  const cpSel = _hasCol(db, "contact_person_id") ? "mt.contact_person_id" : "NULL AS contact_person_id";
+  const clSel = _hasCol(db, "contact_label") ? "mt.contact_label" : "NULL AS contact_label";
 
   // TOP angelegt am (optional, aus tops.created_at)
   const topCreatedSel = _hasTopCol(db, "created_at")
@@ -446,11 +582,16 @@ function listLatestByProject(projectId) {
         mt.is_carried_over,
         ${impSel} AS is_important,
         ${touchedSel} AS is_touched,
+        ${isTaskSel} AS is_task,
+        ${isDecisionSel} AS is_decision,
         ${completedSel} AS completed_in_meeting_id,
 
         ${rkSel},
         ${riSel},
         ${rlSel},
+        ${ckSel},
+        ${cpSel},
+        ${clSel},
 
         ${f("frozen_at")},
         ${f("frozen_title")},
@@ -534,20 +675,30 @@ function carryOverFromMeeting(arg1, arg2) {
 
   const hasImp = _hasCol(db, "is_important");
   const hasTouched = _hasCol(db, "is_touched");
+  const hasIsTask = _hasCol(db, "is_task");
+  const hasIsDecision = _hasCol(db, "is_decision");
   const hasCompleted = _hasCol(db, "completed_in_meeting_id");
 
   const hasRK = _hasCol(db, "responsible_kind");
   const hasRI = _hasCol(db, "responsible_id");
   const hasRL = _hasCol(db, "responsible_label");
+  const hasCK = _hasCol(db, "contact_kind");
+  const hasCP = _hasCol(db, "contact_person_id");
+  const hasCL = _hasCol(db, "contact_label");
 
   // Zielspalten dynamisch
   const cols = ["meeting_id", "top_id", "status", "due_date", "longtext", "is_carried_over"];
   if (hasImp) cols.push("is_important");
   if (hasTouched) cols.push("is_touched");
+  if (hasIsTask) cols.push("is_task");
+  if (hasIsDecision) cols.push("is_decision");
   if (hasCompleted) cols.push("completed_in_meeting_id");
   if (hasRK) cols.push("responsible_kind");
   if (hasRI) cols.push("responsible_id");
   if (hasRL) cols.push("responsible_label");
+  if (hasCK) cols.push("contact_kind");
+  if (hasCP) cols.push("contact_person_id");
+  if (hasCL) cols.push("contact_label");
   if (hasCreatedAt) cols.push("created_at");
   if (hasUpdatedAt) cols.push("updated_at");
 
@@ -558,11 +709,16 @@ function carryOverFromMeeting(arg1, arg2) {
 
   // Touched: im neuen Meeting wieder 0 (Flag kommt über changed_at/updated_at)
   if (hasTouched) selectParts.push("0 AS is_touched");
+  if (hasIsTask) selectParts.push("is_task");
+  if (hasIsDecision) selectParts.push("is_decision");
   if (hasCompleted) selectParts.push("completed_in_meeting_id");
 
   if (hasRK) selectParts.push("responsible_kind");
   if (hasRI) selectParts.push("responsible_id");
   if (hasRL) selectParts.push("responsible_label");
+  if (hasCK) selectParts.push("contact_kind");
+  if (hasCP) selectParts.push("contact_person_id");
+  if (hasCL) selectParts.push("contact_label");
 
   const params = [toMeetingId];
 

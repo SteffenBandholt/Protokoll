@@ -7,10 +7,12 @@ import { shouldShowTopForMeeting, shouldGrayTopForMeeting } from "../utils/topVi
 import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
-import { POPOVER_MENU } from "../ui/zIndex.js";
+import AudioSuggestionsPanel from "../ui/AudioSuggestionsPanel.js";
 import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
+const TODO_ICON_PNG = new URL("../assets/icons/ui_todo_48.png", import.meta.url).href;
+const RED_FLAG_PNG = new URL("../assets/icons/redFlag.png", import.meta.url).href;
 
 export default class TopsView {
   constructor({ router, projectId, meetingId }) {
@@ -35,6 +37,7 @@ export default class TopsView {
     this.btnEndMeeting = null; // "Protokoll beenden"
     this.btnCloseMeeting = null; // "Schließen"
     this.btnLongToggle = null;
+    this.btnAudioAnalyze = null;
 
     this.btnAmpelToggle = null;
     this.btnTasks = null;
@@ -49,10 +52,14 @@ export default class TopsView {
 
     this.chkImportant = null;
     this.chkHidden = null;
+    this.chkTask = null;
+    this.chkDecision = null;
 
     this.inpDueDate = null;
     this.selStatus = null;
     this.selResponsible = null;
+    this.chkContact = null;
+    this.selContact = null;
     this.dueAmpelEl = null;
 
     this.projectFirms = [];
@@ -63,6 +70,7 @@ export default class TopsView {
     this._respDirtyTopId = null;
     this._respLastSetTopId = null;
     this._respLegacyReadonly = false;
+    this._contactLoadToken = 0;
     this.projectStartDate = null;
     this.projectEndDate = null;
     this._dueDirty = false;
@@ -109,6 +117,7 @@ export default class TopsView {
     this._saveInfoTimer = null;
     this._userSelectedTop = false;
     this._updateAmpelToggleUi = null;
+    this._updateTaskDecisionUi = null;
     // Layout: pinned bars
     this._fixedResizeObs = null;
     this._fixedHorzResizeObs = null;
@@ -130,17 +139,18 @@ export default class TopsView {
     // Markierungen für Nummernlücken
     this._markTopIds = new Set();
     this._gapPopupOverlay = null;
+    this._projectTasksOverlayEl = null;
 
     // UI sizing (Meta-Spalte ~30% schmaler)
-    this.META_COL_W = 133; // px
+    this.META_COL_W = 120; // px
     this.NUM_COL_W = 56; // px (ohne Ampel links)
 
     // Mail-Flow nach Protokoll beenden
     this._lastClosedMeetingForEmail = null;
-    this._viewMenuOpen = false;
-    this._viewMenuDocMouseDown = null;
-    this._viewMenuEl = null;
-    this._viewMenuBtn = null;
+    this._audioPanel = null;
+    this._audioPanelBusy = false;
+    this._audioPanelStatusMessage = "";
+    this._audioSuggestionMarkTimer = null;
   }
 
   _updateTopBarProtocolTitle() {
@@ -463,6 +473,166 @@ _isoToDDMMYYYY(iso) {
     }, 0);
   }
 
+  _closeProjectTasksPopup() {
+    if (this._projectTasksOverlayEl && this._projectTasksOverlayEl.parentElement) {
+      this._projectTasksOverlayEl.parentElement.removeChild(this._projectTasksOverlayEl);
+    }
+    this._projectTasksOverlayEl = null;
+  }
+
+  async _openProjectTasksPopup() {
+    if (this._projectTasksOverlayEl) return;
+
+    const api = window.bbmDb || {};
+    if (typeof api.meetingsListProjectTasks !== "function") {
+      alert("Aufgabenliste ist nicht verfuegbar.");
+      return;
+    }
+    if (!this.projectId) {
+      alert("Projekt nicht gefunden.");
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "1400";
+    overlay.tabIndex = -1;
+
+    const card = document.createElement("div");
+    applyPopupCardStyle(card);
+    card.style.width = "min(900px, calc(100vw - 24px))";
+    card.style.maxHeight = "80vh";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.overflow = "hidden";
+    card.style.background = "#fff";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "10px";
+    header.style.padding = "12px 16px";
+    header.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Projekt-Aufgaben";
+    title.style.fontWeight = "800";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.style.marginLeft = "auto";
+    btnClose.onclick = () => this._closeProjectTasksPopup();
+
+    header.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.flex = "1 1 auto";
+    body.style.overflow = "auto";
+    body.style.padding = "12px 16px";
+    body.textContent = "Lade...";
+
+    const renderTasks = (rows) => {
+      body.innerHTML = "";
+      const list = Array.isArray(rows) ? rows : [];
+      title.textContent = `Projekt-Aufgaben (${list.length})`;
+
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "Keine Aufgaben vorhanden.";
+        empty.style.opacity = "0.75";
+        body.appendChild(empty);
+        return;
+      }
+
+      const wrap = document.createElement("div");
+      wrap.style.display = "grid";
+      wrap.style.gap = "8px";
+
+      const mkMeta = (label, value) => {
+        const el = document.createElement("div");
+        el.textContent = `${label}: ${value}`;
+        return el;
+      };
+
+      for (const t of list) {
+        const item = document.createElement("div");
+        item.style.border = "1px solid #e5e7eb";
+        item.style.borderRadius = "8px";
+        item.style.padding = "8px 10px";
+        item.style.display = "grid";
+        item.style.gap = "6px";
+
+        const titleEl = document.createElement("div");
+        titleEl.textContent = String(t?.title || t?.short_text || t?.shortText || "(ohne Bezeichnung)");
+        titleEl.style.fontWeight = "600";
+
+        const meta = document.createElement("div");
+        meta.style.display = "flex";
+        meta.style.flexWrap = "wrap";
+        meta.style.gap = "8px";
+        meta.style.fontSize = "12px";
+        meta.style.color = "#374151";
+
+        const resp = String(t?.responsible_label || t?.responsibleLabel || "").trim() || "-";
+        const contact = String(t?.contact_label || t?.contactLabel || "").trim();
+        const dueRaw = t?.due_date ?? t?.dueDate ?? "";
+        const due = this._formatDateToDdMmYyyy(dueRaw) || String(dueRaw || "").trim() || "-";
+        const statusRaw = String(t?.status || "").trim();
+        const status = statusRaw || "-";
+        const meetingRef = String(t?.meeting_id ?? t?.meetingId ?? "").trim() || "-";
+
+        if (statusRaw && statusRaw.toLowerCase() !== "erledigt") {
+          item.style.borderColor = "#b6d4ff";
+          item.style.background = "#eef7ff";
+        }
+
+        meta.append(mkMeta("Verantw.", resp));
+        if (contact) meta.append(mkMeta("Kontakt", contact));
+        meta.append(mkMeta("Faellig", due));
+        meta.append(mkMeta("Status", status));
+        meta.append(mkMeta("Meeting", meetingRef));
+
+        item.append(titleEl, meta);
+        wrap.appendChild(item);
+      }
+
+      body.appendChild(wrap);
+    };
+
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) this._closeProjectTasksPopup();
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      this._closeProjectTasksPopup();
+    });
+
+    card.append(header, body);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    this._projectTasksOverlayEl = overlay;
+    try { overlay.focus(); } catch (_e) {}
+
+    try {
+      const res = await api.meetingsListProjectTasks({ projectId: this.projectId });
+      if (!res?.ok) {
+        body.textContent = res?.error || "Aufgaben konnten nicht geladen werden.";
+        return;
+      }
+      renderTasks(res.list || []);
+    } catch (err) {
+      body.textContent = err?.message || "Aufgaben konnten nicht geladen werden.";
+    }
+  }
+
   _readUiMode() {
     try {
       const raw = String(window.localStorage?.getItem?.("bbm.uiMode") || "").trim().toLowerCase();
@@ -715,15 +885,20 @@ _isoToDDMMYYYY(iso) {
   _getEditFontSizes() {
     const scale = (this.editFontScale || "small").toString().toLowerCase();
     if (scale === "large") {
-      return { short: 18, long: 17 };
+      return { short: 12, long: 12 };
     }
-    return { short: 14, long: 13 };
+    return { short: 10, long: 10 };
   }
 
   _applyEditFontSizes() {
     const sizes = this._getEditFontSizes();
     if (this.inpTitle) this.inpTitle.style.fontSize = `${sizes.short}px`;
     if (this.taLongtext) this.taLongtext.style.fontSize = `${sizes.long}px`;
+    if (this.editMetaCol) this.editMetaCol.style.fontSize = `${sizes.short}px`;
+    if (this.inpDueDate) this.inpDueDate.style.fontSize = `${sizes.short}px`;
+    if (this.selStatus) this.selStatus.style.fontSize = `${sizes.short}px`;
+    if (this.selResponsible) this.selResponsible.style.fontSize = `${sizes.short}px`;
+    if (this.selContact) this.selContact.style.fontSize = `${sizes.short}px`;
   }
 
   async _loadLevel1CollapsedSetting() {
@@ -883,7 +1058,7 @@ _isoToDDMMYYYY(iso) {
 
       if (this.btnEndMeeting) this.btnEndMeeting.disabled = true;
       if (this.btnCloseMeeting) this.btnCloseMeeting.disabled = true;
-      if (this.btnTasks) this.btnTasks.disabled = true;
+      if (this.btnAudioAnalyze) this.btnAudioAnalyze.disabled = true;
 
       if (this.btnMove) this.btnMove.disabled = true;
       if (this.btnSaveTop) this.btnSaveTop.disabled = true;
@@ -895,8 +1070,11 @@ _isoToDDMMYYYY(iso) {
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
+      if (this.selContact) this.selContact.disabled = false;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkHidden) this.chkHidden.disabled = true;
+      if (this.chkTask) this.chkTask.disabled = true;
+      if (this.chkDecision) this.chkDecision.disabled = true;
 
       return;
     }
@@ -933,6 +1111,8 @@ _isoToDDMMYYYY(iso) {
     }
     if (this.chkHidden?.disabled) delete nextPatch.is_hidden;
     if (this.chkImportant?.disabled) delete nextPatch.is_important;
+    if (this.chkTask?.disabled) delete nextPatch.is_task;
+    if (this.chkDecision?.disabled) delete nextPatch.is_decision;
 
     if (Number(selectedInItems.is_carried_over) === 1) {
       delete nextPatch.title;
@@ -964,9 +1144,14 @@ _isoToDDMMYYYY(iso) {
         }
         if (nextPatch.is_hidden !== undefined) t.is_hidden = nextPatch.is_hidden ? 1 : 0;
         if (nextPatch.is_important !== undefined) t.is_important = nextPatch.is_important ? 1 : 0;
+        if (nextPatch.is_task !== undefined) t.is_task = nextPatch.is_task ? 1 : 0;
+        if (nextPatch.is_decision !== undefined) t.is_decision = nextPatch.is_decision ? 1 : 0;
         if (nextPatch.responsible_kind !== undefined) t.responsible_kind = nextPatch.responsible_kind;
         if (nextPatch.responsible_id !== undefined) t.responsible_id = nextPatch.responsible_id;
         if (nextPatch.responsible_label !== undefined) t.responsible_label = nextPatch.responsible_label;
+        if (nextPatch.contact_kind !== undefined) t.contact_kind = nextPatch.contact_kind;
+        if (nextPatch.contact_person_id !== undefined) t.contact_person_id = nextPatch.contact_person_id;
+        if (nextPatch.contact_label !== undefined) t.contact_label = nextPatch.contact_label;
       }
 
       if (pulse) this._showSavedPulse();
@@ -998,6 +1183,12 @@ _isoToDDMMYYYY(iso) {
     if (this.chkImportant && !this.chkImportant.disabled) {
       patch.is_important = this.chkImportant.checked ? 1 : 0;
     }
+    if (this.chkTask && !this.chkTask.disabled) {
+      patch.is_task = this.chkTask.checked ? 1 : 0;
+    }
+    if (this.chkDecision && !this.chkDecision.disabled) {
+      patch.is_decision = this.chkDecision.checked ? 1 : 0;
+    }
 
     if (this.inpDueDate && !this.inpDueDate.disabled) {
       const dueVal = (this.inpDueDate.value || "").trim();
@@ -1021,6 +1212,20 @@ _isoToDDMMYYYY(iso) {
         patch.responsible_kind = null;
         patch.responsible_id = null;
         patch.responsible_label = null;
+      }
+    }
+
+    if (this.selContact && !this.selContact.disabled) {
+      const opt = this.selContact.selectedOptions?.[0] || null;
+      const val = (this.selContact.value || "").toString().trim();
+      if (val) {
+        patch.contact_kind = opt?.dataset?.contactKind || null;
+        patch.contact_person_id = val;
+        patch.contact_label = opt?.dataset?.contactLabel || opt?.textContent || null;
+      } else {
+        patch.contact_kind = null;
+        patch.contact_person_id = null;
+        patch.contact_label = null;
       }
     }
 
@@ -1351,6 +1556,164 @@ _isoToDDMMYYYY(iso) {
     } else {
       sel.value = "";
     }
+  }
+
+  _buildContactPersonLabel(row) {
+    const name = (row?.name || "").toString().trim();
+    if (name) return name;
+    const first = (row?.first_name ?? row?.firstName ?? "").toString().trim();
+    const last = (row?.last_name ?? row?.lastName ?? "").toString().trim();
+    const full = `${first} ${last}`.trim();
+    if (full) return full;
+    const label = (row?.label || "").toString().trim();
+    if (label) return label;
+    const rawId =
+      row?.id ??
+      row?.person_id ??
+      row?.personId ??
+      row?.project_person_id ??
+      row?.projectPersonId ??
+      "";
+    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
+    if (id) return `Person ${id}`;
+    return "Unbenannte Person";
+  }
+
+  _getSelectedFirmForContact() {
+    if (!this.selResponsible) return null;
+    const parsed = this._parseResponsibleOptionValue(this.selResponsible.value);
+    if (!parsed?.id) return null;
+    return parsed;
+  }
+
+  _getContactKindForFirmKind(kind) {
+    const k = (kind || "").toString().trim().toLowerCase();
+    if (k === "global_firm") return "global_person";
+    return "project_person";
+  }
+
+  async _loadContactPersonsForFirm(kind, id) {
+    const firmId = id === null || id === undefined ? "" : String(id).trim();
+    if (!firmId) return [];
+    const api = window.bbmDb || {};
+    try {
+      if ((kind || "") === "global_firm") {
+        if (typeof api.personsListByFirm === "function") {
+          const res = await api.personsListByFirm(firmId);
+          if (res?.ok) return res.list || res.items || res.persons || [];
+        }
+        return [];
+      }
+      if (typeof api.projectPersonsListByProjectFirm === "function") {
+        const res = await api.projectPersonsListByProjectFirm(firmId);
+        if (res?.ok) return res.list || res.items || res.persons || [];
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  _setContactHint(text) {
+    if (!this.selContact) return;
+    this.selContact.innerHTML = "";
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "-";
+    this.selContact.appendChild(optEmpty);
+    const hintText = (text || "").toString().trim();
+    if (hintText && hintText !== "-") {
+      const optHint = document.createElement("option");
+      optHint.value = "__hint__";
+      optHint.textContent = hintText;
+      optHint.disabled = true;
+      this.selContact.appendChild(optHint);
+    }
+    this.selContact.value = "";
+  }
+
+  _setContactOptions(list, selectedId) {
+    if (!this.selContact) return;
+    this.selContact.innerHTML = "";
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "-";
+    this.selContact.appendChild(optEmpty);
+
+    for (const row of list || []) {
+      const id = row?.id === null || row?.id === undefined ? "" : String(row.id).trim();
+      if (!id) continue;
+      const label = row?.label || this._buildContactPersonLabel(row);
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = label;
+      opt.dataset.contactKind = row?.contact_kind || row?.contactKind || "";
+      opt.dataset.contactLabel = label;
+      this.selContact.appendChild(opt);
+    }
+
+    const selId = selectedId === null || selectedId === undefined ? "" : String(selectedId).trim();
+    if (selId && Array.from(this.selContact.options || []).some((o) => String(o.value) === selId)) {
+      this.selContact.value = selId;
+    } else {
+      this.selContact.value = "";
+    }
+  }
+
+  async _refreshContactOptions({
+    selectedId = null,
+    selectedLabel = null,
+    autoSaveSingle = false,
+  } = {}) {
+    if (!this.selContact) return;
+    const firm = this._getSelectedFirmForContact();
+    if (!firm) {
+      this._setContactHint("-");
+      return;
+    }
+
+    const disableAll = this.isReadOnly || this._busy || !this.selectedTop;
+    const effectiveSelectedId =
+      selectedId !== null && selectedId !== undefined ? selectedId : this.selectedTop?.contact_person_id ?? null;
+    const effectiveSelectedLabel =
+      selectedLabel !== null && selectedLabel !== undefined ? selectedLabel : this.selectedTop?.contact_label ?? null;
+    if (disableAll) {
+      this._setContactHint("-");
+      return;
+    }
+
+    const token = ++this._contactLoadToken;
+    const rawList = await this._loadContactPersonsForFirm(firm.kind, firm.id);
+    if (token !== this._contactLoadToken) return;
+
+    const contactKind = this._getContactKindForFirmKind(firm.kind);
+    const list = (rawList || [])
+      .map((row) => {
+        const id =
+          row?.id ??
+          row?.person_id ??
+          row?.personId ??
+          row?.project_person_id ??
+          row?.projectPersonId ??
+          null;
+        if (id === null || id === undefined || id === "") return null;
+        return {
+          ...row,
+          id: String(id),
+          label: this._buildContactPersonLabel(row),
+          contact_kind: contactKind,
+        };
+      })
+      .filter(Boolean);
+
+    if (!list.length) {
+      this._setContactHint("Keine Mitarbeiter");
+      return;
+    }
+
+    this._setContactOptions(list, effectiveSelectedId);
+
+    // keep "-" as default even when a single person exists
   }
 
   // ========= Layout helper (Sidebar/Header offsets) =========
@@ -1718,7 +2081,8 @@ _isoToDDMMYYYY(iso) {
   }
 
   _isVerzugTop(top) {
-    return String(top?.status || "").trim().toLowerCase() === "verzug";
+    const st = String(top?.status || "").trim().toLowerCase();
+    return st === "verzug";
   }
 
   _matchesViewFilter(top) {
@@ -1733,41 +2097,6 @@ _isoToDDMMYYYY(iso) {
     if (this._shouldHideDoneTop(top)) return true;
     if (!this._matchesViewFilter(top)) return true;
     return false;
-  }
-
-  _viewFilterLabel(mode) {
-    const key = String(mode || "all").trim().toLowerCase();
-    if (key === "tasks") return "Aufgaben";
-    if (key === "verzug") return "Verzug";
-    if (key === "decisions") return "Festlegungen";
-    return "Alle";
-  }
-
-  _setViewMenuOpen(nextOpen) {
-    this._viewMenuOpen = !!nextOpen;
-    if (this._viewMenuEl) {
-      this._viewMenuEl.style.display = this._viewMenuOpen ? "flex" : "none";
-      if (this._viewMenuOpen) {
-        this._positionViewMenu();
-      }
-    }
-    if (this._viewMenuBtn) {
-      this._viewMenuBtn.setAttribute("aria-expanded", this._viewMenuOpen ? "true" : "false");
-    }
-  }
-
-  _positionViewMenu() {
-    if (!this._viewMenuEl || !this._viewMenuBtn) return;
-    const menuEl = this._viewMenuEl;
-    const btnRect = this._viewMenuBtn.getBoundingClientRect();
-    const gap = 4;
-    const viewportPad = 8;
-    menuEl.style.top = `${Math.round(btnRect.bottom + gap)}px`;
-    menuEl.style.left = "0px";
-    const menuWidth = Math.ceil(menuEl.getBoundingClientRect().width || menuEl.offsetWidth || 190);
-    const maxLeft = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad);
-    const targetLeft = Math.round(btnRect.right - menuWidth);
-    menuEl.style.left = `${Math.min(maxLeft, Math.max(viewportPad, targetLeft))}px`;
   }
 
   _updateTopBarMetaLabels() {
@@ -1798,6 +2127,358 @@ _isoToDDMMYYYY(iso) {
     };
 
     this.topMetaEl.append(mk("Fertig bis"), mk("Status"), mk("verantw"));
+  }
+
+  _getAudioPanel() {
+    if (!this._audioPanel) {
+      this._audioPanel = new AudioSuggestionsPanel();
+    }
+    return this._audioPanel;
+  }
+
+  _manualAssignTitle() {
+    return "Manuell zuordnen";
+  }
+
+  _normalizeManualAssignTitle(value) {
+    return String(value || "").trim().toLocaleLowerCase("de-DE");
+  }
+
+  _findManualAssignTop() {
+    const target = this._normalizeManualAssignTitle(this._manualAssignTitle());
+    return (
+      (this.items || []).find((item) => {
+        return (
+          Number(item?.level) === 1 &&
+          this._normalizeManualAssignTitle(item?.title) === target
+        );
+      }) || null
+    );
+  }
+
+  _hasManualAssignChildren() {
+    const manualAssignTop = this._findManualAssignTop();
+    if (!manualAssignTop?.id) return false;
+    const itemById = new Map((this.items || []).map((item) => [String(item.id), item]));
+    const rootId = String(manualAssignTop.id);
+    return (this.items || []).some((item) => {
+      if (Number(item?.is_hidden || 0) === 1) return false;
+      let parentId = String(item?.parent_top_id || "").trim();
+      while (parentId) {
+        if (parentId === rootId) return true;
+        parentId = String(itemById.get(parentId)?.parent_top_id || "").trim();
+      }
+      return false;
+    });
+  }
+
+  _getAudioParentOptions() {
+    const list = Array.isArray(this.items) ? this.items : [];
+    return list
+      .filter((item) => {
+        const level = Number(item?.level || 0);
+        return Number(item?.is_hidden || 0) !== 1 && level >= 1 && level < 4;
+      })
+      .map((item) => {
+        const level = Math.max(1, Number(item?.level || 1));
+        const prefix = level > 1 ? `${"  ".repeat(level - 1)}- ` : "";
+        const number = String(item?.number || "").trim();
+        const title = String(item?.title || "").trim();
+        const label = `${prefix}${number ? `${number} ` : ""}${title || item?.id || ""}`.trim();
+        return {
+          id: String(item.id),
+          label,
+          level,
+        };
+      });
+  }
+
+  async _focusAudioSuggestion(suggestion, options = {}) {
+    const overrideParentTopId = String(options?.overrideParentTopId || "").trim() || null;
+    const type = String(suggestion?.type || "").trim();
+
+    let targetTopId = null;
+    if (type === "append_to_top") {
+      targetTopId = String(suggestion?.target_top_id || suggestion?.targetTopId || "").trim() || null;
+    } else if (overrideParentTopId) {
+      targetTopId = overrideParentTopId;
+    } else if (type === "create_child_top") {
+      targetTopId = String(suggestion?.parent_top_id || suggestion?.parentTopId || "").trim() || null;
+    } else if (type === "manual_assign_child_top") {
+      targetTopId = String(this._findManualAssignTop()?.id || "").trim() || null;
+    }
+
+    if (!targetTopId) return;
+    const target = this._findTopById(targetTopId);
+    if (!target) return;
+
+    this.selectedTopId = target.id;
+    this.selectedTop = target;
+    this._userSelectedTop = true;
+    this.applyEditBoxState();
+    this._updateMoveControls();
+    this._updateDeleteControls();
+    this._updateCreateChildControls();
+    this._setMarkedTopIds([target.id]);
+
+    if (this._audioSuggestionMarkTimer) {
+      clearTimeout(this._audioSuggestionMarkTimer);
+      this._audioSuggestionMarkTimer = null;
+    }
+    this._audioSuggestionMarkTimer = setTimeout(() => {
+      this._clearMarkedTopIds();
+      this._audioSuggestionMarkTimer = null;
+    }, 2500);
+
+    this._renderListOnly();
+    requestAnimationFrame(() => this._scrollListToSelectedAndEnd());
+  }
+
+  async _warnAboutManualAssignBeforeClose() {
+    if (!this._hasManualAssignChildren()) return true;
+    return window.confirm(
+      "Im Bereich 'Manuell zuordnen' befinden sich noch nicht zugeordnete Punkte.\n\nTrotzdem abschließen?"
+    );
+  }
+
+  async _loadAudioSuggestions() {
+    if (!this.meetingId || typeof window?.bbmDb?.audioGetSuggestions !== "function") {
+      return { suggestions: [], audioImport: null, transcript: null };
+    }
+
+    const res = await window.bbmDb.audioGetSuggestions({
+      meetingId: this.meetingId,
+      status: "pending",
+    });
+    if (!res?.ok) throw new Error(res?.error || "Vorschl?ge konnten nicht geladen werden.");
+    return {
+      suggestions: Array.isArray(res.list) ? res.list : [],
+      audioImport: res.audioImport || null,
+      transcript: res.transcript || null,
+    };
+  }
+
+  async _refreshAudioPanel(options = {}) {
+    const panel = this._getAudioPanel();
+    const forceMessage =
+      options && Object.prototype.hasOwnProperty.call(options, "statusMessage")
+        ? options.statusMessage
+        : undefined;
+
+    try {
+      const audioState = await this._loadAudioSuggestions();
+      const suggestions = Array.isArray(audioState?.suggestions) ? audioState.suggestions : [];
+      const fallbackMessage = suggestions.length
+        ? ""
+        : "Aktuell liegen keine Vorschl?ge vor. Die Transkription ist real angebunden, die Zuordnungslogik bleibt noch Platzhalter.";
+      panel.update({
+        title: "Sprachdatei auswerten",
+        modeLabel: "Pr?fmodus",
+        busy: !!this._audioPanelBusy,
+        statusMessage:
+          forceMessage !== undefined
+            ? String(forceMessage || "")
+            : (this._audioPanelStatusMessage || fallbackMessage),
+        suggestions,
+        audioImport: audioState?.audioImport || null,
+        transcript: audioState?.transcript || null,
+        parentOptions: this._getAudioParentOptions(),
+        onImportAudio: async () => this._runAudioImportFlow(),
+        onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+        onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+        onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
+        onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+      });
+    } catch (err) {
+      panel.update({
+        title: "Sprachdatei auswerten",
+        modeLabel: "Pr?fmodus",
+        busy: !!this._audioPanelBusy,
+        statusMessage: err?.message || String(err),
+        suggestions: [],
+        audioImport: null,
+        transcript: null,
+        parentOptions: this._getAudioParentOptions(),
+        onImportAudio: async () => this._runAudioImportFlow(),
+        onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+        onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+        onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
+        onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+      });
+    }
+  }
+
+  async _openAudioPanel() {
+    if (!this.meetingId || this.isReadOnly) return;
+    const panel = this._getAudioPanel();
+    panel.open({
+      title: "Sprachdatei auswerten",
+      modeLabel: "Pr?fmodus",
+      busy: !!this._audioPanelBusy,
+      statusMessage: this._audioPanelStatusMessage,
+      suggestions: [],
+      audioImport: null,
+      transcript: null,
+      parentOptions: this._getAudioParentOptions(),
+      onImportAudio: async () => this._runAudioImportFlow(),
+      onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+      onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+      onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
+      onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+    });
+    await this._refreshAudioPanel();
+  }
+
+  async _runAudioImportFlow() {
+    if (!this.meetingId || this.isReadOnly) return;
+    const api = window.bbmDb || {};
+    if (
+      typeof api.audioImport !== "function" ||
+      typeof api.audioTranscribe !== "function" ||
+      typeof api.audioAnalyze !== "function"
+    ) {
+      alert("Audio-Funktionen sind nicht verfügbar.");
+      return;
+    }
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Sprachdatei wird importiert...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const importRes = await api.audioImport({
+        meetingId: this.meetingId,
+        projectId: this.projectId || this.router?.currentProjectId || null,
+        processingMode: "review",
+      });
+      if (importRes?.canceled) {
+        this._audioPanelStatusMessage = "Auswahl abgebrochen.";
+        return;
+      }
+      if (!importRes?.ok || !importRes.audioImport?.id) {
+        throw new Error(importRes?.error || "Audio-Import fehlgeschlagen.");
+      }
+
+      const audioImportId = importRes.audioImport.id;
+      this._audioPanelStatusMessage = "Lokale Transkription wird gestartet...";
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+      const transcribeRes = await api.audioTranscribe({ audioImportId });
+      if (!transcribeRes?.ok) {
+        throw new Error(transcribeRes?.error || "Transkription fehlgeschlagen.");
+      }
+
+      this._audioPanelStatusMessage = "Zuordnungslogik wird als Platzhalter ausgef?hrt...";
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+      const analyzeRes = await api.audioAnalyze({
+        audioImportId,
+        processingMode: "review",
+      });
+      if (!analyzeRes?.ok) {
+        throw new Error(analyzeRes?.error || "Analyse fehlgeschlagen.");
+      }
+
+      this._audioPanelStatusMessage =
+        analyzeRes?.message ||
+        "Transkript gespeichert. Die TOP-Zuordnung bleibt in diesem Stand noch ein klar markierter Platzhalter.";
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _createDemoAudioSuggestion(demoType) {
+    if (!this.meetingId || this.isReadOnly) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioCreateDemoSuggestion !== "function") {
+      alert("audioCreateDemoSuggestion ist nicht verfÃ¼gbar.");
+      return;
+    }
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Demo-Vorschlag wird angelegt...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioCreateDemoSuggestion({
+        meetingId: this.meetingId,
+        demoType,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Demo-Vorschlag konnte nicht angelegt werden.");
+      }
+      this._audioPanelStatusMessage =
+        res?.message || "Demo-Vorschlag wurde zur PrÃ¼fung angelegt.";
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _applyAudioSuggestion(suggestion, options = {}) {
+    const api = window.bbmDb || {};
+    if (typeof api.audioApplySuggestion !== "function") {
+      alert("audioApplySuggestion ist nicht verf?gbar.");
+      return;
+    }
+
+    const suggestionId = String(suggestion?.id || "").trim();
+    if (!suggestionId) return;
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Vorschlag wird ?bernommen...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioApplySuggestion({
+        suggestionId,
+        overrideParentTopId: String(options?.overrideParentTopId || "").trim() || null,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Vorschlag konnte nicht ?bernommen werden.");
+      }
+      this._audioPanelStatusMessage = String(res?.message || "Vorschlag ?bernommen.");
+      await this.reloadList(true);
+      await this._focusAudioSuggestion(suggestion, options);
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _rejectAudioSuggestion(suggestion) {
+    const api = window.bbmDb || {};
+    if (typeof api.audioRejectSuggestion !== "function") {
+      alert("audioRejectSuggestion ist nicht verfügbar.");
+      return;
+    }
+
+    const suggestionId = String(suggestion?.id || "").trim();
+    if (!suggestionId) return;
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Vorschlag wird verworfen...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioRejectSuggestion({ suggestionId });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Vorschlag konnte nicht verworfen werden.");
+      }
+      this._audioPanelStatusMessage = String(res?.message || "Vorschlag verworfen.");
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
   }
 
   render() {
@@ -1850,6 +2531,7 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnEndMeeting);
     btnEndMeeting.onclick = async () => {
       if (this._busy) return;
+      if (!(await this._warnAboutManualAssignBeforeClose())) return;
 
       const defDate = this._computeNextMeetingDefaultDateIso();
       const promptRes = await this.router?.promptNextMeetingSettings?.({
@@ -2041,6 +2723,17 @@ _isoToDDMMYYYY(iso) {
       await this._enterIdleAfterClose();
     };
 
+    const btnAudioAnalyze = document.createElement("button");
+    btnAudioAnalyze.textContent = "Sprachdatei auswerten";
+    btnAudioAnalyze.style.background = "#1565c0";
+    btnAudioAnalyze.style.color = "white";
+    btnAudioAnalyze.style.border = "1px solid rgba(0,0,0,0.25)";
+    styleBtnBase(btnAudioAnalyze);
+    btnAudioAnalyze.onclick = async () => {
+      if (this._busy || this.isReadOnly || !this.meetingId) return;
+      await this._openAudioPanel();
+    };
+
     const btnCloseMeeting = document.createElement("button");
     btnCloseMeeting.textContent = "Schließen";
     btnCloseMeeting.style.background = "#fff";
@@ -2195,142 +2888,45 @@ _isoToDDMMYYYY(iso) {
     });
 
     const viewWrap = document.createElement("div");
-    viewWrap.style.position = "relative";
     viewWrap.style.display = "inline-flex";
     viewWrap.style.alignItems = "center";
-    viewWrap.style.flex = "0 0 auto";
+    viewWrap.style.gap = "6px";
 
-    const viewBtn = document.createElement("button");
-    viewBtn.type = "button";
-    viewBtn.title = "Ansicht";
-    viewBtn.setAttribute("aria-haspopup", "menu");
-    viewBtn.style.display = "inline-flex";
-    viewBtn.style.alignItems = "center";
-    viewBtn.style.justifyContent = "space-between";
-    viewBtn.style.gap = "8px";
-    viewBtn.style.padding = BTN_PAD;
-    viewBtn.style.borderRadius = BTN_RADIUS;
-    viewBtn.style.cursor = "pointer";
-    viewBtn.style.border = "1px solid #ddd";
-    viewBtn.style.background = "#f3f3f3";
-    viewBtn.style.color = "#222";
-    viewBtn.style.minHeight = BTN_MIN_H;
-    viewBtn.style.minWidth = "96px";
-    viewBtn.style.fontSize = "13px";
-    viewBtn.style.fontWeight = "600";
-    viewBtn.style.lineHeight = "1.25";
-    viewBtn.style.whiteSpace = "nowrap";
-    viewBtn.onmouseenter = () => {
-      if (viewBtn.disabled) return;
-      viewBtn.style.background = "#ececec";
-      viewBtn.style.borderColor = "#cfcfcf";
-    };
-    viewBtn.onmouseleave = () => {
-      viewBtn.style.background = "#f3f3f3";
-      viewBtn.style.borderColor = "#ddd";
-    };
+    const viewLabel = document.createElement("div");
+    viewLabel.textContent = "Ansicht";
+    viewLabel.style.fontWeight = "600";
+    viewLabel.style.whiteSpace = "nowrap";
 
-    const viewBtnLabel = document.createElement("span");
-    viewBtnLabel.textContent = "Ansicht";
-    const viewBtnCaret = document.createElement("span");
-    viewBtnCaret.textContent = "v";
-    viewBtnCaret.style.fontSize = "11px";
-    viewBtnCaret.style.opacity = "0.75";
-    viewBtn.append(viewBtnLabel, viewBtnCaret);
+    const viewSelect = document.createElement("select");
+    viewSelect.style.border = "1px solid #ddd";
+    viewSelect.style.background = "#f3f3f3";
+    viewSelect.style.padding = BTN_PAD;
+    viewSelect.style.borderRadius = BTN_RADIUS;
+    viewSelect.style.cursor = "pointer";
+    viewSelect.style.minHeight = BTN_MIN_H;
+    viewSelect.title = "Ansicht";
 
-    const viewMenu = document.createElement("div");
-    viewMenu.style.position = "fixed";
-    viewMenu.style.top = "0";
-    viewMenu.style.left = "0";
-    viewMenu.style.minWidth = "190px";
-    viewMenu.style.maxWidth = "calc(100vw - 16px)";
-    viewMenu.style.display = "none";
-    viewMenu.style.flexDirection = "column";
-    viewMenu.style.gap = "0";
-    viewMenu.style.padding = "4px";
-    viewMenu.style.border = "1px solid var(--card-border)";
-    viewMenu.style.borderRadius = "8px";
-    viewMenu.style.background = "var(--card-bg)";
-    viewMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-    viewMenu.style.zIndex = String(POPOVER_MENU);
+    const optAll = document.createElement("option");
+    optAll.value = "all";
+    optAll.textContent = "Alle";
+    const optTasks = document.createElement("option");
+    optTasks.value = "tasks";
+    optTasks.textContent = "Aufgaben";
+    const optOverdue = document.createElement("option");
+    optOverdue.value = "verzug";
+    optOverdue.textContent = "Verzug";
+    const optDecisions = document.createElement("option");
+    optDecisions.value = "decisions";
+    optDecisions.textContent = "Festlegungen";
 
-    const updateViewMenuUi = () => {
-      const filterLabel = this._viewFilterLabel(this.viewFilter);
-      viewBtn.title = `Ansicht: ${filterLabel}`;
-      viewBtn.setAttribute("aria-label", `Ansicht: ${filterLabel}`);
-      Array.from(viewMenu.querySelectorAll("button[data-view-filter]")).forEach((item) => {
-        const active = item.getAttribute("data-view-filter") === this.viewFilter;
-        item.style.background = active ? "var(--btn-outline-hover-bg)" : "transparent";
-        item.style.fontWeight = active ? "700" : "400";
-      });
+    viewSelect.append(optAll, optTasks, optOverdue, optDecisions);
+    viewSelect.value = this.viewFilter;
+    viewSelect.onchange = () => {
+      this.viewFilter = viewSelect.value || "all";
+      this._renderListOnly();
     };
 
-    const mkViewItem = (value, label) => {
-      const item = document.createElement("button");
-      item.type = "button";
-      item.textContent = label;
-      item.setAttribute("data-view-filter", value);
-      item.style.display = "block";
-      item.style.width = "100%";
-      item.style.textAlign = "left";
-      item.style.border = "none";
-      item.style.background = "transparent";
-      item.style.color = "var(--text-main)";
-      item.style.padding = "8px 10px";
-      item.style.borderRadius = "6px";
-      item.style.minHeight = "30px";
-      item.style.cursor = "pointer";
-      item.onmouseenter = () => {
-        item.style.background = "var(--btn-outline-hover-bg)";
-      };
-      item.onmouseleave = () => {
-        if (item.getAttribute("data-view-filter") !== this.viewFilter) {
-          item.style.background = "transparent";
-        }
-      };
-      item.onclick = () => {
-        this.viewFilter = value;
-        updateViewMenuUi();
-        this._setViewMenuOpen(false);
-        this._renderListOnly();
-      };
-      return item;
-    };
-
-    viewMenu.append(
-      mkViewItem("all", "Alle"),
-      mkViewItem("tasks", "Aufgaben"),
-      mkViewItem("verzug", "Verzug"),
-      mkViewItem("decisions", "Festlegungen")
-    );
-    updateViewMenuUi();
-    document.body.appendChild(viewMenu);
-
-    viewBtn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (viewBtn.disabled) return;
-      this._setViewMenuOpen(!this._viewMenuOpen);
-    };
-    viewBtn.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      viewBtn.click();
-    });
-
-    if (this._viewMenuDocMouseDown) {
-      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
-      this._viewMenuDocMouseDown = null;
-    }
-    this._viewMenuDocMouseDown = (e) => {
-      if (!this._viewMenuOpen) return;
-      if (viewWrap.contains(e.target)) return;
-      if (viewMenu.contains(e.target)) return;
-      this._setViewMenuOpen(false);
-    };
-    document.addEventListener("mousedown", this._viewMenuDocMouseDown, true);
-
-    viewWrap.append(viewBtn);
+    viewWrap.append(viewLabel, viewSelect);
 
     // Topbar: fixed
     const topBar = document.createElement("div");
@@ -2376,7 +2972,14 @@ _isoToDDMMYYYY(iso) {
     actionBtnsWrap.style.alignItems = "center";
     actionBtnsWrap.style.gap = "8px";
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
-    actionBtnsWrap.append(viewWrap, btnAmpelToggle, btnLongToggle, btnEndMeeting, btnCloseMeeting);
+    actionBtnsWrap.append(
+      viewWrap,
+      btnAmpelToggle,
+      btnLongToggle,
+      btnAudioAnalyze,
+      btnEndMeeting,
+      btnCloseMeeting
+    );
 
     // Feldbezeichnungen rechts über Meta-Spalte (Platz immer reserviert)
     const topMeta = document.createElement("div");
@@ -2454,6 +3057,81 @@ _isoToDDMMYYYY(iso) {
     addActions.style.gap = "8px";
     addActions.style.marginLeft = "1.5cm";
     addActions.append(btnL1, btnChild);
+
+    const btnTask = document.createElement("button");
+    btnTask.type = "button";
+    btnTask.textContent = "ToDo";
+    btnTask.style.borderRadius = BTN_RADIUS;
+    btnTask.style.padding = BTN_PAD_ACTION;
+    btnTask.style.minHeight = BTN_MIN_H;
+
+    const btnDecision = document.createElement("button");
+    btnDecision.type = "button";
+    btnDecision.textContent = "Festlegung";
+    btnDecision.style.borderRadius = BTN_RADIUS;
+    btnDecision.style.padding = BTN_PAD_ACTION;
+    btnDecision.style.minHeight = BTN_MIN_H;
+
+    let statusTodoIcon = null;
+    let statusDecisionIcon = null;
+
+    const updateTaskDecisionUi = () => {
+      const taskOn = !!this.chkTask?.checked;
+      const decOn = !!this.chkDecision?.checked;
+
+      const taskDisabled = !!this.chkTask?.disabled;
+      const decisionDisabled = !!this.chkDecision?.disabled;
+
+      btnTask.disabled = taskDisabled;
+      btnTask.style.opacity = taskDisabled ? "0.55" : "1";
+      btnTask.style.cursor = taskDisabled ? "default" : "pointer";
+      btnDecision.disabled = decisionDisabled;
+      btnDecision.style.opacity = decisionDisabled ? "0.55" : "1";
+      btnDecision.style.cursor = decisionDisabled ? "default" : "pointer";
+
+      btnTask.style.background = taskOn ? "#eef7ff" : "#f3f3f3";
+      btnTask.style.border = taskOn ? "1px solid #b6d4ff" : "1px solid #ddd";
+      btnTask.style.color = taskOn ? "#0b4db4" : "";
+
+      btnDecision.style.background = decOn ? "#fff7ed" : "#f3f3f3";
+      btnDecision.style.border = decOn ? "1px solid #fed7aa" : "1px solid #ddd";
+      btnDecision.style.color = decOn ? "#9a3412" : "";
+
+      if (statusTodoIcon) statusTodoIcon.style.display = taskOn ? "inline-block" : "none";
+      if (statusDecisionIcon) statusDecisionIcon.style.display = decOn ? "inline-block" : "none";
+    };
+
+    this._updateTaskDecisionUi = updateTaskDecisionUi;
+    updateTaskDecisionUi();
+
+    btnTask.onclick = async () => {
+      if (this.isReadOnly || !this.selectedTop) return;
+      if (!this.chkTask || this.chkTask.disabled) return;
+      this.chkTask.checked = !this.chkTask.checked;
+      updateTaskDecisionUi();
+      await this._saveMeetingTopPatch({ is_task: this.chkTask.checked ? 1 : 0 }, { reload: true, pulse: true });
+    };
+
+    btnDecision.onclick = async () => {
+      if (this.isReadOnly || !this.selectedTop) return;
+      if (!this.chkDecision || this.chkDecision.disabled) return;
+      this.chkDecision.checked = !this.chkDecision.checked;
+      updateTaskDecisionUi();
+      await this._saveMeetingTopPatch({ is_decision: this.chkDecision.checked ? 1 : 0 }, { reload: true, pulse: true });
+    };
+
+    btnTask.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      btnTask.click();
+    });
+    btnDecision.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      btnDecision.click();
+    });
+
+    addActions.append(btnTask, btnDecision);
 
     const headerActions = document.createElement("div");
     headerActions.style.display = "inline-flex";
@@ -2560,6 +3238,10 @@ _isoToDDMMYYYY(iso) {
 
     const chkHidden = document.createElement("input");
     chkHidden.type = "checkbox";
+    const chkTask = document.createElement("input");
+    chkTask.type = "checkbox";
+    const chkDecision = document.createElement("input");
+    chkDecision.type = "checkbox";
 
     const titleWrap = document.createElement("div");
     titleWrap.style.display = "flex";
@@ -2666,7 +3348,7 @@ _isoToDDMMYYYY(iso) {
 
       const lab = document.createElement("span");
       lab.textContent = labelText;
-      lab.style.fontSize = "12px";
+      lab.style.fontSize = "inherit";
       lab.style.opacity = "0.8";
 
       wrap.append(lab);
@@ -2691,9 +3373,10 @@ _isoToDDMMYYYY(iso) {
 
     const statusWrap = mkMetaField("Status");
     const selStatus = document.createElement("select");
-    selStatus.style.width = "100%";
     selStatus.style.marginLeft = "-3mm";
-    selStatus.style.width = "calc(100% + 3mm)";
+    selStatus.style.width = "calc(100% + 3mm - 12mm)";
+    selStatus.style.flex = "1 1 auto";
+    selStatus.style.minWidth = "0";
     const statusOptions = ["offen", "in arbeit", "erledigt", "blockiert", "verzug"];
     for (const v of statusOptions) {
       const opt = document.createElement("option");
@@ -2701,7 +3384,37 @@ _isoToDDMMYYYY(iso) {
       opt.textContent = v;
       selStatus.appendChild(opt);
     }
-    statusWrap.append(selStatus);
+    const statusRow = document.createElement("div");
+    statusRow.style.display = "flex";
+    statusRow.style.alignItems = "center";
+    statusRow.style.gap = "6px";
+    const statusSymbols = document.createElement("div");
+    statusSymbols.style.display = "inline-flex";
+    statusSymbols.style.alignItems = "center";
+    statusSymbols.style.justifyContent = "flex-end";
+    statusSymbols.style.gap = "4px";
+    statusSymbols.style.width = "12mm";
+    statusSymbols.style.minWidth = "12mm";
+    statusSymbols.style.flex = "0 0 auto";
+    statusTodoIcon = document.createElement("img");
+    statusTodoIcon.src = TODO_ICON_PNG;
+    statusTodoIcon.alt = "ToDo";
+    statusTodoIcon.title = "ToDo";
+    statusTodoIcon.style.width = "11px";
+    statusTodoIcon.style.height = "11px";
+    statusTodoIcon.style.objectFit = "contain";
+    statusTodoIcon.style.display = "none";
+    statusDecisionIcon = document.createElement("img");
+    statusDecisionIcon.src = RED_FLAG_PNG;
+    statusDecisionIcon.alt = "Festgelegt";
+    statusDecisionIcon.title = "Festgelegt";
+    statusDecisionIcon.style.width = "11px";
+    statusDecisionIcon.style.height = "11px";
+    statusDecisionIcon.style.objectFit = "contain";
+    statusDecisionIcon.style.display = "none";
+    statusSymbols.append(statusTodoIcon, statusDecisionIcon);
+    statusRow.append(selStatus, statusSymbols);
+    statusWrap.append(statusRow);
 
     const respWrap = mkMetaField("Verantw.");
     const selResponsible = document.createElement("select");
@@ -2710,7 +3423,26 @@ _isoToDDMMYYYY(iso) {
     selResponsible.style.width = "calc(100% + 3mm)";
     respWrap.append(selResponsible);
 
-    metaCol.append(dueWrap, statusWrap, respWrap);
+    const contactWrap = document.createElement("div");
+    contactWrap.style.display = "flex";
+    contactWrap.style.flexDirection = "column";
+    contactWrap.style.gap = "4px";
+    contactWrap.style.marginTop = "2mm";
+
+    const contactLabel = document.createElement("span");
+    contactLabel.textContent = "Ansprechp.";
+    contactLabel.style.fontSize = "inherit";
+    contactLabel.style.opacity = "0.8";
+
+    const selContact = document.createElement("select");
+    selContact.disabled = false;
+    selContact.style.width = "100%";
+    selContact.style.marginLeft = "-3mm";
+    selContact.style.width = "calc(100% + 3mm)";
+
+    contactWrap.append(contactLabel, selContact);
+
+    metaCol.append(dueWrap, statusWrap, respWrap, contactWrap);
     editorRow.append(leftCol, sep, metaCol);
 
     box.append(boxHeader, editorRow);
@@ -2727,10 +3459,9 @@ _isoToDDMMYYYY(iso) {
     this.btnEndMeeting = btnEndMeeting;
     this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
+    this.btnAudioAnalyze = btnAudioAnalyze;
     this.btnAmpelToggle = btnAmpelToggle;
-    this.btnTasks = viewBtn;
-    this._viewMenuEl = viewMenu;
-    this._viewMenuBtn = viewBtn;
+    this.btnTasks = viewSelect;
 
     this.topBarEl = topBar;
     this.box = box;
@@ -2742,10 +3473,13 @@ _isoToDDMMYYYY(iso) {
     this.inpDueDate = inpDueDate;
     this.selStatus = selStatus;
     this.selResponsible = selResponsible;
+    this.selContact = selContact;
     this.dueAmpelEl = dueAmpel;
 
     this.chkImportant = chkImportant;
     this.chkHidden = chkHidden;
+    this.chkTask = chkTask;
+    this.chkDecision = chkDecision;
 
     this.titleCountEl = titleCount;
     this.longCountEl = longCount;
@@ -2938,7 +3672,14 @@ _isoToDDMMYYYY(iso) {
 
       if (!parsed?.id) {
         const res = await this._saveMeetingTopPatch(
-          { responsible_kind: null, responsible_id: null, responsible_label: null },
+          {
+            responsible_kind: null,
+            responsible_id: null,
+            responsible_label: null,
+            contact_kind: null,
+            contact_person_id: null,
+            contact_label: null,
+          },
           { reload: false, pulse: true }
         );
         if (res?.ok) {
@@ -2946,7 +3687,15 @@ _isoToDDMMYYYY(iso) {
             this.selectedTop.responsible_kind = null;
             this.selectedTop.responsible_id = null;
             this.selectedTop.responsible_label = null;
+            this.selectedTop.contact_kind = null;
+            this.selectedTop.contact_person_id = null;
+            this.selectedTop.contact_label = null;
           }
+          if (this.selContact) {
+            this.selContact.disabled = false;
+            this._setContactHint("-");
+          }
+          this._refreshContactOptions({ selectedId: null, selectedLabel: null });
           this._respDirty = false;
           this._respDirtyTopId = null;
           this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
@@ -2961,6 +3710,9 @@ _isoToDDMMYYYY(iso) {
           responsible_kind: parsed.kind || "company",
           responsible_id: String(parsed.id),
           responsible_label: lbl,
+          contact_kind: null,
+          contact_person_id: null,
+          contact_label: null,
         },
         { reload: false, pulse: true }
       );
@@ -2969,10 +3721,53 @@ _isoToDDMMYYYY(iso) {
           this.selectedTop.responsible_kind = parsed.kind || "company";
           this.selectedTop.responsible_id = String(parsed.id);
           this.selectedTop.responsible_label = lbl;
+          this.selectedTop.contact_kind = null;
+          this.selectedTop.contact_person_id = null;
+          this.selectedTop.contact_label = null;
         }
+        if (this.selContact) {
+          this.selContact.disabled = false;
+          this._setContactHint("-");
+        }
+        this._refreshContactOptions({ selectedId: null, selectedLabel: null });
         this._respDirty = false;
         this._respDirtyTopId = null;
         this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
+      }
+    });
+
+    selContact.addEventListener("change", async () => {
+      if (this.isReadOnly || this._busy) return;
+      if (selContact.disabled) return;
+      if (!this.selectedTop) return;
+      const opt = selContact.selectedOptions?.[0] || null;
+      const val = (selContact.value || "").toString().trim();
+      if (!val) {
+        const res = await this._saveMeetingTopPatch(
+          { contact_kind: null, contact_person_id: null, contact_label: null },
+          { reload: false, pulse: true }
+        );
+        if (res?.ok && this.selectedTop) {
+          this.selectedTop.contact_kind = null;
+          this.selectedTop.contact_person_id = null;
+          this.selectedTop.contact_label = null;
+        }
+        return;
+      }
+      const kind = opt?.dataset?.contactKind || null;
+      const label = opt?.dataset?.contactLabel || opt?.textContent || null;
+      const res = await this._saveMeetingTopPatch(
+        {
+          contact_kind: kind,
+          contact_person_id: val,
+          contact_label: label,
+        },
+        { reload: false, pulse: true }
+      );
+      if (res?.ok && this.selectedTop) {
+        this.selectedTop.contact_kind = kind;
+        this.selectedTop.contact_person_id = val;
+        this.selectedTop.contact_label = label;
       }
     });
 
@@ -3094,6 +3889,7 @@ _renderIdleState() {
     dis(this.btnLongToggle);
     dis(this.btnTasks);
     dis(this.btnEndMeeting);
+    dis(this.btnAudioAnalyze);
 
     // Liste leeren und Idle Buttons anzeigen
     if (this.listEl) {
@@ -3720,6 +4516,9 @@ async _createMeetingFromIdle() {
 
 async _enterIdleAfterClose() {
   // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
+  if (this._audioPanel && typeof this._audioPanel.close === "function") {
+    this._audioPanel.close();
+  }
   this.meetingId = null;
   this.meetingMeta = null;
   this.selectedTopId = null;
@@ -3781,11 +4580,10 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
-    if (this.btnTasks) {
-      this.btnTasks.disabled = ro || busy || !this.meetingId;
-      this.btnTasks.style.opacity = this.btnTasks.disabled ? "0.65" : "1";
-      this.btnTasks.style.display = ro || !this.meetingId ? "none" : "";
-      if (this.btnTasks.disabled) this._setViewMenuOpen(false);
+    if (this.btnAudioAnalyze) {
+      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId;
+      this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
+      this.btnAudioAnalyze.style.display = ro || !this.meetingId ? "none" : "";
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
@@ -3811,6 +4609,7 @@ async _closeViewOnly() {
 
     if (this.chkImportant) this.chkImportant.disabled = busy || ro || !this.selectedTop;
     if (this.chkHidden) this.chkHidden.disabled = busy || ro || !this.selectedTop;
+    if (this.selContact) this.selContact.disabled = false;
 
     if (this.inpTitle) this.inpTitle.disabled = busy || ro || !this.selectedTop || this.inpTitle.disabled;
     if (this.taLongtext) this.taLongtext.disabled = busy || ro || !this.selectedTop;
@@ -3987,10 +4786,13 @@ async _closeViewOnly() {
     const ok = confirm("TOP wirklich löschen?");
     if (!ok) return;
 
-    const ids = (this.items || []).map((x) => this._topIdKey(x.id)).filter(Boolean);
     const currentId = this._topIdKey(t.id);
-    const idx = ids.indexOf(currentId);
-    const nextId = idx >= 0 ? ids[idx + 1] || ids[idx - 1] || null : null;
+    const visibleIds = (this.items || [])
+      .filter((x) => !this._shouldHideTopInList(x))
+      .map((x) => this._topIdKey(x.id))
+      .filter(Boolean);
+    const idx = visibleIds.indexOf(currentId);
+    const nextId = idx >= 0 ? visibleIds[idx + 1] || visibleIds[idx - 1] || null : null;
 
     this.moveModeActive = false;
     this._deleteInFlight = true;
@@ -4283,9 +5085,39 @@ async _closeViewOnly() {
     const meeting = this.meetingMeta || { id: this.meetingId };
     const isMeetingClosed = Number(meeting?.is_closed) === 1;
 
+    const parseDueTs = (top) => {
+      const raw = top?.due_date ?? top?.dueDate ?? null;
+      if (!raw) return null;
+      const s = String(raw).trim();
+      if (!s) return null;
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const y = Number(s.slice(0, 4));
+        const m = Number(s.slice(5, 7)) - 1;
+        const d = Number(s.slice(8, 10));
+        const dt = new Date(y, m, d, 0, 0, 0, 0);
+        return Number.isNaN(dt.getTime()) ? null : dt.getTime();
+      }
+      const dt = new Date(s);
+      if (Number.isNaN(dt.getTime())) return null;
+      const local = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0, 0);
+      return Number.isNaN(local.getTime()) ? null : local.getTime();
+    };
+
+    const visibleItems = (this.items || [])
+      .map((top, idx) => ({ top, idx, dueTs: parseDueTs(top) }))
+      .filter((x) => !this._shouldHideTopInList(x.top))
+      .sort((a, b) => {
+        const ah = a.dueTs !== null;
+        const bh = b.dueTs !== null;
+        if (ah && !bh) return -1;
+        if (!ah && bh) return 1;
+        if (ah && bh && a.dueTs !== b.dueTs) return a.dueTs - b.dueTs;
+        return a.idx - b.idx;
+      });
+
     let collapsedParentId = null;
-    for (const top of this.items) {
-      if (this._shouldHideTopInList(top)) continue;
+    for (const entry of visibleItems) {
+      const top = entry.top;
       const li = document.createElement("li");
       li.dataset.topId = String(top.id);
       li.style.listStyle = "none";
@@ -4320,7 +5152,13 @@ async _closeViewOnly() {
           top.frozen_is_touched ??
           top.frozenIsTouched
       );
+      const isTask = this._isTaskTop(top);
+      const isDecision = parseFlag(top.is_decision ?? top.isDecision);
       const isLevel1 = Number(top.level) === 1;
+      const isManualAssignTop =
+        isLevel1 &&
+        this._normalizeManualAssignTitle(top.title) ===
+          this._normalizeManualAssignTitle(this._manualAssignTitle());
       const isDone = shouldGrayTopForMeeting(top, meeting);
       const changedRaw =
         top.updated_at ??
@@ -4364,7 +5202,7 @@ async _closeViewOnly() {
               ? (isTouched ? "blue" : "black")
               : "blue";
 
-      const baseBg = isLevel1 ? "#f3f3f3" : "transparent";
+      const baseBg = isManualAssignTop ? "#fff3e0" : (isLevel1 ? "#f3f3f3" : "transparent");
       li.style.background = isSelected ? "#dff0ff" : baseBg;
       li.style.border = isSelected ? "1px solid #7aa7ff" : "1px solid transparent";
       li.style.fontWeight = isSelected ? "700" : "400";
@@ -4469,6 +5307,7 @@ const textCol = document.createElement("div");
       shortLine.style.whiteSpace = "nowrap";
       shortLine.style.overflow = "hidden";
       shortLine.style.textOverflow = "ellipsis";
+      if (isManualAssignTop) shortLine.style.fontWeight = "700";
 
       textCol.append(shortLine);
 
@@ -4530,14 +5369,66 @@ const textCol = document.createElement("div");
         if (dot) dueRow.append(dot);
 
         const stRow = document.createElement("div");
-        stRow.textContent = `${st}`;
-        stRow.style.whiteSpace = "nowrap";
+        stRow.style.display = "flex";
+        stRow.style.alignItems = "center";
+        stRow.style.gap = "6px";
+        stRow.style.width = "100%";
+
+        const stText = document.createElement("span");
+        stText.textContent = `${st}`;
+        stText.style.whiteSpace = "nowrap";
+        stText.style.overflow = "hidden";
+        stText.style.textOverflow = "ellipsis";
+        stText.style.flex = "1 1 auto";
+        stText.style.minWidth = "0";
+
+        const statusSymbols = document.createElement("div");
+        statusSymbols.style.display = "inline-flex";
+        statusSymbols.style.alignItems = "center";
+        statusSymbols.style.justifyContent = "flex-end";
+        statusSymbols.style.gap = "4px";
+        statusSymbols.style.width = "12mm";
+        statusSymbols.style.minWidth = "12mm";
+        statusSymbols.style.flex = "0 0 auto";
+
+        if (isTask) {
+          const todoIcon = document.createElement("img");
+          todoIcon.src = TODO_ICON_PNG;
+          todoIcon.alt = "ToDo";
+          todoIcon.title = "ToDo";
+          todoIcon.style.width = "11px";
+          todoIcon.style.height = "11px";
+          todoIcon.style.objectFit = "contain";
+          todoIcon.style.display = "inline-block";
+          statusSymbols.appendChild(todoIcon);
+        }
+        if (isDecision) {
+          const decisionIcon = document.createElement("img");
+          decisionIcon.src = RED_FLAG_PNG;
+          decisionIcon.alt = "Festgelegt";
+          decisionIcon.title = "Festgelegt";
+          decisionIcon.style.width = "11px";
+          decisionIcon.style.height = "11px";
+          decisionIcon.style.objectFit = "contain";
+          decisionIcon.style.display = "inline-block";
+          statusSymbols.appendChild(decisionIcon);
+        }
+
+        stRow.append(stText, statusSymbols);
 
         const respRow = document.createElement("div");
         respRow.textContent = `${resp}`;
         respRow.style.whiteSpace = "nowrap";
 
-        metaCol.append(dueRow, stRow, respRow);
+        const contact = String(top?.contact_label || top?.contactLabel || "").trim();
+        if (contact) {
+          const contactRow = document.createElement("div");
+          contactRow.textContent = `${contact}`;
+          contactRow.style.whiteSpace = "nowrap";
+          metaCol.append(dueRow, stRow, respRow, contactRow);
+        } else {
+          metaCol.append(dueRow, stRow, respRow);
+        }
       }
 
       row.append(numBlock, textCol);
@@ -4729,10 +5620,13 @@ const textCol = document.createElement("div");
       if (this.taLongtext) this.taLongtext.value = "";
       this.chkHidden.checked = false;
       if (this.chkImportant) this.chkImportant.checked = false;
+      if (this.chkTask) this.chkTask.checked = false;
+      if (this.chkDecision) this.chkDecision.checked = false;
 
       if (this.inpDueDate) this.inpDueDate.value = "";
       if (this.selStatus) this.selStatus.value = "offen";
       if (this.selResponsible) this.selResponsible.value = "";
+      if (this.selContact) this._setContactHint("-");
       this._clearLegacyResponsibleOption();
       this._respLegacyReadonly = false;
       this._respDirty = false;
@@ -4745,8 +5639,11 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
+      if (this.selContact) this.selContact.disabled = false;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
+      if (this.chkTask) this.chkTask.disabled = true;
+      if (this.chkDecision) this.chkDecision.disabled = true;
 
       if (this.btnSaveTop) {
         this.btnSaveTop.disabled = true;
@@ -4761,6 +5658,7 @@ const textCol = document.createElement("div");
       this._updateDeleteControls();
       this._updateCreateChildControls();
       this._updateCharCounters();
+      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
       return;
     }
 
@@ -4773,6 +5671,8 @@ const textCol = document.createElement("div");
 
     this.chkHidden.checked = Number(t.is_hidden) === 1;
     if (this.chkImportant) this.chkImportant.checked = Number(t.is_important) === 1;
+    if (this.chkTask) this.chkTask.checked = Number(t.is_task ?? t.isTask ?? 0) === 1;
+    if (this.chkDecision) this.chkDecision.checked = Number(t.is_decision ?? t.isDecision ?? 0) === 1;
 
     if (this.inpDueDate) {
       const dueRaw = t.due_date ?? t.dueDate ?? "";
@@ -4812,6 +5712,10 @@ const textCol = document.createElement("div");
           this._respDirty = false;
           this._respDirtyTopId = null;
           this._applyProjectDueDefaults(t);
+          this._refreshContactOptions({
+            selectedId: t?.contact_person_id ?? null,
+            selectedLabel: t?.contact_label ?? null,
+          });
         }
       })
       .catch(() => {});
@@ -4826,8 +5730,11 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
+      if (this.selContact) this.selContact.disabled = false;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
+      if (this.chkTask) this.chkTask.disabled = true;
+      if (this.chkDecision) this.chkDecision.disabled = true;
 
       if (this.btnSaveTop) {
         this.btnSaveTop.disabled = true;
@@ -4842,6 +5749,7 @@ const textCol = document.createElement("div");
       this._updateMoveControls();
       this._updateDeleteControls();
       this._updateCreateChildControls();
+      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
       return;
     }
 
@@ -4853,6 +5761,8 @@ const textCol = document.createElement("div");
 
     this.chkHidden.disabled = false;
     if (this.chkImportant) this.chkImportant.disabled = false;
+    if (this.chkTask) this.chkTask.disabled = false;
+    if (this.chkDecision) this.chkDecision.disabled = false;
 
     if (this.btnSaveTop) {
       this.btnSaveTop.disabled = false;
@@ -4872,6 +5782,7 @@ const textCol = document.createElement("div");
     this._updateMoveControls();
     this._updateCreateChildControls();
     this._updateDeleteControls();
+    if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
   }
 
   async createTop(level, parentTopId) {
@@ -5081,13 +5992,17 @@ const textCol = document.createElement("div");
   }
 
   async destroy() {
-    if (this._viewMenuDocMouseDown) {
-      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
-      this._viewMenuDocMouseDown = null;
+    try {
+      if (this._audioPanel && typeof this._audioPanel.destroy === "function") {
+        this._audioPanel.destroy();
+      }
+    } catch (_err) {
+      // ignore cleanup issues
     }
-    this._setViewMenuOpen(false);
-    if (this._viewMenuEl && this._viewMenuEl.parentNode) {
-      this._viewMenuEl.parentNode.removeChild(this._viewMenuEl);
+    if (this._audioSuggestionMarkTimer) {
+      clearTimeout(this._audioSuggestionMarkTimer);
+      this._audioSuggestionMarkTimer = null;
     }
+    this._audioPanel = null;
   }
 }
