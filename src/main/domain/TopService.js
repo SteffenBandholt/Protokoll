@@ -451,6 +451,8 @@ class TopService {
       "contact_kind",
       "contact_person_id",
       "contact_label",
+      "contact_person_kind",
+      "contact_person_label",
       "contactKind",
       "contactPersonId",
       "contactLabel",
@@ -491,7 +493,9 @@ class TopService {
     const ck =
       patch.contact_kind !== undefined
         ? patch.contact_kind
-        : (patch.contactKind !== undefined ? patch.contactKind : undefined);
+        : (patch.contactKind !== undefined
+          ? patch.contactKind
+          : (patch.contact_person_kind !== undefined ? patch.contact_person_kind : undefined));
 
     const cp =
       patch.contact_person_id !== undefined
@@ -501,7 +505,9 @@ class TopService {
     const cl =
       patch.contact_label !== undefined
         ? patch.contact_label
-        : (patch.contactLabel !== undefined ? patch.contactLabel : undefined);
+        : (patch.contactLabel !== undefined
+          ? patch.contactLabel
+          : (patch.contact_person_label !== undefined ? patch.contact_person_label : undefined));
 
     const imp =
       patch.is_important !== undefined
