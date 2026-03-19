@@ -902,7 +902,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   router.showHome();
   header.refresh();
   updateContextButtons();
-  showStartupOverlay({ durationMs: 3000 });
+  // Start-Popup "Initialisiere ..." deaktiviert
   // Start-Popup "Was ist neu/geändert" ist deaktiviert.
   };
 
