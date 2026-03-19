@@ -2984,7 +2984,7 @@ export default class SettingsView {
 
     licenseBox.append(licenseTitle, licenseHint, btnLicenseOpen);
 
-    devRightCol.append(devDefaultsBox, licenseBox, dictionaryBox, topsLimitBox, trialBox);
+    devRightCol.append(licenseGenBox, devDefaultsBox, licenseBox, dictionaryBox, topsLimitBox, trialBox);
     devTopCardsRow.append(versionBox, devRightCol);
 
     const themeBox = document.createElement("div");
