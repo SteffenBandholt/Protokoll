@@ -1,4 +1,4 @@
-ï»¿// src/renderer/views/SettingsView.js
+// src/renderer/views/SettingsView.js
 //
 // Nutzerdaten werden in DB + appSettings gepflegt (DB ist Quelle beim Laden).
 // Persistenz: ueber window.bbmDb.userProfileGet/userProfileUpsert + appSettingsGetMany/appSettingsSetMany.
@@ -271,6 +271,454 @@ export default class SettingsView {
     this._devPopupOpen = false;
   }
 
+  _formatLicenseReason(reason, fallbackError = "") {
+    const code = String(reason || "").trim().toUpperCase();
+    if (code === "NO_LICENSE") return "Keine Lizenz installiert";
+    if (code === "LICENSE_EXPIRED") return "Lizenz abgelaufen";
+    if (code === "INVALID_FORMAT") return "Ungueltige Lizenzdatei";
+    if (code === "INVALID_SIGNATURE") return "Lizenzdatei konnte nicht verifiziert werden";
+    if (code === "WRONG_PRODUCT") return "Lizenz gehoert zu einem anderen Produkt";
+    if (code === "WRONG_MACHINE") return "Lizenz gehoert zu einem anderen Rechner";
+    if (code === "PUBLIC_KEY_MISSING") return "Oeffentlicher Lizenzschluessel fehlt";
+    if (code === "PUBLIC_KEY_INVALID") return "Oeffentlicher Lizenzschluessel ist ungueltig";
+    return String(fallbackError || "Lizenzstatus konnte nicht geladen werden.");
+  }
+
+  _formatLicenseDate(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "-";
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) return raw;
+    try {
+      return new Intl.DateTimeFormat("de-DE", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(dt);
+    } catch (_e) {
+      return raw;
+    }
+  }
+
+  _formatLicenseWarning(res, fallbackReason = "") {
+    if (res?.expired) return "Lizenz ist abgelaufen";
+
+    const daysRemaining = Number(res?.daysRemaining);
+    if (res?.expiresSoon && Number.isFinite(daysRemaining)) {
+      if (daysRemaining <= 0) return "Lizenz laeuft heute ab";
+      if (daysRemaining === 1) return "Lizenz laeuft in 1 Tag ab";
+      return `Lizenz laeuft in ${daysRemaining} Tagen ab`;
+    }
+
+    return this._formatLicenseReason(res?.reason, fallbackReason);
+  }
+
+  _formatLicenseBinding(binding) {
+    const code = String(binding || "").trim().toLowerCase() || "none";
+    if (code === "machine") return "Vollversion (rechnergebunden)";
+    return "Soft-Lizenz";
+  }
+
+  _formatLicenseGenerationError(raw) {
+    const code = String(raw || "").trim().toUpperCase();
+    if (code === "LICENSE_GENERATION_NOT_ALLOWED") return "Lizenz-Erstellung ist nur im Entwicklungsbereich verfuegbar.";
+    if (code === "LICENSE_TOOL_NOT_FOUND") return "C:\\license-tool wurde nicht gefunden.";
+    if (code === "LICENSE_TOOL_SCRIPT_MISSING") return "generate-license.cjs wurde im license-tool nicht gefunden.";
+    if (code === "PRIVATE_KEY_MISSING") return "private_key.pem fehlt im license-tool.";
+    if (code === "INVALID_FORMAT") return "Die geladene Lizenzdatei ist beschaedigt oder hat kein gueltiges Format.";
+    if (code === "CUSTOMER_NAME_REQUIRED") return "Bitte Kunde / Firma angeben.";
+    if (code === "LICENSE_ID_REQUIRED") return "Bitte eine Lizenznummer angeben.";
+    if (code === "VALID_FROM_REQUIRED") return "Bitte ein gueltiges Startdatum setzen.";
+    if (code === "VALID_UNTIL_REQUIRED") return "Bitte ein gueltiges Enddatum oder Nutzungstage setzen.";
+    if (code === "VALID_UNTIL_BEFORE_VALID_FROM") return "Das Enddatum darf nicht vor dem Startdatum liegen.";
+    if (code === "BINDING_INVALID") return "Bitte einen gueltigen Lizenzmodus auswaehlen.";
+    if (code === "MACHINE_ID_REQUIRED_FOR_BINDING") return "Fuer Vollversion ist eine gueltige Machine-ID erforderlich.";
+    if (code === "MAX_DEVICES_INVALID") return "Max. Geraete muss mindestens 1 sein.";
+    if (code === "FEATURES_REQUIRED") return "Bitte mindestens ein Feature auswaehlen.";
+    if (code === "OUTPUT_FILE_NOT_FOUND") return "Die erzeugte Lizenzdatei wurde im Ausgabeordner nicht gefunden.";
+    if (code === "GENERATOR_TIMEOUT") return "Lizenz-Generator hat zu lange gebraucht. Bitte Vorgang erneut starten.";
+    if (code === "GENERATOR_FAILED") return "Das externe license-tool hat einen Fehler gemeldet.";
+    return String(raw || "Lizenz konnte nicht erzeugt werden.");
+  }
+
+  _createLicenseSettingsContent() {
+    const api = window.bbmDb || {};
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "grid";
+    wrap.style.gap = "10px";
+    wrap.style.minWidth = "min(580px, calc(100vw - 80px))";
+    wrap.style.maxWidth = "700px";
+
+    const statusCard = document.createElement("div");
+    applyPopupCardStyle(statusCard);
+    statusCard.style.padding = "6px 8px";
+    statusCard.style.display = "grid";
+    statusCard.style.gap = "6px";
+
+    const statusRow = document.createElement("div");
+    statusRow.style.display = "flex";
+    statusRow.style.alignItems = "center";
+    statusRow.style.justifyContent = "space-between";
+    statusRow.style.gap = "8px";
+    statusRow.style.flexWrap = "wrap";
+
+    const statusLabel = document.createElement("div");
+    statusLabel.style.fontWeight = "800";
+    statusLabel.style.fontSize = "12px";
+    statusLabel.textContent = "Lizenzstatus wird geladen ...";
+
+    const statusHint = document.createElement("div");
+    statusHint.style.fontSize = "10px";
+    statusHint.style.opacity = "0.8";
+    statusHint.textContent = "";
+
+    statusRow.append(statusLabel, statusHint);
+
+    const messageEl = document.createElement("div");
+    messageEl.style.fontSize = "11px";
+    messageEl.style.minHeight = "14px";
+    messageEl.style.color = "#475569";
+
+    const licenseBanner = document.createElement("div");
+    licenseBanner.style.padding = "6px 8px";
+    licenseBanner.style.borderRadius = "8px";
+    licenseBanner.style.background = "#f8fafc";
+    licenseBanner.style.border = "1px solid rgba(0,0,0,0.08)";
+    licenseBanner.style.fontSize = "11px";
+    licenseBanner.style.fontWeight = "700";
+    licenseBanner.style.color = "#0f172a";
+    licenseBanner.style.wordBreak = "break-word";
+    licenseBanner.textContent = "\u00A9 BBM 2026 - v- | Keine gueltige Lizenz";
+
+    const infoGrid = document.createElement("div");
+    infoGrid.style.display = "grid";
+    infoGrid.style.gridTemplateColumns = "minmax(130px, 180px) 1fr";
+    infoGrid.style.gap = "4px 8px";
+
+    const makeRow = (label, valueNode) => {
+      const labelEl = document.createElement("div");
+      labelEl.textContent = label;
+      labelEl.style.fontWeight = "700";
+      labelEl.style.fontSize = "11px";
+      labelEl.style.color = "#334155";
+
+      const valueEl =
+        valueNode instanceof HTMLElement ? valueNode : document.createElement("div");
+      if (!(valueNode instanceof HTMLElement)) {
+        valueEl.textContent = String(valueNode || "-");
+      }
+      valueEl.style.fontSize = "11px";
+      valueEl.style.minWidth = "0";
+      valueEl.style.wordBreak = "break-word";
+      return [labelEl, valueEl];
+    };
+
+    const valueStatus = document.createElement("div");
+    const valueCustomer = document.createElement("div");
+    const valueLicenseId = document.createElement("div");
+    const valueEdition = document.createElement("div");
+    const valueBinding = document.createElement("div");
+    const valueValidUntil = document.createElement("div");
+    const valueDaysRemaining = document.createElement("div");
+    const valueFeatures = document.createElement("div");
+    const valueMachineId = document.createElement("div");
+    const valueAppVersion = document.createElement("div");
+    const valueReason = document.createElement("div");
+    valueReason.style.fontSize = "11px";
+    valueReason.style.opacity = "0.8";
+
+    [
+      makeRow("Status", valueStatus),
+      makeRow("Kunde", valueCustomer),
+      makeRow("Lizenz-ID", valueLicenseId),
+      makeRow("Edition", valueEdition),
+      makeRow("Modus", valueBinding),
+      makeRow("Gueltig bis", valueValidUntil),
+      makeRow("Resttage", valueDaysRemaining),
+      makeRow("Machine-ID", valueMachineId),
+      makeRow("App-Version", valueAppVersion),
+      makeRow("Aktivierte Features", valueFeatures),
+      makeRow("Hinweis", valueReason),
+    ].forEach(([labelEl, valueEl]) => infoGrid.append(labelEl, valueEl));
+
+    const diagnosticsCard = document.createElement("div");
+    applyPopupCardStyle(diagnosticsCard);
+    diagnosticsCard.style.padding = "6px 8px";
+    diagnosticsCard.style.display = "grid";
+    diagnosticsCard.style.gap = "6px";
+
+    const diagnosticsHead = document.createElement("div");
+    diagnosticsHead.style.display = "flex";
+    diagnosticsHead.style.alignItems = "center";
+    diagnosticsHead.style.justifyContent = "space-between";
+    diagnosticsHead.style.gap = "8px";
+    diagnosticsHead.style.flexWrap = "wrap";
+
+    const diagnosticsTitle = document.createElement("div");
+    diagnosticsTitle.textContent = "Support-Diagnose";
+    diagnosticsTitle.style.fontWeight = "800";
+
+    const btnCopyDiagnostics = document.createElement("button");
+    btnCopyDiagnostics.type = "button";
+    btnCopyDiagnostics.textContent = "Diagnose kopieren";
+    applyPopupButtonStyle(btnCopyDiagnostics);
+
+    diagnosticsHead.append(diagnosticsTitle, btnCopyDiagnostics);
+
+    const diagnosticsHelp = document.createElement("div");
+    diagnosticsHelp.textContent = "Kompakter Textblock fuer Supportfaelle.";
+    diagnosticsHelp.style.fontSize = "11px";
+    diagnosticsHelp.style.opacity = "0.78";
+
+    const diagnosticsPre = document.createElement("pre");
+    diagnosticsPre.style.margin = "0";
+    diagnosticsPre.style.padding = "8px";
+    diagnosticsPre.style.borderRadius = "8px";
+    diagnosticsPre.style.background = "#f8fafc";
+    diagnosticsPre.style.border = "1px solid rgba(0,0,0,0.08)";
+    diagnosticsPre.style.fontSize = "10px";
+    diagnosticsPre.style.lineHeight = "1.35";
+    diagnosticsPre.style.whiteSpace = "pre-wrap";
+    diagnosticsPre.style.wordBreak = "break-word";
+    diagnosticsPre.textContent = "Diagnosedaten werden geladen ...";
+
+    diagnosticsCard.append(diagnosticsHead, diagnosticsHelp, diagnosticsPre);
+
+    const buttonRow = document.createElement("div");
+    buttonRow.style.display = "flex";
+    buttonRow.style.gap = "8px";
+    buttonRow.style.flexWrap = "wrap";
+
+    const btnImport = document.createElement("button");
+    btnImport.type = "button";
+    btnImport.textContent = "Lizenz importieren";
+    applyPopupButtonStyle(btnImport, { variant: "primary" });
+
+    const btnReload = document.createElement("button");
+    btnReload.type = "button";
+    btnReload.textContent = "Status aktualisieren";
+    applyPopupButtonStyle(btnReload);
+
+    const btnCreateRequest = document.createElement("button");
+    btnCreateRequest.type = "button";
+    btnCreateRequest.textContent = "Lizenzanforderung erzeugen";
+    applyPopupButtonStyle(btnCreateRequest);
+
+    const requestHint = document.createElement("div");
+    requestHint.style.fontSize = "11px";
+    requestHint.style.opacity = "0.8";
+    requestHint.textContent = "Soft-Lizenz: direkt importierbar. Vollversion: zuerst auf dem Zielrechner eine Lizenzanforderung erzeugen und danach die passende Lizenz importieren.";
+
+    buttonRow.append(btnImport, btnReload, btnCreateRequest);
+    statusCard.append(statusRow, messageEl, licenseBanner, infoGrid, requestHint, buttonRow);
+    wrap.append(statusCard, diagnosticsCard);
+
+    const setBusy = (busy) => {
+      const isBusy = !!busy;
+      btnImport.disabled = isBusy;
+      btnReload.disabled = isBusy;
+      btnCreateRequest.disabled = isBusy;
+      btnCopyDiagnostics.disabled = isBusy;
+    };
+
+    const setMessage = (text, isError = false) => {
+      messageEl.textContent = String(text || "");
+      messageEl.style.color = isError ? "#b91c1c" : "#475569";
+    };
+
+    const renderStatus = (res, fallbackError = "") => {
+      const valid = !!res?.valid;
+      const reason = String(res?.reason || "").trim();
+      const features = Array.isArray(res?.features) ? res.features : [];
+      const reasonText = this._formatLicenseReason(reason, fallbackError);
+      const warningText = this._formatLicenseWarning(res, fallbackError);
+      const daysRemaining = Number(res?.daysRemaining);
+      const isExpired = !!res?.expired || reason === "LICENSE_EXPIRED";
+      const isExpiringSoon = !!res?.expiresSoon && !isExpired;
+      const accentColor = isExpired ? "#b91c1c" : isExpiringSoon ? "#b45309" : valid ? "#166534" : "#b91c1c";
+
+      statusLabel.textContent = valid ? "Lizenz gueltig" : "Lizenz ungueltig";
+      statusLabel.style.color = accentColor;
+      statusHint.textContent = valid
+        ? isExpiringSoon
+          ? warningText
+          : "Offline-Lizenz aktiv"
+        : warningText;
+      statusHint.style.color = accentColor;
+
+      valueStatus.textContent = valid ? (isExpiringSoon ? "gueltig, Warnung" : "gueltig") : "ungueltig";
+      valueStatus.style.color = accentColor;
+      valueStatus.style.fontWeight = "700";
+      valueCustomer.textContent = String(res?.customerName || "").trim() || "-";
+      valueLicenseId.textContent = String(res?.licenseId || "").trim() || "-";
+      valueEdition.textContent = String(res?.edition || "").trim() || "-";
+      valueBinding.textContent = this._formatLicenseBinding(res?.binding);
+      valueValidUntil.textContent = this._formatLicenseDate(res?.validUntil);
+      valueDaysRemaining.textContent = Number.isFinite(daysRemaining) ? String(daysRemaining) : "-";
+      valueMachineId.textContent = String(res?.machineId || "").trim() || "-";
+      valueAppVersion.textContent = String(res?.appVersion || "").trim() || "-";
+      valueFeatures.textContent = features.length ? features.join(", ") : "-";
+      valueReason.textContent = valid ? (isExpiringSoon ? warningText : "Keine Warnung") : reasonText;
+      diagnosticsPre.textContent = String(res?.diagnosticsText || "").trim() || "Keine Diagnosedaten verfuegbar.";
+      const versionLabel = String(res?.appVersion || "").trim() || "-";
+      const customerLabel = String(res?.customerName || "").trim();
+      licenseBanner.textContent = valid && customerLabel
+        ? `\u00A9 BBM 2026 - v${versionLabel} | Lizenziert fuer: ${customerLabel}`
+        : `\u00A9 BBM 2026 - v${versionLabel} | Keine gueltige Lizenz`;
+
+      if (!valid && reason === "NO_LICENSE") {
+        setMessage("Es ist aktuell keine Lizenz installiert. Bitte eine .bbmlic-Datei importieren.", false);
+      } else if (isExpired) {
+        setMessage("Lizenz ist abgelaufen.", true);
+      } else if (valid && isExpiringSoon) {
+        setMessage(warningText, true);
+      } else if (!valid) {
+        setMessage(reasonText, true);
+      } else {
+        setMessage("Lizenzstatus erfolgreich geladen.", false);
+      }
+    };
+
+    const loadStatus = async () => {
+      if (typeof api.licenseGetStatus !== "function") {
+        renderStatus({ valid: false, reason: "INVALID_FORMAT" }, "Lizenz-IPC ist nicht verfuegbar.");
+        setMessage("Lizenzstatus kann in dieser App-Version nicht geladen werden.", true);
+        return;
+      }
+
+      setBusy(true);
+      setMessage("Lizenzstatus wird geladen ...", false);
+      try {
+        const res = await api.licenseGetStatus();
+        if (!res?.ok) {
+          renderStatus(res || {}, res?.error || "Lizenzstatus konnte nicht geladen werden.");
+          return;
+        }
+        renderStatus(res);
+      } catch (err) {
+        renderStatus({}, err?.message || "Lizenzstatus konnte nicht geladen werden.");
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    const loadDiagnostics = async () => {
+      if (typeof api.licenseGetDiagnostics !== "function") return;
+      try {
+        const res = await api.licenseGetDiagnostics();
+        diagnosticsPre.textContent =
+          String(res?.diagnosticsText || "").trim() || "Keine Diagnosedaten verfuegbar.";
+      } catch (_err) {
+        diagnosticsPre.textContent = "Diagnosedaten konnten nicht geladen werden.";
+      }
+    };
+
+    const copyText = async (text) => {
+      const value = String(text || "").trim();
+      if (!value) return false;
+
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+          return true;
+        }
+      } catch (_e) {
+        // fallback below
+      }
+
+      const helper = document.createElement("textarea");
+      helper.value = value;
+      helper.setAttribute("readonly", "readonly");
+      helper.style.position = "fixed";
+      helper.style.opacity = "0";
+      helper.style.pointerEvents = "none";
+      document.body.appendChild(helper);
+      helper.select();
+      helper.setSelectionRange(0, helper.value.length);
+      let ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (_e) {
+        ok = false;
+      } finally {
+        helper.remove();
+      }
+      return ok;
+    };
+
+    btnImport.onclick = async () => {
+      if (typeof api.licenseImport !== "function") {
+        setMessage("Lizenzimport ist in dieser App-Version nicht verfuegbar.", true);
+        return;
+      }
+
+      setBusy(true);
+      setMessage("Lizenzdatei wird importiert ...", false);
+      try {
+        const res = await api.licenseImport({});
+        if (res?.canceled) {
+          setMessage("Lizenzimport abgebrochen.", false);
+          return;
+        }
+        if (!res?.ok) {
+          renderStatus(res || {}, res?.error || "Lizenz konnte nicht importiert werden.");
+          await loadDiagnostics();
+          return;
+        }
+        renderStatus(res);
+        setMessage("Lizenz erfolgreich importiert.", false);
+        await loadStatus();
+        await loadDiagnostics();
+      } catch (err) {
+        renderStatus({}, err?.message || "Lizenz konnte nicht importiert werden.");
+        await loadDiagnostics();
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    btnCreateRequest.onclick = async () => {
+      if (typeof api.licenseCreateRequest !== "function") {
+        setMessage("Lizenzanforderung ist in dieser App-Version nicht verfuegbar.", true);
+        return;
+      }
+      setBusy(true);
+      setMessage("Lizenzanforderung wird erzeugt ...", false);
+      try {
+        const customerHint = String(valueCustomer.textContent || "").trim();
+        const res = await api.licenseCreateRequest({ product: "bbm-protokoll", customerHint });
+        if (res?.canceled) {
+          setMessage("Lizenzanforderung abgebrochen.", false);
+          return;
+        }
+        if (!res?.ok) {
+          setMessage(this._formatLicenseGenerationError(res?.error), true);
+          return;
+        }
+        setMessage(`Lizenzanforderung gespeichert: ${res?.filePath || "-"}`, false);
+      } catch (err) {
+        setMessage(this._formatLicenseGenerationError(err?.message || err), true);
+      } finally {
+        setBusy(false);
+      }
+    };
+
+    btnReload.onclick = async () => {
+      await loadStatus();
+      await loadDiagnostics();
+    };
+
+    btnCopyDiagnostics.onclick = async () => {
+      const text = diagnosticsPre.textContent || "";
+      const copied = await copyText(text);
+      setMessage(copied ? "Diagnose in die Zwischenablage kopiert." : "Diagnose konnte nicht kopiert werden.", !copied);
+    };
+
+    void Promise.all([loadStatus(), loadDiagnostics()]);
+    return wrap;
+  }
+
   render() {
     const root = document.createElement("div");
     root.addEventListener("keydown", (e) => {
@@ -316,7 +764,7 @@ export default class SettingsView {
     if (hasActiveProject) {
       btnBackToProject = document.createElement("button");
       btnBackToProject.type = "button";
-      btnBackToProject.textContent = "ZurÃ¼ck zum Protokoll";
+      btnBackToProject.textContent = "Zurück zum Protokoll";
       applyPopupButtonStyle(btnBackToProject, { variant: "neutral" });
       btnBackToProject.onclick = async () => {
         const projectId = this.router?.currentProjectId || null;
@@ -704,7 +1152,7 @@ export default class SettingsView {
         return false;
       }
       if (!titleValid || !longValid) {
-        setTopsLimitMsg("UngÃ¼ltiger Wert â€“ Standard wurde verwendet.");
+        setTopsLimitMsg("Ungültiger Wert – Standard wurde verwendet.");
       } else {
         setTopsLimitMsg("Gespeichert");
       }
@@ -1012,7 +1460,7 @@ export default class SettingsView {
     fontScaleBox.style.marginLeft = "auto";
 
     const fontScaleTitle = document.createElement("div");
-    fontScaleTitle.textContent = "Top-Liste (SchriftgrÃ¶ÃŸen)";
+    fontScaleTitle.textContent = "Top-Liste (Schriftgrößen)";
     fontScaleTitle.style.fontWeight = "bold";
     fontScaleTitle.style.marginBottom = "6px";
 
@@ -1080,14 +1528,14 @@ export default class SettingsView {
     btnListMedium.textContent = "mittel";
     applyScaleBtnBase(btnListMedium);
     const btnListLarge = document.createElement("button");
-    btnListLarge.textContent = "groÃŸ";
+    btnListLarge.textContent = "groß";
     applyScaleBtnBase(btnListLarge);
 
     const btnEditSmall = document.createElement("button");
     btnEditSmall.textContent = "klein";
     applyScaleBtnBase(btnEditSmall);
     const btnEditLarge = document.createElement("button");
-    btnEditLarge.textContent = "groÃŸ";
+    btnEditLarge.textContent = "groß";
     applyScaleBtnBase(btnEditLarge);
 
     const applyFontScaleUi = () => {
@@ -1107,7 +1555,7 @@ export default class SettingsView {
       }
       const res = await api.appSettingsGetMany([TOPS_FONT_LIST_KEY, TOPS_FONT_EDIT_KEY]);
       if (!res?.ok) {
-        fontScaleMsg.textContent = res?.error || "Fehler beim Laden der SchriftgrÃ¶ÃŸen";
+        fontScaleMsg.textContent = res?.error || "Fehler beim Laden der Schriftgrößen";
         applyFontScaleUi();
         return;
       }
@@ -1572,6 +2020,569 @@ export default class SettingsView {
       }
     };
 
+    const licenseGenBox = document.createElement("div");
+    applyPopupCardStyle(licenseGenBox);
+    licenseGenBox.style.padding = "8px 10px";
+    licenseGenBox.style.display = "grid";
+    licenseGenBox.style.gap = "8px";
+
+    const licenseGenTitle = document.createElement("div");
+    licenseGenTitle.textContent = "Lizenz verlaengern / bearbeiten";
+    licenseGenTitle.style.fontWeight = "700";
+
+    const licenseGenHint = document.createElement("div");
+    licenseGenHint.textContent = "Nur fuer den internen Entwicklungsbereich. Bestehende .bbmlic laden, anpassen und ueber C:\\license-tool neu erzeugen.";
+    licenseGenHint.style.fontSize = "12px";
+    licenseGenHint.style.opacity = "0.8";
+
+    const loadedLicenseInfo = document.createElement("div");
+    loadedLicenseInfo.style.fontSize = "12px";
+    loadedLicenseInfo.style.lineHeight = "1.35";
+    loadedLicenseInfo.style.padding = "8px";
+    loadedLicenseInfo.style.borderRadius = "8px";
+    loadedLicenseInfo.style.background = "#f8fafc";
+    loadedLicenseInfo.style.border = "1px solid rgba(0,0,0,0.08)";
+    loadedLicenseInfo.textContent = "Keine bestehende Lizenz geladen.";
+
+    const licenseTemplateWrap = document.createElement("div");
+    licenseTemplateWrap.style.display = "flex";
+    licenseTemplateWrap.style.flexWrap = "wrap";
+    licenseTemplateWrap.style.gap = "8px";
+
+    const licenseTemplateInfo = document.createElement("div");
+    licenseTemplateInfo.style.fontSize = "12px";
+    licenseTemplateInfo.style.lineHeight = "1.35";
+    licenseTemplateInfo.style.padding = "8px";
+    licenseTemplateInfo.style.borderRadius = "8px";
+    licenseTemplateInfo.style.background = "#fff7ed";
+    licenseTemplateInfo.style.border = "1px solid rgba(245, 158, 11, 0.35)";
+    licenseTemplateInfo.textContent = "Keine Vorlage aktiv. Du kannst eine Schnellvorlage laden oder alle Felder frei setzen.";
+
+    const inpLicenseProduct = document.createElement("input");
+    inpLicenseProduct.type = "text";
+    inpLicenseProduct.value = "bbm-protokoll";
+
+    const inpLicenseCustomer = document.createElement("input");
+    inpLicenseCustomer.type = "text";
+    inpLicenseCustomer.placeholder = "Musterbau GmbH";
+
+    const inpLicenseId = document.createElement("input");
+    inpLicenseId.type = "text";
+    inpLicenseId.placeholder = "BBM-TEST-0001";
+    inpLicenseId.readOnly = false;
+    inpLicenseId.disabled = false;
+
+    const btnLicenseIdSuggest = document.createElement("button");
+    btnLicenseIdSuggest.type = "button";
+    btnLicenseIdSuggest.textContent = "Neue Nummer vorschlagen";
+    applyPopupButtonStyle(btnLicenseIdSuggest);
+
+    const makeLicenseIdSuggestion = () => {
+      const year = new Date().getFullYear();
+      return `BBM-${year}-0001`;
+    };
+
+    const ensureLicenseIdSuggestion = () => {
+      const current = String(inpLicenseId.value || "").trim();
+      if (current) return;
+      inpLicenseId.value = makeLicenseIdSuggestion();
+    };
+
+    const inpLicenseEdition = document.createElement("input");
+    inpLicenseEdition.type = "text";
+    inpLicenseEdition.value = "test";
+
+    const inpLicenseBinding = document.createElement("select");
+    [
+      ["Soft-Lizenz", "none"],
+      ["Vollversion (rechnergebunden)", "machine"],
+    ].forEach(([labelText, value]) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = labelText;
+      inpLicenseBinding.appendChild(option);
+    });
+
+    const bindingHint = document.createElement("div");
+    bindingHint.style.fontSize = "12px";
+    bindingHint.style.lineHeight = "1.35";
+    bindingHint.style.color = "#475569";
+    bindingHint.textContent = "Soft-Lizenz: keine Rechnerbindung. Vollversion: bindet die Lizenz an die aktuelle lokale Machine-ID.";
+
+    const valueLicenseIssuedAt = document.createElement("div");
+    valueLicenseIssuedAt.textContent = "-";
+    valueLicenseIssuedAt.style.fontSize = "12px";
+    valueLicenseIssuedAt.style.wordBreak = "break-word";
+
+    const valueLicenseRequestMachineId = document.createElement("div");
+    valueLicenseRequestMachineId.textContent = "-";
+    valueLicenseRequestMachineId.style.fontSize = "12px";
+    valueLicenseRequestMachineId.style.wordBreak = "break-word";
+
+    const inpLicenseValidFrom = document.createElement("input");
+    inpLicenseValidFrom.type = "date";
+    inpLicenseValidFrom.value = new Date().toISOString().slice(0, 10);
+
+    const inpLicenseDuration = document.createElement("input");
+    inpLicenseDuration.type = "number";
+    inpLicenseDuration.min = "1";
+    inpLicenseDuration.step = "1";
+    inpLicenseDuration.value = "365";
+
+    const inpLicenseValidUntil = document.createElement("input");
+    inpLicenseValidUntil.type = "date";
+
+    const inpLicenseMaxDevices = document.createElement("input");
+    inpLicenseMaxDevices.type = "number";
+    inpLicenseMaxDevices.min = "1";
+    inpLicenseMaxDevices.step = "1";
+    inpLicenseMaxDevices.value = "1";
+
+    const inpLicenseNotes = document.createElement("textarea");
+    inpLicenseNotes.rows = 3;
+    inpLicenseNotes.placeholder = "Interne Notizen zur Lizenz";
+    inpLicenseNotes.style.width = "100%";
+    inpLicenseNotes.style.boxSizing = "border-box";
+
+    const featureWrap = document.createElement("div");
+    featureWrap.style.display = "flex";
+    featureWrap.style.flexWrap = "wrap";
+    featureWrap.style.gap = "8px 12px";
+
+    const featureInputs = ["app", "pdf", "export", "mail"].map((feature) => {
+      const label = document.createElement("label");
+      label.style.display = "inline-flex";
+      label.style.alignItems = "center";
+      label.style.gap = "6px";
+      label.style.fontSize = "12px";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = feature;
+      checkbox.checked = true;
+      label.append(checkbox, document.createTextNode(feature));
+      featureWrap.appendChild(label);
+      return checkbox;
+    });
+
+    let activeLicenseTemplate = "";
+
+    const setFeatureSelection = (selectedFeatures) => {
+      const selected = new Set((Array.isArray(selectedFeatures) ? selectedFeatures : []).map((v) => String(v || "").trim()));
+      featureInputs.forEach((inp) => {
+        inp.checked = selected.has(inp.value);
+      });
+    };
+
+    const calcValidUntil = () => {
+      const validFrom = String(inpLicenseValidFrom.value || "").trim();
+      const days = Number(inpLicenseDuration.value);
+      if (!validFrom || !Number.isFinite(days) || days < 1) return;
+      const dt = new Date(`${validFrom}T00:00:00Z`);
+      if (Number.isNaN(dt.getTime())) return;
+      dt.setUTCDate(dt.getUTCDate() + Math.floor(days));
+      inpLicenseValidUntil.value = dt.toISOString().slice(0, 10);
+    };
+    calcValidUntil();
+    inpLicenseValidFrom.addEventListener("change", calcValidUntil);
+    inpLicenseDuration.addEventListener("input", calcValidUntil);
+
+    const todayIso = () => new Date().toISOString().slice(0, 10);
+
+    const applyLicenseTemplate = (templateKey) => {
+      const templates = {
+        test30: {
+          label: "30 Tage Test",
+          edition: "test",
+          binding: "none",
+          durationDays: "30",
+          validFrom: todayIso(),
+          maxDevices: "2",
+          features: ["app", "pdf", "export", "mail"],
+        },
+        standard365: {
+          label: "1 Jahr Standard",
+          edition: "standard",
+          binding: "none",
+          durationDays: "365",
+          validFrom: todayIso(),
+          maxDevices: "1",
+          features: ["app", "pdf", "export"],
+        },
+        pro365: {
+          label: "1 Jahr Pro",
+          edition: "pro",
+          binding: "machine",
+          durationDays: "365",
+          validFrom: todayIso(),
+          maxDevices: "1",
+          features: ["app", "pdf", "export", "mail"],
+        },
+      };
+      const tpl = templates[String(templateKey || "").trim()];
+      if (!tpl) return;
+      activeLicenseTemplate = tpl.label;
+      inpLicenseProduct.value = "bbm-protokoll";
+      inpLicenseEdition.value = tpl.edition;
+      inpLicenseBinding.value = tpl.binding;
+      inpLicenseDuration.value = tpl.durationDays;
+      inpLicenseValidFrom.value = tpl.validFrom;
+      inpLicenseMaxDevices.value = tpl.maxDevices;
+      setFeatureSelection(tpl.features);
+      calcValidUntil();
+      licenseTemplateInfo.textContent = `Vorlage aktiv: ${tpl.label}. Felder sind vorbelegt und koennen danach weiterhin manuell angepasst werden.`;
+      updateBindingHint();
+      syncLoadedLicenseInfo();
+      ensureLicenseIdSuggestion();
+    };
+
+    [
+      ["30 Tage Test", "test30"],
+      ["1 Jahr Standard", "standard365"],
+      ["1 Jahr Pro", "pro365"],
+    ].forEach(([labelText, key]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = labelText;
+      applyPopupButtonStyle(btn);
+      btn.onclick = () => applyLicenseTemplate(key);
+      licenseTemplateWrap.appendChild(btn);
+    });
+
+    const licenseGenStatus = document.createElement("div");
+    licenseGenStatus.style.fontSize = "12px";
+    licenseGenStatus.style.minHeight = "16px";
+    licenseGenStatus.style.color = "#4b5563";
+
+    const licenseGenResult = document.createElement("div");
+    licenseGenResult.style.fontSize = "12px";
+    licenseGenResult.style.lineHeight = "1.35";
+    licenseGenResult.style.whiteSpace = "pre-wrap";
+    licenseGenResult.style.wordBreak = "break-word";
+    licenseGenResult.style.padding = "8px";
+    licenseGenResult.style.borderRadius = "8px";
+    licenseGenResult.style.background = "#f8fafc";
+    licenseGenResult.style.border = "1px solid rgba(0,0,0,0.08)";
+    licenseGenResult.textContent = "Noch keine Lizenz erzeugt.";
+
+    const licenseGenActions = document.createElement("div");
+    licenseGenActions.style.display = "flex";
+    licenseGenActions.style.flexWrap = "wrap";
+    licenseGenActions.style.gap = "8px";
+
+    const btnLicenseGenerate = document.createElement("button");
+    btnLicenseGenerate.type = "button";
+    btnLicenseGenerate.textContent = "Lizenz verlaengern";
+    applyPopupButtonStyle(btnLicenseGenerate, { variant: "primary" });
+
+    const btnLicenseLoad = document.createElement("button");
+    btnLicenseLoad.type = "button";
+    btnLicenseLoad.textContent = "Lizenz laden";
+    applyPopupButtonStyle(btnLicenseLoad);
+
+    const btnLicenseLoadRequest = document.createElement("button");
+    btnLicenseLoadRequest.type = "button";
+    btnLicenseLoadRequest.textContent = "Lizenzanforderung laden";
+    applyPopupButtonStyle(btnLicenseLoadRequest);
+
+    const btnLicenseOpenOutput = document.createElement("button");
+    btnLicenseOpenOutput.type = "button";
+    btnLicenseOpenOutput.textContent = "Ausgabeordner oeffnen";
+    btnLicenseOpenOutput.disabled = true;
+    applyPopupButtonStyle(btnLicenseOpenOutput);
+
+    licenseGenActions.append(btnLicenseLoad, btnLicenseLoadRequest, btnLicenseGenerate, btnLicenseOpenOutput);
+
+    let loadedLicenseMeta = null;
+    let loadedRequestMeta = null;
+
+    const updateBindingHint = () => {
+      const isMachineBound = String(inpLicenseBinding.value || "").trim() === "machine";
+      bindingHint.textContent = isMachineBound
+        ? "Vollversion: Die Lizenz wird an die aktuelle lokale Machine-ID gebunden. Fuer fremde Zielrechner ist dafuer eine separate Machine-ID-Anforderung noetig."
+        : "Soft-Lizenz: keine Rechnerbindung. Die Lizenz kann ohne Machine-ID verwendet und weitergegeben werden.";
+    };
+    updateBindingHint();
+
+    const setLicenseGenBusy = (busy) => {
+      const isBusy = !!busy;
+      [
+        inpLicenseProduct,
+        inpLicenseCustomer,
+        inpLicenseId,
+        inpLicenseEdition,
+        inpLicenseBinding,
+        inpLicenseValidFrom,
+        inpLicenseDuration,
+        inpLicenseValidUntil,
+        inpLicenseMaxDevices,
+        inpLicenseNotes,
+        ...featureInputs,
+      ].forEach((el) => {
+        if (el) el.disabled = isBusy;
+      });
+      btnLicenseLoad.disabled = isBusy;
+      btnLicenseLoadRequest.disabled = isBusy;
+      btnLicenseGenerate.disabled = isBusy;
+      btnLicenseOpenOutput.disabled = isBusy || !btnLicenseOpenOutput.dataset.outputPath;
+    };
+
+    const syncLoadedLicenseInfo = () => {
+      if (!loadedLicenseMeta) {
+        loadedLicenseInfo.textContent = activeLicenseTemplate
+          ? `Keine bestehende Lizenz geladen.\nAktive Vorlage: ${activeLicenseTemplate}${loadedRequestMeta?.machineId ? `\nGeladene Lizenzanforderung: ${loadedRequestMeta.machineId}` : ""}`
+          : "Keine bestehende Lizenz geladen.";
+        btnLicenseGenerate.textContent = "Lizenz erzeugen";
+        return;
+      }
+      const currentLicenseId = String(inpLicenseId.value || "").trim();
+      const originalLicenseId = String(loadedLicenseMeta.licenseId || "").trim();
+      const sameId = currentLicenseId && originalLicenseId && currentLicenseId === originalLicenseId;
+      loadedLicenseInfo.textContent = [
+        `Geladen: ${loadedLicenseMeta.filePath || "-"}`,
+        `Vorherige Lizenznummer: ${originalLicenseId || "-"}`,
+        `IssuedAt: ${loadedLicenseMeta.issuedAt || "-"}`,
+        `Modus: ${this._formatLicenseBinding(inpLicenseBinding.value)}`,
+        `Lizenzanforderung: ${loadedRequestMeta?.machineId || "-"}`,
+        sameId
+          ? "Verlaengerung: Bestehende Lizenznummer wird weiterverwendet."
+          : "Verlaengerung: Neue Lizenznummer eingetragen.",
+      ].join("\n");
+      btnLicenseGenerate.textContent = sameId ? "Lizenz verlaengern" : "Lizenz unter neuer Nummer erzeugen";
+    };
+
+    const applyLoadedLicense = (res) => {
+      loadedLicenseMeta = {
+        filePath: String(res?.filePath || "").trim(),
+        licenseId: String(res?.licenseId || "").trim(),
+        issuedAt: String(res?.issuedAt || "").trim(),
+      };
+      inpLicenseProduct.value = String(res?.product || "bbm-protokoll").trim() || "bbm-protokoll";
+      inpLicenseCustomer.value = String(res?.customerName || "").trim();
+      inpLicenseId.value = String(res?.licenseId || "").trim();
+      inpLicenseEdition.value = String(res?.edition || "").trim() || "test";
+      inpLicenseBinding.value = String(res?.binding || "none").trim() || "none";
+      valueLicenseIssuedAt.textContent = String(res?.issuedAt || "").trim() || "-";
+      inpLicenseValidFrom.value = String(res?.validFrom || "").trim();
+      inpLicenseValidUntil.value = String(res?.validUntil || "").trim();
+      inpLicenseMaxDevices.value = String(res?.maxDevices || 1).trim() || "1";
+      inpLicenseNotes.value = String(res?.notes || "").trim();
+      const loadedFeatures = Array.isArray(res?.features) ? res.features.map((v) => String(v || "").trim()) : [];
+      setFeatureSelection(loadedFeatures);
+      activeLicenseTemplate = "";
+      licenseTemplateInfo.textContent = "Bestehende Lizenz geladen. Vorlagen koennen weiterhin genutzt werden, um Felder neu vorzubelegen.";
+      updateBindingHint();
+      syncLoadedLicenseInfo();
+    };
+
+    const applyLoadedRequest = (res) => {
+      loadedRequestMeta = {
+        filePath: String(res?.filePath || "").trim(),
+        machineId: String(res?.machineId || "").trim(),
+      };
+      inpLicenseProduct.value = String(res?.product || "bbm-protokoll").trim() || "bbm-protokoll";
+      inpLicenseBinding.value = "machine";
+      valueLicenseRequestMachineId.textContent = loadedRequestMeta.machineId || "-";
+      if (!String(inpLicenseCustomer.value || "").trim() && String(res?.customerHint || "").trim()) {
+        inpLicenseCustomer.value = String(res?.customerHint || "").trim();
+      }
+      activeLicenseTemplate = "";
+      licenseTemplateInfo.textContent = `Lizenzanforderung geladen: ${loadedRequestMeta.filePath || "-"}`;
+      updateBindingHint();
+      syncLoadedLicenseInfo();
+    };
+
+    const collectLicenseFormData = () => ({
+      product: String(inpLicenseProduct.value || "").trim() || "bbm-protokoll",
+      customerName: String(inpLicenseCustomer.value || "").trim(),
+      licenseId: String(inpLicenseId.value || "").trim(),
+      edition: String(inpLicenseEdition.value || "").trim() || "test",
+      binding: String(inpLicenseBinding.value || "").trim() || "none",
+      machineId:
+        String(inpLicenseBinding.value || "").trim() === "machine"
+          ? String(loadedRequestMeta?.machineId || "").trim()
+          : "",
+      validFrom: String(inpLicenseValidFrom.value || "").trim(),
+      validUntil: String(inpLicenseValidUntil.value || "").trim(),
+      durationDays: String(inpLicenseDuration.value || "").trim(),
+      maxDevices: String(inpLicenseMaxDevices.value || "").trim(),
+      features: featureInputs.filter((inp) => !!inp.checked).map((inp) => inp.value),
+      notes: String(inpLicenseNotes.value || "").trim(),
+    });
+
+    inpLicenseId.addEventListener("input", syncLoadedLicenseInfo);
+    inpLicenseBinding.addEventListener("change", () => {
+      updateBindingHint();
+      syncLoadedLicenseInfo();
+    });
+
+    btnLicenseLoad.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseLoadForEdit !== "function") {
+        licenseGenStatus.textContent = "Lizenz-Lade-IPC ist nicht verfuegbar.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+      setLicenseGenBusy(true);
+      licenseGenStatus.textContent = "Bestehende Lizenz wird geladen ...";
+      licenseGenStatus.style.color = "#4b5563";
+      try {
+        const res = await api.licenseLoadForEdit({});
+        if (res?.canceled) {
+          licenseGenStatus.textContent = "Lizenz laden abgebrochen.";
+          licenseGenStatus.style.color = "#4b5563";
+          return;
+        }
+        if (!res?.ok) {
+          licenseGenStatus.textContent = this._formatLicenseGenerationError(res?.error);
+          licenseGenStatus.style.color = "#b91c1c";
+          return;
+        }
+        applyLoadedLicense(res);
+        licenseGenStatus.textContent = "Bestehende Lizenzdaten geladen.";
+        licenseGenStatus.style.color = "#166534";
+      } catch (err) {
+        licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
+        licenseGenStatus.style.color = "#b91c1c";
+      } finally {
+        setLicenseGenBusy(false);
+      }
+    };
+
+    btnLicenseLoadRequest.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseLoadRequestForGenerate !== "function") {
+        licenseGenStatus.textContent = "Lizenzanforderungs-IPC ist nicht verfuegbar.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+      setLicenseGenBusy(true);
+      licenseGenStatus.textContent = "Lizenzanforderung wird geladen ...";
+      licenseGenStatus.style.color = "#4b5563";
+      try {
+        const res = await api.licenseLoadRequestForGenerate({});
+        if (res?.canceled) {
+          licenseGenStatus.textContent = "Lizenzanforderung laden abgebrochen.";
+          licenseGenStatus.style.color = "#4b5563";
+          return;
+        }
+        if (!res?.ok) {
+          licenseGenStatus.textContent = this._formatLicenseGenerationError(res?.error);
+          licenseGenStatus.style.color = "#b91c1c";
+          return;
+        }
+        applyLoadedRequest(res);
+        licenseGenStatus.textContent = "Lizenzanforderung geladen.";
+        licenseGenStatus.style.color = "#166534";
+      } catch (err) {
+        licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
+        licenseGenStatus.style.color = "#b91c1c";
+      } finally {
+        setLicenseGenBusy(false);
+      }
+    };
+
+    btnLicenseGenerate.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseGenerate !== "function") {
+        licenseGenStatus.textContent = "Lizenz-Generator-IPC ist nicht verfuegbar.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+
+      const currentLicenseId = String(inpLicenseId.value || "").trim();
+      if (!currentLicenseId) {
+        licenseGenStatus.textContent = "Bitte eine Lizenznummer angeben.";
+        licenseGenStatus.style.color = "#b91c1c";
+        try {
+          inpLicenseId.focus();
+        } catch {
+          // ignore
+        }
+        return;
+      }
+
+      setLicenseGenBusy(true);
+      licenseGenStatus.textContent = "Lizenz wird erzeugt ...";
+      licenseGenStatus.style.color = "#4b5563";
+      try {
+        const currentLicenseId = String(inpLicenseId.value || "").trim();
+        const originalLicenseId = String(loadedLicenseMeta?.licenseId || "").trim();
+        const isRenewal = !!loadedLicenseMeta && currentLicenseId && originalLicenseId && currentLicenseId === originalLicenseId;
+        const res = await api.licenseGenerate(collectLicenseFormData());
+        if (!res?.ok) {
+          licenseGenStatus.textContent = this._formatLicenseGenerationError(res?.error);
+          licenseGenStatus.style.color = "#b91c1c";
+          return;
+        }
+        btnLicenseOpenOutput.dataset.outputPath = String(res?.outputPath || "");
+        btnLicenseOpenOutput.disabled = !btnLicenseOpenOutput.dataset.outputPath;
+        licenseGenStatus.textContent = isRenewal ? "Lizenz erfolgreich verlaengert." : "Lizenzdatei erfolgreich erzeugt.";
+        licenseGenStatus.style.color = "#166534";
+        licenseGenResult.textContent = [
+          `Datei: ${res?.outputPath || "-"}`,
+          `Gueltig von: ${res?.validFrom || "-"}`,
+          `Gueltig bis: ${res?.validUntil || "-"}`,
+          `Modus: ${this._formatLicenseBinding(res?.binding)}`,
+          `Kunde: ${res?.customerName || "-"}`,
+          `Lizenznummer: ${res?.licenseId || "-"}`,
+          `Machine-ID: ${res?.machineId || "-"}`,
+          `Features: ${Array.isArray(res?.features) && res.features.length ? res.features.join(", ") : "-"}`,
+        ].join("\n");
+      } catch (err) {
+        licenseGenStatus.textContent = this._formatLicenseGenerationError(err?.message || err);
+        licenseGenStatus.style.color = "#b91c1c";
+      } finally {
+        setLicenseGenBusy(false);
+      }
+    };
+
+    btnLicenseIdSuggest.onclick = () => {
+      if (loadedLicenseMeta) return;
+      inpLicenseId.value = makeLicenseIdSuggestion();
+      syncLoadedLicenseInfo();
+    };
+
+    btnLicenseOpenOutput.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.licenseOpenOutputDir !== "function") return;
+      const outputPath = String(btnLicenseOpenOutput.dataset.outputPath || "").trim();
+      if (!outputPath) return;
+      const res = await api.licenseOpenOutputDir({ outputPath });
+      if (!res?.ok) {
+        licenseGenStatus.textContent = res?.error || "Ausgabeordner konnte nicht geoeffnet werden.";
+        licenseGenStatus.style.color = "#b91c1c";
+        return;
+      }
+    };
+
+    licenseGenBox.append(
+      licenseGenTitle,
+      licenseGenHint,
+      mkRow("Schnellvorlagen", licenseTemplateWrap),
+      licenseTemplateInfo,
+      loadedLicenseInfo,
+      mkRow("Produkt", inpLicenseProduct),
+      mkRow("Kunde / Firma", inpLicenseCustomer),
+      mkRow("Lizenznummer", inpLicenseId),
+      mkRow("", btnLicenseIdSuggest),
+      mkRow("Edition", inpLicenseEdition),
+      mkRow("Lizenzmodus", inpLicenseBinding),
+      bindingHint,
+      mkRow("Machine-ID aus Lizenzanforderung", valueLicenseRequestMachineId),
+      mkRow("IssuedAt (geladen)", valueLicenseIssuedAt),
+      mkRow("Gueltig von", inpLicenseValidFrom),
+      mkRow("Nutzungstage", inpLicenseDuration),
+      mkRow("Gueltig bis", inpLicenseValidUntil),
+      mkRow("Max. Geraete", inpLicenseMaxDevices),
+      mkRow("Features", featureWrap),
+      mkRow("Notizen", inpLicenseNotes),
+      licenseGenActions,
+      licenseGenStatus,
+      licenseGenResult
+    );
+
+    ensureLicenseIdSuggestion();
+
     const devDefaultsBox = document.createElement("div");
     applyPopupCardStyle(devDefaultsBox);
     devDefaultsBox.style.padding = "8px 10px";
@@ -1923,17 +2934,17 @@ export default class SettingsView {
     dictionaryBox.style.gap = "6px";
 
     const dictionaryTitle = document.createElement("div");
-    dictionaryTitle.textContent = "WÃ¶rterbuch";
+    dictionaryTitle.textContent = "Wörterbuch";
     dictionaryTitle.style.fontWeight = "700";
 
     const dictionaryHint = document.createElement("div");
     dictionaryHint.style.fontSize = "12px";
     dictionaryHint.style.opacity = "0.8";
-    dictionaryHint.textContent = "Fachbegriffe aus Ordnern sammeln, gruppieren und prÃ¼fen.";
+    dictionaryHint.textContent = "Fachbegriffe aus Ordnern sammeln, gruppieren und prüfen.";
 
     const btnDictionaryOpen = document.createElement("button");
     btnDictionaryOpen.type = "button";
-    btnDictionaryOpen.textContent = "WÃ¶rterbuch Ã¶ffnen";
+    btnDictionaryOpen.textContent = "Wörterbuch öffnen";
     applyPopupButtonStyle(btnDictionaryOpen);
     btnDictionaryOpen.onclick = async () => {
       await this._openDictionaryPopup();
@@ -2992,7 +4003,7 @@ export default class SettingsView {
     rolesTitle.style.fontWeight = "bold";
 
     const roleMoveHint = document.createElement("div");
-    roleMoveHint.textContent = "neue Position mit Pfeiltasten wÃ¤hlen";
+    roleMoveHint.textContent = "neue Position mit Pfeiltasten wählen";
     roleMoveHint.style.color = "#1e5fbf";
     roleMoveHint.style.fontSize = "16px";
     roleMoveHint.style.display = "none";
@@ -3084,7 +4095,7 @@ export default class SettingsView {
 
     const btnOpenThemePopup = document.createElement("button");
     btnOpenThemePopup.type = "button";
-    btnOpenThemePopup.textContent = "Farbschema Ã¶ffnen";
+    btnOpenThemePopup.textContent = "Farbschema öffnen";
     btnOpenThemePopup.style.width = "100%";
     applyPopupButtonStyle(btnOpenThemePopup, { variant: "primary" });
     btnOpenThemePopup.onclick = () => openThemePopup();
@@ -3273,7 +4284,7 @@ export default class SettingsView {
             "{projectNumber} - {projectShortName}  |  {protocolTitle} #{meetingIndex} - {meetingDate}";
           const BODY_PLACEHOLDER =
             "Sehr geehrte Damen und Herren,\n" +
-            "anbei erhalten Sie das neue Protokoll fÃ¼r das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
+            "anbei erhalten Sie das neue Protokoll für das oben genannte Projekt mit der Bitte um Beachtung und Veranlassung.";
 
           // Gespeicherte Werte laden (falls vorhanden)
           let subjectValue = "";
@@ -3379,7 +4390,7 @@ export default class SettingsView {
           const syncRemaining = () => {
             const len = (inpBody.value || "").length;
             const rest = Math.max(0, 300 - len);
-            remainingBadge.textContent = `${rest} Zeichen Ã¼brig`;
+            remainingBadge.textContent = `${rest} Zeichen übrig`;
           };
           syncRemaining();
 
@@ -3408,7 +4419,7 @@ export default class SettingsView {
               const tSubject = rawSubject.trim();
               const tBody = rawBody.trim();
 
-              // Wenn leer -> zurÃ¼cksetzen auf "" (Placeholder erscheint wieder)
+              // Wenn leer -> zurücksetzen auf "" (Placeholder erscheint wieder)
               const payload = {
                 email_subject: tSubject ? rawSubject : "",
                 email_body: tBody ? rawBody : "",
@@ -3543,7 +4554,7 @@ export default class SettingsView {
       }
     })();
 
-    // Overlay im Body, damit kein Header-Stacking-Context stÃ¶rt
+    // Overlay im Body, damit kein Header-Stacking-Context stört
     const settingsOverlay = createPopupOverlay({ background: "rgba(0,0,0,0.35)" });
     settingsOverlay.style.alignItems = "center";
     settingsOverlay.style.justifyContent = "center";
@@ -3880,7 +4891,7 @@ export default class SettingsView {
   async _openDictionaryPopup() {
     const api = window.bbmDb || {};
     if (typeof api.dictionaryListSuggestions !== "function") {
-      alert("WÃ¶rterbuch ist nicht verfÃ¼gbar (IPC fehlt).");
+      alert("Wörterbuch ist nicht verfügbar (IPC fehlt).");
       return;
     }
 
@@ -3901,7 +4912,7 @@ export default class SettingsView {
 
     const sourceCard = mkCard();
     const sourceTitle = document.createElement("div");
-    sourceTitle.textContent = "Quelle wÃ¤hlen";
+    sourceTitle.textContent = "Quelle wählen";
     sourceTitle.style.fontWeight = "800";
 
     const sourceRow = document.createElement("div");
@@ -3912,7 +4923,7 @@ export default class SettingsView {
 
     const btnPickFolder = document.createElement("button");
     btnPickFolder.type = "button";
-    btnPickFolder.textContent = "Ordner auswÃ¤hlen";
+    btnPickFolder.textContent = "Ordner auswählen";
     applyPopupButtonStyle(btnPickFolder, { variant: "primary" });
 
     const sourcePath = document.createElement("div");
@@ -3923,7 +4934,7 @@ export default class SettingsView {
     sourcePath.style.border = "1px solid rgba(0,0,0,0.1)";
     sourcePath.style.flex = "1 1 auto";
     sourcePath.style.minWidth = "220px";
-    sourcePath.textContent = "Kein Ordner ausgewÃ¤hlt";
+    sourcePath.textContent = "Kein Ordner ausgewählt";
 
     sourceRow.append(btnPickFolder, sourcePath);
     sourceCard.append(sourceTitle, sourceRow);
@@ -3963,7 +4974,7 @@ export default class SettingsView {
     const progressFail = document.createElement("div");
     progressFiles.textContent = "Dateien gefunden: -";
     progressCurrent.textContent = "Aktuelle Datei: -";
-    progressTerms.textContent = "VorschlÃ¤ge gesammelt: -";
+    progressTerms.textContent = "Vorschläge gesammelt: -";
     progressOk.textContent = "Erfolgreich verarbeitet: -";
     progressFail.textContent = "Fehlgeschlagen: -";
     progressList.append(progressFiles, progressCurrent, progressTerms, progressOk, progressFail);
@@ -3984,7 +4995,7 @@ export default class SettingsView {
     const resultHint = document.createElement("div");
     resultHint.style.fontSize = "12px";
     resultHint.style.opacity = "0.8";
-    resultHint.textContent = "Keine automatische Ãœbernahme â€“ bitte einzeln prÃ¼fen.";
+    resultHint.textContent = "Keine automatische Übernahme – bitte einzeln prüfen.";
 
     const resultHead = document.createElement("div");
     resultHead.style.display = "grid";
@@ -4001,7 +5012,7 @@ export default class SettingsView {
       Object.assign(document.createElement("div"), { textContent: "" }),
       Object.assign(document.createElement("div"), { textContent: "Begriff" }),
       Object.assign(document.createElement("div"), { textContent: "Varianten" }),
-      Object.assign(document.createElement("div"), { textContent: "HÃ¤ufigkeit" }),
+      Object.assign(document.createElement("div"), { textContent: "Häufigkeit" }),
       Object.assign(document.createElement("div"), { textContent: "Quelle" })
     );
 
@@ -4013,7 +5024,7 @@ export default class SettingsView {
 
     const btnSelectAll = document.createElement("button");
     btnSelectAll.type = "button";
-    btnSelectAll.textContent = "Alle auswÃ¤hlen";
+    btnSelectAll.textContent = "Alle auswählen";
     applyPopupButtonStyle(btnSelectAll);
     btnSelectAll.style.fontSize = "11px";
     btnSelectAll.style.padding = "3px 8px";
@@ -4021,7 +5032,7 @@ export default class SettingsView {
 
     const btnSelectNone = document.createElement("button");
     btnSelectNone.type = "button";
-    btnSelectNone.textContent = "Alle abwÃ¤hlen";
+    btnSelectNone.textContent = "Alle abwählen";
     applyPopupButtonStyle(btnSelectNone);
     btnSelectNone.style.fontSize = "11px";
     btnSelectNone.style.padding = "3px 8px";
@@ -4029,7 +5040,7 @@ export default class SettingsView {
 
     const btnBulkAccept = document.createElement("button");
     btnBulkAccept.type = "button";
-    btnBulkAccept.textContent = "AusgewÃ¤hlte Ã¼bernehmen";
+    btnBulkAccept.textContent = "Ausgewählte übernehmen";
     applyPopupButtonStyle(btnBulkAccept, { variant: "primary" });
     btnBulkAccept.style.fontSize = "11px";
     btnBulkAccept.style.padding = "3px 8px";
@@ -4037,7 +5048,7 @@ export default class SettingsView {
 
     const btnBulkReject = document.createElement("button");
     btnBulkReject.type = "button";
-    btnBulkReject.textContent = "AusgewÃ¤hlte verwerfen";
+    btnBulkReject.textContent = "Ausgewählte verwerfen";
     applyPopupButtonStyle(btnBulkReject);
     btnBulkReject.style.fontSize = "11px";
     btnBulkReject.style.padding = "3px 8px";
@@ -4053,7 +5064,7 @@ export default class SettingsView {
 
     const acceptedCard = mkCard();
     const acceptedTitle = document.createElement("div");
-    acceptedTitle.textContent = "Ãœbernommene WÃ¶rter";
+    acceptedTitle.textContent = "Übernommene Wörter";
     acceptedTitle.style.fontWeight = "800";
 
     const acceptedList = document.createElement("div");
@@ -4080,13 +5091,13 @@ export default class SettingsView {
 
     const setSourcePath = (value) => {
       selectedDir = String(value || "").trim();
-      sourcePath.textContent = selectedDir || "Kein Ordner ausgewÃ¤hlt";
+      sourcePath.textContent = selectedDir || "Kein Ordner ausgewählt";
     };
 
     const setProgress = ({ total = "-", current = "-", terms = "-", ok = "-", fail = "-" } = {}) => {
       progressFiles.textContent = `Dateien gefunden: ${total}`;
       progressCurrent.textContent = `Aktuelle Datei: ${current}`;
-      progressTerms.textContent = `VorschlÃ¤ge gesammelt: ${terms}`;
+      progressTerms.textContent = `Vorschläge gesammelt: ${terms}`;
       progressOk.textContent = `Erfolgreich verarbeitet: ${ok}`;
       progressFail.textContent = `Fehlgeschlagen: ${fail}`;
     };
@@ -4220,7 +5231,7 @@ export default class SettingsView {
         const empty = document.createElement("div");
         empty.textContent = lastScanFileCount > 0
           ? "Dateien erkannt, aber noch keine extrahierbaren Texttreffer (z.B. nur PDFs)."
-          : "Keine offenen VorschlÃ¤ge.";
+          : "Keine offenen Vorschläge.";
         empty.style.fontSize = "12px";
         empty.style.opacity = "0.75";
         resultList.append(empty);
@@ -4299,7 +5310,7 @@ export default class SettingsView {
       acceptedList.innerHTML = "";
       if (!rows || !rows.length) {
         const empty = document.createElement("div");
-        empty.textContent = "Noch keine Ã¼bernommenen WÃ¶rter.";
+        empty.textContent = "Noch keine übernommenen Wörter.";
         empty.style.fontSize = "12px";
         empty.style.opacity = "0.75";
         acceptedList.append(empty);
@@ -4337,7 +5348,7 @@ export default class SettingsView {
 
         const btnDelete = document.createElement("button");
         btnDelete.type = "button";
-        btnDelete.textContent = "LÃ¶schen";
+        btnDelete.textContent = "Löschen";
         btnDelete.style.background = "#c62828";
         btnDelete.style.color = "white";
         btnDelete.style.border = "1px solid rgba(0,0,0,0.25)";
@@ -4355,7 +5366,7 @@ export default class SettingsView {
             isActive: !isActive,
           });
           if (!res?.ok) {
-            alert(res?.error || "Status konnte nicht geÃ¤ndert werden.");
+            alert(res?.error || "Status konnte nicht geändert werden.");
             return;
           }
           await loadAllLists();
@@ -4363,11 +5374,11 @@ export default class SettingsView {
 
         btnDelete.onclick = async () => {
           if (busy) return;
-          const ok = confirm("Wort wirklich lÃ¶schen?");
+          const ok = confirm("Wort wirklich löschen?");
           if (!ok) return;
           const res = await api.dictionaryDeleteTerm({ normKey: row?.norm_key });
           if (!res?.ok) {
-            alert(res?.error || "LÃ¶schen fehlgeschlagen.");
+            alert(res?.error || "Löschen fehlgeschlagen.");
             return;
           }
           await loadAllLists();
@@ -4440,12 +5451,12 @@ export default class SettingsView {
     btnPickFolder.onclick = async () => {
       if (busy) return;
       if (typeof api.selectDirectory !== "function") {
-        alert("Ordnerauswahl ist nicht verfÃ¼gbar.");
+        alert("Ordnerauswahl ist nicht verfügbar.");
         return;
       }
-      const res = await api.selectDirectory({ title: "Ordner fÃ¼r WÃ¶rterbuch wÃ¤hlen" });
+      const res = await api.selectDirectory({ title: "Ordner für Wörterbuch wählen" });
       if (!res?.ok) {
-        alert(res?.error || "Ordner konnte nicht geÃ¶ffnet werden.");
+        alert(res?.error || "Ordner konnte nicht geöffnet werden.");
         return;
       }
       if (res.canceled) return;
@@ -4456,16 +5467,16 @@ export default class SettingsView {
     btnScan.onclick = async () => {
       if (busy) return;
       if (!selectedDir) {
-        alert("Bitte zuerst einen Ordner auswÃ¤hlen.");
+        alert("Bitte zuerst einen Ordner auswählen.");
         return;
       }
       if (typeof api.dictionaryListFiles !== "function" || typeof api.dictionaryExtractTermsFromFile !== "function") {
-        alert("WÃ¶rterbuch-Scan ist nicht verfÃ¼gbar.");
+        alert("Wörterbuch-Scan ist nicht verfügbar.");
         return;
       }
 
       setBusy(true);
-      scanStatus.textContent = "Suche lÃ¤uft...";
+      scanStatus.textContent = "Suche läuft...";
       setProgress({ total: "-", current: "-", terms: "0", ok: "0", fail: "0" });
       errorList.innerHTML = "";
 
@@ -4509,17 +5520,17 @@ export default class SettingsView {
           errorCount += 1;
           const msg = String(res?.error || "Unbekannter Fehler").trim();
           const item = document.createElement("div");
-          item.textContent = `${fileName || filePath} â†’ ${msg}`;
+          item.textContent = `${fileName || filePath} ? ${msg}`;
           errorList.append(item);
         } else if (res?.note === "pdf_no_text") {
           pdfNoTextCount += 1;
           const item = document.createElement("div");
-          item.textContent = `${fileName || filePath} â†’ kein Text extrahierbar`;
+          item.textContent = `${fileName || filePath} ? kein Text extrahierbar`;
           errorList.append(item);
         } else if (res?.note === "no_terms") {
           noTermsCount += 1;
           const item = document.createElement("div");
-          item.textContent = `${fileName || filePath} â†’ keine verwertbaren Begriffe`;
+          item.textContent = `${fileName || filePath} ? keine verwertbaren Begriffe`;
           errorList.append(item);
         } else {
           okCount += 1;
@@ -4574,14 +5585,14 @@ export default class SettingsView {
       if (noTermsCount > 0) summaryParts.push(`Dateien ohne Treffer: ${noTermsCount}`);
       if (errorCount > 0) summaryParts.push(`Fehler: ${errorCount}`);
       const summary = summaryParts.length ? ` (${summaryParts.join(", ")})` : "";
-      scanStatus.textContent = `Suche abgeschlossen: ${payload.length} VorschlÃ¤ge${summary}`;
+      scanStatus.textContent = `Suche abgeschlossen: ${payload.length} Vorschläge${summary}`;
       await loadAllLists();
       setBusy(false);
     };
 
     await loadAllLists();
     this._openSettingsModal({
-      title: "WÃ¶rterbuch",
+      title: "Wörterbuch",
       content: [wrap],
       closeOnly: true,
     });
@@ -4600,7 +5611,7 @@ export default class SettingsView {
         titleNorm === "nutzereinstellungen" ||
         titleNorm === "entwicklung" ||
         titleNorm === "woerterbuch" ||
-        titleNorm === "wÃ¶rterbuch";
+        titleNorm === "wörterbuch";
       const isUserSettingsPopup = titleNorm === "nutzereinstellungen";
       const isPrintSettingsPopup = titleNorm === "druckeinstellungen";
       const isLayoutPopup = titleNorm === "druck-layout";
@@ -5588,7 +6599,7 @@ export default class SettingsView {
       rosa: "#FFC0CB",
       weinrot: "#722F37",
       samtgruen: "#3E6B48",
-      "samtgrÃ¼n": "#3E6B48",
+      "samtgrün": "#3E6B48",
     };
     const aliasHex = aliases[raw.toLowerCase()] || null;
     if (!aliasHex) return null;
@@ -5736,7 +6747,7 @@ export default class SettingsView {
       sidebar: { ...sidebarRgb },
       main: { ...mainRgb },
     };
-    // Werkseinstellung wird Ã¼ber den Reset-Button gesetzt, nicht Ã¼ber eine Checkbox.
+    // Werkseinstellung wird über den Reset-Button gesetzt, nicht über eine Checkbox.
     this._setThemeAreaRgbInputs("header", headerRgb);
     this._setThemeAreaRgbInputs("sidebar", sidebarRgb);
     this._setThemeAreaRgbInputs("main", mainRgb);
