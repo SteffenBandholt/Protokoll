@@ -2952,6 +2952,37 @@ export default class SettingsView {
 
     dictionaryBox.append(dictionaryTitle, dictionaryHint, btnDictionaryOpen);
 
+    const printBox = document.createElement("div");
+    applyPopupCardStyle(printBox);
+    printBox.style.padding = "8px 10px";
+    printBox.style.maxWidth = "720px";
+    printBox.style.marginTop = "0";
+    printBox.style.display = "grid";
+    printBox.style.gap = "6px";
+
+    const printTitle = document.createElement("div");
+    printTitle.textContent = "Druckvorgaben";
+    printTitle.style.fontWeight = "700";
+
+    const printHint = document.createElement("div");
+    printHint.style.fontSize = "12px";
+    printHint.style.opacity = "0.8";
+    printHint.textContent = "PDF-Einstellungen & Kategorien";
+
+    const btnPrintOpen = document.createElement("button");
+    btnPrintOpen.type = "button";
+    btnPrintOpen.textContent = "Druckvorgaben ?ffnen";
+    applyPopupButtonStyle(btnPrintOpen);
+    btnPrintOpen.onclick = () => {
+      try {
+        if (typeof tilePrint?.click === "function") {
+          tilePrint.click();
+        }
+      } catch (_e) {}
+    };
+
+    printBox.append(printTitle, printHint, btnPrintOpen);
+
     const licenseBox = document.createElement("div");
     applyPopupCardStyle(licenseBox);
     licenseBox.style.padding = "8px 10px";
@@ -4574,9 +4605,92 @@ export default class SettingsView {
         await loadTopLimitSettings();
         await loadTrialSettings();
         await loadVersioningData();
+
+        if (versionBox) {
+          versionBox.style.display = "grid";
+        }
+
+        const devTabWrap = document.createElement("div");
+        devTabWrap.style.display = "grid";
+        devTabWrap.style.gap = "10px";
+        devTabWrap.style.minWidth = "min(640px, calc(100vw - 80px))";
+        devTabWrap.style.maxWidth = "920px";
+
+        const devTabHead = document.createElement("div");
+        devTabHead.style.display = "flex";
+        devTabHead.style.gap = "8px";
+        devTabHead.style.flexWrap = "wrap";
+        devTabHead.style.rowGap = "8px";
+        devTabHead.style.marginBottom = "8px";
+
+        const devTabBody = document.createElement("div");
+        devTabBody.style.display = "grid";
+        devTabBody.style.gap = "10px";
+
+        const tabVersion = document.createElement("div");
+        tabVersion.style.display = "grid";
+        tabVersion.style.gap = "10px";
+        tabVersion.append(versionBox, buildChannelBox, devDefaultsBox, trialBox);
+
+        const tabLicense = document.createElement("div");
+        tabLicense.style.display = "grid";
+        tabLicense.style.gap = "10px";
+        tabLicense.append(licenseBox, licenseGenBox);
+
+        const tabDb = document.createElement("div");
+        tabDb.style.display = "grid";
+        tabDb.style.gap = "10px";
+        tabDb.append(dbDiagBox);
+
+        const tabTools = document.createElement("div");
+        tabTools.style.display = "grid";
+        tabTools.style.gap = "10px";
+        tabTools.append(dictionaryBox, printBox, topsLimitBox);
+
+        const devTabs = [
+          { key: "version", label: "Versionierung", el: tabVersion },
+          { key: "license", label: "Lizenz / bearbeiten", el: tabLicense },
+          { key: "db", label: "DB-Diagnose", el: tabDb },
+          { key: "tools", label: "W?rterbuch / Druck / TOP-Liste", el: tabTools },
+        ];
+
+        const tabButtons = new Map();
+        const setDevTab = (key) => {
+          devTabs.forEach((tab) => {
+            const isActive = tab.key === key;
+            tab.el.style.display = isActive ? "grid" : "none";
+            const btn = tabButtons.get(tab.key);
+            if (btn) {
+              btn.disabled = isActive;
+              btn.style.opacity = isActive ? "0.85" : "1";
+            }
+          });
+        };
+
+        const makeDevTabButton = (label, key) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.textContent = label;
+          applyPopupButtonStyle(btn);
+          btn.onclick = () => setDevTab(key);
+          tabButtons.set(key, btn);
+          return btn;
+        };
+
+        devTabHead.append(
+          makeDevTabButton("Versionierung", "version"),
+          makeDevTabButton("Lizenz / bearbeiten", "license"),
+          makeDevTabButton("DB-Diagnose", "db"),
+          makeDevTabButton("W?rterbuch / Druck / TOP-Liste", "tools")
+        );
+
+        devTabBody.append(tabVersion, tabLicense, tabDb, tabTools);
+        devTabWrap.append(devTabHead, devTabBody);
+        setDevTab("version");
+
         this._openSettingsModal({
           title: "Entwicklung",
-          content: [devTopCardsRow, dbDiagBox],
+          content: [devTabWrap],
           closeOnly: false,
           saveFn: async () => {
             const okTops = (await saveTopLimitSettings()) !== false;
