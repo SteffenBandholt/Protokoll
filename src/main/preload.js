@@ -62,11 +62,15 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // ============================================================
   audioImport: (data) => ipcRenderer.invoke("audio:import", data),
   audioTranscribe: (data) => ipcRenderer.invoke("audio:transcribe", data),
+  audioTranscribeBlob: (data) => ipcRenderer.invoke("audio:transcribeBlob", data),
   audioAnalyze: (data) => ipcRenderer.invoke("audio:analyze", data),
   audioGetSuggestions: (data) => ipcRenderer.invoke("audio:getSuggestions", data),
   audioCreateDemoSuggestion: (data) => ipcRenderer.invoke("audio:createDemoSuggestion", data),
   audioApplySuggestion: (data) => ipcRenderer.invoke("audio:applySuggestion", data),
   audioRejectSuggestion: (data) => ipcRenderer.invoke("audio:rejectSuggestion", data),
+  audioWhisperModelsStatus: () => ipcRenderer.invoke("audio:whisperModelsStatus"),
+  audioTermCorrectionsList: (data) => ipcRenderer.invoke("audio:termCorrectionsList", data),
+  audioTermCorrectionUpsert: (data) => ipcRenderer.invoke("audio:termCorrectionUpsert", data),
 
   // ============================================================
   // GLOBAL Firmen

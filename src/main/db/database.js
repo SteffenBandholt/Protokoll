@@ -479,6 +479,51 @@ function ensureAudioSuggestionsSchema(dbConn) {
   `);
 }
 
+function ensureAudioTermCorrectionsSchema(dbConn) {
+  if (!tableExists(dbConn, "audio_term_corrections")) {
+    dbConn.exec(`
+      CREATE TABLE IF NOT EXISTS audio_term_corrections (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        wrong_term TEXT NOT NULL,
+        correct_term TEXT NOT NULL,
+        usage_count INTEGER NOT NULL DEFAULT 0,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      );
+    `);
+  } else {
+    const addCol = (name, sqlType) => {
+      if (!columnExists(dbConn, "audio_term_corrections", name)) {
+        dbConn.exec(`ALTER TABLE audio_term_corrections ADD COLUMN ${name} ${sqlType};`);
+      }
+    };
+
+    addCol("project_id", "TEXT");
+    addCol("wrong_term", "TEXT");
+    addCol("correct_term", "TEXT");
+    addCol("usage_count", "INTEGER NOT NULL DEFAULT 0");
+    addCol("is_active", "INTEGER NOT NULL DEFAULT 1");
+    addCol(
+      "created_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+    addCol(
+      "updated_at",
+      "TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))"
+    );
+  }
+
+  dbConn.exec(`
+    CREATE INDEX IF NOT EXISTS idx_audio_term_corrections_project_id
+    ON audio_term_corrections (project_id);
+    CREATE INDEX IF NOT EXISTS idx_audio_term_corrections_wrong_term
+    ON audio_term_corrections (wrong_term);
+  `);
+}
+
 function ensureFirmsAndPersonsSchema(dbConn) {
   // ------------------------------------------------------------
   // firms (GLOBAL)
@@ -1354,6 +1399,7 @@ function ensureSchema(dbConn) {
   ensureAudioImportsSchema(dbConn);
   ensureTranscriptsSchema(dbConn);
   ensureAudioSuggestionsSchema(dbConn);
+  ensureAudioTermCorrectionsSchema(dbConn);
 
   ensureDictionarySchema(dbConn);
   ensureAppSettingsSchema(dbConn);

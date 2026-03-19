@@ -2149,7 +2149,7 @@ export default class SettingsView {
     featureWrap.style.flexWrap = "wrap";
     featureWrap.style.gap = "8px 12px";
 
-    const featureInputs = ["app", "pdf", "export", "mail"].map((feature) => {
+    const featureInputs = ["app", "pdf", "export", "mail", "audio"].map((feature) => {
       const label = document.createElement("label");
       label.style.display = "inline-flex";
       label.style.alignItems = "center";

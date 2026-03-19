@@ -1,15 +1,10 @@
-// src/main/licensing/featureGuard.js
-
 const { app } = require("electron");
 const { requireFeature, getStatus } = require("./licenseService");
-
-const LICENSE_FEATURES = {
-  APP: "app",
-  PDF: "pdf",
-  EXPORT: "export",
-  MAIL: "mail",
-  MAIL_OUTLOOK_DRAFT: "mail",
-};
+const {
+  LICENSE_FEATURES,
+  normalizeLicensedFeatures,
+  isStandardLicensedFeature,
+} = require("./licenseFeatures");
 
 function _extractLicenseInfo(status) {
   const license = status?.license && typeof status.license === "object" ? status.license : {};
@@ -21,7 +16,7 @@ function _extractLicenseInfo(status) {
     licenseId: String(license.licenseId || license.id || "").trim(),
     edition: String(license.edition || "").trim(),
     validUntil: String(license.validUntil || "").trim(),
-    features: Array.isArray(license.features) ? license.features : [],
+    features: normalizeLicensedFeatures(license.features),
     appVersion: String(app?.getVersion?.() || "").trim(),
   };
 }
@@ -30,24 +25,55 @@ function createLicenseBadgeText(licenseInfo = {}) {
   const year = new Date().getFullYear();
   const version = String(licenseInfo?.appVersion || "").trim();
   const customerName = String(licenseInfo?.customerName || "").trim();
-  const prefix = `© BBM ${year}${version ? ` - v${version}` : ""}`;
-  if (customerName) {
-    return `${prefix} | Lizenziert für: ${customerName}`;
-  }
-  return `${prefix} | Keine gültige Lizenz`;
+  const licenseId = String(licenseInfo?.licenseId || "").trim();
+  const edition = String(licenseInfo?.edition || "").trim();
+
+  const parts = [`(c) BBM ${year}`];
+  if (version) parts.push(`v${version}`);
+  parts.push(`Lizenz: ${customerName || licenseId || "-"}`);
+  if (edition) parts.push(edition);
+  return parts.join(" | ");
+}
+
+function _readEnvFlag(name) {
+  const raw = String(process.env[name] || "").trim().toLowerCase();
+  if (!raw) return null;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  return null;
+}
+
+function isDevAudioOverrideEnabled() {
+  // Dev override: set BBM_DEV_UNLOCK_AUDIO=true (DEV only).
+  const explicit = _readEnvFlag("BBM_DEV_UNLOCK_AUDIO");
+  if (explicit === true) return !app.isPackaged;
+  if (explicit === false) return false;
+  return !app.isPackaged;
+}
+
+function isDevAudioSuggestionsEnabled() {
+  // Dev-only legacy audio suggestions flow.
+  const explicit = _readEnvFlag("BBM_DEV_ENABLE_AUDIO_SUGGESTIONS");
+  if (explicit === true) return !app.isPackaged;
+  if (explicit === false) return false;
+  return false;
 }
 
 function enforceLicensedFeature(feature) {
+  const normalizedFeature = String(feature || "").trim().toLowerCase();
+  if (normalizedFeature === LICENSE_FEATURES.AUDIO && isDevAudioOverrideEnabled()) {
+    return _extractLicenseInfo(getStatus({ fresh: true }));
+  }
+  if (isStandardLicensedFeature(normalizedFeature)) {
+    return _extractLicenseInfo(getStatus({ fresh: true }));
+  }
+
   try {
-    requireFeature(feature);
+    requireFeature(normalizedFeature);
     return _extractLicenseInfo(getStatus({ fresh: true }));
   } catch (err) {
     const rawMessage = String(err?.message || "");
-    const isLicenseError =
-      rawMessage.startsWith("LICENSE_INVALID:") ||
-      rawMessage.startsWith("FEATURE_NOT_ALLOWED:");
-
-    if (isLicenseError) {
+    if (rawMessage.startsWith("LICENSE_INVALID:") || rawMessage.startsWith("FEATURE_NOT_ALLOWED:")) {
       err.licenseError = true;
     }
 
@@ -113,6 +139,9 @@ function mapLicenseReasonToMessage(reason) {
       return "Lizenzdatei ist ungueltig.";
     case "INVALID_SIGNATURE":
       return "Lizenzsignatur ist ungueltig.";
+    case "PUBLIC_KEY_MISSING":
+    case "PUBLIC_KEY_INVALID":
+      return "Lizenzpruefung ist lokal nicht vollstaendig eingerichtet.";
     case "WRONG_PRODUCT":
       return "Diese Lizenz gehoert zu einem anderen Produkt.";
     case "WRONG_MACHINE":
@@ -132,6 +161,8 @@ function mapFeatureToMessage(feature) {
       return "Export ist fuer diese Lizenz nicht freigeschaltet.";
     case LICENSE_FEATURES.MAIL:
       return "Mail-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    case LICENSE_FEATURES.AUDIO:
+      return "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
     case LICENSE_FEATURES.APP:
       return "Diese Funktion ist fuer diese Lizenz nicht freigeschaltet.";
     default:
@@ -143,5 +174,7 @@ module.exports = {
   LICENSE_FEATURES,
   createLicenseBadgeText,
   enforceLicensedFeature,
+  isDevAudioOverrideEnabled,
+  isDevAudioSuggestionsEnabled,
   toLicenseErrorPayload,
 };

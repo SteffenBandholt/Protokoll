@@ -8,11 +8,12 @@ import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import AudioSuggestionsPanel from "../ui/AudioSuggestionsPanel.js";
+import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
-const TODO_ICON_PNG = new URL("../assets/icons/ui_todo_48.png", import.meta.url).href;
-const RED_FLAG_PNG = new URL("../assets/icons/redFlag.png", import.meta.url).href;
+const TODO_PNG = new URL("../assets/todo.png", import.meta.url).href;
+const RED_FLAG_PNG = new URL("../assets/redFlag.png", import.meta.url).href;
 
 export default class TopsView {
   constructor({ router, projectId, meetingId }) {
@@ -38,9 +39,12 @@ export default class TopsView {
     this.btnCloseMeeting = null; // "Schließen"
     this.btnLongToggle = null;
     this.btnAudioAnalyze = null;
+    this.btnTitleDictate = null;
+    this.btnLongDictate = null;
 
     this.btnAmpelToggle = null;
     this.btnTasks = null;
+    this.btnProjectTasks = null;
     this.box = null;
     this.topBarEl = null;
     this.editMetaCol = null;
@@ -58,9 +62,11 @@ export default class TopsView {
     this.inpDueDate = null;
     this.selStatus = null;
     this.selResponsible = null;
-    this.chkContact = null;
-    this.selContact = null;
+    this.selContactPerson = null;
     this.dueAmpelEl = null;
+    this.statusTaskMarkerEl = null;
+    this.statusDecisionFlagEl = null;
+    this._todoStatusOptionEl = null;
 
     this.projectFirms = [];
     this._projectFirmsLoaded = false;
@@ -70,7 +76,13 @@ export default class TopsView {
     this._respDirtyTopId = null;
     this._respLastSetTopId = null;
     this._respLegacyReadonly = false;
-    this._contactLoadToken = 0;
+    this.contactPersons = [];
+    this._contactOptionsKey = "";
+    this._contactSourceKey = "";
+    this._contactDirty = false;
+    this._contactDirtyTopId = null;
+    this._contactLastSetTopId = null;
+    this._contactLegacyReadonly = false;
     this.projectStartDate = null;
     this.projectEndDate = null;
     this._dueDirty = false;
@@ -139,10 +151,9 @@ export default class TopsView {
     // Markierungen für Nummernlücken
     this._markTopIds = new Set();
     this._gapPopupOverlay = null;
-    this._projectTasksOverlayEl = null;
 
     // UI sizing (Meta-Spalte ~30% schmaler)
-    this.META_COL_W = 120; // px
+    this.META_COL_W = 133; // px
     this.NUM_COL_W = 56; // px (ohne Ampel links)
 
     // Mail-Flow nach Protokoll beenden
@@ -150,7 +161,31 @@ export default class TopsView {
     this._audioPanel = null;
     this._audioPanelBusy = false;
     this._audioPanelStatusMessage = "";
+    this._audioDictationBusy = false;
+    this._audioDictationActive = false;
+    this._audioDictationTarget = null;
+    this._audioRecorder = null;
+    this._audioStream = null;
+    this._lastDictation = null;
+    this._termCorrections = new Map();
+    this._termPromptEl = null;
+    this._termPromptCleanup = null;
+    this._audioLicensed = false;
+    this._audioLicenseChecked = false;
+    this._audioLicenseMessage = "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    this._audioLicenseLoading = null;
+    this._audioDevOverride = false;
+    this._audioDevOverrideChecked = false;
+    this._audioDevOverrideLoading = null;
+    this._audioSuggestionsDevEnabled = false;
+    this._audioSuggestionsDevChecked = false;
+    this._audioSuggestionsDevLoading = null;
     this._audioSuggestionMarkTimer = null;
+    this._viewMenuOpen = false;
+    this._viewMenuDocMouseDown = null;
+    this._viewMenuEl = null;
+    this._viewMenuBtn = null;
+    this._projectTasksOverlayEl = null;
   }
 
   _updateTopBarProtocolTitle() {
@@ -195,11 +230,13 @@ export default class TopsView {
     host.style.alignItems = "flex-start";
     host.style.gap = "1px";
     host.style.lineHeight = "1.1";
+    host.style.fontSize = "10pt";
 
     const labelLine = document.createElement("div");
     labelLine.textContent = "Protokoll";
     labelLine.style.color = "#000";
     labelLine.style.fontWeight = "600";
+    labelLine.style.fontSize = "10pt";
     host.appendChild(labelLine);
 
     const firstLineBase =
@@ -213,11 +250,13 @@ export default class TopsView {
       line1.textContent = `${firstLineSafe} (geschlossen) read only`.trim();
       line1.style.color = "#b71c1c";
       line1.style.fontWeight = "700";
+      line1.style.fontSize = "10pt";
     } else {
       const green = document.createElement("span");
       green.textContent = firstLineSafe;
       green.style.color = "#1b5e20";
       green.style.fontWeight = "700";
+      green.style.fontSize = "10pt";
       line1.appendChild(green);
     }
     host.appendChild(line1);
@@ -227,6 +266,7 @@ export default class TopsView {
       line2.textContent = meetingKeyword;
       line2.style.color = isClosedMeeting ? "#b71c1c" : "#1b5e20";
       line2.style.fontWeight = "700";
+      line2.style.fontSize = "10pt";
       host.appendChild(line2);
     }
 
@@ -246,6 +286,168 @@ export default class TopsView {
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const yyyy = String(d.getFullYear());
     return `${dd}.${mm}.${yyyy}`;
+  }
+
+  _closeProjectTasksPopup() {
+    if (this._projectTasksOverlayEl && this._projectTasksOverlayEl.parentElement) {
+      this._projectTasksOverlayEl.parentElement.removeChild(this._projectTasksOverlayEl);
+    }
+    this._projectTasksOverlayEl = null;
+  }
+
+  async _openProjectTasksPopup() {
+    if (this._projectTasksOverlayEl) return;
+
+    const api = window.bbmDb || {};
+    if (typeof api.meetingsListProjectTasks !== "function") {
+      alert("Aufgabenliste ist nicht verfuegbar.");
+      return;
+    }
+    if (!this.projectId) {
+      alert("Projekt nicht gefunden.");
+      return;
+    }
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "1400";
+    overlay.tabIndex = -1;
+
+    const card = document.createElement("div");
+    applyPopupCardStyle(card);
+    card.style.width = "min(900px, calc(100vw - 24px))";
+    card.style.maxHeight = "80vh";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.overflow = "hidden";
+    card.style.background = "#fff";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "10px";
+    header.style.padding = "12px 16px";
+    header.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Projekt-Aufgaben";
+    title.style.fontWeight = "800";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.style.marginLeft = "auto";
+    btnClose.onclick = () => this._closeProjectTasksPopup();
+
+    header.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.flex = "1 1 auto";
+    body.style.overflow = "auto";
+    body.style.padding = "12px 16px";
+    body.textContent = "Lade...";
+
+    const renderTasks = (rows) => {
+      body.innerHTML = "";
+      const list = Array.isArray(rows) ? rows : [];
+      title.textContent = `Projekt-Aufgaben (${list.length})`;
+
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.textContent = "Keine Aufgaben vorhanden.";
+        empty.style.opacity = "0.75";
+        body.appendChild(empty);
+        return;
+      }
+
+      const wrap = document.createElement("div");
+      wrap.style.display = "grid";
+      wrap.style.gap = "8px";
+
+      const mkMeta = (label, value) => {
+        const el = document.createElement("div");
+        el.textContent = `${label}: ${value}`;
+        return el;
+      };
+
+      for (const t of list) {
+        const item = document.createElement("div");
+        item.style.border = "1px solid #e5e7eb";
+        item.style.borderRadius = "8px";
+        item.style.padding = "8px 10px";
+        item.style.display = "grid";
+        item.style.gap = "6px";
+
+        const titleEl = document.createElement("div");
+        titleEl.textContent = String(t?.title || t?.short_text || t?.shortText || "(ohne Bezeichnung)");
+        titleEl.style.fontWeight = "600";
+
+        const meta = document.createElement("div");
+        meta.style.display = "flex";
+        meta.style.flexWrap = "wrap";
+        meta.style.gap = "8px";
+        meta.style.fontSize = "12px";
+        meta.style.color = "#374151";
+
+        const resp = String(t?.responsible_label || t?.responsibleLabel || "").trim() || "-";
+        const dueRaw = t?.due_date ?? t?.dueDate ?? "";
+        const due = this._formatDateToDdMmYyyy(dueRaw) || String(dueRaw || "").trim() || "-";
+        const statusRaw = String(t?.status || "").trim();
+        const status = this._formatStatus(statusRaw);
+        const meetingRef = String(t?.meeting_id ?? t?.meetingId ?? "").trim() || "-";
+
+        if (statusRaw && statusRaw.toLowerCase() !== "erledigt") {
+          item.style.borderColor = "#b6d4ff";
+          item.style.background = "#eef7ff";
+        }
+
+        meta.append(mkMeta("Verantw.", resp));
+        meta.append(mkMeta("Faellig", due));
+        meta.append(mkMeta("Status", status));
+        meta.append(mkMeta("Meeting", meetingRef));
+
+        item.append(titleEl, meta);
+        wrap.appendChild(item);
+      }
+
+      body.appendChild(wrap);
+    };
+
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) this._closeProjectTasksPopup();
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      this._closeProjectTasksPopup();
+    });
+
+    card.append(header, body);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    this._projectTasksOverlayEl = overlay;
+    try {
+      overlay.focus();
+    } catch (_e) {
+      // ignore
+    }
+
+    try {
+      const res = await api.meetingsListProjectTasks({ projectId: this.projectId });
+      if (!res?.ok) {
+        body.textContent = res?.error || "Aufgaben konnten nicht geladen werden.";
+        return;
+      }
+      renderTasks(res.list || []);
+    } catch (err) {
+      body.textContent = err?.message || "Aufgaben konnten nicht geladen werden.";
+    }
   }
 
   _parseMeetingTitleParts() {
@@ -471,166 +673,6 @@ _isoToDDMMYYYY(iso) {
         // ignore
       }
     }, 0);
-  }
-
-  _closeProjectTasksPopup() {
-    if (this._projectTasksOverlayEl && this._projectTasksOverlayEl.parentElement) {
-      this._projectTasksOverlayEl.parentElement.removeChild(this._projectTasksOverlayEl);
-    }
-    this._projectTasksOverlayEl = null;
-  }
-
-  async _openProjectTasksPopup() {
-    if (this._projectTasksOverlayEl) return;
-
-    const api = window.bbmDb || {};
-    if (typeof api.meetingsListProjectTasks !== "function") {
-      alert("Aufgabenliste ist nicht verfuegbar.");
-      return;
-    }
-    if (!this.projectId) {
-      alert("Projekt nicht gefunden.");
-      return;
-    }
-
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.background = "rgba(0,0,0,0.35)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "1400";
-    overlay.tabIndex = -1;
-
-    const card = document.createElement("div");
-    applyPopupCardStyle(card);
-    card.style.width = "min(900px, calc(100vw - 24px))";
-    card.style.maxHeight = "80vh";
-    card.style.display = "flex";
-    card.style.flexDirection = "column";
-    card.style.overflow = "hidden";
-    card.style.background = "#fff";
-
-    const header = document.createElement("div");
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.gap = "10px";
-    header.style.padding = "12px 16px";
-    header.style.borderBottom = "1px solid #e2e8f0";
-
-    const title = document.createElement("div");
-    title.textContent = "Projekt-Aufgaben";
-    title.style.fontWeight = "800";
-
-    const btnClose = document.createElement("button");
-    btnClose.type = "button";
-    btnClose.textContent = "X";
-    applyPopupButtonStyle(btnClose);
-    btnClose.style.marginLeft = "auto";
-    btnClose.onclick = () => this._closeProjectTasksPopup();
-
-    header.append(title, btnClose);
-
-    const body = document.createElement("div");
-    body.style.flex = "1 1 auto";
-    body.style.overflow = "auto";
-    body.style.padding = "12px 16px";
-    body.textContent = "Lade...";
-
-    const renderTasks = (rows) => {
-      body.innerHTML = "";
-      const list = Array.isArray(rows) ? rows : [];
-      title.textContent = `Projekt-Aufgaben (${list.length})`;
-
-      if (!list.length) {
-        const empty = document.createElement("div");
-        empty.textContent = "Keine Aufgaben vorhanden.";
-        empty.style.opacity = "0.75";
-        body.appendChild(empty);
-        return;
-      }
-
-      const wrap = document.createElement("div");
-      wrap.style.display = "grid";
-      wrap.style.gap = "8px";
-
-      const mkMeta = (label, value) => {
-        const el = document.createElement("div");
-        el.textContent = `${label}: ${value}`;
-        return el;
-      };
-
-      for (const t of list) {
-        const item = document.createElement("div");
-        item.style.border = "1px solid #e5e7eb";
-        item.style.borderRadius = "8px";
-        item.style.padding = "8px 10px";
-        item.style.display = "grid";
-        item.style.gap = "6px";
-
-        const titleEl = document.createElement("div");
-        titleEl.textContent = String(t?.title || t?.short_text || t?.shortText || "(ohne Bezeichnung)");
-        titleEl.style.fontWeight = "600";
-
-        const meta = document.createElement("div");
-        meta.style.display = "flex";
-        meta.style.flexWrap = "wrap";
-        meta.style.gap = "8px";
-        meta.style.fontSize = "12px";
-        meta.style.color = "#374151";
-
-        const resp = String(t?.responsible_label || t?.responsibleLabel || "").trim() || "-";
-        const contact = String(t?.contact_label || t?.contactLabel || "").trim();
-        const dueRaw = t?.due_date ?? t?.dueDate ?? "";
-        const due = this._formatDateToDdMmYyyy(dueRaw) || String(dueRaw || "").trim() || "-";
-        const statusRaw = String(t?.status || "").trim();
-        const status = statusRaw || "-";
-        const meetingRef = String(t?.meeting_id ?? t?.meetingId ?? "").trim() || "-";
-
-        if (statusRaw && statusRaw.toLowerCase() !== "erledigt") {
-          item.style.borderColor = "#b6d4ff";
-          item.style.background = "#eef7ff";
-        }
-
-        meta.append(mkMeta("Verantw.", resp));
-        if (contact) meta.append(mkMeta("Kontakt", contact));
-        meta.append(mkMeta("Faellig", due));
-        meta.append(mkMeta("Status", status));
-        meta.append(mkMeta("Meeting", meetingRef));
-
-        item.append(titleEl, meta);
-        wrap.appendChild(item);
-      }
-
-      body.appendChild(wrap);
-    };
-
-    overlay.addEventListener("mousedown", (e) => {
-      if (e.target === overlay) this._closeProjectTasksPopup();
-    });
-    overlay.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      this._closeProjectTasksPopup();
-    });
-
-    card.append(header, body);
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
-    this._projectTasksOverlayEl = overlay;
-    try { overlay.focus(); } catch (_e) {}
-
-    try {
-      const res = await api.meetingsListProjectTasks({ projectId: this.projectId });
-      if (!res?.ok) {
-        body.textContent = res?.error || "Aufgaben konnten nicht geladen werden.";
-        return;
-      }
-      renderTasks(res.list || []);
-    } catch (err) {
-      body.textContent = err?.message || "Aufgaben konnten nicht geladen werden.";
-    }
   }
 
   _readUiMode() {
@@ -885,20 +927,15 @@ _isoToDDMMYYYY(iso) {
   _getEditFontSizes() {
     const scale = (this.editFontScale || "small").toString().toLowerCase();
     if (scale === "large") {
-      return { short: 12, long: 12 };
+      return { short: 18, long: 17 };
     }
-    return { short: 10, long: 10 };
+    return { short: 14, long: 13 };
   }
 
   _applyEditFontSizes() {
     const sizes = this._getEditFontSizes();
     if (this.inpTitle) this.inpTitle.style.fontSize = `${sizes.short}px`;
     if (this.taLongtext) this.taLongtext.style.fontSize = `${sizes.long}px`;
-    if (this.editMetaCol) this.editMetaCol.style.fontSize = `${sizes.short}px`;
-    if (this.inpDueDate) this.inpDueDate.style.fontSize = `${sizes.short}px`;
-    if (this.selStatus) this.selStatus.style.fontSize = `${sizes.short}px`;
-    if (this.selResponsible) this.selResponsible.style.fontSize = `${sizes.short}px`;
-    if (this.selContact) this.selContact.style.fontSize = `${sizes.short}px`;
   }
 
   async _loadLevel1CollapsedSetting() {
@@ -1059,6 +1096,10 @@ _isoToDDMMYYYY(iso) {
       if (this.btnEndMeeting) this.btnEndMeeting.disabled = true;
       if (this.btnCloseMeeting) this.btnCloseMeeting.disabled = true;
       if (this.btnAudioAnalyze) this.btnAudioAnalyze.disabled = true;
+      if (this.btnTitleDictate) this.btnTitleDictate.disabled = true;
+      if (this.btnLongDictate) this.btnLongDictate.disabled = true;
+      if (this.btnTasks) this.btnTasks.disabled = true;
+      if (this.btnProjectTasks) this.btnProjectTasks.disabled = true;
 
       if (this.btnMove) this.btnMove.disabled = true;
       if (this.btnSaveTop) this.btnSaveTop.disabled = true;
@@ -1070,7 +1111,7 @@ _isoToDDMMYYYY(iso) {
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.selContact) this.selContact.disabled = false;
+      if (this.selContactPerson) this.selContactPerson.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkHidden) this.chkHidden.disabled = true;
       if (this.chkTask) this.chkTask.disabled = true;
@@ -1108,6 +1149,17 @@ _isoToDDMMYYYY(iso) {
       delete nextPatch.responsible_kind;
       delete nextPatch.responsible_id;
       delete nextPatch.responsible_label;
+    }
+    if (this.selContactPerson?.disabled) {
+      const wantsContactClear =
+        nextPatch.contact_person_kind === null ||
+        nextPatch.contact_person_id === null ||
+        nextPatch.contact_person_label === null;
+      if (!wantsContactClear) {
+        delete nextPatch.contact_person_kind;
+        delete nextPatch.contact_person_id;
+        delete nextPatch.contact_person_label;
+      }
     }
     if (this.chkHidden?.disabled) delete nextPatch.is_hidden;
     if (this.chkImportant?.disabled) delete nextPatch.is_important;
@@ -1149,9 +1201,13 @@ _isoToDDMMYYYY(iso) {
         if (nextPatch.responsible_kind !== undefined) t.responsible_kind = nextPatch.responsible_kind;
         if (nextPatch.responsible_id !== undefined) t.responsible_id = nextPatch.responsible_id;
         if (nextPatch.responsible_label !== undefined) t.responsible_label = nextPatch.responsible_label;
-        if (nextPatch.contact_kind !== undefined) t.contact_kind = nextPatch.contact_kind;
+        if (nextPatch.contact_person_kind !== undefined) {
+          t.contact_person_kind = nextPatch.contact_person_kind;
+        }
         if (nextPatch.contact_person_id !== undefined) t.contact_person_id = nextPatch.contact_person_id;
-        if (nextPatch.contact_label !== undefined) t.contact_label = nextPatch.contact_label;
+        if (nextPatch.contact_person_label !== undefined) {
+          t.contact_person_label = nextPatch.contact_person_label;
+        }
       }
 
       if (pulse) this._showSavedPulse();
@@ -1183,9 +1239,8 @@ _isoToDDMMYYYY(iso) {
     if (this.chkImportant && !this.chkImportant.disabled) {
       patch.is_important = this.chkImportant.checked ? 1 : 0;
     }
-    if (this.chkTask && !this.chkTask.disabled) {
-      patch.is_task = this.chkTask.checked ? 1 : 0;
-    }
+
+
     if (this.chkDecision && !this.chkDecision.disabled) {
       patch.is_decision = this.chkDecision.checked ? 1 : 0;
     }
@@ -1196,8 +1251,9 @@ _isoToDDMMYYYY(iso) {
     }
 
     if (this.selStatus && !this.selStatus.disabled) {
-      const st = (this.selStatus.value || "").trim();
-      patch.status = st || "offen";
+      const rawStatus = (this.selStatus.value || "").trim();
+      const st = rawStatus && rawStatus.toLowerCase() === "alle" ? "" : rawStatus;
+      patch.status = st;
       patch.completed_in_meeting_id = this._isDoneStatus(patch.status) ? this.meetingId : null;
     }
 
@@ -1215,17 +1271,17 @@ _isoToDDMMYYYY(iso) {
       }
     }
 
-    if (this.selContact && !this.selContact.disabled) {
-      const opt = this.selContact.selectedOptions?.[0] || null;
-      const val = (this.selContact.value || "").toString().trim();
-      if (val) {
-        patch.contact_kind = opt?.dataset?.contactKind || null;
-        patch.contact_person_id = val;
-        patch.contact_label = opt?.dataset?.contactLabel || opt?.textContent || null;
+    if (this.selContactPerson && !this.selContactPerson.disabled) {
+      const parsed = this._parseContactPersonOptionValue(this.selContactPerson.value);
+      if (parsed?.id) {
+        const lbl = this._getContactPersonLabelForSelection(this.selContactPerson, parsed);
+        patch.contact_person_kind = parsed.kind || "project_person";
+        patch.contact_person_id = String(parsed.id);
+        patch.contact_person_label = lbl;
       } else {
-        patch.contact_kind = null;
+        patch.contact_person_kind = null;
         patch.contact_person_id = null;
-        patch.contact_label = null;
+        patch.contact_person_label = null;
       }
     }
 
@@ -1240,6 +1296,14 @@ _isoToDDMMYYYY(iso) {
     return s;
   }
 
+  _sanitizeContactPersonLabel(label) {
+    const s = (label ?? "").toString().trim();
+    if (!s) return "";
+    if (s === "?" || s === "-") return "";
+    if (/^\?+$/.test(s)) return "";
+    return s;
+  }
+
   _buildResponsibleDisplayLabel(row) {
     const s = (row?.short || "").toString().trim();
     if (s) return s;
@@ -1250,6 +1314,20 @@ _isoToDDMMYYYY(iso) {
     const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
     if (id) return `Unbenannte Firma (ID: ${id})`;
     return "Unbenannte Firma";
+  }
+
+  _buildContactPersonDisplayLabel(row) {
+    const name = (row?.name || "").toString().trim();
+    if (name) return name;
+    const first = (row?.first_name ?? row?.firstName ?? "").toString().trim();
+    const last = (row?.last_name ?? row?.lastName ?? "").toString().trim();
+    const combined = `${first} ${last}`.trim();
+    if (combined) return combined;
+
+    const rawId = row?.id ?? row?.person_id ?? row?.personId ?? "";
+    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
+    if (id) return `Unbenannter Mitarbeiter (ID: ${id})`;
+    return "Unbenannter Mitarbeiter";
   }
 
   _parseActiveFlag(value) {
@@ -1275,6 +1353,21 @@ _isoToDDMMYYYY(iso) {
     if (fromCandidates) return this._buildResponsibleDisplayLabel(fromCandidates);
 
     return this._buildResponsibleDisplayLabel({ id: parsed.id, kind: parsed.kind });
+  }
+
+  _getContactPersonLabelForSelection(sel, parsed) {
+    if (!parsed?.id) return null;
+
+    const selectedText = this._sanitizeContactPersonLabel(sel?.selectedOptions?.[0]?.textContent || "");
+    if (selectedText) return selectedText;
+
+    const value = (sel?.value || "").toString();
+    const fromCandidates = (this.contactPersons || []).find((c) => (
+      this._buildContactPersonOptionValue(c?.kind, c?.id ?? c?.person_id ?? c?.personId ?? null) === value
+    ));
+    if (fromCandidates) return this._buildContactPersonDisplayLabel(fromCandidates);
+
+    return this._buildContactPersonDisplayLabel({ id: parsed.id, kind: parsed.kind });
   }
 
   _normalizeResponsibleCandidates(list) {
@@ -1318,6 +1411,37 @@ _isoToDDMMYYYY(iso) {
     return out;
   }
 
+  _normalizeContactPersonCandidates(list, kind) {
+    const out = [];
+    const seen = new Set();
+    for (const row of list || []) {
+      const rawId = row?.id ?? row?.person_id ?? row?.personId ?? null;
+      if (rawId === null || rawId === undefined || rawId === "") continue;
+
+      const id = String(rawId).trim();
+      if (!id) continue;
+
+      const normalizedKind =
+        (kind || row?.kind || "").toString().trim() || (this.isNewUi ? "project_person" : "person");
+      const label = this._buildContactPersonDisplayLabel(row);
+      const key = `${normalizedKind}::${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      out.push({ ...row, kind: normalizedKind, id, label, displayLabel: label });
+    }
+
+    out.sort((a, b) => {
+      const al = this._buildContactPersonDisplayLabel(a).toLocaleLowerCase("de-DE");
+      const bl = this._buildContactPersonDisplayLabel(b).toLocaleLowerCase("de-DE");
+      if (al < bl) return -1;
+      if (al > bl) return 1;
+      return String(a?.id || "").localeCompare(String(b?.id || ""));
+    });
+
+    return out;
+  }
+
   _buildResponsibleOptionValue(kind, id) {
     const idStr = id === null || id === undefined ? "" : String(id).trim();
     if (!idStr) return "";
@@ -1333,6 +1457,28 @@ _isoToDDMMYYYY(iso) {
     if (!this.isNewUi) {
       return { kind: "company", id: raw };
     }
+
+    const sep = raw.indexOf("::");
+    if (sep <= 0) return null;
+    const kind = raw.slice(0, sep).trim();
+    const id = raw.slice(sep + 2).trim();
+    if (!kind || !id) return null;
+    return { kind, id };
+  }
+
+  _buildContactPersonOptionValue(kind, id) {
+    const idStr = id === null || id === undefined ? "" : String(id).trim();
+    if (!idStr) return "";
+    if (!this.isNewUi) return idStr;
+    const kindStr = (kind || "").toString().trim() || "project_person";
+    return `${kindStr}::${idStr}`;
+  }
+
+  _parseContactPersonOptionValue(value) {
+    const raw = (value || "").toString().trim();
+    if (!raw) return null;
+    if (raw.startsWith("__legacy_contact_person__")) return null;
+    if (!this.isNewUi) return { kind: "project_person", id: raw };
 
     const sep = raw.indexOf("::");
     if (sep <= 0) return null;
@@ -1359,6 +1505,13 @@ _isoToDDMMYYYY(iso) {
     return Array.from(sel.options || []).find((o) => String(o.value) === target) || null;
   }
 
+  _findContactPersonOption(value) {
+    const sel = this.selContactPerson;
+    if (!sel) return null;
+    const target = (value || "").toString();
+    return Array.from(sel.options || []).find((o) => String(o.value) === target) || null;
+  }
+
   _clearLegacyResponsibleOption() {
     const sel = this.selResponsible;
     if (!sel) return;
@@ -1371,6 +1524,20 @@ _isoToDDMMYYYY(iso) {
       sel.value = "";
     }
     this._respLegacyReadonly = false;
+  }
+
+  _clearLegacyContactPersonOption() {
+    const sel = this.selContactPerson;
+    if (!sel) return;
+    for (const opt of Array.from(sel.options || [])) {
+      if (opt?.dataset?.legacyContactPerson === "1") {
+        opt.remove();
+      }
+    }
+    if (String(sel.value || "").startsWith("__legacy_contact_person__")) {
+      sel.value = "";
+    }
+    this._contactLegacyReadonly = false;
   }
 
   _setLegacyResponsibleOption(label) {
@@ -1392,6 +1559,27 @@ _isoToDDMMYYYY(iso) {
     opt.textContent = text;
     sel.value = opt.value;
     this._respLegacyReadonly = true;
+  }
+
+  _setLegacyContactPersonOption(label) {
+    const sel = this.selContactPerson;
+    if (!sel) return;
+    const text = this._sanitizeContactPersonLabel(label);
+    if (!text) {
+      this._clearLegacyContactPersonOption();
+      return;
+    }
+
+    let opt = Array.from(sel.options || []).find((o) => o?.dataset?.legacyContactPerson === "1") || null;
+    if (!opt) {
+      opt = document.createElement("option");
+      opt.dataset.legacyContactPerson = "1";
+      sel.appendChild(opt);
+    }
+    opt.value = "__legacy_contact_person__";
+    opt.textContent = text;
+    sel.value = opt.value;
+    this._contactLegacyReadonly = true;
   }
 
   _resolveResponsibleSelection(top) {
@@ -1558,162 +1746,151 @@ _isoToDDMMYYYY(iso) {
     }
   }
 
-  _buildContactPersonLabel(row) {
-    const name = (row?.name || "").toString().trim();
-    if (name) return name;
-    const first = (row?.first_name ?? row?.firstName ?? "").toString().trim();
-    const last = (row?.last_name ?? row?.lastName ?? "").toString().trim();
-    const full = `${first} ${last}`.trim();
-    if (full) return full;
-    const label = (row?.label || "").toString().trim();
-    if (label) return label;
-    const rawId =
-      row?.id ??
-      row?.person_id ??
-      row?.personId ??
-      row?.project_person_id ??
-      row?.projectPersonId ??
-      "";
-    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
-    if (id) return `Person ${id}`;
-    return "Unbenannte Person";
+  _resolveContactPersonSelection(top) {
+    const pid = (top?.contact_person_id ?? "").toString().trim();
+    const pk = (top?.contact_person_kind ?? "").toString().trim();
+    const pl = this._sanitizeContactPersonLabel(top?.contact_person_label);
+    if (!pid) return { value: "", fallbackLabel: "" };
+    if (!this.isNewUi) return { value: pid, fallbackLabel: "" };
+
+    const candidates = this.contactPersons || [];
+    if (!candidates.length) {
+      return { value: "", fallbackLabel: pl || this._buildContactPersonDisplayLabel({ kind: pk, id: pid }) };
+    }
+
+    const exactKind = candidates.find((c) => String(c.kind) === pk && String(c.id) === pid);
+    if (exactKind) {
+      return { value: this._buildContactPersonOptionValue(exactKind.kind, exactKind.id), fallbackLabel: "" };
+    }
+
+    const sameId = candidates.filter((c) => String(c.id) === pid);
+    if (sameId.length === 1) {
+      const only = sameId[0];
+      return { value: this._buildContactPersonOptionValue(only.kind, only.id), fallbackLabel: "" };
+    }
+
+    if (pl) {
+      const plNorm = pl.toLocaleLowerCase("de-DE");
+      const byLabel = candidates.filter(
+        (c) => String(c.label || "").toLocaleLowerCase("de-DE") === plNorm
+      );
+      if (byLabel.length === 1) {
+        const one = byLabel[0];
+        return { value: this._buildContactPersonOptionValue(one.kind, one.id), fallbackLabel: "" };
+      }
+    }
+
+    return { value: "", fallbackLabel: pl || this._buildContactPersonDisplayLabel({ kind: pk, id: pid }) };
   }
 
-  _getSelectedFirmForContact() {
-    if (!this.selResponsible) return null;
-    const parsed = this._parseResponsibleOptionValue(this.selResponsible.value);
-    if (!parsed?.id) return null;
-    return parsed;
-  }
-
-  _getContactKindForFirmKind(kind) {
-    const k = (kind || "").toString().trim().toLowerCase();
-    if (k === "global_firm") return "global_person";
-    return "project_person";
-  }
-
-  async _loadContactPersonsForFirm(kind, id) {
-    const firmId = id === null || id === undefined ? "" : String(id).trim();
-    if (!firmId) return [];
+  async _loadContactPersonsForResponsible(parsed) {
     const api = window.bbmDb || {};
-    try {
-      if ((kind || "") === "global_firm") {
-        if (typeof api.personsListByFirm === "function") {
-          const res = await api.personsListByFirm(firmId);
-          if (res?.ok) return res.list || res.items || res.persons || [];
+    const kind = (parsed?.kind || "").toString().trim();
+    const id = (parsed?.id || "").toString().trim();
+    if (!id || kind === "all") {
+      this.contactPersons = [];
+      this._contactSourceKey = "";
+      return [];
+    }
+
+    let list = [];
+    let normalizedKind = "project_person";
+    let activeCandidateSet = null;
+
+    if (this.projectId && typeof api.projectCandidatesList === "function") {
+      try {
+        const candidateRes = await api.projectCandidatesList({ projectId: this.projectId });
+        if (candidateRes?.ok) {
+          const rawCandidates = candidateRes.items || candidateRes.list || candidateRes.data || [];
+          activeCandidateSet = new Set(
+            (rawCandidates || [])
+              .filter((row) => Number(row?.is_active ?? row?.isActive ?? 1) === 1)
+              .map((row) => {
+                const candidateKind = String(row?.kind || "").trim();
+                const personId = String(row?.personId ?? row?.person_id ?? "").trim();
+                return candidateKind && personId ? `${candidateKind}::${personId}` : "";
+              })
+              .filter((key) => !!key)
+          );
         }
-        return [];
-      }
+      } catch (_) {}
+    }
+
+    if (kind === "project_firm" || kind === "company") {
+      normalizedKind = "project_person";
       if (typeof api.projectPersonsListByProjectFirm === "function") {
-        const res = await api.projectPersonsListByProjectFirm(firmId);
-        if (res?.ok) return res.list || res.items || res.persons || [];
+        const res = await api.projectPersonsListByProjectFirm(id);
+        if (res?.ok) {
+          list = this._normalizeContactPersonCandidates(res.list || res.items || res.rows || [], normalizedKind);
+          if (activeCandidateSet) {
+            list = list.filter((row) => activeCandidateSet.has(`project_person::${String(row?.id || "").trim()}`));
+          }
+        }
       }
-      return [];
-    } catch {
-      return [];
+    } else if (kind === "global_firm" || kind === "firm") {
+      normalizedKind = "global_person";
+      if (typeof api.personsListByFirm === "function") {
+        const res = await api.personsListByFirm(id);
+        if (res?.ok) {
+          list = this._normalizeContactPersonCandidates(res.list || res.items || res.rows || [], normalizedKind);
+          if (activeCandidateSet) {
+            list = list.filter((row) => activeCandidateSet.has(`global_person::${String(row?.id || "").trim()}`));
+          }
+        }
+      }
     }
+
+    this.contactPersons = list;
+    this._contactSourceKey = `${kind}::${id}`;
+    return list;
   }
 
-  _setContactHint(text) {
-    if (!this.selContact) return;
-    this.selContact.innerHTML = "";
+  _computeContactOptionsKey(sourceKey, list) {
+    const base = String(sourceKey || "");
+    const parts = (list || []).map((p) => {
+      const kind = (p?.kind || "").toString().trim();
+      const id = (p?.id ?? p?.person_id ?? p?.personId ?? "").toString().trim();
+      const label = this._buildContactPersonDisplayLabel(p);
+      return `${kind}|${id}|${label}`;
+    });
+    return `${base}::${parts.join("#")}`;
+  }
+
+  _buildContactOptionsIfNeeded(sourceKey) {
+    if (!this.selContactPerson) return;
+
+    const key = this._computeContactOptionsKey(sourceKey, this.contactPersons || []);
+    if (key === this._contactOptionsKey) return;
+
+    const sel = this.selContactPerson;
+    const current = (sel.value || "").toString();
+
+    sel.innerHTML = "";
+    this._contactLegacyReadonly = false;
+
     const optEmpty = document.createElement("option");
     optEmpty.value = "";
     optEmpty.textContent = "-";
-    this.selContact.appendChild(optEmpty);
-    const hintText = (text || "").toString().trim();
-    if (hintText && hintText !== "-") {
-      const optHint = document.createElement("option");
-      optHint.value = "__hint__";
-      optHint.textContent = hintText;
-      optHint.disabled = true;
-      this.selContact.appendChild(optHint);
-    }
-    this.selContact.value = "";
-  }
+    sel.appendChild(optEmpty);
 
-  _setContactOptions(list, selectedId) {
-    if (!this.selContact) return;
-    this.selContact.innerHTML = "";
-    const optEmpty = document.createElement("option");
-    optEmpty.value = "";
-    optEmpty.textContent = "-";
-    this.selContact.appendChild(optEmpty);
-
-    for (const row of list || []) {
-      const id = row?.id === null || row?.id === undefined ? "" : String(row.id).trim();
-      if (!id) continue;
-      const label = row?.label || this._buildContactPersonLabel(row);
+    for (const p of this.contactPersons || []) {
+      const value = this._buildContactPersonOptionValue(p?.kind, p?.id ?? p?.person_id ?? p?.personId ?? null);
+      if (!value) continue;
+      const label = this._buildContactPersonDisplayLabel(p);
       const opt = document.createElement("option");
-      opt.value = id;
+      opt.value = value;
       opt.textContent = label;
-      opt.dataset.contactKind = row?.contact_kind || row?.contactKind || "";
-      opt.dataset.contactLabel = label;
-      this.selContact.appendChild(opt);
+      opt.dataset.displayLabel = label;
+      sel.appendChild(opt);
     }
 
-    const selId = selectedId === null || selectedId === undefined ? "" : String(selectedId).trim();
-    if (selId && Array.from(this.selContact.options || []).some((o) => String(o.value) === selId)) {
-      this.selContact.value = selId;
+    this._contactOptionsKey = key;
+
+    if (current && this._findContactPersonOption(current)) {
+      sel.value = current;
     } else {
-      this.selContact.value = "";
+      sel.value = "";
     }
-  }
-
-  async _refreshContactOptions({
-    selectedId = null,
-    selectedLabel = null,
-    autoSaveSingle = false,
-  } = {}) {
-    if (!this.selContact) return;
-    const firm = this._getSelectedFirmForContact();
-    if (!firm) {
-      this._setContactHint("-");
-      return;
-    }
-
-    const disableAll = this.isReadOnly || this._busy || !this.selectedTop;
-    const effectiveSelectedId =
-      selectedId !== null && selectedId !== undefined ? selectedId : this.selectedTop?.contact_person_id ?? null;
-    const effectiveSelectedLabel =
-      selectedLabel !== null && selectedLabel !== undefined ? selectedLabel : this.selectedTop?.contact_label ?? null;
-    if (disableAll) {
-      this._setContactHint("-");
-      return;
-    }
-
-    const token = ++this._contactLoadToken;
-    const rawList = await this._loadContactPersonsForFirm(firm.kind, firm.id);
-    if (token !== this._contactLoadToken) return;
-
-    const contactKind = this._getContactKindForFirmKind(firm.kind);
-    const list = (rawList || [])
-      .map((row) => {
-        const id =
-          row?.id ??
-          row?.person_id ??
-          row?.personId ??
-          row?.project_person_id ??
-          row?.projectPersonId ??
-          null;
-        if (id === null || id === undefined || id === "") return null;
-        return {
-          ...row,
-          id: String(id),
-          label: this._buildContactPersonLabel(row),
-          contact_kind: contactKind,
-        };
-      })
-      .filter(Boolean);
-
-    if (!list.length) {
-      this._setContactHint("Keine Mitarbeiter");
-      return;
-    }
-
-    this._setContactOptions(list, effectiveSelectedId);
-
-    // keep "-" as default even when a single person exists
   }
 
   // ========= Layout helper (Sidebar/Header offsets) =========
@@ -1911,13 +2088,35 @@ _isoToDDMMYYYY(iso) {
     return s;
   }
 
+  _resolveDisplayDueForTop(top) {
+    const dueRaw = top?.due_date ?? top?.dueDate ?? "";
+    const statusRaw = String(top?.status || "").trim().toLowerCase();
+    if ((!statusRaw || statusRaw === "alle") && this.projectEndDate) {
+      const dueStr = String(dueRaw || "").trim();
+      if (!dueStr) return this.projectEndDate;
+    }
+    return dueRaw;
+  }
+
   _formatStatus(v) {
     const s = (v || "").toString().trim();
-    return s ? s : "—";
+    if (!s) return "Alle";
+    const lower = s.toLowerCase();
+    if (lower === "alle") return "Alle";
+    if (lower === "festlegung") return "Festgelegt";
+    if (lower === "todo") return "ToDo";
+    return s;
   }
 
   _formatResponsible(top) {
     const lbl = this._sanitizeResponsibleLabel(top?.responsible_label);
+    if (!lbl) return "—";
+    const max = 22;
+    return lbl.length <= max ? lbl : lbl.slice(0, max - 1) + "…";
+  }
+
+  _formatContactPerson(top) {
+    const lbl = this._sanitizeContactPersonLabel(top?.contact_person_label);
     if (!lbl) return "—";
     const max = 22;
     return lbl.length <= max ? lbl : lbl.slice(0, max - 1) + "…";
@@ -1987,10 +2186,12 @@ _isoToDDMMYYYY(iso) {
     const st = (status || "").toString().trim().toLowerCase();
     return st === "erledigt"
       ? "gruen"
+      : st === "festlegung"
+      ? "gruen"
       : st === "blockiert" || st === "verzug"
       ? "rot"
       : !this._parseYmdDate(dueDateStr)
-      ? "grau"
+      ? "gruen"
       : this._parseYmdDate(dueDateStr).getTime() < this._todayStart().getTime()
       ? "rot"
       : this._parseYmdDate(dueDateStr).getTime() <=
@@ -2001,7 +2202,12 @@ _isoToDDMMYYYY(iso) {
 
   _updateDueAmpelFromInputs() {
     const dueVal = (this.inpDueDate?.value || "").trim();
-    const statusVal = (this.selStatus?.value || "").trim() || "offen";
+    const rawStatusVal = (this.selStatus?.value || "").trim();
+    if (rawStatusVal && rawStatusVal.toLowerCase() === "alle") {
+      this._applyAmpelDotColor(this.dueAmpelEl, "gruen");
+      return;
+    }
+    const statusVal = rawStatusVal || "offen";
     const t = this.selectedTop;
     const overrides = new Map();
     if (t && t.id) {
@@ -2010,6 +2216,54 @@ _isoToDDMMYYYY(iso) {
     const ampelCompute = createAmpelComputer(this.items || [], this._ampelBaseDate(), overrides);
     const color = t ? ampelCompute(t) : null;
     this._applyAmpelDotColor(this.dueAmpelEl, color);
+  }
+
+  _shouldShowDecisionFlag(status) {
+    const s = (status || "").toString().trim().toLowerCase();
+    return s === "festlegung" || s === "festgelegt";
+  }
+
+  _shouldShowTaskMarker() {
+    const statusRaw = (this.selStatus?.value || this.selectedTop?.status || "").toString();
+    if (statusRaw.trim().toLowerCase() === "todo") return true;
+    const raw = this.selectedTop?.is_task ?? this.selectedTop?.isTask ?? 0;
+    if (raw === true || raw === false) return raw;
+    if (typeof raw === "string") {
+      const s = raw.trim().toLowerCase();
+      return s === "1" || s === "true";
+    }
+    const n = Number(raw);
+    return Number.isFinite(n) ? n === 1 : false;
+  }
+
+  _hasTodoResponsibleSelection() {
+    if (!this.selResponsible) return false;
+    const parsed = this._parseResponsibleOptionValue(this.selResponsible.value);
+    if (!parsed || !parsed.id || parsed.kind === "all") return false;
+    const lbl = this._getResponsibleLabelForSelection(this.selResponsible, parsed);
+    const txt = (lbl || "").toString().trim();
+    return !!txt && txt !== "-";
+  }
+
+  _updateTodoStatusAvailability() {
+    if (!this.selStatus || !this._todoStatusOptionEl) return;
+    const allowed = this._hasTodoResponsibleSelection();
+    this._todoStatusOptionEl.disabled = !allowed;
+    this._todoStatusOptionEl.title = allowed ? "" : "ToDo nur mit Verantwortlich";
+    if (!allowed && String(this.selStatus.value || "").trim().toLowerCase() === "todo") {
+      this.selStatus.value = "-";
+      this._updateStatusMarkers();
+    }
+  }
+
+  _updateStatusMarkers() {
+    if (this.statusTaskMarkerEl) {
+      this.statusTaskMarkerEl.style.display = this._shouldShowTaskMarker() ? "block" : "none";
+    }
+    if (this.statusDecisionFlagEl) {
+      const showDecision = this._shouldShowDecisionFlag(this.selStatus?.value || this.selectedTop?.status || "");
+      this.statusDecisionFlagEl.style.display = showDecision ? "block" : "none";
+    }
   }
 
   _isResponsibleAllSelection() {
@@ -2029,9 +2283,13 @@ _isoToDDMMYYYY(iso) {
     const current = (this.inpDueDate.value || "").trim();
     const startDate = this.projectStartDate;
     const endDate = this.projectEndDate;
+    const statusRaw = (this.selStatus?.value || "").trim().toLowerCase();
+    const isStatusAll = statusRaw === "alle";
 
     let nextVal = "";
-    if (this._isResponsibleAllSelection() && endDate) {
+    if (endDate && (!current || (isStatusAll && current === (startDate || "")))) {
+      nextVal = endDate;
+    } else if (this._isResponsibleAllSelection() && endDate) {
       if (!current || current === (startDate || "")) {
         nextVal = endDate;
       }
@@ -2070,6 +2328,8 @@ _isoToDDMMYYYY(iso) {
 
   _isDecisionTop(top) {
     if (!top || typeof top !== "object") return false;
+    const status = (top.status || "").toString().trim().toLowerCase();
+    if (status === "festlegung") return true;
     const raw = top.is_decision ?? top.isDecision;
     if (raw === true || raw === false) return raw;
     if (typeof raw === "string") {
@@ -2081,8 +2341,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   _isVerzugTop(top) {
-    const st = String(top?.status || "").trim().toLowerCase();
-    return st === "verzug";
+    return String(top?.status || "").trim().toLowerCase() === "verzug";
   }
 
   _matchesViewFilter(top) {
@@ -2097,6 +2356,41 @@ _isoToDDMMYYYY(iso) {
     if (this._shouldHideDoneTop(top)) return true;
     if (!this._matchesViewFilter(top)) return true;
     return false;
+  }
+
+  _viewFilterLabel(mode) {
+    const key = String(mode || "all").trim().toLowerCase();
+    if (key === "tasks") return "Aufgaben";
+    if (key === "verzug") return "Verzug";
+    if (key === "decisions") return "Festlegungen";
+    return "Alle";
+  }
+
+  _setViewMenuOpen(nextOpen) {
+    this._viewMenuOpen = !!nextOpen;
+    if (this._viewMenuEl) {
+      this._viewMenuEl.style.display = this._viewMenuOpen ? "flex" : "none";
+      if (this._viewMenuOpen) {
+        this._positionViewMenu();
+      }
+    }
+    if (this._viewMenuBtn) {
+      this._viewMenuBtn.setAttribute("aria-expanded", this._viewMenuOpen ? "true" : "false");
+    }
+  }
+
+  _positionViewMenu() {
+    if (!this._viewMenuEl || !this._viewMenuBtn) return;
+    const menuEl = this._viewMenuEl;
+    const btnRect = this._viewMenuBtn.getBoundingClientRect();
+    const gap = 4;
+    const viewportPad = 8;
+    menuEl.style.top = `${Math.round(btnRect.bottom + gap)}px`;
+    menuEl.style.left = "0px";
+    const menuWidth = Math.ceil(menuEl.getBoundingClientRect().width || menuEl.offsetWidth || 190);
+    const maxLeft = Math.max(viewportPad, window.innerWidth - menuWidth - viewportPad);
+    const targetLeft = Math.round(btnRect.right - menuWidth);
+    menuEl.style.left = `${Math.min(maxLeft, Math.max(viewportPad, targetLeft))}px`;
   }
 
   _updateTopBarMetaLabels() {
@@ -2126,7 +2420,7 @@ _isoToDDMMYYYY(iso) {
       return d;
     };
 
-    this.topMetaEl.append(mk("Fertig bis"), mk("Status"), mk("verantw"));
+    this.topMetaEl.append(mk("Fertig bis"), mk("Status"), mk("verantw"), mk("anspr"));
   }
 
   _getAudioPanel() {
@@ -2134,6 +2428,683 @@ _isoToDDMMYYYY(iso) {
       this._audioPanel = new AudioSuggestionsPanel();
     }
     return this._audioPanel;
+  }
+
+  _formatAudioLicenseMessage(status = null) {
+    if (status?.valid) {
+      return "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    }
+
+    const reason = String(status?.reason || "").trim();
+    switch (reason) {
+      case "NO_LICENSE":
+        return "Audio erfordert eine gueltige Lizenz.";
+      case "LICENSE_EXPIRED":
+        return "Audio ist gesperrt, weil die Lizenz abgelaufen ist.";
+      case "WRONG_MACHINE":
+        return "Audio ist gesperrt, weil diese Lizenz zu einem anderen Rechner gehoert.";
+      case "PUBLIC_KEY_INVALID":
+      case "PUBLIC_KEY_MISSING":
+        return "Audio bleibt gesperrt, weil die lokale Signaturpruefung nicht vollstaendig eingerichtet ist.";
+      default:
+        return "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    }
+  }
+
+  _buildLockedAudioPanelState(message) {
+    return {
+      title: "Sprachdatei auswerten",
+      modeLabel: "Pruefmodus",
+      busy: false,
+      statusMessage: String(message || this._audioLicenseMessage || "").trim(),
+      suggestions: [],
+      audioImport: null,
+      transcript: null,
+      parentOptions: this._getAudioParentOptions(),
+      onImportAudio: async () => {},
+      onCreateDemoSuggestion: async () => {},
+      onApplySuggestion: async () => {},
+      onFocusSuggestion: async () => {},
+      onRejectSuggestion: async () => {},
+    };
+  }
+
+  _setAudioLicenseState(licensed, message = "") {
+    this._audioLicensed = !!licensed;
+    this._audioLicenseChecked = true;
+    this._audioLicenseMessage = this._audioLicensed
+      ? ""
+      : (String(message || "").trim() || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
+    this._updateDictationButtons();
+
+    if (this.root) {
+      this.applyEditBoxState();
+    }
+
+    if (this._audioPanel && !this._audioLicensed) {
+      this._audioPanelBusy = false;
+      this._audioPanelStatusMessage = this._audioLicenseMessage;
+      this._audioPanel.update(this._buildLockedAudioPanelState(this._audioPanelStatusMessage));
+    }
+  }
+
+  async _loadAudioLicenseState(force = false) {
+    if (!force && this._audioLicenseChecked) return this._audioLicensed;
+    if (!force && this._audioLicenseLoading) return this._audioLicenseLoading;
+
+    const task = (async () => {
+      const devOverride = await this._loadAudioDevOverrideState(force);
+      await this._loadAudioSuggestionsDevFlag(force);
+      if (devOverride) {
+        this._setAudioLicenseState(true, "");
+        return true;
+      }
+
+      const api = window.bbmDb || {};
+      if (typeof api.licenseGetStatus !== "function") {
+        this._setAudioLicenseState(false, "Lizenzstatus ist nicht verfuegbar. Audio bleibt gesperrt.");
+        return false;
+      }
+
+      try {
+        const res = await api.licenseGetStatus();
+        const features = Array.isArray(res?.features)
+          ? res.features.map((value) => String(value || "").trim().toLowerCase())
+          : [];
+        const licensed = !!res?.ok && !!res?.valid && features.includes("audio");
+        this._setAudioLicenseState(licensed, this._formatAudioLicenseMessage(res));
+        return licensed;
+      } catch (_err) {
+        this._setAudioLicenseState(false, "Lizenzstatus konnte nicht geladen werden. Audio bleibt gesperrt.");
+        return false;
+      } finally {
+        this._audioLicenseLoading = null;
+      }
+    })();
+
+    this._audioLicenseLoading = task;
+    return task;
+  }
+
+  async _loadAudioDevOverrideState(force = false) {
+    if (!force && this._audioDevOverrideChecked) return this._audioDevOverride;
+    if (!force && this._audioDevOverrideLoading) return this._audioDevOverrideLoading;
+
+    const task = (async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devAudioUnlockStatus !== "function") {
+        this._audioDevOverride = false;
+        this._audioDevOverrideChecked = true;
+        return false;
+      }
+
+      try {
+        const res = await api.devAudioUnlockStatus();
+        const enabled = !!res?.ok && !!res?.enabled;
+        this._audioDevOverride = enabled;
+        this._audioDevOverrideChecked = true;
+        return enabled;
+      } catch (_err) {
+        this._audioDevOverride = false;
+        this._audioDevOverrideChecked = true;
+        return false;
+      } finally {
+        this._audioDevOverrideLoading = null;
+      }
+    })();
+
+    this._audioDevOverrideLoading = task;
+    return task;
+  }
+
+  async _loadAudioSuggestionsDevFlag(force = false) {
+    if (!force && this._audioSuggestionsDevChecked) return this._audioSuggestionsDevEnabled;
+    if (!force && this._audioSuggestionsDevLoading) return this._audioSuggestionsDevLoading;
+
+    const task = (async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devAudioSuggestionsEnabled !== "function") {
+        this._audioSuggestionsDevEnabled = false;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      }
+
+      try {
+        const res = await api.devAudioSuggestionsEnabled();
+        this._audioSuggestionsDevEnabled = !!res?.ok && !!res?.enabled;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      } catch (_err) {
+        this._audioSuggestionsDevEnabled = false;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      } finally {
+        this._audioSuggestionsDevLoading = null;
+      }
+    })();
+
+    this._audioSuggestionsDevLoading = task;
+    return task;
+  }
+
+  async _ensureAudioAvailable({ alertOnFailure = true, force = false } = {}) {
+    const licensed = await this._loadAudioLicenseState(force);
+    if (licensed) return true;
+
+    if (alertOnFailure) {
+      alert(this._audioLicenseMessage || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
+    }
+    return false;
+  }
+
+  _updateDictationButtons() {
+    const baseDisabled =
+      this.isReadOnly || this._busy || this._audioDictationBusy || !this.meetingId || !this.selectedTop;
+    const audioLocked = !this._audioLicensed;
+    const isRecording = !!this._audioDictationActive;
+    const activeTarget = this._audioDictationTarget;
+
+    if (this.btnTitleDictate) {
+      const disabled =
+        baseDisabled || audioLocked || !!this.inpTitle?.disabled || (isRecording && activeTarget !== "shortText");
+      this.btnTitleDictate.disabled = disabled;
+      this.btnTitleDictate.style.opacity = disabled ? "0.6" : "1";
+      this.btnTitleDictate.textContent =
+        isRecording && activeTarget === "shortText" ? "Stop" : "Diktat";
+      this.btnTitleDictate.style.background =
+        isRecording && activeTarget === "shortText" ? "#ffebee" : "#f7f9fb";
+      this.btnTitleDictate.style.color =
+        isRecording && activeTarget === "shortText" ? "#b71c1c" : "#0b4db4";
+      this.btnTitleDictate.title = audioLocked
+        ? this._audioLicenseMessage
+        : "Spracheingabe fuer Kurztext";
+    }
+
+    if (this.btnLongDictate) {
+      const disabled =
+        baseDisabled || audioLocked || !!this.taLongtext?.disabled || (isRecording && activeTarget !== "longText");
+      this.btnLongDictate.disabled = disabled;
+      this.btnLongDictate.style.opacity = disabled ? "0.6" : "1";
+      this.btnLongDictate.textContent =
+        isRecording && activeTarget === "longText" ? "Stop" : "Diktat";
+      this.btnLongDictate.style.background =
+        isRecording && activeTarget === "longText" ? "#ffebee" : "#f7f9fb";
+      this.btnLongDictate.style.color =
+        isRecording && activeTarget === "longText" ? "#b71c1c" : "#0b4db4";
+      this.btnLongDictate.title = audioLocked
+        ? this._audioLicenseMessage
+        : "Spracheingabe fuer Langtext";
+    }
+  }
+
+  _applyDictationTextToField(targetField, transcriptText) {
+    const text = String(transcriptText || "").trim();
+    if (!text) return;
+
+    if (targetField === "shortText") {
+      const next = this._normTitle(text);
+      if (this.inpTitle) {
+        this.inpTitle.value = this._clampStr(next, this._titleMax());
+        this.inpTitle.focus();
+        this.inpTitle.select?.();
+      }
+      this._lastDictation = { field: "shortText", text: next, at: Date.now() };
+    } else if (targetField === "longText") {
+      const current = this.taLongtext ? String(this.taLongtext.value || "") : "";
+      const joined = current ? `${current.replace(/\s+$/g, "")}\n${text}` : text;
+      const next = this._normLong(joined);
+      if (this.taLongtext) {
+        this.taLongtext.value = this._clampStr(next, this._longMax());
+        this.taLongtext.focus();
+      }
+      this._lastDictation = { field: "longText", text: text, at: Date.now() };
+    }
+
+    this._updateCharCounters();
+  }
+
+  _cleanupDictationText(text) {
+    let cleaned = String(text || "").trim();
+    if (!cleaned) return "";
+
+    cleaned = cleaned.replace(/\s{2,}/g, " ");
+    cleaned = cleaned.replace(/\s+([,.;:!?])/g, "$1");
+    cleaned = cleaned.replace(/([,.;:!?])([^\s])/g, "$1 $2");
+    cleaned = cleaned.replace(/([,.;:!?])\1+/g, "$1");
+    cleaned = cleaned.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+    cleaned = cleaned.replace(/\)\s*(\w)/g, ") $1");
+    cleaned = cleaned.replace(/\s+$/g, "").trim();
+
+    if (/^[a-z\u00e4\u00f6\u00fc]/.test(cleaned)) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.slice(1);
+    }
+
+    return this._applyDictationDictionary(cleaned);
+  }
+
+  _normalizeTerm(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  _applyDictationDictionary(text) {
+    let out = String(text || "");
+    const replaceWord = (pattern, replacement) => {
+      out = out.replace(pattern, (match) => {
+        const first = match[0];
+        if (first && first === first.toUpperCase()) {
+          return replacement[0].toUpperCase() + replacement.slice(1);
+        }
+        return replacement;
+      });
+    };
+
+    replaceWord(/\brohrbau\b/gi, "Rohbau");
+    replaceWord(/\bschallung\b/gi, "Schalung");
+    replaceWord(/\bbewehrung\b/gi, "Bewehrung");
+    replaceWord(/\bbetonage\b/gi, "Betonage");
+    replaceWord(/\bfreigabe\b/gi, "Freigabe");
+    replaceWord(/\bnachtrag\b/gi, "Nachtrag");
+    replaceWord(/\bschacht\s?hoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthohen\b/gi, "Schachthöhen");
+    replaceWord(/\bsohlen\b/gi, "Sohlen");
+    replaceWord(/\babsteckung\b/gi, "Absteckung");
+    replaceWord(/\bgeruestpruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bgeruest pruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bstatik\b/gi, "Statik");
+    replaceWord(/\bbauzaun\b/gi, "Bauzaun");
+
+    out = out.replace(/\bSchachthöhen\s+Sohlen\b/gi, "Schachthöhen (Sohlen)");
+    out = this._applyProjectTermCorrections(out);
+    return out;
+  }
+
+  _applyProjectTermCorrections(text) {
+    let out = String(text || "");
+    if (!this._termCorrections || this._termCorrections.size === 0) return out;
+
+    for (const [wrongTerm, correctTerm] of this._termCorrections.entries()) {
+      if (!wrongTerm || !correctTerm) continue;
+      const pattern = new RegExp(`\\b${wrongTerm.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "gi");
+      out = out.replace(pattern, (match) => {
+        const first = match[0];
+        if (first && first === first.toUpperCase()) {
+          return correctTerm[0].toUpperCase() + correctTerm.slice(1);
+        }
+        return correctTerm;
+      });
+    }
+
+    return out;
+  }
+
+  async _loadProjectTermCorrections(force = false) {
+    if (!this.projectId) return;
+    if (!force && this._termCorrections?.size) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioTermCorrectionsList !== "function") return;
+
+    try {
+      const res = await api.audioTermCorrectionsList({ projectId: this.projectId });
+      if (!res?.ok) return;
+      const map = new Map();
+      const list = Array.isArray(res.list) ? res.list : [];
+      for (const row of list) {
+        const wrong = String(row?.wrong_term || row?.wrongTerm || "").trim();
+        const correct = String(row?.correct_term || row?.correctTerm || "").trim();
+        if (!wrong || !correct) continue;
+        map.set(this._normalizeTerm(wrong), correct);
+      }
+      this._termCorrections = map;
+    } catch (_err) {
+      // ignore
+    }
+  }
+
+  _detectSimpleTermCorrection(originalText, editedText) {
+    const original = this._cleanupDictationText(originalText);
+    const edited = this._cleanupDictationText(editedText);
+    if (!original || !edited) return null;
+    if (original === edited) return null;
+
+    const wordRe = /[\p{L}\p{N}\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df-]+/gu;
+    const origWords = original.match(wordRe) || [];
+    const editWords = edited.match(wordRe) || [];
+    if (origWords.length === 0 || editWords.length === 0) return null;
+    if (origWords.length !== editWords.length) return null;
+
+    let diffIndex = -1;
+    for (let i = 0; i < origWords.length; i += 1) {
+      if (origWords[i].toLowerCase() !== editWords[i].toLowerCase()) {
+        if (diffIndex !== -1) return null;
+        diffIndex = i;
+      }
+    }
+    if (diffIndex === -1) return null;
+
+    const wrongTerm = origWords[diffIndex].trim();
+    const correctTerm = editWords[diffIndex].trim();
+    if (!wrongTerm || !correctTerm) return null;
+    if (wrongTerm.length < 3 || correctTerm.length < 3) return null;
+    if (wrongTerm.length > 40 || correctTerm.length > 40) return null;
+    if (wrongTerm.toLowerCase() === correctTerm.toLowerCase()) return null;
+
+    return { wrongTerm, correctTerm };
+  }
+
+  _showTermCorrectionPrompt({ field, wrongTerm, correctTerm, anchorEl }) {
+    if (!anchorEl) return;
+    if (this._termPromptEl) {
+      this._termPromptEl.remove();
+      this._termPromptEl = null;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.gap = "10px";
+    wrap.style.marginTop = "4px";
+    wrap.style.padding = "4px 8px";
+    wrap.style.border = "1px solid #ffe0b2";
+    wrap.style.background = "#fff8e1";
+    wrap.style.borderRadius = "6px";
+    wrap.style.fontSize = "12px";
+    wrap.style.color = "#5d4037";
+    wrap.style.zIndex = "5";
+
+    const text = document.createElement("div");
+    text.textContent = `Korrektur merken? '${wrongTerm}' → '${correctTerm}'`;
+
+    const btnYes = document.createElement("button");
+    btnYes.type = "button";
+    btnYes.textContent = "Merken";
+    btnYes.style.border = "1px solid #cfd8dc";
+    btnYes.style.background = "#f7f9fb";
+    btnYes.style.borderRadius = "6px";
+    btnYes.style.padding = "3px 8px";
+    btnYes.style.cursor = "pointer";
+
+    const btnNo = document.createElement("button");
+    btnNo.type = "button";
+    btnNo.textContent = "Nein";
+    btnNo.style.border = "1px solid #cfd8dc";
+    btnNo.style.background = "#f7f9fb";
+    btnNo.style.borderRadius = "6px";
+    btnNo.style.padding = "3px 8px";
+    btnNo.style.cursor = "pointer";
+
+    wrap.append(text, btnYes, btnNo);
+    anchorEl.insertAdjacentElement("afterend", wrap);
+    this._termPromptEl = wrap;
+
+    const cleanup = () => {
+      if (this._termPromptEl) this._termPromptEl.remove();
+      this._termPromptEl = null;
+      if (this._termPromptCleanup) this._termPromptCleanup = null;
+    };
+
+    btnNo.onclick = () => cleanup();
+    btnYes.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.audioTermCorrectionUpsert === "function" && this.projectId) {
+        await api.audioTermCorrectionUpsert({
+          projectId: this.projectId,
+          wrongTerm,
+          correctTerm,
+        });
+        this._termCorrections.set(this._normalizeTerm(wrongTerm), correctTerm);
+      }
+      cleanup();
+    };
+
+    this._termPromptCleanup = cleanup;
+  }
+
+  _maybeOfferTermCorrection(field, newValue, anchorEl) {
+    const last = this._lastDictation;
+    if (!last || last.field !== field) return;
+    const maxAgeMs = 10 * 60 * 1000;
+    if (Date.now() - (last.at || 0) > maxAgeMs) {
+      this._lastDictation = null;
+      return;
+    }
+
+    const correction = this._detectSimpleTermCorrection(last.text || "", newValue || "");
+    this._lastDictation = null;
+    if (!correction) return;
+
+    const normalizedWrong = this._normalizeTerm(correction.wrongTerm);
+    if (this._termCorrections.has(normalizedWrong)) return;
+    this._pendingTermPrompt = {
+      field,
+      wrongTerm: correction.wrongTerm,
+      correctTerm: correction.correctTerm,
+      topId: this.selectedTop?.id ?? null,
+      at: Date.now(),
+    };
+    this._showTermCorrectionPrompt({
+      field,
+      wrongTerm: correction.wrongTerm,
+      correctTerm: correction.correctTerm,
+      anchorEl,
+    });
+  }
+
+  _tryShowPendingTermPrompt() {
+    const pending = this._pendingTermPrompt;
+    if (!pending) return;
+    if (!this.selectedTop || !this._sameTopId(this.selectedTop.id, pending.topId)) return;
+    if (Date.now() - (pending.at || 0) > 2 * 60 * 1000) {
+      this._pendingTermPrompt = null;
+      return;
+    }
+    const anchorEl = pending.field === "shortText" ? this.inpTitle : this.taLongtext;
+    if (!anchorEl) return;
+    this._showTermCorrectionPrompt({
+      field: pending.field,
+      wrongTerm: pending.wrongTerm,
+      correctTerm: pending.correctTerm,
+      anchorEl,
+    });
+    this._pendingTermPrompt = null;
+  }
+
+  _deriveShortTextFromDictation(text) {
+    const cleaned = this._cleanupDictationText(text).replace(/^[.!?;,:-]+\s*/g, "").trim();
+    if (!cleaned) return "";
+
+    const dotIndex = cleaned.indexOf(".");
+    const commaIndex = cleaned.indexOf(",");
+    const cutIndex = dotIndex >= 0 ? dotIndex : commaIndex >= 0 ? commaIndex : -1;
+    let title =
+      cutIndex >= 0
+        ? cleaned.slice(0, cutIndex).trim()
+        : cleaned.length > 80
+        ? cleaned.slice(0, 80).trim()
+        : cleaned;
+
+    title = title.replace(/[.!?;,]+$/g, "").trim();
+    if (!title) return cleaned;
+
+    const stop = new Set([
+      "mit",
+      "ist",
+      "sind",
+      "wird",
+      "werden",
+      "war",
+      "waren",
+      "muss",
+      "muessen",
+      "soll",
+      "sollen",
+      "noch",
+      "zu",
+      "auf",
+      "fuer",
+      "von",
+      "im",
+      "am",
+      "an",
+      "der",
+      "die",
+      "das",
+      "und",
+      "oder",
+      "bei",
+      "beim",
+      "zum",
+      "zur",
+      "des",
+      "den",
+      "dem",
+    ]);
+
+    const words = title.split(/\s+/).filter(Boolean);
+    while (words.length > 2) {
+      const last = words[words.length - 1].toLowerCase();
+      if (!stop.has(last)) break;
+      words.pop();
+    }
+    const compact = words.join(" ").trim();
+    if (compact.length >= 6) return compact;
+    return title;
+  }
+
+  async _runFieldDictation(targetField) {
+    if (this._audioDictationActive && this._audioDictationTarget === targetField) {
+      await this._stopFieldDictation();
+      return;
+    }
+    await this._startFieldDictation(targetField);
+  }
+
+  async _startFieldDictation(targetField) {
+    if (!(await this._ensureAudioAvailable())) return;
+    if (this._audioDictationBusy || this._audioDictationActive) return;
+    if (!this.selectedTop) return;
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      alert("Mikrofonaufnahme wird nicht unterstuetzt.");
+      return;
+    }
+
+    this._audioDictationBusy = true;
+    this._updateDictationButtons();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      const mimeType =
+        preferredTypes.find((type) => window.MediaRecorder?.isTypeSupported?.(type)) || "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event?.data && event.data.size > 0) chunks.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        await this._handleDictationBlob(blob, recorder._bbmTargetField || targetField);
+      };
+
+      recorder.start();
+      recorder._bbmTargetField = targetField;
+      this._audioRecorder = recorder;
+      this._audioStream = stream;
+      this._audioDictationActive = true;
+      this._audioDictationTarget = targetField;
+    } catch (err) {
+      alert(err?.message || String(err));
+    } finally {
+      this._audioDictationBusy = false;
+      this._updateDictationButtons();
+    }
+  }
+
+  async _stopFieldDictation() {
+    if (!this._audioRecorder) return;
+    try {
+      this._audioRecorder.stop();
+    } catch (_err) {
+      // ignore
+    }
+    if (this._audioStream) {
+      this._audioStream.getTracks().forEach((track) => track.stop());
+    }
+    this._audioRecorder = null;
+    this._audioStream = null;
+    this._audioDictationActive = false;
+    this._audioDictationTarget = null;
+    this._updateDictationButtons();
+  }
+
+  async _handleDictationBlob(blob, targetField) {
+    if (!blob || !blob.size) {
+      alert("Aufnahme ist leer.");
+      return;
+    }
+
+    const api = window.bbmDb || {};
+    if (typeof api.audioTranscribeBlob !== "function") {
+      alert("Audio-Transkription ist nicht verfuegbar.");
+      return;
+    }
+
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = String(reader.result || "");
+        const payload = result.includes(",") ? result.split(",").pop() : result;
+        resolve(payload || "");
+      };
+      reader.onerror = () => reject(reader.error || new Error("Datei konnte nicht gelesen werden"));
+      reader.readAsDataURL(blob);
+    });
+
+    this._audioDictationBusy = true;
+    this._updateDictationButtons();
+
+    try {
+      const res = await api.audioTranscribeBlob({
+        meetingId: this.meetingId,
+        projectId: this.projectId || null,
+        mimeType: blob.type || "audio/webm",
+        base64,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Transkription fehlgeschlagen.");
+      }
+      const transcriptText = String(res?.transcript?.full_text || "").trim();
+      if (!transcriptText) {
+        alert("Transkription ist leer.");
+        return;
+      }
+      const cleanedText = this._cleanupDictationText(transcriptText);
+      if (targetField === "shortText") {
+        const shortText = this._deriveShortTextFromDictation(cleanedText) || cleanedText;
+        this._applyDictationTextToField("shortText", shortText);
+      } else {
+        this._applyDictationTextToField(targetField || "longText", cleanedText);
+      }
+    } catch (err) {
+      alert(err?.message || String(err));
+    } finally {
+      this._audioDictationBusy = false;
+      this._updateDictationButtons();
+    }
   }
 
   _manualAssignTitle() {
@@ -2148,10 +3119,7 @@ _isoToDDMMYYYY(iso) {
     const target = this._normalizeManualAssignTitle(this._manualAssignTitle());
     return (
       (this.items || []).find((item) => {
-        return (
-          Number(item?.level) === 1 &&
-          this._normalizeManualAssignTitle(item?.title) === target
-        );
+        return Number(item?.level) === 1 && this._normalizeManualAssignTitle(item?.title) === target;
       }) || null
     );
   }
@@ -2216,6 +3184,7 @@ _isoToDDMMYYYY(iso) {
     this.selectedTop = target;
     this._userSelectedTop = true;
     this.applyEditBoxState();
+    this._updateDictationButtons();
     this._updateMoveControls();
     this._updateDeleteControls();
     this._updateCreateChildControls();
@@ -2242,6 +3211,10 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _loadAudioSuggestions() {
+    if (!(await this._ensureAudioAvailable({ alertOnFailure: false }))) {
+      return { suggestions: [], audioImport: null, transcript: null };
+    }
+
     if (!this.meetingId || typeof window?.bbmDb?.audioGetSuggestions !== "function") {
       return { suggestions: [], audioImport: null, transcript: null };
     }
@@ -2264,6 +3237,15 @@ _isoToDDMMYYYY(iso) {
       options && Object.prototype.hasOwnProperty.call(options, "statusMessage")
         ? options.statusMessage
         : undefined;
+
+    if (!(await this._loadAudioLicenseState())) {
+      panel.update(
+        this._buildLockedAudioPanelState(
+          forceMessage !== undefined ? String(forceMessage || "") : this._audioLicenseMessage
+        )
+      );
+      return;
+    }
 
     try {
       const audioState = await this._loadAudioSuggestions();
@@ -2311,6 +3293,16 @@ _isoToDDMMYYYY(iso) {
   async _openAudioPanel() {
     if (!this.meetingId || this.isReadOnly) return;
     const panel = this._getAudioPanel();
+
+    if (!(await this._loadAudioLicenseState())) {
+      panel.open(this._buildLockedAudioPanelState(this._audioLicenseMessage));
+      return;
+    }
+    if (!(await this._loadAudioSuggestionsDevFlag())) {
+      alert("Audio-Suggestions sind nur in der Entwicklung verfuegbar.");
+      return;
+    }
+
     panel.open({
       title: "Sprachdatei auswerten",
       modeLabel: "Pr?fmodus",
@@ -2331,6 +3323,7 @@ _isoToDDMMYYYY(iso) {
 
   async _runAudioImportFlow() {
     if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (
       typeof api.audioImport !== "function" ||
@@ -2392,9 +3385,10 @@ _isoToDDMMYYYY(iso) {
 
   async _createDemoAudioSuggestion(demoType) {
     if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioCreateDemoSuggestion !== "function") {
-      alert("audioCreateDemoSuggestion ist nicht verfÃ¼gbar.");
+      alert("audioCreateDemoSuggestion ist nicht verfügbar.");
       return;
     }
 
@@ -2410,8 +3404,7 @@ _isoToDDMMYYYY(iso) {
       if (!res?.ok) {
         throw new Error(res?.error || "Demo-Vorschlag konnte nicht angelegt werden.");
       }
-      this._audioPanelStatusMessage =
-        res?.message || "Demo-Vorschlag wurde zur PrÃ¼fung angelegt.";
+      this._audioPanelStatusMessage = res?.message || "Demo-Vorschlag wurde zur Prüfung angelegt.";
     } catch (err) {
       this._audioPanelStatusMessage = err?.message || String(err);
     } finally {
@@ -2421,6 +3414,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _applyAudioSuggestion(suggestion, options = {}) {
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioApplySuggestion !== "function") {
       alert("audioApplySuggestion ist nicht verf?gbar.");
@@ -2454,6 +3448,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _rejectAudioSuggestion(suggestion) {
+    if (!(await this._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
     if (typeof api.audioRejectSuggestion !== "function") {
       alert("audioRejectSuggestion ist nicht verfügbar.");
@@ -2507,9 +3502,10 @@ _isoToDDMMYYYY(iso) {
       this._topsLimitsListenerBound = true;
     }
 
-    const BTN_MIN_H = "26px";
-    const BTN_PAD = "2px 8px";
-    const BTN_PAD_ACTION = "3px 9px";
+    const BTN_MIN_H = "0";
+    const BTN_PAD = "1px 6px";
+    const BTN_PAD_ACTION = "2px 6px";
+    const BTN_FONT_SIZE = "8pt";
     const BTN_RADIUS = "6px";
 
     // ✅ feste Höhe der Buttonbar (ausgerichtet auf "Langtext an")
@@ -2519,6 +3515,8 @@ _isoToDDMMYYYY(iso) {
       b.style.minHeight = BTN_MIN_H;
       b.style.padding = BTN_PAD;
       b.style.borderRadius = BTN_RADIUS;
+      b.style.fontSize = BTN_FONT_SIZE;
+      b.style.lineHeight = "1.2";
       b.style.flex = "0 0 auto";
     };
 
@@ -2724,10 +3722,11 @@ _isoToDDMMYYYY(iso) {
     };
 
     const btnAudioAnalyze = document.createElement("button");
-    btnAudioAnalyze.textContent = "Sprachdatei auswerten";
+    btnAudioAnalyze.textContent = "Audio";
     btnAudioAnalyze.style.background = "#1565c0";
     btnAudioAnalyze.style.color = "white";
     btnAudioAnalyze.style.border = "1px solid rgba(0,0,0,0.25)";
+    btnAudioAnalyze.style.display = "none";
     styleBtnBase(btnAudioAnalyze);
     btnAudioAnalyze.onclick = async () => {
       if (this._busy || this.isReadOnly || !this.meetingId) return;
@@ -2803,8 +3802,10 @@ _isoToDDMMYYYY(iso) {
     btnLongToggle.style.border = "1px solid #ddd";
     btnLongToggle.style.background = "#f3f3f3";
     btnLongToggle.style.minHeight = BTN_MIN_H;
+    btnLongToggle.style.fontSize = BTN_FONT_SIZE;
+    btnLongToggle.style.lineHeight = "1.2";
     btnLongToggle.style.flex = "0 0 auto";
-    btnLongToggle.style.minWidth = "118px";
+    btnLongToggle.style.minWidth = "86px";
     btnLongToggle.title = "Langtext in der TOP-Liste anzeigen/ausblenden";
 
     const updateLongToggleUi = () => {
@@ -2827,6 +3828,33 @@ _isoToDDMMYYYY(iso) {
       if (e.key !== "Enter" && e.key !== " ") return;
       e.preventDefault();
       btnLongToggle.click();
+    });
+
+    const btnProjectTasks = document.createElement("button");
+    btnProjectTasks.type = "button";
+    btnProjectTasks.textContent = "Aufgaben";
+    btnProjectTasks.style.display = "inline-flex";
+    btnProjectTasks.style.alignItems = "center";
+    btnProjectTasks.style.justifyContent = "center";
+    btnProjectTasks.style.gap = "6px";
+    btnProjectTasks.style.padding = BTN_PAD;
+    btnProjectTasks.style.borderRadius = BTN_RADIUS;
+    btnProjectTasks.style.cursor = "pointer";
+    btnProjectTasks.style.border = "1px solid #ddd";
+    btnProjectTasks.style.background = "#f3f3f3";
+    btnProjectTasks.style.minHeight = BTN_MIN_H;
+    btnProjectTasks.style.fontSize = BTN_FONT_SIZE;
+    btnProjectTasks.style.lineHeight = "1.2";
+    btnProjectTasks.style.flex = "0 0 auto";
+    btnProjectTasks.style.minWidth = "72px";
+    btnProjectTasks.title = "Projektweite ToDo-Liste anzeigen";
+    btnProjectTasks.onclick = async () => {
+      await this._openProjectTasksPopup();
+    };
+    btnProjectTasks.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      btnProjectTasks.click();
     });
 
     this._loadLongtextSetting()
@@ -2861,8 +3889,10 @@ _isoToDDMMYYYY(iso) {
     btnAmpelToggle.style.border = "1px solid #ddd";
     btnAmpelToggle.style.background = "#f3f3f3";
     btnAmpelToggle.style.minHeight = BTN_MIN_H;
+    btnAmpelToggle.style.fontSize = BTN_FONT_SIZE;
+    btnAmpelToggle.style.lineHeight = "1.2";
     btnAmpelToggle.style.flex = "0 0 auto";
-    btnAmpelToggle.style.minWidth = "118px";
+    btnAmpelToggle.style.minWidth = "78px";
     btnAmpelToggle.title = "Ampel an/aus";
 
     const updateAmpelToggleUi = () => {
@@ -2888,45 +3918,142 @@ _isoToDDMMYYYY(iso) {
     });
 
     const viewWrap = document.createElement("div");
+    viewWrap.style.position = "relative";
     viewWrap.style.display = "inline-flex";
     viewWrap.style.alignItems = "center";
-    viewWrap.style.gap = "6px";
+    viewWrap.style.flex = "0 0 auto";
 
-    const viewLabel = document.createElement("div");
-    viewLabel.textContent = "Ansicht";
-    viewLabel.style.fontWeight = "600";
-    viewLabel.style.whiteSpace = "nowrap";
-
-    const viewSelect = document.createElement("select");
-    viewSelect.style.border = "1px solid #ddd";
-    viewSelect.style.background = "#f3f3f3";
-    viewSelect.style.padding = BTN_PAD;
-    viewSelect.style.borderRadius = BTN_RADIUS;
-    viewSelect.style.cursor = "pointer";
-    viewSelect.style.minHeight = BTN_MIN_H;
-    viewSelect.title = "Ansicht";
-
-    const optAll = document.createElement("option");
-    optAll.value = "all";
-    optAll.textContent = "Alle";
-    const optTasks = document.createElement("option");
-    optTasks.value = "tasks";
-    optTasks.textContent = "Aufgaben";
-    const optOverdue = document.createElement("option");
-    optOverdue.value = "verzug";
-    optOverdue.textContent = "Verzug";
-    const optDecisions = document.createElement("option");
-    optDecisions.value = "decisions";
-    optDecisions.textContent = "Festlegungen";
-
-    viewSelect.append(optAll, optTasks, optOverdue, optDecisions);
-    viewSelect.value = this.viewFilter;
-    viewSelect.onchange = () => {
-      this.viewFilter = viewSelect.value || "all";
-      this._renderListOnly();
+    const viewBtn = document.createElement("button");
+    viewBtn.type = "button";
+    viewBtn.title = "Ansicht";
+    viewBtn.setAttribute("aria-haspopup", "menu");
+    viewBtn.style.display = "inline-flex";
+    viewBtn.style.alignItems = "center";
+    viewBtn.style.justifyContent = "space-between";
+    viewBtn.style.gap = "8px";
+    viewBtn.style.padding = BTN_PAD;
+    viewBtn.style.borderRadius = BTN_RADIUS;
+    viewBtn.style.cursor = "pointer";
+    viewBtn.style.border = "1px solid #ddd";
+    viewBtn.style.background = "#f3f3f3";
+    viewBtn.style.color = "#222";
+    viewBtn.style.minHeight = BTN_MIN_H;
+    viewBtn.style.minWidth = "64px";
+    viewBtn.style.fontSize = BTN_FONT_SIZE;
+    viewBtn.style.fontWeight = "600";
+    viewBtn.style.lineHeight = "1.2";
+    viewBtn.style.whiteSpace = "nowrap";
+    viewBtn.onmouseenter = () => {
+      if (viewBtn.disabled) return;
+      viewBtn.style.background = "#ececec";
+      viewBtn.style.borderColor = "#cfcfcf";
+    };
+    viewBtn.onmouseleave = () => {
+      viewBtn.style.background = "#f3f3f3";
+      viewBtn.style.borderColor = "#ddd";
     };
 
-    viewWrap.append(viewLabel, viewSelect);
+    const viewBtnLabel = document.createElement("span");
+    viewBtnLabel.textContent = "Ansicht";
+    const viewBtnCaret = document.createElement("span");
+    viewBtnCaret.textContent = "v";
+    viewBtnCaret.style.fontSize = "11px";
+    viewBtnCaret.style.opacity = "0.75";
+    viewBtn.append(viewBtnLabel, viewBtnCaret);
+
+    const viewMenu = document.createElement("div");
+    viewMenu.style.position = "fixed";
+    viewMenu.style.top = "0";
+    viewMenu.style.left = "0";
+    viewMenu.style.minWidth = "190px";
+    viewMenu.style.maxWidth = "calc(100vw - 16px)";
+    viewMenu.style.display = "none";
+    viewMenu.style.flexDirection = "column";
+    viewMenu.style.gap = "0";
+    viewMenu.style.padding = "4px";
+    viewMenu.style.border = "1px solid var(--card-border)";
+    viewMenu.style.borderRadius = "8px";
+    viewMenu.style.background = "var(--card-bg)";
+    viewMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
+    viewMenu.style.zIndex = String(POPOVER_MENU);
+
+    const updateViewMenuUi = () => {
+      const filterLabel = this._viewFilterLabel(this.viewFilter);
+      viewBtn.title = `Ansicht: ${filterLabel}`;
+      viewBtn.setAttribute("aria-label", `Ansicht: ${filterLabel}`);
+      Array.from(viewMenu.querySelectorAll("button[data-view-filter]")).forEach((item) => {
+        const active = item.getAttribute("data-view-filter") === this.viewFilter;
+        item.style.background = active ? "var(--btn-outline-hover-bg)" : "transparent";
+        item.style.fontWeight = active ? "700" : "400";
+      });
+    };
+
+    const mkViewItem = (value, label) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.textContent = label;
+      item.setAttribute("data-view-filter", value);
+      item.style.display = "block";
+      item.style.width = "100%";
+      item.style.textAlign = "left";
+      item.style.border = "none";
+      item.style.background = "transparent";
+      item.style.color = "var(--text-main)";
+      item.style.padding = "8px 10px";
+      item.style.borderRadius = "6px";
+      item.style.minHeight = "30px";
+      item.style.cursor = "pointer";
+      item.onmouseenter = () => {
+        item.style.background = "var(--btn-outline-hover-bg)";
+      };
+      item.onmouseleave = () => {
+        if (item.getAttribute("data-view-filter") !== this.viewFilter) {
+          item.style.background = "transparent";
+        }
+      };
+      item.onclick = () => {
+        this.viewFilter = value;
+        updateViewMenuUi();
+        this._setViewMenuOpen(false);
+        this._renderListOnly();
+      };
+      return item;
+    };
+
+    viewMenu.append(
+      mkViewItem("all", "Alle"),
+      mkViewItem("tasks", "Aufgaben"),
+      mkViewItem("verzug", "Verzug"),
+      mkViewItem("decisions", "Festlegungen")
+    );
+    updateViewMenuUi();
+    document.body.appendChild(viewMenu);
+
+    viewBtn.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (viewBtn.disabled) return;
+      this._setViewMenuOpen(!this._viewMenuOpen);
+    };
+    viewBtn.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      viewBtn.click();
+    });
+
+    if (this._viewMenuDocMouseDown) {
+      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
+      this._viewMenuDocMouseDown = null;
+    }
+    this._viewMenuDocMouseDown = (e) => {
+      if (!this._viewMenuOpen) return;
+      if (viewWrap.contains(e.target)) return;
+      if (viewMenu.contains(e.target)) return;
+      this._setViewMenuOpen(false);
+    };
+    document.addEventListener("mousedown", this._viewMenuDocMouseDown, true);
+
+    viewWrap.append(viewBtn);
 
     // Topbar: fixed
     const topBar = document.createElement("div");
@@ -2974,6 +4101,7 @@ _isoToDDMMYYYY(iso) {
     actionBtnsWrap.style.marginRight = "calc(120px - 1cm + 3mm)";
     actionBtnsWrap.append(
       viewWrap,
+      btnProjectTasks,
       btnAmpelToggle,
       btnLongToggle,
       btnAudioAnalyze,
@@ -3058,81 +4186,6 @@ _isoToDDMMYYYY(iso) {
     addActions.style.marginLeft = "1.5cm";
     addActions.append(btnL1, btnChild);
 
-    const btnTask = document.createElement("button");
-    btnTask.type = "button";
-    btnTask.textContent = "ToDo";
-    btnTask.style.borderRadius = BTN_RADIUS;
-    btnTask.style.padding = BTN_PAD_ACTION;
-    btnTask.style.minHeight = BTN_MIN_H;
-
-    const btnDecision = document.createElement("button");
-    btnDecision.type = "button";
-    btnDecision.textContent = "Festlegung";
-    btnDecision.style.borderRadius = BTN_RADIUS;
-    btnDecision.style.padding = BTN_PAD_ACTION;
-    btnDecision.style.minHeight = BTN_MIN_H;
-
-    let statusTodoIcon = null;
-    let statusDecisionIcon = null;
-
-    const updateTaskDecisionUi = () => {
-      const taskOn = !!this.chkTask?.checked;
-      const decOn = !!this.chkDecision?.checked;
-
-      const taskDisabled = !!this.chkTask?.disabled;
-      const decisionDisabled = !!this.chkDecision?.disabled;
-
-      btnTask.disabled = taskDisabled;
-      btnTask.style.opacity = taskDisabled ? "0.55" : "1";
-      btnTask.style.cursor = taskDisabled ? "default" : "pointer";
-      btnDecision.disabled = decisionDisabled;
-      btnDecision.style.opacity = decisionDisabled ? "0.55" : "1";
-      btnDecision.style.cursor = decisionDisabled ? "default" : "pointer";
-
-      btnTask.style.background = taskOn ? "#eef7ff" : "#f3f3f3";
-      btnTask.style.border = taskOn ? "1px solid #b6d4ff" : "1px solid #ddd";
-      btnTask.style.color = taskOn ? "#0b4db4" : "";
-
-      btnDecision.style.background = decOn ? "#fff7ed" : "#f3f3f3";
-      btnDecision.style.border = decOn ? "1px solid #fed7aa" : "1px solid #ddd";
-      btnDecision.style.color = decOn ? "#9a3412" : "";
-
-      if (statusTodoIcon) statusTodoIcon.style.display = taskOn ? "inline-block" : "none";
-      if (statusDecisionIcon) statusDecisionIcon.style.display = decOn ? "inline-block" : "none";
-    };
-
-    this._updateTaskDecisionUi = updateTaskDecisionUi;
-    updateTaskDecisionUi();
-
-    btnTask.onclick = async () => {
-      if (this.isReadOnly || !this.selectedTop) return;
-      if (!this.chkTask || this.chkTask.disabled) return;
-      this.chkTask.checked = !this.chkTask.checked;
-      updateTaskDecisionUi();
-      await this._saveMeetingTopPatch({ is_task: this.chkTask.checked ? 1 : 0 }, { reload: true, pulse: true });
-    };
-
-    btnDecision.onclick = async () => {
-      if (this.isReadOnly || !this.selectedTop) return;
-      if (!this.chkDecision || this.chkDecision.disabled) return;
-      this.chkDecision.checked = !this.chkDecision.checked;
-      updateTaskDecisionUi();
-      await this._saveMeetingTopPatch({ is_decision: this.chkDecision.checked ? 1 : 0 }, { reload: true, pulse: true });
-    };
-
-    btnTask.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      btnTask.click();
-    });
-    btnDecision.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      btnDecision.click();
-    });
-
-    addActions.append(btnTask, btnDecision);
-
     const headerActions = document.createElement("div");
     headerActions.style.display = "inline-flex";
     headerActions.style.alignItems = "center";
@@ -3145,6 +4198,8 @@ _isoToDDMMYYYY(iso) {
     btnMove.style.borderRadius = BTN_RADIUS;
     btnMove.style.padding = BTN_PAD_ACTION;
     btnMove.style.minHeight = BTN_MIN_H;
+    btnMove.style.fontSize = BTN_FONT_SIZE;
+    btnMove.style.lineHeight = "1.2";
     btnMove.onclick = () => this.toggleMoveMode();
 
     const btnSaveTop = document.createElement("button");
@@ -3152,6 +4207,8 @@ _isoToDDMMYYYY(iso) {
     btnSaveTop.style.borderRadius = BTN_RADIUS;
     btnSaveTop.style.padding = BTN_PAD_ACTION;
     btnSaveTop.style.minHeight = BTN_MIN_H;
+    btnSaveTop.style.fontSize = BTN_FONT_SIZE;
+    btnSaveTop.style.lineHeight = "1.2";
 
     btnSaveTop.addEventListener("mousedown", () => {
       this._suppressBlurOnce = true;
@@ -3176,6 +4233,8 @@ _isoToDDMMYYYY(iso) {
     btnTrashTop.style.borderRadius = BTN_RADIUS;
     btnTrashTop.style.padding = BTN_PAD_ACTION;
     btnTrashTop.style.minHeight = BTN_MIN_H;
+    btnTrashTop.style.fontSize = BTN_FONT_SIZE;
+    btnTrashTop.style.lineHeight = "1.2";
     btnTrashTop.addEventListener("pointerdown", (e) => {
       this._suppressBlurOnce = true;
       e.preventDefault();
@@ -3215,6 +4274,7 @@ _isoToDDMMYYYY(iso) {
       lab.style.userSelect = "none";
       const t = document.createElement("span");
       t.textContent = text;
+      t.style.fontSize = "10pt";
       lab.append(inputEl, t);
       return lab;
     };
@@ -3238,41 +4298,55 @@ _isoToDDMMYYYY(iso) {
 
     const chkHidden = document.createElement("input");
     chkHidden.type = "checkbox";
-    const chkTask = document.createElement("input");
-    chkTask.type = "checkbox";
+
     const chkDecision = document.createElement("input");
     chkDecision.type = "checkbox";
 
     const titleWrap = document.createElement("div");
     titleWrap.style.display = "flex";
     titleWrap.style.flexDirection = "column";
-    titleWrap.style.gap = "4px";
+    titleWrap.style.gap = "2px";
 
     const titleLabelRow = document.createElement("div");
     titleLabelRow.style.display = "flex";
     titleLabelRow.style.alignItems = "center";
-    titleLabelRow.style.gap = "10px";
+    titleLabelRow.style.gap = "6px";
 
     const lblTitleText = document.createElement("span");
     lblTitleText.textContent = "Kurztext";
+    lblTitleText.style.fontSize = "10pt";
 
     const titleCount = makeCountBadge(`${this._titleMax()}`);
 
     const labImportant = makeToggleLabel("wichtig", chkImportant);
     const labHidden = makeToggleLabel("TOP ausblenden", chkHidden);
 
+    const updateTaskDecisionUi = () => {};
+
     const titleLeft = document.createElement("div");
     titleLeft.style.display = "inline-flex";
     titleLeft.style.alignItems = "center";
-    titleLeft.style.gap = "10px";
-    titleLeft.append(lblTitleText, titleCount, labImportant);
+    titleLeft.style.gap = "6px";
+    const btnTitleDictate = document.createElement("button");
+    btnTitleDictate.type = "button";
+    btnTitleDictate.textContent = "Diktat";
+    btnTitleDictate.title = "Spracheingabe fuer Kurztext";
+    btnTitleDictate.style.border = "1px solid #cfd8dc";
+    btnTitleDictate.style.background = "#f7f9fb";
+    btnTitleDictate.style.color = "#0b4db4";
+    styleBtnBase(btnTitleDictate);
+    btnTitleDictate.onclick = async () => {
+      await this._runFieldDictation("shortText");
+    };
+
+    titleLeft.append(lblTitleText, titleCount, btnTitleDictate);
 
     const titleRight = document.createElement("div");
     titleRight.style.display = "inline-flex";
     titleRight.style.alignItems = "center";
-    titleRight.style.gap = "10px";
+    titleRight.style.gap = "6px";
     titleRight.style.marginLeft = "auto";
-    titleRight.append(labHidden);
+    titleRight.append(labImportant, labHidden);
 
     titleLabelRow.append(titleLeft, titleRight);
     titleWrap.append(titleLabelRow, inpTitle);
@@ -3280,24 +4354,37 @@ _isoToDDMMYYYY(iso) {
     const longWrap = document.createElement("div");
     longWrap.style.display = "flex";
     longWrap.style.flexDirection = "column";
-    longWrap.style.gap = "4px";
-    longWrap.style.marginTop = "10px";
+    longWrap.style.gap = "2px";
+    longWrap.style.marginTop = "6px";
 
     const longLabelRow = document.createElement("div");
     longLabelRow.style.display = "flex";
     longLabelRow.style.alignItems = "center";
-    longLabelRow.style.gap = "10px";
+    longLabelRow.style.gap = "6px";
 
     const lblLongText = document.createElement("span");
     lblLongText.textContent = "Langtext";
+    lblLongText.style.fontSize = "10pt";
 
     const longCount = makeCountBadge(`${this._longMax()}`);
 
     const longLeft = document.createElement("div");
     longLeft.style.display = "inline-flex";
     longLeft.style.alignItems = "center";
-    longLeft.style.gap = "10px";
-    longLeft.append(lblLongText, longCount);
+    longLeft.style.gap = "6px";
+    const btnLongDictate = document.createElement("button");
+    btnLongDictate.type = "button";
+    btnLongDictate.textContent = "Diktat";
+    btnLongDictate.title = "Spracheingabe fuer Langtext";
+    btnLongDictate.style.border = "1px solid #cfd8dc";
+    btnLongDictate.style.background = "#f7f9fb";
+    btnLongDictate.style.color = "#0b4db4";
+    styleBtnBase(btnLongDictate);
+    btnLongDictate.onclick = async () => {
+      await this._runFieldDictation("longText");
+    };
+
+    longLeft.append(lblLongText, longCount, btnLongDictate);
 
     longLabelRow.append(longLeft);
 
@@ -3315,12 +4402,12 @@ _isoToDDMMYYYY(iso) {
     const editorRow = document.createElement("div");
     editorRow.style.display = "flex";
     editorRow.style.alignItems = "stretch";
-    editorRow.style.gap = "12px";
+    editorRow.style.gap = "8px";
 
     const leftCol = document.createElement("div");
     leftCol.style.display = "flex";
     leftCol.style.flexDirection = "column";
-    leftCol.style.gap = "10px";
+    leftCol.style.gap = "6px";
     leftCol.style.flex = "1 1 auto";
     leftCol.append(titleWrap, longWrap);
 
@@ -3333,7 +4420,7 @@ _isoToDDMMYYYY(iso) {
     const metaCol = document.createElement("div");
     metaCol.style.display = "flex";
     metaCol.style.flexDirection = "column";
-    metaCol.style.gap = "10px";
+    metaCol.style.gap = "6px";
     metaCol.style.flex = "0 0 114px";
     metaCol.style.width = "114px";
     metaCol.style.minWidth = "114px";
@@ -3344,11 +4431,11 @@ _isoToDDMMYYYY(iso) {
       const wrap = document.createElement("div");
       wrap.style.display = "flex";
       wrap.style.flexDirection = "column";
-      wrap.style.gap = "4px";
+      wrap.style.gap = "2px";
 
       const lab = document.createElement("span");
       lab.textContent = labelText;
-      lab.style.fontSize = "inherit";
+      lab.style.fontSize = "10pt";
       lab.style.opacity = "0.8";
 
       wrap.append(lab);
@@ -3359,7 +4446,7 @@ _isoToDDMMYYYY(iso) {
     const dueRow = document.createElement("div");
     dueRow.style.display = "flex";
     dueRow.style.alignItems = "center";
-    dueRow.style.gap = "6px";
+    dueRow.style.gap = "4px";
     const inpDueDate = document.createElement("input");
     inpDueDate.type = "date";
     inpDueDate.style.width = "100%";
@@ -3372,48 +4459,68 @@ _isoToDDMMYYYY(iso) {
     dueWrap.append(dueRow);
 
     const statusWrap = mkMetaField("Status");
-    const selStatus = document.createElement("select");
-    selStatus.style.marginLeft = "-3mm";
-    selStatus.style.width = "calc(100% + 3mm - 12mm)";
-    selStatus.style.flex = "1 1 auto";
-    selStatus.style.minWidth = "0";
-    const statusOptions = ["offen", "in arbeit", "erledigt", "blockiert", "verzug"];
-    for (const v of statusOptions) {
-      const opt = document.createElement("option");
-      opt.value = v;
-      opt.textContent = v;
-      selStatus.appendChild(opt);
-    }
+    statusWrap.style.width = "100%";
+    statusWrap.style.maxWidth = "100%";
+    statusWrap.style.minWidth = "0";
     const statusRow = document.createElement("div");
     statusRow.style.display = "flex";
     statusRow.style.alignItems = "center";
-    statusRow.style.gap = "6px";
-    const statusSymbols = document.createElement("div");
-    statusSymbols.style.display = "inline-flex";
-    statusSymbols.style.alignItems = "center";
-    statusSymbols.style.justifyContent = "flex-end";
-    statusSymbols.style.gap = "4px";
-    statusSymbols.style.width = "12mm";
-    statusSymbols.style.minWidth = "12mm";
-    statusSymbols.style.flex = "0 0 auto";
-    statusTodoIcon = document.createElement("img");
-    statusTodoIcon.src = TODO_ICON_PNG;
-    statusTodoIcon.alt = "ToDo";
-    statusTodoIcon.title = "ToDo";
-    statusTodoIcon.style.width = "11px";
-    statusTodoIcon.style.height = "11px";
-    statusTodoIcon.style.objectFit = "contain";
-    statusTodoIcon.style.display = "none";
-    statusDecisionIcon = document.createElement("img");
-    statusDecisionIcon.src = RED_FLAG_PNG;
-    statusDecisionIcon.alt = "Festgelegt";
-    statusDecisionIcon.title = "Festgelegt";
-    statusDecisionIcon.style.width = "11px";
-    statusDecisionIcon.style.height = "11px";
-    statusDecisionIcon.style.objectFit = "contain";
-    statusDecisionIcon.style.display = "none";
-    statusSymbols.append(statusTodoIcon, statusDecisionIcon);
-    statusRow.append(selStatus, statusSymbols);
+    statusRow.style.gap = "4px";
+    statusRow.style.marginLeft = "-3mm";
+    statusRow.style.width = "calc(100% + 3mm)";
+    statusRow.style.position = "relative";
+    statusRow.style.zIndex = "20";
+    const selStatus = document.createElement("select");
+    selStatus.style.flex = "1 1 auto";
+    selStatus.style.minWidth = "0";
+    selStatus.style.position = "relative";
+    selStatus.style.zIndex = "21";
+    const statusOptions = [
+      "alle",
+      "festlegung",
+      "todo",
+      "-",
+      "in arbeit",
+      "erledigt",
+      "blockiert",
+      "verzug",
+    ];
+    for (const v of statusOptions) {
+      const opt = document.createElement("option");
+      opt.value = v;
+      if (v === "alle") opt.textContent = "Alle";
+      else if (v === "festlegung") opt.textContent = "Festgelegt";
+      else if (v === "todo") opt.textContent = "ToDo";
+      else opt.textContent = v;
+      if (v === "todo") this._todoStatusOptionEl = opt;
+      selStatus.appendChild(opt);
+    }
+    const statusMarkers = document.createElement("div");
+    statusMarkers.style.display = "flex";
+    statusMarkers.style.alignItems = "center";
+    statusMarkers.style.gap = "4px";
+    statusMarkers.style.flex = "0 0 auto";
+    statusMarkers.style.marginLeft = "auto";
+    const statusTaskMarker = document.createElement("img");
+    statusTaskMarker.src = TODO_PNG;
+    statusTaskMarker.alt = "ToDo";
+    statusTaskMarker.title = "ToDo";
+    statusTaskMarker.style.width = "14px";
+    statusTaskMarker.style.height = "14px";
+    statusTaskMarker.style.flex = "0 0 14px";
+    statusTaskMarker.style.objectFit = "contain";
+    statusTaskMarker.style.display = "none";
+    const statusDecisionFlag = document.createElement("img");
+    statusDecisionFlag.src = RED_FLAG_PNG;
+    statusDecisionFlag.alt = "Festlegung";
+    statusDecisionFlag.title = "Festlegung";
+    statusDecisionFlag.style.width = "14px";
+    statusDecisionFlag.style.height = "14px";
+    statusDecisionFlag.style.flex = "0 0 14px";
+    statusDecisionFlag.style.objectFit = "contain";
+    statusDecisionFlag.style.display = "none";
+    statusMarkers.append(statusTaskMarker, statusDecisionFlag);
+    statusRow.append(selStatus, statusMarkers);
     statusWrap.append(statusRow);
 
     const respWrap = mkMetaField("Verantw.");
@@ -3423,24 +4530,12 @@ _isoToDDMMYYYY(iso) {
     selResponsible.style.width = "calc(100% + 3mm)";
     respWrap.append(selResponsible);
 
-    const contactWrap = document.createElement("div");
-    contactWrap.style.display = "flex";
-    contactWrap.style.flexDirection = "column";
-    contactWrap.style.gap = "4px";
-    contactWrap.style.marginTop = "2mm";
-
-    const contactLabel = document.createElement("span");
-    contactLabel.textContent = "Ansprechp.";
-    contactLabel.style.fontSize = "inherit";
-    contactLabel.style.opacity = "0.8";
-
-    const selContact = document.createElement("select");
-    selContact.disabled = false;
-    selContact.style.width = "100%";
-    selContact.style.marginLeft = "-3mm";
-    selContact.style.width = "calc(100% + 3mm)";
-
-    contactWrap.append(contactLabel, selContact);
+    const contactWrap = mkMetaField("Ansprechp.");
+    const selContactPerson = document.createElement("select");
+    selContactPerson.style.width = "100%";
+    selContactPerson.style.marginLeft = "-3mm";
+    selContactPerson.style.width = "calc(100% + 3mm)";
+    contactWrap.append(selContactPerson);
 
     metaCol.append(dueWrap, statusWrap, respWrap, contactWrap);
     editorRow.append(leftCol, sep, metaCol);
@@ -3460,8 +4555,13 @@ _isoToDDMMYYYY(iso) {
     this.btnCloseMeeting = btnCloseMeeting;
     this.btnLongToggle = btnLongToggle;
     this.btnAudioAnalyze = btnAudioAnalyze;
+    this.btnTitleDictate = btnTitleDictate;
+    this.btnLongDictate = btnLongDictate;
     this.btnAmpelToggle = btnAmpelToggle;
-    this.btnTasks = viewSelect;
+    this.btnTasks = viewBtn;
+    this.btnProjectTasks = btnProjectTasks;
+    this._viewMenuEl = viewMenu;
+    this._viewMenuBtn = viewBtn;
 
     this.topBarEl = topBar;
     this.box = box;
@@ -3473,13 +4573,16 @@ _isoToDDMMYYYY(iso) {
     this.inpDueDate = inpDueDate;
     this.selStatus = selStatus;
     this.selResponsible = selResponsible;
-    this.selContact = selContact;
+    this.selContactPerson = selContactPerson;
     this.dueAmpelEl = dueAmpel;
+    this.statusTaskMarkerEl = statusTaskMarker;
+    this.statusDecisionFlagEl = statusDecisionFlag;
 
     this.chkImportant = chkImportant;
     this.chkHidden = chkHidden;
-    this.chkTask = chkTask;
+    this.chkTask = null;
     this.chkDecision = chkDecision;
+    this._updateTaskDecisionUi = updateTaskDecisionUi;
 
     this.titleCountEl = titleCount;
     this.longCountEl = longCount;
@@ -3497,6 +4600,7 @@ _isoToDDMMYYYY(iso) {
     this.topsTitleEl = topsText;
     this._updateAmpelToggleUi = updateAmpelToggleUi;
     updateAmpelToggleUi();
+    updateTaskDecisionUi();
     this._updateTopBarProtocolTitle();
 
     // layout spacers
@@ -3561,6 +4665,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normTitle(inpTitle.value);
+      this._maybeOfferTermCorrection("shortText", v, inpTitle);
       inpTitle.value = this._clampStr(v, this._titleMax());
       this._updateCharCounters();
 
@@ -3573,6 +4678,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (inpTitle.disabled || !this.selectedTop) return;
         const v = this._normTitle(inpTitle.value);
+        this._maybeOfferTermCorrection("shortText", v, inpTitle);
         inpTitle.value = this._clampStr(v, this._titleMax());
         this._updateCharCounters();
 
@@ -3600,6 +4706,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normLong(taLong.value);
+      this._maybeOfferTermCorrection("longText", v, taLong);
       taLong.value = this._clampStr(taLong.value, this._longMax());
       this._updateCharCounters();
 
@@ -3612,6 +4719,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (taLong.disabled || !this.selectedTop) return;
         const v = this._normLong(taLong.value);
+        this._maybeOfferTermCorrection("longText", v, taLong);
         taLong.value = this._clampStr(taLong.value, this._longMax());
         this._updateCharCounters();
 
@@ -3633,11 +4741,36 @@ _isoToDDMMYYYY(iso) {
       if (this.isReadOnly) return;
       if (selStatus.disabled) return;
       if (!this.selectedTop) return;
-      const st = (selStatus.value || "").trim() || "offen";
+      const rawStatus = (selStatus.value || "").trim();
+      const st = rawStatus && rawStatus.toLowerCase() === "alle" ? "" : rawStatus;
+      const stLower = (st || "").toString().trim().toLowerCase();
+      if (stLower === "todo" && !this._hasTodoResponsibleSelection()) {
+        selStatus.value = "-";
+        this._updateStatusMarkers();
+        return;
+      }
+      let dueVal = (this.inpDueDate?.value || "").trim();
+      if (!st && this.projectEndDate) {
+        const startIso = this.projectStartDate || "";
+        if (!dueVal || dueVal === startIso) {
+          dueVal = this.projectEndDate;
+          if (this.inpDueDate) this.inpDueDate.value = dueVal;
+        }
+      }
+      if (stLower === "festlegung") {
+        dueVal = this._todayISO();
+        if (this.inpDueDate) this.inpDueDate.value = dueVal;
+      }
       const completedIn = this._isDoneStatus(st) ? this.meetingId : null;
+      this._updateStatusMarkers();
       this._updateDueAmpelFromInputs();
       await this._saveMeetingTopPatch(
-        { status: st, completed_in_meeting_id: completedIn },
+        {
+          status: st,
+          due_date: dueVal || null,
+          completed_in_meeting_id: completedIn,
+          is_task: stLower === "todo" ? 1 : 0,
+        },
         { reload: true, pulse: true }
       );
       this._renderListOnly();
@@ -3676,9 +4809,9 @@ _isoToDDMMYYYY(iso) {
             responsible_kind: null,
             responsible_id: null,
             responsible_label: null,
-            contact_kind: null,
+            contact_person_kind: null,
             contact_person_id: null,
-            contact_label: null,
+            contact_person_label: null,
           },
           { reload: false, pulse: true }
         );
@@ -3687,19 +4820,32 @@ _isoToDDMMYYYY(iso) {
             this.selectedTop.responsible_kind = null;
             this.selectedTop.responsible_id = null;
             this.selectedTop.responsible_label = null;
-            this.selectedTop.contact_kind = null;
+            this.selectedTop.contact_person_kind = null;
             this.selectedTop.contact_person_id = null;
-            this.selectedTop.contact_label = null;
+            this.selectedTop.contact_person_label = null;
           }
-          if (this.selContact) {
-            this.selContact.disabled = false;
-            this._setContactHint("-");
+          this.contactPersons = [];
+          this._contactSourceKey = "";
+          this._contactOptionsKey = "";
+          this._clearLegacyContactPersonOption();
+          if (this.selContactPerson) {
+            this.selContactPerson.innerHTML = "";
+            this.selContactPerson.value = "";
+            this.selContactPerson.disabled = true;
           }
-          this._refreshContactOptions({ selectedId: null, selectedLabel: null });
           this._respDirty = false;
           this._respDirtyTopId = null;
           this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
+          this._contactDirty = false;
+          this._contactDirtyTopId = null;
+          this._contactLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
           this._renderListOnly();
+        }
+        this._updateTodoStatusAvailability();
+        if (!this._hasTodoResponsibleSelection() && (this.selStatus?.value || "").toLowerCase() === "todo") {
+          this.selStatus.value = "-";
+          this._updateStatusMarkers();
+          await this._saveMeetingTopPatch({ status: "-", is_task: 0 }, { reload: true, pulse: true });
         }
         return;
       }
@@ -3710,9 +4856,9 @@ _isoToDDMMYYYY(iso) {
           responsible_kind: parsed.kind || "company",
           responsible_id: String(parsed.id),
           responsible_label: lbl,
-          contact_kind: null,
+          contact_person_kind: null,
           contact_person_id: null,
-          contact_label: null,
+          contact_person_label: null,
         },
         { reload: false, pulse: true }
       );
@@ -3721,53 +4867,81 @@ _isoToDDMMYYYY(iso) {
           this.selectedTop.responsible_kind = parsed.kind || "company";
           this.selectedTop.responsible_id = String(parsed.id);
           this.selectedTop.responsible_label = lbl;
-          this.selectedTop.contact_kind = null;
+          this.selectedTop.contact_person_kind = null;
           this.selectedTop.contact_person_id = null;
-          this.selectedTop.contact_label = null;
+          this.selectedTop.contact_person_label = null;
         }
-        if (this.selContact) {
-          this.selContact.disabled = false;
-          this._setContactHint("-");
+        this.contactPersons = [];
+        this._contactSourceKey = "";
+        this._contactOptionsKey = "";
+        this._clearLegacyContactPersonOption();
+        if (this.selContactPerson) {
+          this.selContactPerson.innerHTML = "";
+          this.selContactPerson.value = "";
+          this.selContactPerson.disabled = true;
         }
-        this._refreshContactOptions({ selectedId: null, selectedLabel: null });
         this._respDirty = false;
         this._respDirtyTopId = null;
         this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
+        this._contactDirty = false;
+        this._contactDirtyTopId = null;
+        this._contactLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
+        const currentTopIdAfterSave = this.selectedTop ? this.selectedTop.id : null;
+        await this._loadContactPersonsForResponsible(parsed);
+        this._buildContactOptionsIfNeeded(`${parsed.kind || "company"}::${String(parsed.id)}`);
+        if (this.selContactPerson && this.selectedTop && this._sameTopId(this.selectedTop.id, currentTopIdAfterSave)) {
+          this.selContactPerson.value = "";
+          this.selContactPerson.disabled =
+            !this.contactPersons.length || this.isReadOnly || this._busy || !!this._contactLegacyReadonly;
+        }
+        this._renderListOnly();
       }
+      this._updateTodoStatusAvailability();
     });
 
-    selContact.addEventListener("change", async () => {
+    selContactPerson.addEventListener("change", async () => {
       if (this.isReadOnly || this._busy) return;
-      if (selContact.disabled) return;
+      if (selContactPerson.disabled) return;
       if (!this.selectedTop) return;
-      const opt = selContact.selectedOptions?.[0] || null;
-      const val = (selContact.value || "").toString().trim();
-      if (!val) {
+
+      const parsed = this._parseContactPersonOptionValue((selContactPerson.value || "").toString());
+      this._contactDirty = true;
+      this._contactDirtyTopId = this.selectedTop.id;
+
+      if (!parsed?.id) {
         const res = await this._saveMeetingTopPatch(
-          { contact_kind: null, contact_person_id: null, contact_label: null },
+          { contact_person_kind: null, contact_person_id: null, contact_person_label: null },
           { reload: false, pulse: true }
         );
         if (res?.ok && this.selectedTop) {
-          this.selectedTop.contact_kind = null;
+          this.selectedTop.contact_person_kind = null;
           this.selectedTop.contact_person_id = null;
-          this.selectedTop.contact_label = null;
+          this.selectedTop.contact_person_label = null;
+          this._contactDirty = false;
+          this._contactDirtyTopId = null;
+          this._contactLastSetTopId = this.selectedTop.id;
+          this._renderListOnly();
         }
         return;
       }
-      const kind = opt?.dataset?.contactKind || null;
-      const label = opt?.dataset?.contactLabel || opt?.textContent || null;
+
+      const lbl = this._getContactPersonLabelForSelection(selContactPerson, parsed);
       const res = await this._saveMeetingTopPatch(
         {
-          contact_kind: kind,
-          contact_person_id: val,
-          contact_label: label,
+          contact_person_kind: parsed.kind || "project_person",
+          contact_person_id: String(parsed.id),
+          contact_person_label: lbl,
         },
         { reload: false, pulse: true }
       );
       if (res?.ok && this.selectedTop) {
-        this.selectedTop.contact_kind = kind;
-        this.selectedTop.contact_person_id = val;
-        this.selectedTop.contact_label = label;
+        this.selectedTop.contact_person_kind = parsed.kind || "project_person";
+        this.selectedTop.contact_person_id = String(parsed.id);
+        this.selectedTop.contact_person_label = lbl;
+        this._contactDirty = false;
+        this._contactDirtyTopId = null;
+        this._contactLastSetTopId = this.selectedTop.id;
+        this._renderListOnly();
       }
     });
 
@@ -3821,6 +4995,9 @@ _isoToDDMMYYYY(iso) {
     updateLongToggleUi();
     this._updateCharCounters();
     this._updateTopBarMetaLabels();
+    fireAndForget(async () => {
+      await this._loadAudioLicenseState(true);
+    });
 
     return root;
   }
@@ -3834,6 +5011,7 @@ _isoToDDMMYYYY(iso) {
     }
 
     await this._loadProjectDates();
+    await this._loadProjectTermCorrections(true);
     await this._loadAmpelSetting();
     await this._loadTextLimitsSetting();
     await this.reloadList(true);
@@ -3888,6 +5066,7 @@ _renderIdleState() {
     dis(this.btnAmpelToggle);
     dis(this.btnLongToggle);
     dis(this.btnTasks);
+    dis(this.btnProjectTasks);
     dis(this.btnEndMeeting);
     dis(this.btnAudioAnalyze);
 
@@ -4581,9 +5760,28 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
     if (this.btnAudioAnalyze) {
-      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId;
+      const audioLocked = !this._audioLicensed;
+      const allowLegacy = !!this._audioSuggestionsDevEnabled;
+      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId || audioLocked || !allowLegacy;
       this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
-      this.btnAudioAnalyze.style.display = ro || !this.meetingId ? "none" : "";
+      this.btnAudioAnalyze.style.display = allowLegacy ? "" : "none";
+      this.btnAudioAnalyze.title = audioLocked
+        ? this._audioLicenseMessage
+        : allowLegacy
+        ? "Audio-Suggestions (DEV)"
+        : "Audio-Mapping ist deaktiviert";
+    }
+      this._updateDictationButtons();
+    if (this.btnTasks) {
+      this.btnTasks.disabled = ro || busy || !this.meetingId;
+      this.btnTasks.style.opacity = this.btnTasks.disabled ? "0.65" : "1";
+      this.btnTasks.style.display = ro || !this.meetingId ? "none" : "";
+      if (this.btnTasks.disabled) this._setViewMenuOpen(false);
+    }
+    if (this.btnProjectTasks) {
+      this.btnProjectTasks.disabled = busy || !this.projectId;
+      this.btnProjectTasks.style.opacity = this.btnProjectTasks.disabled ? "0.65" : "1";
+      this.btnProjectTasks.style.display = this.meetingId ? "" : "none";
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;
@@ -4609,7 +5807,6 @@ async _closeViewOnly() {
 
     if (this.chkImportant) this.chkImportant.disabled = busy || ro || !this.selectedTop;
     if (this.chkHidden) this.chkHidden.disabled = busy || ro || !this.selectedTop;
-    if (this.selContact) this.selContact.disabled = false;
 
     if (this.inpTitle) this.inpTitle.disabled = busy || ro || !this.selectedTop || this.inpTitle.disabled;
     if (this.taLongtext) this.taLongtext.disabled = busy || ro || !this.selectedTop;
@@ -4786,13 +5983,10 @@ async _closeViewOnly() {
     const ok = confirm("TOP wirklich löschen?");
     if (!ok) return;
 
+    const ids = (this.items || []).map((x) => this._topIdKey(x.id)).filter(Boolean);
     const currentId = this._topIdKey(t.id);
-    const visibleIds = (this.items || [])
-      .filter((x) => !this._shouldHideTopInList(x))
-      .map((x) => this._topIdKey(x.id))
-      .filter(Boolean);
-    const idx = visibleIds.indexOf(currentId);
-    const nextId = idx >= 0 ? visibleIds[idx + 1] || visibleIds[idx - 1] || null : null;
+    const idx = ids.indexOf(currentId);
+    const nextId = idx >= 0 ? ids[idx + 1] || ids[idx - 1] || null : null;
 
     this.moveModeActive = false;
     this._deleteInFlight = true;
@@ -5085,39 +6279,9 @@ async _closeViewOnly() {
     const meeting = this.meetingMeta || { id: this.meetingId };
     const isMeetingClosed = Number(meeting?.is_closed) === 1;
 
-    const parseDueTs = (top) => {
-      const raw = top?.due_date ?? top?.dueDate ?? null;
-      if (!raw) return null;
-      const s = String(raw).trim();
-      if (!s) return null;
-      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-        const y = Number(s.slice(0, 4));
-        const m = Number(s.slice(5, 7)) - 1;
-        const d = Number(s.slice(8, 10));
-        const dt = new Date(y, m, d, 0, 0, 0, 0);
-        return Number.isNaN(dt.getTime()) ? null : dt.getTime();
-      }
-      const dt = new Date(s);
-      if (Number.isNaN(dt.getTime())) return null;
-      const local = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), 0, 0, 0, 0);
-      return Number.isNaN(local.getTime()) ? null : local.getTime();
-    };
-
-    const visibleItems = (this.items || [])
-      .map((top, idx) => ({ top, idx, dueTs: parseDueTs(top) }))
-      .filter((x) => !this._shouldHideTopInList(x.top))
-      .sort((a, b) => {
-        const ah = a.dueTs !== null;
-        const bh = b.dueTs !== null;
-        if (ah && !bh) return -1;
-        if (!ah && bh) return 1;
-        if (ah && bh && a.dueTs !== b.dueTs) return a.dueTs - b.dueTs;
-        return a.idx - b.idx;
-      });
-
     let collapsedParentId = null;
-    for (const entry of visibleItems) {
-      const top = entry.top;
+    for (const top of this.items) {
+      if (this._shouldHideTopInList(top)) continue;
       const li = document.createElement("li");
       li.dataset.topId = String(top.id);
       li.style.listStyle = "none";
@@ -5146,19 +6310,15 @@ async _closeViewOnly() {
           top.frozen_is_carried_over ??
           top.frozenIsCarriedOver
       );
+      const statusLower = String(top.status || "").trim().toLowerCase();
+      const isTask = statusLower === "todo" || parseFlag(top.is_task ?? top.isTask);
       const isTouched = parseFlag(
         top.is_touched ??
           top.isTouched ??
           top.frozen_is_touched ??
           top.frozenIsTouched
       );
-      const isTask = this._isTaskTop(top);
-      const isDecision = parseFlag(top.is_decision ?? top.isDecision);
       const isLevel1 = Number(top.level) === 1;
-      const isManualAssignTop =
-        isLevel1 &&
-        this._normalizeManualAssignTitle(top.title) ===
-          this._normalizeManualAssignTitle(this._manualAssignTitle());
       const isDone = shouldGrayTopForMeeting(top, meeting);
       const changedRaw =
         top.updated_at ??
@@ -5202,7 +6362,7 @@ async _closeViewOnly() {
               ? (isTouched ? "blue" : "black")
               : "blue";
 
-      const baseBg = isManualAssignTop ? "#fff3e0" : (isLevel1 ? "#f3f3f3" : "transparent");
+      const baseBg = isLevel1 ? "#f3f3f3" : "transparent";
       li.style.background = isSelected ? "#dff0ff" : baseBg;
       li.style.border = isSelected ? "1px solid #7aa7ff" : "1px solid transparent";
       li.style.fontWeight = isSelected ? "700" : "400";
@@ -5307,7 +6467,6 @@ const textCol = document.createElement("div");
       shortLine.style.whiteSpace = "nowrap";
       shortLine.style.overflow = "hidden";
       shortLine.style.textOverflow = "ellipsis";
-      if (isManualAssignTop) shortLine.style.fontWeight = "700";
 
       textCol.append(shortLine);
 
@@ -5342,9 +6501,10 @@ const textCol = document.createElement("div");
         metaCol.style.paddingLeft = "10px";
         metaCol.style.borderLeft = "1px solid rgba(0,0,0,0.08)";
 
-        const due = this._formatDue(top.due_date);
+        const due = this._formatDue(this._resolveDisplayDueForTop(top));
         const st = this._formatStatus(top.status);
         const resp = this._formatResponsible(top);
+        const contact = this._formatContactPerson(top);
 
         const dueRow = document.createElement("div");
         dueRow.style.display = "flex";
@@ -5371,64 +6531,55 @@ const textCol = document.createElement("div");
         const stRow = document.createElement("div");
         stRow.style.display = "flex";
         stRow.style.alignItems = "center";
-        stRow.style.gap = "6px";
+        stRow.style.gap = "8px";
         stRow.style.width = "100%";
 
-        const stText = document.createElement("span");
-        stText.textContent = `${st}`;
-        stText.style.whiteSpace = "nowrap";
-        stText.style.overflow = "hidden";
-        stText.style.textOverflow = "ellipsis";
-        stText.style.flex = "1 1 auto";
-        stText.style.minWidth = "0";
-
-        const statusSymbols = document.createElement("div");
-        statusSymbols.style.display = "inline-flex";
-        statusSymbols.style.alignItems = "center";
-        statusSymbols.style.justifyContent = "flex-end";
-        statusSymbols.style.gap = "4px";
-        statusSymbols.style.width = "12mm";
-        statusSymbols.style.minWidth = "12mm";
-        statusSymbols.style.flex = "0 0 auto";
+        const stTxt = document.createElement("span");
+        stTxt.textContent = `${st}`;
+        stTxt.style.whiteSpace = "nowrap";
+        stTxt.style.overflow = "hidden";
+        stTxt.style.textOverflow = "ellipsis";
+        stTxt.style.flex = "1 1 auto";
+        stTxt.style.minWidth = "0";
+        stRow.append(stTxt);
 
         if (isTask) {
-          const todoIcon = document.createElement("img");
-          todoIcon.src = TODO_ICON_PNG;
-          todoIcon.alt = "ToDo";
-          todoIcon.title = "ToDo";
-          todoIcon.style.width = "11px";
-          todoIcon.style.height = "11px";
-          todoIcon.style.objectFit = "contain";
-          todoIcon.style.display = "inline-block";
-          statusSymbols.appendChild(todoIcon);
-        }
-        if (isDecision) {
-          const decisionIcon = document.createElement("img");
-          decisionIcon.src = RED_FLAG_PNG;
-          decisionIcon.alt = "Festgelegt";
-          decisionIcon.title = "Festgelegt";
-          decisionIcon.style.width = "11px";
-          decisionIcon.style.height = "11px";
-          decisionIcon.style.objectFit = "contain";
-          decisionIcon.style.display = "inline-block";
-          statusSymbols.appendChild(decisionIcon);
+          const taskMarker = document.createElement("img");
+          taskMarker.src = TODO_PNG;
+          taskMarker.alt = "ToDo";
+          taskMarker.title = "ToDo";
+          taskMarker.style.width = "14px";
+          taskMarker.style.height = "14px";
+          taskMarker.style.flex = "0 0 14px";
+          taskMarker.style.objectFit = "contain";
+          stRow.append(taskMarker);
         }
 
-        stRow.append(stText, statusSymbols);
+        if (this._shouldShowDecisionFlag(st)) {
+          const flag = document.createElement("img");
+          flag.src = RED_FLAG_PNG;
+          flag.alt = "Festlegung";
+          flag.title = "Festlegung";
+          flag.style.width = "14px";
+          flag.style.height = "14px";
+          flag.style.flex = "0 0 14px";
+          flag.style.objectFit = "contain";
+          stRow.append(flag);
+        }
 
         const respRow = document.createElement("div");
         respRow.textContent = `${resp}`;
         respRow.style.whiteSpace = "nowrap";
+        respRow.style.overflow = "hidden";
+        respRow.style.textOverflow = "ellipsis";
 
-        const contact = String(top?.contact_label || top?.contactLabel || "").trim();
-        if (contact) {
-          const contactRow = document.createElement("div");
-          contactRow.textContent = `${contact}`;
-          contactRow.style.whiteSpace = "nowrap";
-          metaCol.append(dueRow, stRow, respRow, contactRow);
-        } else {
-          metaCol.append(dueRow, stRow, respRow);
-        }
+        const contactRow = document.createElement("div");
+        contactRow.textContent = `${contact}`;
+        contactRow.style.whiteSpace = "nowrap";
+        contactRow.style.overflow = "hidden";
+        contactRow.style.textOverflow = "ellipsis";
+
+        metaCol.append(dueRow, stRow, respRow, contactRow);
       }
 
       row.append(numBlock, textCol);
@@ -5616,6 +6767,8 @@ const textCol = document.createElement("div");
     }
 
     if (!t) {
+      if (this._termPromptCleanup) this._termPromptCleanup();
+      this._pendingTermPrompt = null;
       this.inpTitle.value = "";
       if (this.taLongtext) this.taLongtext.value = "";
       this.chkHidden.checked = false;
@@ -5624,22 +6777,34 @@ const textCol = document.createElement("div");
       if (this.chkDecision) this.chkDecision.checked = false;
 
       if (this.inpDueDate) this.inpDueDate.value = "";
-      if (this.selStatus) this.selStatus.value = "offen";
+      if (this.selStatus) this.selStatus.value = "alle";
       if (this.selResponsible) this.selResponsible.value = "";
-      if (this.selContact) this._setContactHint("-");
+      if (this.selContactPerson) this.selContactPerson.value = "";
       this._clearLegacyResponsibleOption();
+      this._clearLegacyContactPersonOption();
       this._respLegacyReadonly = false;
+      this._contactLegacyReadonly = false;
       this._respDirty = false;
+      this._contactDirty = false;
+      this.contactPersons = [];
+      this._contactOptionsKey = "";
+      this._contactSourceKey = "";
       this._updateDueAmpelFromInputs();
+      this._updateStatusMarkers();
       this._respDirtyTopId = null;
       this._respLastSetTopId = null;
+      this._contactDirtyTopId = null;
+      this._contactLastSetTopId = null;
 
       this.inpTitle.disabled = true;
       if (this.taLongtext) this.taLongtext.disabled = true;
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.selContact) this.selContact.disabled = false;
+      if (this.selContactPerson) {
+        this.selContactPerson.innerHTML = "";
+        this.selContactPerson.disabled = true;
+      }
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkTask) this.chkTask.disabled = true;
@@ -5680,21 +6845,32 @@ const textCol = document.createElement("div");
       this.inpDueDate.value = dueVal ? dueVal.slice(0, 10) : "";
     }
 
-    if (this.selStatus) {
-      const st = (t.status || "").toString().trim();
-      this.selStatus.value = st || "offen";
-    }
+      if (this.selStatus) {
+        const st = (t.status || "").toString().trim();
+        const stLower = st.toLowerCase();
+        if (!st && (Number(t.is_task ?? t.isTask ?? 0) === 1)) {
+          this.selStatus.value = "todo";
+        } else {
+          this.selStatus.value = st ? st : "alle";
+        }
+      }
 
     this._applyProjectDueDefaults(t);
     this._updateDueAmpelFromInputs();
+    this._updateStatusMarkers();
+    this._updateTodoStatusAvailability();
+    this._tryShowPendingTermPrompt();
     this._clearLegacyResponsibleOption();
+    this._clearLegacyContactPersonOption();
     this._respLegacyReadonly = false;
+    this._contactLegacyReadonly = false;
 
     const topId = t.id;
     const sameTopDirty = this._respDirty && this._sameTopId(this._respDirtyTopId, topId);
+    const sameContactDirty = this._contactDirty && this._sameTopId(this._contactDirtyTopId, topId);
 
     this._ensureProjectFirmsLoaded()
-      .then(() => {
+      .then(async () => {
         this._buildResponsibleOptionsIfNeeded();
         if (!sameTopDirty && this.selResponsible && !this._sameTopId(this._respLastSetTopId, topId)) {
           const resolved = this._resolveResponsibleSelection(t);
@@ -5712,10 +6888,40 @@ const textCol = document.createElement("div");
           this._respDirty = false;
           this._respDirtyTopId = null;
           this._applyProjectDueDefaults(t);
-          this._refreshContactOptions({
-            selectedId: t?.contact_person_id ?? null,
-            selectedLabel: t?.contact_label ?? null,
-          });
+        }
+
+        const selectedResponsible = this.selResponsible
+          ? this._parseResponsibleOptionValue(this.selResponsible.value)
+          : null;
+        await this._loadContactPersonsForResponsible(selectedResponsible);
+        if (!this.selectedTop || !this._sameTopId(this.selectedTop.id, topId)) return;
+        this._buildContactOptionsIfNeeded(this._contactSourceKey);
+
+        if (
+          !sameContactDirty &&
+          this.selContactPerson &&
+          !this._sameTopId(this._contactLastSetTopId, topId)
+        ) {
+          const resolvedContact = this._resolveContactPersonSelection(t);
+          if (resolvedContact.value && this._findContactPersonOption(resolvedContact.value)) {
+            this._clearLegacyContactPersonOption();
+            this.selContactPerson.value = resolvedContact.value;
+          } else if (resolvedContact.fallbackLabel) {
+            this._setLegacyContactPersonOption(resolvedContact.fallbackLabel);
+          } else {
+            this._clearLegacyContactPersonOption();
+            this.selContactPerson.value = "";
+          }
+          this.selContactPerson.disabled =
+            !selectedResponsible?.id ||
+            selectedResponsible?.kind === "all" ||
+            !!this._contactLegacyReadonly ||
+            (!this.contactPersons.length && !resolvedContact.fallbackLabel) ||
+            this.isReadOnly ||
+            this._busy;
+          this._contactLastSetTopId = topId;
+          this._contactDirty = false;
+          this._contactDirtyTopId = null;
         }
       })
       .catch(() => {});
@@ -5730,7 +6936,7 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.selContact) this.selContact.disabled = false;
+      if (this.selContactPerson) this.selContactPerson.disabled = true;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkTask) this.chkTask.disabled = true;
@@ -5758,11 +6964,25 @@ const textCol = document.createElement("div");
     if (this.inpDueDate) this.inpDueDate.disabled = false;
     if (this.selStatus) this.selStatus.disabled = false;
     if (this.selResponsible) this.selResponsible.disabled = !!this._respLegacyReadonly;
+    if (this.selContactPerson) {
+      const parsedResponsible = this.selResponsible
+        ? this._parseResponsibleOptionValue(this.selResponsible.value)
+        : null;
+      this.selContactPerson.disabled =
+        !parsedResponsible?.id ||
+        parsedResponsible?.kind === "all" ||
+        !!this._contactLegacyReadonly ||
+        !this.contactPersons.length;
+    }
 
     this.chkHidden.disabled = false;
     if (this.chkImportant) this.chkImportant.disabled = false;
     if (this.chkTask) this.chkTask.disabled = false;
     if (this.chkDecision) this.chkDecision.disabled = false;
+
+    if (this.isReadOnly || this._busy) {
+      if (this.selContactPerson) this.selContactPerson.disabled = true;
+    }
 
     if (this.btnSaveTop) {
       this.btnSaveTop.disabled = false;
@@ -6004,5 +7224,14 @@ const textCol = document.createElement("div");
       this._audioSuggestionMarkTimer = null;
     }
     this._audioPanel = null;
+    if (this._viewMenuDocMouseDown) {
+      document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
+      this._viewMenuDocMouseDown = null;
+    }
+    this._setViewMenuOpen(false);
+    if (this._viewMenuEl && this._viewMenuEl.parentNode) {
+      this._viewMenuEl.parentNode.removeChild(this._viewMenuEl);
+    }
+    this._closeProjectTasksPopup();
   }
 }

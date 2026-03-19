@@ -3,10 +3,12 @@ const path = require("path");
 
 const MIME_BY_EXT = {
   ".mp3": "audio/mpeg",
+  ".mp4": "audio/mp4",
   ".wav": "audio/wav",
   ".m4a": "audio/mp4",
   ".aac": "audio/aac",
   ".ogg": "audio/ogg",
+  ".webm": "audio/webm",
   ".flac": "audio/flac",
   ".wma": "audio/x-ms-wma",
 };

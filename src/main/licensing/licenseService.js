@@ -1,22 +1,21 @@
 const { loadLicense } = require("./licenseStorage");
 const { verifyLicense } = require("./licenseVerifier");
+const {
+  normalizeLicensedFeatures,
+  isStandardLicensedFeature,
+  isOptionalLicensedFeature,
+} = require("./licenseFeatures");
 
 let cachedStatus = null;
 
 function checkLicense() {
   const licenseData = loadLicense();
   cachedStatus = verifyLicense(licenseData);
-  console.log("[LICENSE] checkLicense", {
-    hasLicense: !!licenseData?.license,
-    hasSignature: !!licenseData?.signature,
-    machineId: licenseData?.machineId || null,
-    result: cachedStatus?.reason || (cachedStatus?.valid ? "VALID" : "UNKNOWN"),
-  });
   return cachedStatus;
 }
 
-function getStatus() {
-  if (!cachedStatus) {
+function getStatus({ fresh = false } = {}) {
+  if (fresh || !cachedStatus) {
     return checkLicense();
   }
 
@@ -24,16 +23,11 @@ function getStatus() {
 }
 
 function refreshStatus() {
-  const status = checkLicense();
-  console.log("[LICENSE] refreshStatus", {
-    valid: !!status?.valid,
-    reason: status?.reason || null,
-  });
-  return status;
+  return checkLicense();
 }
 
-function requireValidLicense() {
-  const result = checkLicense();
+function requireValidLicense({ fresh = false } = {}) {
+  const result = getStatus({ fresh });
 
   if (!result.valid) {
     throw new Error(`LICENSE_INVALID:${result.reason}`);
@@ -43,10 +37,24 @@ function requireValidLicense() {
 }
 
 function requireFeature(feature) {
-  const license = requireValidLicense();
+  const normalizedFeature = String(feature || "").trim();
+  if (!normalizedFeature) {
+    throw new Error("FEATURE_NOT_ALLOWED:");
+  }
 
-  if (!Array.isArray(license.features) || !license.features.includes(feature)) {
-    throw new Error(`FEATURE_NOT_ALLOWED:${feature}`);
+  if (isStandardLicensedFeature(normalizedFeature)) {
+    return true;
+  }
+
+  if (!isOptionalLicensedFeature(normalizedFeature)) {
+    throw new Error(`FEATURE_NOT_ALLOWED:${normalizedFeature}`);
+  }
+
+  const license = requireValidLicense({ fresh: true });
+  const features = normalizeLicensedFeatures(license?.features);
+
+  if (!features.includes(normalizedFeature)) {
+    throw new Error(`FEATURE_NOT_ALLOWED:${normalizedFeature}`);
   }
 
   return true;
@@ -57,5 +65,5 @@ module.exports = {
   getStatus,
   refreshStatus,
   requireValidLicense,
-  requireFeature
+  requireFeature,
 };
