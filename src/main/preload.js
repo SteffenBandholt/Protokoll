@@ -146,10 +146,11 @@ contextBridge.exposeInMainWorld("bbmDb", {
   // App
   // ============================================================
   appQuit: () => ipcRenderer.invoke("app:quit"),
-  appGetBundledIconPath: () => ipcRenderer.invoke("app:getBundledIconPath"),
-  appIsWindows: () => ipcRenderer.invoke("app:isWindows"),
-  appIsPackaged: () => ipcRenderer.invoke("app:isPackaged"),
-  appGetVersion: () => ipcRenderer.invoke("app:getVersion"),
+    appGetBundledIconPath: () => ipcRenderer.invoke("app:getBundledIconPath"),
+    appIsWindows: () => ipcRenderer.invoke("app:isWindows"),
+    appIsPackaged: () => ipcRenderer.invoke("app:isPackaged"),
+    appGetBuildChannel: () => ipcRenderer.invoke("app:getBuildChannel"),
+    appGetVersion: () => ipcRenderer.invoke("app:getVersion"),
 
   // ✅ vom Build eingebrannt (packaged) / DEV (unpackaged)
   appGetBuildChannel: () => ipcRenderer.invoke("app:getBuildChannel"),

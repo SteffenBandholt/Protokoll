@@ -645,6 +645,7 @@ function registerSettingsIpc() {
         "tops.showLongtextInList",
         "tops.fontscale.list",
         "tops.fontscale.editbox",
+        "audio.whisper.quality",
         "trial.enabled",
         "trial.daysLimit",
         "trial.firstStartAt",

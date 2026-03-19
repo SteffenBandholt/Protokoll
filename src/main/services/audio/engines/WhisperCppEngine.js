@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const http = require("http");
 const { app } = require("electron");
 const { spawn } = require("child_process");
 
@@ -82,6 +83,103 @@ function _runProcess(command, args, { cwd } = {}) {
   });
 }
 
+function _postMultipart({ host, port, path: requestPath, fields = {}, file }) {
+  return new Promise((resolve, reject) => {
+    const boundary = `----bbm-whisper-${Date.now().toString(16)}-${Math.random()
+      .toString(16)
+      .slice(2)}`;
+
+    const req = http.request(
+      {
+        host,
+        port,
+        path: requestPath,
+        method: "POST",
+        headers: {
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        },
+      },
+      (res) => {
+        let body = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          body += String(chunk || "");
+        });
+        res.on("end", () => {
+          resolve({ status: res.statusCode || 0, body });
+        });
+      }
+    );
+
+    req.on("error", (err) => reject(err));
+
+    const writeField = (name, value) => {
+      req.write(`--${boundary}\r\n`);
+      req.write(`Content-Disposition: form-data; name="${name}"\r\n\r\n`);
+      req.write(String(value ?? ""));
+      req.write("\r\n");
+    };
+
+    for (const [name, value] of Object.entries(fields || {})) {
+      writeField(name, value);
+    }
+
+    const finalize = () => {
+      req.write(`--${boundary}--\r\n`);
+      req.end();
+    };
+
+    if (!file?.filePath) {
+      finalize();
+      return;
+    }
+
+    const fileName = path.basename(file.filePath);
+    req.write(`--${boundary}\r\n`);
+    req.write(
+      `Content-Disposition: form-data; name="${file.fieldName || "file"}"; filename="${fileName}"\r\n`
+    );
+    req.write("Content-Type: application/octet-stream\r\n\r\n");
+
+    const stream = fs.createReadStream(file.filePath);
+    stream.on("error", (err) => reject(err));
+    stream.on("end", () => {
+      req.write("\r\n");
+      finalize();
+    });
+    stream.pipe(req, { end: false });
+  });
+}
+
+function _waitForHttp({ host, port, timeoutMs = 6000 }) {
+  const start = Date.now();
+  return new Promise((resolve, reject) => {
+    const tryOnce = () => {
+      const req = http.request(
+        {
+          host,
+          port,
+          path: "/",
+          method: "GET",
+        },
+        (res) => {
+          res.resume();
+          resolve(true);
+        }
+      );
+      req.on("error", () => {
+        if (Date.now() - start >= timeoutMs) {
+          reject(new Error("whisper-server nicht erreichbar"));
+          return;
+        }
+        setTimeout(tryOnce, 200);
+      });
+      req.end();
+    };
+    tryOnce();
+  });
+}
+
 function _audioLog(message, extra = null) {
   if (extra && typeof extra === "object") {
     console.info("[AUDIO] Transcribe", message, extra);
@@ -101,6 +199,9 @@ class WhisperCppEngine {
     this.workspaceRoot =
       String(options.workspaceRoot || "").trim() || path.resolve(__dirname, "../../../../..");
     this.defaultLanguage = String(options.defaultLanguage || "de").trim() || "de";
+    this.serverHost = String(process.env.BBM_WHISPER_SERVER_HOST || "127.0.0.1").trim();
+    this.serverPort = Number(process.env.BBM_WHISPER_SERVER_PORT || 8080);
+    this._serverState = { process: null, modelPath: null };
   }
 
   _getExecutableCandidates() {
@@ -142,6 +243,138 @@ class WhisperCppEngine {
       path.join(this.workspaceRoot, "models", modelFileName),
       path.join(this.workspaceRoot, "vendor", "whisper.cpp", "models", modelFileName),
     ];
+  }
+
+  _getServerExecutableCandidates() {
+    const exeName = process.platform === "win32" ? "whisper-server.exe" : "whisper-server";
+    const resourcesRoot = _getResourcesRoot();
+    const packaged = resourcesRoot
+      ? [path.join(resourcesRoot, "audio", "whisper"), path.join(resourcesRoot, "audio", "whisper", exeName)]
+      : [];
+    return [
+      process.env.BBM_WHISPER_SERVER_PATH,
+      process.env.WHISPER_SERVER_PATH,
+      ...packaged,
+      path.join(this.workspaceRoot, "dev", "tools", "whisper.cpp"),
+      path.join(this.workspaceRoot, "dev", "tools", "whisper.cpp", "Release"),
+      path.join(this.workspaceRoot, "vendor", "whisper.cpp", exeName),
+      path.join(this.workspaceRoot, "tools", "whisper.cpp", exeName),
+      path.join(this.workspaceRoot, "bin", exeName),
+      _findExecutableOnPath(exeName),
+    ];
+  }
+
+  _getServerExecutablePath() {
+    const exeName = process.platform === "win32" ? "whisper-server.exe" : "whisper-server";
+    return _resolveExistingFile(this._getServerExecutableCandidates(), [
+      exeName,
+      path.join("Release", exeName),
+      path.join("build", "bin", exeName),
+      path.join("build", "bin", "Release", exeName),
+      path.join("bin", exeName),
+    ]);
+  }
+
+  async _ensureServerRunning({ serverPath, modelPath }) {
+    if (this._serverState.process && !this._serverState.process.killed) {
+      if (this._serverState.modelPath !== modelPath) {
+        try {
+          await _postMultipart({
+            host: this.serverHost,
+            port: this.serverPort,
+            path: "/load",
+            fields: { model: modelPath },
+          });
+          this._serverState.modelPath = modelPath;
+          _audioLog("server model switch", { modelPath });
+        } catch (err) {
+          _audioLog("server model switch failed", { error: err?.message || String(err) });
+          return false;
+        }
+      }
+      return true;
+    }
+
+    const threads = Math.max(1, os.cpus()?.length || 1);
+    const args = [
+      "--host",
+      this.serverHost,
+      "--port",
+      String(this.serverPort),
+      "-m",
+      modelPath,
+      "-t",
+      String(threads),
+    ];
+
+    const child = spawn(serverPath, args, {
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    child.on("exit", () => {
+      if (this._serverState.process === child) {
+        this._serverState.process = null;
+        this._serverState.modelPath = null;
+      }
+    });
+
+    this._serverState.process = child;
+    this._serverState.modelPath = modelPath;
+    try {
+      await _waitForHttp({ host: this.serverHost, port: this.serverPort });
+      _audioLog("server ready", { host: this.serverHost, port: this.serverPort, modelPath });
+      return true;
+    } catch (err) {
+      _audioLog("server start failed", { error: err?.message || String(err) });
+      try {
+        child.kill();
+      } catch (_ignore) {
+        // ignore
+      }
+      this._serverState.process = null;
+      this._serverState.modelPath = null;
+      return false;
+    }
+  }
+
+  async _transcribeViaServer({ modelPath, preparedPath, effectiveLanguage, serverPath }) {
+    const ok = await this._ensureServerRunning({ serverPath, modelPath });
+    if (!ok) {
+      throw new Error("whisper-server nicht verfuegbar");
+    }
+
+    const response = await _postMultipart({
+      host: this.serverHost,
+      port: this.serverPort,
+      path: "/inference",
+      fields: {
+        temperature: "0.0",
+        temperature_inc: "0.2",
+        response_format: "json",
+        language: effectiveLanguage,
+      },
+      file: { fieldName: "file", filePath: preparedPath },
+    });
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`whisper-server Fehler: ${response.body || response.status}`);
+    }
+
+    let text = "";
+    let segments = [];
+    try {
+      const parsed = JSON.parse(response.body || "{}");
+      text = String(parsed.text || parsed.transcription || parsed.result || "").trim();
+      if (Array.isArray(parsed.segments)) segments = parsed.segments;
+    } catch (_err) {
+      text = String(response.body || "").trim();
+    }
+
+    if (!text) {
+      throw new Error("whisper-server hat ein leeres Transkript geliefert.");
+    }
+
+    return { text, segments };
   }
 
   _getFfmpegCandidates() {
@@ -192,19 +425,8 @@ class WhisperCppEngine {
   }
 
   getModelAvailability(modelFileName = "ggml-base.bin") {
-    const exeName = process.platform === "win32" ? "whisper-cli.exe" : "whisper-cli";
-    const executablePath = _resolveExistingFile(this._getExecutableCandidates(), [
-      exeName,
-      path.join("Release", exeName),
-      path.join("build", "bin", exeName),
-      path.join("build", "bin", "Release", exeName),
-      path.join("bin", exeName),
-    ]);
-    const modelPath = _resolveExistingFile(this._getModelCandidates(executablePath, modelFileName), [
-      modelFileName,
-      path.join("models", modelFileName),
-    ]);
-    return { available: !!modelPath, modelPath };
+    const availability = this._getAvailabilityForModel(modelFileName);
+    return { available: !!availability.available, modelPath: availability.modelPath };
   }
 
   _ensureAvailable(modelFileName = "ggml-base.bin") {
@@ -290,35 +512,82 @@ class WhisperCppEngine {
     let prepared = null;
     try {
       prepared = await this._prepareInput(sourcePath, availability.ffmpegPath);
-      const outputBase = path.join(outputDir, "transcript");
+      const serverPath = this._getServerExecutablePath();
+      let fullText = "";
+      let segments = [];
 
-      await _runProcess(availability.executablePath, [
-        "-m",
-        availability.modelPath,
-        "-f",
-        prepared.preparedPath,
-        "-l",
-        effectiveLanguage,
-        "-otxt",
-        "-of",
-        outputBase,
-      ]);
+      if (serverPath) {
+        try {
+          _audioLog("server transcribe", {
+            host: this.serverHost,
+            port: this.serverPort,
+            modelPath: availability.modelPath,
+          });
+          const serverResult = await this._transcribeViaServer({
+            modelPath: availability.modelPath,
+            preparedPath: prepared.preparedPath,
+            effectiveLanguage,
+            serverPath,
+          });
+          fullText = serverResult.text;
+          segments = serverResult.segments || [];
+        } catch (err) {
+          _audioLog("server fallback to cli", { error: err?.message || String(err) });
+          const outputBase = path.join(outputDir, "transcript");
 
-      const transcriptFile = `${outputBase}.txt`;
-      if (!_fileExists(transcriptFile)) {
-        throw new Error("whisper.cpp hat keine Transcript-Datei erzeugt.");
-      }
+          await _runProcess(availability.executablePath, [
+            "-m",
+            availability.modelPath,
+            "-f",
+            prepared.preparedPath,
+            "-l",
+            effectiveLanguage,
+            "-otxt",
+            "-of",
+            outputBase,
+          ]);
 
-      const fullText = String(await fs.promises.readFile(transcriptFile, "utf8")).trim();
-      if (!fullText) {
-        throw new Error("whisper.cpp hat ein leeres Transkript geliefert.");
+          const transcriptFile = `${outputBase}.txt`;
+          if (!_fileExists(transcriptFile)) {
+            throw new Error("whisper.cpp hat keine Transcript-Datei erzeugt.");
+          }
+
+          fullText = String(await fs.promises.readFile(transcriptFile, "utf8")).trim();
+          if (!fullText) {
+            throw new Error("whisper.cpp hat ein leeres Transkript geliefert.");
+          }
+        }
+      } else {
+        const outputBase = path.join(outputDir, "transcript");
+
+        await _runProcess(availability.executablePath, [
+          "-m",
+          availability.modelPath,
+          "-f",
+          prepared.preparedPath,
+          "-l",
+          effectiveLanguage,
+          "-otxt",
+          "-of",
+          outputBase,
+        ]);
+
+        const transcriptFile = `${outputBase}.txt`;
+        if (!_fileExists(transcriptFile)) {
+          throw new Error("whisper.cpp hat keine Transcript-Datei erzeugt.");
+        }
+
+        fullText = String(await fs.promises.readFile(transcriptFile, "utf8")).trim();
+        if (!fullText) {
+          throw new Error("whisper.cpp hat ein leeres Transkript geliefert.");
+        }
       }
 
       return {
         engine: "whisper.cpp",
         language: effectiveLanguage,
         fullText,
-        segments: [],
+        segments,
         raw: {
           executablePath: availability.executablePath,
           modelPath: availability.modelPath,

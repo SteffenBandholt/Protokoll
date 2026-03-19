@@ -2532,22 +2532,50 @@ _isoToDDMMYYYY(iso) {
 
     const task = (async () => {
       const api = window.bbmDb || {};
+      const readDevFallback = async () => {
+        if (typeof api.appGetBuildChannel === "function") {
+          try {
+            const res = await api.appGetBuildChannel();
+            const channel = String(res?.channel || "").trim().toLowerCase();
+            if (res?.ok && channel === "dev") return true;
+          } catch (_err) {
+            // ignore
+          }
+        }
+        if (typeof api.appIsPackaged !== "function") return false;
+        try {
+          const packaged = await api.appIsPackaged();
+          return packaged === false;
+        } catch (_err) {
+          return false;
+        }
+      };
+
       if (typeof api.devAudioUnlockStatus !== "function") {
-        this._audioDevOverride = false;
+        this._audioDevOverride = await readDevFallback();
         this._audioDevOverrideChecked = true;
-        return false;
+        this._updateDictationButtons();
+        return this._audioDevOverride;
       }
 
       try {
         const res = await api.devAudioUnlockStatus();
         const enabled = !!res?.ok && !!res?.enabled;
+        const fallback = enabled ? false : await readDevFallback();
         this._audioDevOverride = enabled;
         this._audioDevOverrideChecked = true;
+        this._updateDictationButtons();
+        if (fallback) {
+          this._audioDevOverride = true;
+          this._updateDictationButtons();
+          return true;
+        }
         return enabled;
       } catch (_err) {
-        this._audioDevOverride = false;
+        this._audioDevOverride = await readDevFallback();
         this._audioDevOverrideChecked = true;
-        return false;
+        this._updateDictationButtons();
+        return this._audioDevOverride;
       } finally {
         this._audioDevOverrideLoading = null;
       }
@@ -2601,15 +2629,15 @@ _isoToDDMMYYYY(iso) {
   }
 
   _updateDictationButtons() {
-    const baseDisabled =
-      this.isReadOnly || this._busy || this._audioDictationBusy || !this.meetingId || !this.selectedTop;
-    const audioLocked = !this._audioLicensed;
+    const effectiveTop = this.selectedTop || this._findTopById?.(this.selectedTopId) || null;
+    if (!this.selectedTop && effectiveTop) this.selectedTop = effectiveTop;
+    const baseDisabled = !!this._audioDictationBusy;
+    const audioLocked = !this._audioLicensed && !this._audioDevOverride;
     const isRecording = !!this._audioDictationActive;
     const activeTarget = this._audioDictationTarget;
 
     if (this.btnTitleDictate) {
-      const disabled =
-        baseDisabled || audioLocked || !!this.inpTitle?.disabled || (isRecording && activeTarget !== "shortText");
+      const disabled = baseDisabled || audioLocked || (isRecording && activeTarget !== "shortText");
       this.btnTitleDictate.disabled = disabled;
       this.btnTitleDictate.style.opacity = disabled ? "0.6" : "1";
       this.btnTitleDictate.textContent =
@@ -2624,8 +2652,7 @@ _isoToDDMMYYYY(iso) {
     }
 
     if (this.btnLongDictate) {
-      const disabled =
-        baseDisabled || audioLocked || !!this.taLongtext?.disabled || (isRecording && activeTarget !== "longText");
+      const disabled = baseDisabled || audioLocked || (isRecording && activeTarget !== "longText");
       this.btnLongDictate.disabled = disabled;
       this.btnLongDictate.style.opacity = disabled ? "0.6" : "1";
       this.btnLongDictate.textContent =
@@ -2988,7 +3015,14 @@ _isoToDDMMYYYY(iso) {
   async _startFieldDictation(targetField) {
     if (!(await this._ensureAudioAvailable())) return;
     if (this._audioDictationBusy || this._audioDictationActive) return;
-    if (!this.selectedTop) return;
+    if (!this.selectedTop) {
+      const fallbackTop = this._findTopById?.(this.selectedTopId) || null;
+      if (fallbackTop) this.selectedTop = fallbackTop;
+    }
+    if (!this.selectedTop) {
+      alert("Bitte zuerst einen TOP auswaehlen.");
+      return;
+    }
 
     if (!navigator?.mediaDevices?.getUserMedia) {
       alert("Mikrofonaufnahme wird nicht unterstuetzt.");
@@ -5760,7 +5794,7 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
     if (this.btnAudioAnalyze) {
-      const audioLocked = !this._audioLicensed;
+      const audioLocked = !this._audioLicensed && !this._audioDevOverride;
       const allowLegacy = !!this._audioSuggestionsDevEnabled;
       this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId || audioLocked || !allowLegacy;
       this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
