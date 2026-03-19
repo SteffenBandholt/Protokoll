@@ -167,6 +167,36 @@ const DICTIONARY_FRAGMENT_TOKENS = new Set([
   "verleg",
   "unterf",
 ]);
+const DICTIONARY_COMMON_WORDS = new Set([
+  "heute",
+  "morgen",
+  "gestern",
+  "jetzt",
+  "immer",
+  "sobald",
+  "sofort",
+  "dann",
+  "noch",
+  "wieder",
+  "bereits",
+  "neu",
+  "wichtig",
+  "fertig",
+  "pruefen",
+  "prüfen",
+  "machen",
+  "gemacht",
+  "gehen",
+  "kommt",
+  "kommen",
+  "sehen",
+  "sehen",
+  "frage",
+  "fragen",
+  "antwort",
+  "bitte",
+  "danke",
+]);
 
 function _normalizePin(raw) {
   return String(raw == null ? "" : raw).replace(/\D+/g, "").slice(0, 4);
@@ -351,6 +381,7 @@ function _extractDictionaryTermsFromText(text) {
     if (/^\d{4}[./-]\d{1,2}[./-]\d{1,2}$/.test(token)) continue;
     if (DICTIONARY_STOPWORDS.has(norm)) continue;
     if (DICTIONARY_STOPWORDS.has(String(token || "").toLowerCase())) continue;
+    if (DICTIONARY_COMMON_WORDS.has(norm)) continue;
     if (DICTIONARY_FRAGMENT_TOKENS.has(norm)) continue;
     if (/^[a-zäöüß]+$/.test(token) && norm.length <= 5 && !DICTIONARY_SHORT_EXCEPTIONS.has(norm)) {
       continue;
@@ -358,6 +389,7 @@ function _extractDictionaryTermsFromText(text) {
     if (/[a-z]/.test(token) && /[A-ZÄÖÜ]/.test(token) === false && token.length <= 5) {
       continue;
     }
+    if (_isLikelyFragmentToken(norm, token)) continue;
     let entry = out.get(norm);
     if (!entry) {
       entry = {
@@ -385,6 +417,84 @@ function _extractDictionaryTermsFromText(text) {
     });
   }
   return entries;
+}
+
+function _isLikelyFragmentToken(norm, rawToken) {
+  if (!norm) return true;
+  if (DICTIONARY_SHORT_EXCEPTIONS.has(norm)) return false;
+  if (norm.length < 5) return true;
+  const token = String(rawToken || "");
+  if (/^[-_]/.test(token) || /[-_]$/.test(token)) return true;
+  if (/(.)\1\1/.test(norm)) return true; // aaa, bbb -> oft OCR/Fragment
+  const vowels = (norm.match(/[aeiouy]/g) || []).length;
+  const vowelRatio = vowels / Math.max(1, norm.length);
+  if (vowelRatio < 0.2) return true;
+  if (/[bcdfghjklmnpqrstvwxyz]{4,}/.test(norm)) return true;
+  return false;
+}
+
+function _editDistance(a, b) {
+  const s = String(a || "");
+  const t = String(b || "");
+  if (!s) return t.length;
+  if (!t) return s.length;
+  const dp = Array.from({ length: s.length + 1 }, () => new Array(t.length + 1).fill(0));
+  for (let i = 0; i <= s.length; i += 1) dp[i][0] = i;
+  for (let j = 0; j <= t.length; j += 1) dp[0][j] = j;
+  for (let i = 1; i <= s.length; i += 1) {
+    for (let j = 1; j <= t.length; j += 1) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[s.length][t.length];
+}
+
+function _buildKnownDictionaryIndex(db) {
+  const rows = db.prepare(`SELECT norm_key, term, variants_json FROM dictionary_terms`).all();
+  const normSet = new Set();
+  const normList = [];
+  for (const row of rows || []) {
+    const base = _normalizeDictionaryTerm(row?.term || row?.norm_key || "");
+    if (base) {
+      if (!normSet.has(base)) normList.push(base);
+      normSet.add(base);
+    }
+    try {
+      const vars = JSON.parse(row?.variants_json || "[]");
+      if (Array.isArray(vars)) {
+        for (const v of vars) {
+          const n = _normalizeDictionaryTerm(v);
+          if (!n) continue;
+          if (!normSet.has(n)) normList.push(n);
+          normSet.add(n);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return { normSet, normList };
+}
+
+function _isNearKnownTerm(normKey, knownIndex) {
+  if (!normKey) return false;
+  const { normSet, normList } = knownIndex || {};
+  if (normSet?.has(normKey)) return true;
+  for (const known of normList || []) {
+    if (!known) continue;
+    if (normKey.startsWith(known) && known.length >= 5) return true;
+    if (known.startsWith(normKey) && normKey.length >= 5) return true;
+    const lenDiff = Math.abs(normKey.length - known.length);
+    if (lenDiff > 2 && normKey.length > 10) continue;
+    const maxDist = normKey.length <= 7 ? 1 : 2;
+    if (_editDistance(normKey, known) <= maxDist) return true;
+  }
+  return false;
 }
 
 function _listDictionaryFiles(rootDir) {
@@ -817,6 +927,7 @@ function registerSettingsIpc() {
     try {
       const suggestions = Array.isArray(payload?.suggestions) ? payload.suggestions : [];
       const db = initDatabase();
+      const knownIndex = _buildKnownDictionaryIndex(db);
       const now = new Date().toISOString();
       const selectStmt = db.prepare(
         "SELECT norm_key, term, variants_json, frequency, status, source_path, source_excerpt FROM dictionary_suggestions WHERE norm_key = ?"
@@ -839,6 +950,9 @@ function registerSettingsIpc() {
           const normKey = String(item?.normKey || "").trim();
           if (!normKey) continue;
           const term = String(item?.term || "").trim() || normKey;
+          if (DICTIONARY_STOPWORDS.has(normKey) || DICTIONARY_COMMON_WORDS.has(normKey)) continue;
+          if (_isLikelyFragmentToken(normKey, term)) continue;
+          if (_isNearKnownTerm(normKey, knownIndex)) continue;
           const variants = Array.isArray(item?.variants) ? item.variants.map((v) => String(v || "").trim()).filter(Boolean) : [];
           const frequency = Number(item?.frequency || 0);
           const sourcePath = String(item?.sourcePath || "").trim();
