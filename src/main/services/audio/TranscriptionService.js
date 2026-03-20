@@ -24,13 +24,13 @@ class TranscriptionService {
 
   _resolveModelFileName() {
     if (!this.appSettingsRepo || typeof this.appSettingsRepo.appSettingsGetMany !== "function") {
-      return "ggml-base.bin";
+      return "ggml-tiny.bin";
     }
     const data = this.appSettingsRepo.appSettingsGetMany([MODEL_SETTING_KEY]) || {};
     const raw = String(data[MODEL_SETTING_KEY] || "").trim().toLowerCase();
-    if (raw === "best") return "ggml-medium.bin";
-    if (raw === "balanced") return "ggml-small.bin";
-    return "ggml-base.bin";
+    if (raw === "best") return "ggml-small.bin";
+    if (raw === "balanced") return "ggml-base.bin";
+    return "ggml-tiny.bin";
   }
 
   _loadOpenMeeting(audioImport) {
