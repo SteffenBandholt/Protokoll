@@ -127,9 +127,10 @@ function registerAudioIpc() {
 
   ipcMain.handle("audio:whisperModelsStatus", async () => {
     try {
-      const tiny = transcriptionEngine.getModelAvailability("ggml-tiny.bin");
       const base = transcriptionEngine.getModelAvailability("ggml-base.bin");
       const small = transcriptionEngine.getModelAvailability("ggml-small.bin");
+      const medium = transcriptionEngine.getModelAvailability("ggml-medium.bin");
+      const large = transcriptionEngine.getModelAvailability("ggml-large.bin");
 
       const toModelState = (fileName, availability) => {
         const modelPath = availability?.modelPath || null;
@@ -150,9 +151,10 @@ function registerAudioIpc() {
       return {
         ok: true,
         models: {
-          fast: toModelState("ggml-tiny.bin", tiny),
-          balanced: toModelState("ggml-base.bin", base),
-          best: toModelState("ggml-small.bin", small),
+          fast: toModelState("ggml-base.bin", base),
+          balanced: toModelState("ggml-small.bin", small),
+          best: toModelState("ggml-medium.bin", medium),
+          large: toModelState("ggml-large.bin", large),
         },
       };
     } catch (err) {

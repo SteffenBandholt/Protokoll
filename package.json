@@ -66,9 +66,9 @@
         "from": "dev/models",
         "to": "audio/models",
         "filter": [
-          "ggml-tiny.bin",
           "ggml-base.bin",
-          "ggml-small.bin"
+          "ggml-small.bin",
+          "ggml-medium.bin"
         ]
       }
     ],

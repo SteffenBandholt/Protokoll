@@ -1646,7 +1646,10 @@ export default class SettingsView {
       fast: { available: true },
       balanced: { available: true },
       best: { available: true },
+      large: { available: true },
     };
+
+    let allowLarge = false;
 
     const btnWhisperFast = document.createElement("button");
     btnWhisperFast.textContent = "Schnell";
@@ -1657,6 +1660,10 @@ export default class SettingsView {
     const btnWhisperBest = document.createElement("button");
     btnWhisperBest.textContent = "Beste Qualit?t";
     applyScaleBtnBase(btnWhisperBest);
+    const btnWhisperLarge = document.createElement("button");
+    btnWhisperLarge.textContent = "Large";
+    applyScaleBtnBase(btnWhisperLarge);
+    btnWhisperLarge.style.display = "none";
 
     const setWhisperBtnEnabled = (btn, enabled) => {
       btn.disabled = !enabled;
@@ -1666,12 +1673,19 @@ export default class SettingsView {
     };
 
     const applyWhisperUi = () => {
-      setScaleBtnActive(btnWhisperFast, whisperQuality === "fast");
-      setScaleBtnActive(btnWhisperBalanced, whisperQuality === "balanced");
-      setScaleBtnActive(btnWhisperBest, whisperQuality === "best");
-      setWhisperBtnEnabled(btnWhisperFast, !!whisperModels.fast?.available);
-      setWhisperBtnEnabled(btnWhisperBalanced, !!whisperModels.balanced?.available);
-      setWhisperBtnEnabled(btnWhisperBest, !!whisperModels.best?.available);
+      const fastAvailable = !!whisperModels.fast?.available;
+      const balancedAvailable = !!whisperModels.balanced?.available;
+      const bestAvailable = !!whisperModels.best?.available;
+      const largeAvailable = !!whisperModels.large?.available;
+
+      setScaleBtnActive(btnWhisperFast, whisperQuality === "fast" && fastAvailable);
+      setScaleBtnActive(btnWhisperBalanced, whisperQuality === "balanced" && balancedAvailable);
+      setScaleBtnActive(btnWhisperBest, whisperQuality === "best" && bestAvailable);
+      setScaleBtnActive(btnWhisperLarge, whisperQuality === "large" && largeAvailable);
+      setWhisperBtnEnabled(btnWhisperFast, fastAvailable);
+      setWhisperBtnEnabled(btnWhisperBalanced, balancedAvailable);
+      setWhisperBtnEnabled(btnWhisperBest, bestAvailable);
+      setWhisperBtnEnabled(btnWhisperLarge, largeAvailable);
       const current = whisperModels[whisperQuality];
       if (current && current.available) {
         whisperMsg.textContent = "";
@@ -1687,8 +1701,26 @@ export default class SettingsView {
         const res = await api.appSettingsGetMany([AUDIO_WHISPER_QUALITY_KEY]);
         if (res?.ok) {
           const raw = String(res.data?.[AUDIO_WHISPER_QUALITY_KEY] || "").trim().toLowerCase();
-          whisperQuality = ["fast", "balanced", "best"].includes(raw) ? raw : "fast";
+          whisperQuality = ["fast", "balanced", "best", "large"].includes(raw) ? raw : "fast";
         }
+      }
+      if (typeof api.appGetBuildChannel === "function") {
+        try {
+          const res = await api.appGetBuildChannel();
+          allowLarge = !!res?.ok && String(res.channel || "").trim().toLowerCase() === "dev";
+        } catch (_e) {
+          allowLarge = false;
+        }
+      }
+      if (!allowLarge) {
+        btnWhisperLarge.style.display = "none";
+        whisperModels = {
+          ...(whisperModels || {}),
+          large: { available: false, missingReason: "Nur im DEV-Build verf?gbar." },
+        };
+        if (whisperQuality === "large") whisperQuality = "best";
+      } else {
+        btnWhisperLarge.style.display = "";
       }
       if (typeof api.audioWhisperModelsStatus === "function") {
         const res = await api.audioWhisperModelsStatus();
@@ -1735,8 +1767,14 @@ export default class SettingsView {
       applyWhisperUi();
       await saveWhisperQualitySettings();
     };
+    btnWhisperLarge.onclick = async () => {
+      if (!whisperModels.large?.available) return;
+      whisperQuality = "large";
+      applyWhisperUi();
+      await saveWhisperQualitySettings();
+    };
 
-    const whisperRow = mkScaleGroup("Modell", [btnWhisperFast, btnWhisperBalanced, btnWhisperBest]);
+    const whisperRow = mkScaleGroup("Modell", [btnWhisperFast, btnWhisperBalanced, btnWhisperBest, btnWhisperLarge]);
     whisperBox.append(whisperTitle, whisperRow, whisperMsg);
 
     const devTopCardsRow = document.createElement("div");
