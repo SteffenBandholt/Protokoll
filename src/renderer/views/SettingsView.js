@@ -1649,7 +1649,8 @@ export default class SettingsView {
       large: { available: true },
     };
 
-    let allowLarge = false;
+    let allowLarge = true;
+
 
     const btnWhisperFast = document.createElement("button");
     btnWhisperFast.textContent = "Schnell";
@@ -1663,7 +1664,6 @@ export default class SettingsView {
     const btnWhisperLarge = document.createElement("button");
     btnWhisperLarge.textContent = "Large";
     applyScaleBtnBase(btnWhisperLarge);
-    btnWhisperLarge.style.display = "none";
 
     const setWhisperBtnEnabled = (btn, enabled) => {
       btn.disabled = !enabled;
@@ -1703,24 +1703,6 @@ export default class SettingsView {
           const raw = String(res.data?.[AUDIO_WHISPER_QUALITY_KEY] || "").trim().toLowerCase();
           whisperQuality = ["fast", "balanced", "best", "large"].includes(raw) ? raw : "fast";
         }
-      }
-      if (typeof api.appIsPackaged === "function") {
-        try {
-          const res = await api.appIsPackaged();
-          allowLarge = !!res?.ok && res.packaged === false;
-        } catch (_e) {
-          allowLarge = true;
-        }
-      }
-      if (!allowLarge) {
-        btnWhisperLarge.style.display = "none";
-        whisperModels = {
-          ...(whisperModels || {}),
-          large: { available: false, missingReason: "Nur im DEV-Build verf?gbar." },
-        };
-        if (whisperQuality === "large") whisperQuality = "best";
-      } else {
-        btnWhisperLarge.style.display = "";
       }
       if (typeof api.audioWhisperModelsStatus === "function") {
         const res = await api.audioWhisperModelsStatus();
