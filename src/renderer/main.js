@@ -234,6 +234,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const readUiMode = () => {
     try {
+      const raw = String(window.localStorage?.getItem?.(UI_MODE_KEY) || "").trim().toLowerCase();
+      if (raw === "react" || raw === "new" || raw === "old") return raw;
+    } catch (_e) {
+      // ignore
+    }
+    try {
       window.localStorage?.setItem?.(UI_MODE_KEY, "new");
     } catch (_e) {
       // ignore
@@ -906,6 +912,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Start-Popup "Was ist neu/geändert" ist deaktiviert.
   };
 
+  const initUiReact = async () => {
+    try {
+      const mod = await import("./react/main-react.js");
+      if (typeof mod?.mountReactApp !== "function") return false;
+      const ok = await mod.mountReactApp();
+      return ok !== false;
+    } catch (err) {
+      console.error("[ui] React-Init fehlgeschlagen:", err);
+      return false;
+    }
+  };
+
   const initUiNew = () => {
     initUiOld();
 
@@ -951,6 +969,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   await ensureInitialPrintLayoutDefaults();
 
   const uiMode = readUiMode();
+
+  if (uiMode === "react") {
+    const ok = await initUiReact();
+    if (ok) return;
+  }
 
   if (uiMode === "new") {
     initUiNew();
