@@ -254,6 +254,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       // ignore
     }
 
+    const canReturnToReact = () => {
+      try {
+        const raw = String(window.localStorage?.getItem?.("bbm.uiReturnToReact") || "")
+          .trim()
+          .toLowerCase();
+        return raw === "1" || raw === "true" || raw === "yes";
+      } catch (_e) {
+        return false;
+      }
+    };
+
+    if (mode !== "react" && !canReturnToReact()) return;
+
     const wrap = document.createElement("div");
     wrap.id = "bbm-ui-mode-toggle";
     wrap.style.position = "fixed";
@@ -276,7 +289,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = mode === "react" ? "Zu Standard" : "Zu React";
+    btn.textContent = mode === "react" ? "Zu Standard" : "Zurueck zu React";
     btn.style.padding = "4px 8px";
     btn.style.borderRadius = "999px";
     btn.style.border = "1px solid rgba(148, 163, 184, 0.6)";
@@ -287,6 +300,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       try {
         const next = mode === "react" ? "new" : "react";
         window.localStorage?.setItem?.(UI_MODE_KEY, next);
+        if (next === "react") {
+          window.localStorage?.removeItem?.("bbm.uiReturnToReact");
+        }
       } catch (_e) {
         // ignore
       }
@@ -980,6 +996,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // ignore
       }
       initUiNew();
+      mountUiModeToggle({ mode: "new" });
       return !!window.__bbmRouter;
     };
 
@@ -989,6 +1006,13 @@ document.addEventListener("DOMContentLoaded", async () => {
           try {
             const pid = String(projectId ?? "").trim();
             if (!pid) return false;
+            try {
+              window.localStorage?.setItem?.("bbm.uiReturnToReact", "1");
+              window.localStorage?.setItem?.("bbm.reactReturnView", "meetings");
+              window.localStorage?.setItem?.("bbm.reactReturnProjectId", pid);
+            } catch (_e) {
+              // ignore
+            }
             try {
               const node = document.getElementById("bbm-react-root");
               if (node && window.ReactDOM?.unmountComponentAtNode) {
@@ -1013,6 +1037,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             const pid = String(projectId ?? "").trim();
             const mid = String(meetingId ?? "").trim();
             if (!pid || !mid) return false;
+            try {
+              window.localStorage?.setItem?.("bbm.uiReturnToReact", "1");
+              window.localStorage?.setItem?.("bbm.reactReturnView", "meetings");
+              window.localStorage?.setItem?.("bbm.reactReturnProjectId", pid);
+            } catch (_e) {
+              // ignore
+            }
             try {
               const node = document.getElementById("bbm-react-root");
               if (node && window.ReactDOM?.unmountComponentAtNode) {

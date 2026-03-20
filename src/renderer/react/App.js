@@ -39,15 +39,62 @@ const getMeetingDate = (m) => {
   return raw ? raw.slice(0, 10) : "";
 };
 
+const getMeetingIndex = (m) => pick(m?.meeting_index ?? m?.meetingIndex ?? "");
+
 const isMeetingClosed = (m) => {
   const raw = Number(m?.is_closed ?? m?.isClosed ?? 0);
   return raw === 1;
 };
 
+const sortMeetings = (list) => {
+  const items = Array.isArray(list) ? [...list] : [];
+  items.sort((a, b) => {
+    const aDate = getMeetingDate(a);
+    const bDate = getMeetingDate(b);
+    if (aDate && bDate && aDate !== bDate) return aDate > bDate ? -1 : 1;
+    if (aDate && !bDate) return -1;
+    if (!aDate && bDate) return 1;
+    const aIdx = Number(getMeetingIndex(a) || 0);
+    const bIdx = Number(getMeetingIndex(b) || 0);
+    if (aIdx !== bIdx) return bIdx - aIdx;
+    return 0;
+  });
+  return items;
+};
+
+const readReturnView = () => {
+  try {
+    const raw = String(window.localStorage?.getItem?.("bbm.reactReturnView") || "")
+      .trim()
+      .toLowerCase();
+    return raw === "meetings" || raw === "projects" ? raw : "projects";
+  } catch (_e) {
+    return "projects";
+  }
+};
+
+const readReturnProjectId = () => {
+  try {
+    const raw = String(window.localStorage?.getItem?.("bbm.reactReturnProjectId") || "").trim();
+    return raw || null;
+  } catch (_e) {
+    return null;
+  }
+};
+
+const clearReturnContext = () => {
+  try {
+    window.localStorage?.removeItem?.("bbm.reactReturnView");
+    window.localStorage?.removeItem?.("bbm.reactReturnProjectId");
+  } catch (_e) {
+    // ignore
+  }
+};
+
 export default function App() {
   const { useEffect, useMemo, useState } = React || {};
-  const [view, setView] = useState("projects");
-  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [view, setView] = useState(() => readReturnView());
+  const [selectedProjectId, setSelectedProjectId] = useState(() => readReturnProjectId());
   const [projectQuery, setProjectQuery] = useState("");
 
   const [projectsState, setProjectsState] = useState(() => ({
@@ -64,6 +111,10 @@ export default function App() {
 
   const canOpenLegacy = typeof window.__bbmReactBridge?.openProjectMeetings === "function";
   const canOpenMeeting = typeof window.__bbmReactBridge?.openMeetingTops === "function";
+
+  useEffect(() => {
+    clearReturnContext();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -212,6 +263,11 @@ export default function App() {
 
   const switchToStandard = () => {
     try {
+      window.localStorage?.setItem?.("bbm.uiReturnToReact", "1");
+      window.localStorage?.setItem?.("bbm.reactReturnView", view);
+      if (selectedProjectId) {
+        window.localStorage?.setItem?.("bbm.reactReturnProjectId", String(selectedProjectId));
+      }
       window.localStorage?.setItem?.("bbm.uiMode", "new");
     } catch (_e) {
       // ignore
@@ -369,18 +425,31 @@ export default function App() {
     const title = getMeetingTitle(m);
     const date = getMeetingDate(m);
     const closed = isMeetingClosed(m);
+    const idx = getMeetingIndex(m);
 
     return React.createElement(
       "div",
-      { className: "react-card react-meeting-card", key: String(m?.id ?? title) },
+      {
+        className: "react-card react-meeting-card",
+        key: String(m?.id ?? title),
+      },
       React.createElement(
         "div",
         { className: "react-meeting-head" },
-        React.createElement("div", { className: "react-meeting-title" }, title),
         React.createElement(
-          "span",
-          { className: `react-status ${closed ? "is-closed" : "is-open"}` },
-          closed ? "geschlossen" : "offen"
+          "div",
+          { className: "react-meeting-title" },
+          title
+        ),
+        React.createElement(
+          "div",
+          { className: "react-meeting-head-meta" },
+          idx ? React.createElement("span", { className: "react-meeting-index" }, `#${idx}`) : null,
+          React.createElement(
+            "span",
+            { className: `react-status ${closed ? "is-closed" : "is-open"}` },
+            closed ? "geschlossen" : "offen"
+          )
         )
       ),
       React.createElement(
@@ -391,6 +460,16 @@ export default function App() {
       React.createElement(
         "div",
         { className: "react-meeting-actions" },
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            className: "react-btn react-btn-primary",
+            onClick: (e) => openLegacyMeeting(m, e),
+            disabled: !canOpenMeeting,
+          },
+          "Details oeffnen"
+        ),
         React.createElement(
           "button",
           {
@@ -450,6 +529,7 @@ export default function App() {
         );
 
   const meetings = meetingsState.meetings || [];
+  const sortedMeetings = sortMeetings(meetings);
   const meetingsContent = meetingsState.loading
     ? React.createElement("div", { className: "react-loading" }, "Lade Protokolle...")
     : meetingsState.error
@@ -457,33 +537,56 @@ export default function App() {
       : React.createElement(
           "div",
           { className: "react-meetings-body" },
-          projects.length
-            ? React.createElement(
+          React.createElement(
+            "div",
+            { className: "react-meetings-toolbar" },
+            React.createElement(
+              "div",
+              { className: "react-meetings-context" },
+              React.createElement(
                 "div",
-                { className: "react-project-switch" },
-                React.createElement("span", { className: "react-project-switch-label" }, "Projekt"),
-                React.createElement(
-                  "select",
-                  {
-                    className: "react-select",
-                    value: selectedProjectId || "",
-                    onChange: handleProjectSelectChange,
-                  },
-                  projects.map((p) =>
-                    React.createElement(
-                      "option",
-                      { key: String(p?.id ?? ""), value: String(p?.id ?? "") },
-                      getProjectTitle(p)
+                { className: "react-meetings-context-title" },
+                selectedProject ? getProjectTitle(selectedProject) : "Projekt"
+              ),
+              React.createElement(
+                "div",
+                { className: "react-meetings-context-meta" },
+                selectedProject ? getProjectMeta(selectedProject) : ""
+              )
+            ),
+            projects.length
+              ? React.createElement(
+                  "div",
+                  { className: "react-project-switch" },
+                  React.createElement("span", { className: "react-project-switch-label" }, "Projekt"),
+                  React.createElement(
+                    "select",
+                    {
+                      className: "react-select",
+                      value: selectedProjectId || "",
+                      onChange: handleProjectSelectChange,
+                    },
+                    projects.map((p) =>
+                      React.createElement(
+                        "option",
+                        { key: String(p?.id ?? ""), value: String(p?.id ?? "") },
+                        getProjectTitle(p)
+                      )
                     )
                   )
                 )
-              )
-            : null,
-          meetings.length
+              : null,
+            React.createElement(
+              "div",
+              { className: "react-count" },
+              `${sortedMeetings.length} Protokolle`
+            )
+          ),
+          sortedMeetings.length
             ? React.createElement(
                 "div",
                 { className: "react-meetings-list" },
-                meetings.map(renderMeetingCard)
+                sortedMeetings.map(renderMeetingCard)
               )
             : React.createElement(
                 "div",
