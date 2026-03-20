@@ -180,6 +180,12 @@ export default function App() {
     setView("meetings");
   };
 
+  const handleProjectSelectChange = (e) => {
+    const next = String(e?.target?.value || "").trim();
+    if (!next) return;
+    setSelectedProjectId(next);
+  };
+
   const header = view === "projects"
     ? React.createElement(
         "div",
@@ -208,6 +214,19 @@ export default function App() {
             selectedProject
               ? `Projekt: ${getProjectTitle(selectedProject)}`
               : "Bitte zuerst ein Projekt auswaehlen."
+          )
+        ),
+        React.createElement(
+          "div",
+          { className: "react-header-actions" },
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              className: "react-btn react-btn-ghost",
+              onClick: () => setView("projects"),
+            },
+            "Zurueck zu Projekte"
           )
         )
       );
@@ -286,17 +305,43 @@ export default function App() {
     ? React.createElement("div", { className: "react-loading" }, "Lade Protokolle...")
     : meetingsState.error
       ? React.createElement("div", { className: "react-empty" }, meetingsState.error)
-      : meetings.length
-        ? React.createElement(
-            "div",
-            { className: "react-meetings-list" },
-            meetings.map(renderMeetingCard)
-          )
-        : React.createElement(
-            "div",
-            { className: "react-empty" },
-            "Keine Protokolle vorhanden."
-          );
+      : React.createElement(
+          "div",
+          { className: "react-meetings-body" },
+          projects.length
+            ? React.createElement(
+                "div",
+                { className: "react-project-switch" },
+                React.createElement("span", { className: "react-project-switch-label" }, "Projekt"),
+                React.createElement(
+                  "select",
+                  {
+                    className: "react-select",
+                    value: selectedProjectId || "",
+                    onChange: handleProjectSelectChange,
+                  },
+                  projects.map((p) =>
+                    React.createElement(
+                      "option",
+                      { key: String(p?.id ?? ""), value: String(p?.id ?? "") },
+                      getProjectTitle(p)
+                    )
+                  )
+                )
+              )
+            : null,
+          meetings.length
+            ? React.createElement(
+                "div",
+                { className: "react-meetings-list" },
+                meetings.map(renderMeetingCard)
+              )
+            : React.createElement(
+                "div",
+                { className: "react-empty" },
+                "Keine Protokolle vorhanden."
+              )
+        );
 
   const content = view === "projects" ? projectsContent : meetingsContent;
 

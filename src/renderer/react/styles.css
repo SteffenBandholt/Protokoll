@@ -117,6 +117,27 @@ body {
   font-size: 14px;
 }
 
+.react-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.react-btn {
+  border: 1px solid var(--react-border);
+  background: #fff;
+  color: var(--react-text);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.react-btn-ghost {
+  background: rgba(255, 255, 255, 0.92);
+}
+
 .react-project-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -154,6 +175,39 @@ body {
 .react-card-meta {
   font-size: 12px;
   color: var(--react-muted);
+}
+
+.react-meetings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.react-project-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--react-panel);
+  border: 1px solid var(--react-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: var(--react-shadow);
+}
+
+.react-project-switch-label {
+  font-size: 12px;
+  color: var(--react-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.react-select {
+  flex: 1;
+  border: 1px solid var(--react-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: #fff;
 }
 
 .react-meetings-list {
