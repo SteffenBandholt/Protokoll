@@ -247,6 +247,60 @@ document.addEventListener("DOMContentLoaded", async () => {
     return "new";
   };
 
+  const mountUiModeToggle = ({ mode } = {}) => {
+    try {
+      if (document.getElementById("bbm-ui-mode-toggle")) return;
+    } catch (_e) {
+      // ignore
+    }
+
+    const wrap = document.createElement("div");
+    wrap.id = "bbm-ui-mode-toggle";
+    wrap.style.position = "fixed";
+    wrap.style.right = "12px";
+    wrap.style.bottom = "12px";
+    wrap.style.zIndex = "9000";
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.gap = "8px";
+    wrap.style.padding = "6px 10px";
+    wrap.style.background = "rgba(15, 23, 42, 0.92)";
+    wrap.style.color = "#e2e8f0";
+    wrap.style.borderRadius = "999px";
+    wrap.style.fontSize = "11px";
+    wrap.style.fontWeight = "600";
+    wrap.style.letterSpacing = "0.2px";
+
+    const label = document.createElement("span");
+    label.textContent = mode === "react" ? "React Pilot" : "Standard UI";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = mode === "react" ? "Zu Standard" : "Zu React";
+    btn.style.padding = "4px 8px";
+    btn.style.borderRadius = "999px";
+    btn.style.border = "1px solid rgba(148, 163, 184, 0.6)";
+    btn.style.background = "rgba(15, 23, 42, 0.3)";
+    btn.style.color = "#e2e8f0";
+    btn.style.cursor = "pointer";
+    btn.onclick = () => {
+      try {
+        const next = mode === "react" ? "new" : "react";
+        window.localStorage?.setItem?.(UI_MODE_KEY, next);
+      } catch (_e) {
+        // ignore
+      }
+      try {
+        window.location.reload();
+      } catch (_e) {
+        // ignore
+      }
+    };
+
+    wrap.append(label, btn);
+    document.body.appendChild(wrap);
+  };
+
   // Manueller Test:
   // 1) Start Version X -> Overlay erscheint -> OK.
   // 2) Neustart Version X -> Overlay erscheint nicht mehr.
@@ -1050,4 +1104,5 @@ document.addEventListener("DOMContentLoaded", async () => {
   } else {
     initUiOld();
   }
+  mountUiModeToggle({ mode: uiMode === "react" ? "react" : "new" });
 });

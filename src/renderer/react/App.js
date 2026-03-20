@@ -191,6 +191,21 @@ export default function App() {
     window.__bbmReactBridge.openProjectMeetings(pid);
   };
 
+  const switchToStandard = () => {
+    try {
+      window.localStorage?.setItem?.("bbm.uiMode", "new");
+    } catch (_e) {
+      // ignore
+    }
+    try {
+      window.location.reload();
+    } catch (_e) {
+      // ignore
+    }
+  };
+
+  const badge = React.createElement("span", { className: "react-badge" }, "React Pilot");
+
   const openLegacyMeeting = (m, e) => {
     if (e?.stopPropagation) e.stopPropagation();
     if (!canOpenMeeting) return;
@@ -219,6 +234,20 @@ export default function App() {
             { className: "react-subtitle" },
             "Alle Projekte im Ueberblick. React-Modus (Pilot)."
           )
+        ),
+        React.createElement(
+          "div",
+          { className: "react-header-actions" },
+          badge,
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              className: "react-btn react-btn-ghost",
+              onClick: switchToStandard,
+            },
+            "Standardmodus"
+          )
         )
       )
     : React.createElement(
@@ -239,6 +268,7 @@ export default function App() {
         React.createElement(
           "div",
           { className: "react-header-actions" },
+          badge,
           React.createElement(
             "button",
             {
@@ -247,6 +277,15 @@ export default function App() {
               onClick: () => setView("projects"),
             },
             "Zurueck zu Projekte"
+          ),
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              className: "react-btn react-btn-ghost",
+              onClick: switchToStandard,
+            },
+            "Standardmodus"
           )
         )
       );
