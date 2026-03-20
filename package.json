@@ -48,7 +48,6 @@
     "win": {
       "icon": "build/bbm-icon.ico",
       "target": [
-        "portable",
         "nsis"
       ]
     },

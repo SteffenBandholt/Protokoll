@@ -83,7 +83,6 @@ function main() {
 
   const prefix = isDev ? "BBM-DEV" : "BBM";
   const nsisName = `${prefix}-${baseVersion}-Setup.\${ext}`;
-  const portableName = `${prefix}-${baseVersion}.\${ext}`;
 
   // Override-Config für electron-builder (als separate Config-Datei)
   const override = {
@@ -100,10 +99,6 @@ function main() {
       ...(baseBuild.nsis || {}),
       artifactName: nsisName,
     },
-    portable: {
-      ...(baseBuild.portable || {}),
-      artifactName: portableName,
-    },
   };
 
   const tmpConfigPath = path.join(repoRoot, "dist", `builder-config-${Date.now()}.json`);
@@ -116,7 +111,6 @@ function main() {
   console.log(" appId:   ", appId);
   console.log(" Name:    ", productName);
   console.log(" NSIS:    ", nsisName);
-  console.log(" Portable:", portableName);
   console.log("======================================");
 
   const cliJs = path.join(repoRoot, "node_modules", "electron-builder", "out", "cli", "cli.js");
