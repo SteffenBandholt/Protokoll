@@ -30,6 +30,7 @@ export default class ProjectsView {
     this._createMeetingModalResolve = null;
     this._projectFormModal = null;
     this._projectFormPrevProjectId = null;
+    this._transferModalEl = null;
   }
 
   _cleanupProjectFormModal() {
@@ -38,6 +39,7 @@ export default class ProjectsView {
       this.router.currentProjectId = this._projectFormPrevProjectId;
     }
     this._projectFormPrevProjectId = null;
+    this._transferModalEl = null;
   }
 
   async _openProjectFormModal({ projectId } = {}) {
@@ -393,6 +395,385 @@ export default class ProjectsView {
     });
   }
 
+  _closeProjectTransferModal() {
+    if (this._transferModalEl) {
+      try {
+        this._transferModalEl.remove();
+      } catch (_) {}
+    }
+    this._transferModalEl = null;
+  }
+
+  _formatBytes(value) {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n) || n <= 0) return "0 B";
+    if (n < 1024) return `${n} B`;
+    const kb = n / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    const mb = kb / 1024;
+    return `${mb.toFixed(1)} MB`;
+  }
+
+  _formatDateTime(ms) {
+    const d = new Date(Number(ms || 0));
+    if (Number.isNaN(d.getTime())) return "";
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return `${dd}.${mm}.${yyyy} ${hh}:${mi}`;
+  }
+
+  async _openProjectTransferModal() {
+    if (this._transferModalEl) return;
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.left = "0";
+    overlay.style.top = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "9999";
+    overlay.tabIndex = -1;
+
+    const box = document.createElement("div");
+    box.style.background = "#fff";
+    box.style.borderRadius = "10px";
+    box.style.border = "1px solid rgba(0,0,0,0.15)";
+    box.style.width = "min(720px, calc(100vw - 32px))";
+    box.style.maxHeight = "calc(100vh - 32px)";
+    box.style.display = "flex";
+    box.style.flexDirection = "column";
+    box.style.overflow = "hidden";
+    box.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)";
+
+    const header = document.createElement("div");
+    header.style.display = "flex";
+    header.style.alignItems = "center";
+    header.style.gap = "10px";
+    header.style.padding = "12px 16px";
+    header.style.borderBottom = "1px solid #e2e8f0";
+
+    const title = document.createElement("div");
+    title.textContent = "Projekt Import / Export";
+    title.style.fontWeight = "800";
+
+    const btnClose = document.createElement("button");
+    btnClose.type = "button";
+    btnClose.textContent = "X";
+    applyPopupButtonStyle(btnClose);
+    btnClose.style.marginLeft = "auto";
+    btnClose.onclick = () => this._closeProjectTransferModal();
+
+    header.append(title, btnClose);
+
+    const body = document.createElement("div");
+    body.style.flex = "1 1 auto";
+    body.style.minHeight = "0";
+    body.style.overflow = "auto";
+    body.style.padding = "12px 16px";
+
+    const status = document.createElement("div");
+    status.style.fontSize = "12px";
+    status.style.opacity = "0.8";
+    status.style.marginBottom = "10px";
+    status.textContent = "";
+
+    const exportBox = document.createElement("div");
+    exportBox.style.border = "1px solid #e2e8f0";
+    exportBox.style.borderRadius = "8px";
+    exportBox.style.padding = "10px";
+    exportBox.style.marginBottom = "12px";
+
+    const exportTitle = document.createElement("div");
+    exportTitle.textContent = "Projekt exportieren";
+    exportTitle.style.fontWeight = "700";
+    exportTitle.style.marginBottom = "8px";
+
+    const exportHint = document.createElement("div");
+    exportHint.textContent = "W?hlt ein Projekt und erstellt ein ZIP im Export-Ordner.";
+    exportHint.style.fontSize = "12px";
+    exportHint.style.opacity = "0.75";
+    exportHint.style.marginBottom = "8px";
+
+    const exportSelect = document.createElement("select");
+    exportSelect.style.width = "100%";
+    exportSelect.style.boxSizing = "border-box";
+    exportSelect.style.padding = "6px 8px";
+    exportSelect.style.border = "1px solid #ddd";
+    exportSelect.style.borderRadius = "6px";
+
+    const exportBtn = document.createElement("button");
+    exportBtn.type = "button";
+    exportBtn.textContent = "Export starten";
+    applyPopupButtonStyle(exportBtn, { variant: "primary" });
+    exportBtn.style.marginTop = "8px";
+
+    const fillExportOptions = () => {
+      exportSelect.innerHTML = "";
+      const list = Array.isArray(this.projects) ? this.projects : [];
+      if (!list.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "Keine Projekte vorhanden";
+        exportSelect.appendChild(opt);
+        exportSelect.disabled = true;
+        exportBtn.disabled = true;
+        return;
+      }
+      exportSelect.disabled = false;
+      exportBtn.disabled = false;
+      for (const p of list) {
+        const opt = document.createElement("option");
+        opt.value = String(p?.id || "");
+        const pn = this._getProjectNumber(p);
+        opt.textContent = pn ? `${pn} - ${this._labelForTile(p)}` : this._labelForTile(p);
+        exportSelect.appendChild(opt);
+      }
+    };
+    fillExportOptions();
+
+    exportBtn.onclick = async () => {
+      const projectId = String(exportSelect.value || "").trim();
+      if (!projectId) {
+        status.textContent = "Bitte ein Projekt w?hlen.";
+        return;
+      }
+      try {
+        status.textContent = "Exportiere Projekt...";
+        const api = window.bbmProjectTransfer || {};
+
+    btnOpenExportDir.onclick = async () => {
+      if (typeof api.openExportFolder !== "function") {
+        status.textContent = "Export-Ordner ?ffnen ist nicht verf?gbar (Preload/IPC fehlt).";
+        return;
+      }
+      const res = await api.openExportFolder();
+      if (!res?.ok) {
+        status.textContent = res?.error || "Export-Ordner konnte nicht ge?ffnet werden.";
+        return;
+      }
+      if (res?.exportRoot) exportDirHint.textContent = `Export-Ordner: ${res.exportRoot}`;
+    };
+        if (typeof api.exportProject !== "function") {
+          status.textContent = "Export ist nicht verf?gbar (Preload/IPC fehlt).";
+          return;
+        }
+        const res = await api.exportProject({ projectId });
+        if (!res?.ok) {
+          status.textContent = res?.error || "Export fehlgeschlagen.";
+          return;
+        }
+        status.textContent = "Export abgeschlossen.";
+        await this.reloadProjects();
+        fillExportOptions();
+      } catch (err) {
+        status.textContent = err?.message || "Export fehlgeschlagen.";
+      }
+    };
+
+    exportBox.append(exportTitle, exportHint, exportSelect, exportBtn);
+
+    const importBox = document.createElement("div");
+    importBox.style.border = "1px solid #e2e8f0";
+    importBox.style.borderRadius = "8px";
+    importBox.style.padding = "10px";
+
+    const importTitle = document.createElement("div");
+    importTitle.textContent = "Projekt importieren";
+    importTitle.style.fontWeight = "700";
+    importTitle.style.marginBottom = "8px";
+
+    const importHint = document.createElement("div");
+    importHint.textContent = "Imports aus dem Export-Ordner der App.";
+    importHint.style.fontSize = "12px";
+    importHint.style.opacity = "0.75";
+    importHint.style.marginBottom = "6px";
+
+    const exportDirHint = document.createElement("div");
+    exportDirHint.textContent = "Export-Ordner: -";
+    exportDirHint.style.fontSize = "12px";
+    exportDirHint.style.opacity = "0.7";
+    exportDirHint.style.marginBottom = "6px";
+
+    const exportDirActions = document.createElement("div");
+    exportDirActions.style.display = "flex";
+    exportDirActions.style.justifyContent = "flex-start";
+    exportDirActions.style.marginBottom = "8px";
+
+    const btnOpenExportDir = document.createElement("button");
+    btnOpenExportDir.type = "button";
+    btnOpenExportDir.textContent = "Ordner ?ffnen";
+    applyPopupButtonStyle(btnOpenExportDir);
+
+    exportDirActions.append(btnOpenExportDir);
+
+    const importActions = document.createElement("div");
+    importActions.style.display = "flex";
+    importActions.style.gap = "8px";
+    importActions.style.marginBottom = "8px";
+
+    const importAllBtn = document.createElement("button");
+    importAllBtn.type = "button";
+    importAllBtn.textContent = "Alle importieren";
+    applyPopupButtonStyle(importAllBtn);
+
+    const refreshBtn = document.createElement("button");
+    refreshBtn.type = "button";
+    refreshBtn.textContent = "Liste aktualisieren";
+    applyPopupButtonStyle(refreshBtn);
+
+    importActions.append(importAllBtn, refreshBtn);
+
+    const importList = document.createElement("div");
+    importList.style.display = "flex";
+    importList.style.flexDirection = "column";
+    importList.style.gap = "6px";
+
+    const api = window.bbmProjectTransfer || {};
+
+    btnOpenExportDir.onclick = async () => {
+      if (typeof api.openExportFolder !== "function") {
+        status.textContent = "Export-Ordner ?ffnen ist nicht verf?gbar (Preload/IPC fehlt).";
+        return;
+      }
+      const res = await api.openExportFolder();
+      if (!res?.ok) {
+        status.textContent = res?.error || "Export-Ordner konnte nicht ge?ffnet werden.";
+        return;
+      }
+      if (res?.exportRoot) exportDirHint.textContent = `Export-Ordner: ${res.exportRoot}`;
+    };
+
+    const loadExportList = async () => {
+      importList.innerHTML = "";
+      if (typeof api.listExports !== "function") {
+        importList.textContent = "Export-Liste nicht verf?gbar (Preload/IPC fehlt).";
+        importAllBtn.disabled = true;
+        return [];
+      }
+      const res = await api.listExports();
+      if (res?.exportRoot) exportDirHint.textContent = `Export-Ordner: ${res.exportRoot}`;
+      if (!res?.ok) {
+        importList.textContent = res?.error || "Export-Ordner konnte nicht gelesen werden.";
+        importAllBtn.disabled = true;
+        return [];
+      }
+      const list = Array.isArray(res.list) ? res.list : [];
+      if (!list.length) {
+        importList.textContent = "Keine Exportdateien gefunden.";
+        importAllBtn.disabled = true;
+        return [];
+      }
+      importAllBtn.disabled = false;
+      for (const item of list) {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.gap = "8px";
+        row.style.border = "1px solid #eee";
+        row.style.borderRadius = "6px";
+        row.style.padding = "6px 8px";
+
+        const label = document.createElement("div");
+        label.style.flex = "1 1 auto";
+        label.style.fontSize = "12px";
+        const meta = `${this._formatDateTime(item.mtimeMs)} ? ${this._formatBytes(item.size)}`;
+        label.textContent = `${item.fileName} (${meta})`;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "Import";
+        applyPopupButtonStyle(btn, { variant: "primary" });
+        btn.onclick = async () => {
+          btn.disabled = true;
+          status.textContent = `Importiere ${item.fileName}...`;
+          const resImport = await api.importFromExport({ filePath: item.filePath });
+          if (!resImport?.ok) {
+            status.textContent = resImport?.error || "Import fehlgeschlagen.";
+            btn.disabled = false;
+            return;
+          }
+          status.textContent = `Import abgeschlossen: ${item.fileName}`;
+          await this.reloadProjects();
+          await loadExportList();
+        };
+
+        row.append(label, btn);
+        importList.appendChild(row);
+      }
+      return list;
+    };
+
+    importAllBtn.onclick = async () => {
+      importAllBtn.disabled = true;
+      refreshBtn.disabled = true;
+      status.textContent = "Importiere alle Exportdateien...";
+      const list = await loadExportList();
+      let okCount = 0;
+      for (const item of list) {
+        const resImport = await api.importFromExport({ filePath: item.filePath });
+        if (resImport?.ok) okCount += 1;
+      }
+      await this.reloadProjects();
+      await loadExportList();
+      status.textContent = `Import abgeschlossen: ${okCount} Datei(en) erfolgreich.`;
+      importAllBtn.disabled = false;
+      refreshBtn.disabled = false;
+    };
+
+    refreshBtn.onclick = async () => {
+      await loadExportList();
+    };
+
+    await loadExportList();
+
+    importBox.append(importTitle, importHint, exportDirHint, exportDirActions, importActions, importList);
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.gap = "8px";
+    footer.style.padding = "12px 16px";
+    footer.style.borderTop = "1px solid #e2e8f0";
+
+    const btnCloseBottom = document.createElement("button");
+    btnCloseBottom.type = "button";
+    btnCloseBottom.textContent = "Schlie?en";
+    applyPopupButtonStyle(btnCloseBottom);
+    btnCloseBottom.onclick = () => this._closeProjectTransferModal();
+
+    footer.append(btnCloseBottom);
+
+    body.append(status, exportBox, importBox);
+    box.append(header, body, footer);
+    overlay.appendChild(box);
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) this._closeProjectTransferModal();
+    });
+
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        this._closeProjectTransferModal();
+      }
+    });
+
+    document.body.appendChild(overlay);
+    this._transferModalEl = overlay;
+    try {
+      overlay.focus();
+    } catch (_e) {
+      // ignore
+    }
+  }
+
   // ------------------------------------------------------------
   // Lifecycle
   // ------------------------------------------------------------
@@ -604,71 +985,37 @@ export default class ProjectsView {
 
     grid.appendChild(createTile);
 
-    const runImportFlow = async () => {
-      try {
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.accept = ".zip";
-        fileInput.style.display = "none";
-        fileInput.onchange = async () => {
-          const file = fileInput.files?.[0];
-          const filePath = file?.path || "";
-          if (!filePath) return;
-          try {
-            const res = await window.bbmProjectTransfer?.importProject(filePath);
-            if (!res?.ok) {
-              this._flashMsg(res?.error || "Import fehlgeschlagen.", 8000);
-              return;
-            }
-            this._flashMsg("Projekt importiert.", 4000);
-            await this.reloadProjects();
-          } catch (errImport) {
-            console.error("[ProjectsView] Projektimport failed:", errImport);
-            this._flashMsg("Import fehlgeschlagen.", 8000);
-          }
-        };
-        document.body.appendChild(fileInput);
-        fileInput.click();
-        setTimeout(() => {
-          try {
-            document.body.removeChild(fileInput);
-          } catch (_e) {
-            // ignore
-          }
-        }, 1000);
-      } catch (err) {
-        console.error("[ProjectsView] runImportFlow failed:", err);
-        this._flashMsg("Import konnte nicht gestartet werden.", 8000);
-      }
+    // Projekt Import / Export Kachel
+    const transferTile = mkTile();
+    transferTile.style.background = "var(--card-bg)";
+    transferTile.style.borderStyle = "dashed";
+
+    const transferTitle = document.createElement("div");
+    transferTitle.textContent = "Projekt Import / Export";
+    transferTitle.style.fontWeight = "800";
+    transferTitle.style.fontSize = "16px";
+    transferTitle.style.marginBottom = "6px";
+
+    const transferHint = document.createElement("div");
+    transferHint.textContent = "Projekte sichern oder aus Exporten wiederherstellen";
+    transferHint.style.opacity = "0.8";
+    transferHint.style.fontSize = "12px";
+
+    transferTile.append(transferTitle, transferHint);
+
+    const openTransfer = async () => {
+      await this._openProjectTransferModal();
     };
 
-    // Projekt importieren Kachel
-    const importTile = mkTile();
-    importTile.style.background = "var(--card-bg)";
-    importTile.style.borderStyle = "dashed";
-
-    const importTitle = document.createElement("div");
-    importTitle.textContent = "Projekt importieren";
-    importTitle.style.fontWeight = "800";
-    importTitle.style.fontSize = "16px";
-    importTitle.style.marginBottom = "6px";
-
-    const importHint = document.createElement("div");
-    importHint.textContent = "ZIP auswählen und wiederherstellen";
-    importHint.style.opacity = "0.8";
-    importHint.style.fontSize = "12px";
-
-    importTile.append(importTitle, importHint);
-
-    importTile.addEventListener("click", runImportFlow);
-    importTile.addEventListener("keydown", (e) => {
+    transferTile.addEventListener("click", openTransfer);
+    transferTile.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
       e.stopPropagation();
-      runImportFlow();
+      openTransfer();
     });
 
-    grid.appendChild(importTile);
+    grid.appendChild(transferTile);
 
     // Projektkacheln
     for (const p of this.projects || []) {

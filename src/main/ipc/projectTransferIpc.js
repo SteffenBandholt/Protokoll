@@ -3,7 +3,7 @@
 // Exportiert ein Projekt als ZIP und entfernt es anschließend lokal.
 // Enthält nur Export – Import ist nicht Teil dieses Prompts.
 
-const { ipcMain, app } = require("electron");
+const { ipcMain, app, shell } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const archiver = require("archiver");
@@ -14,6 +14,18 @@ const { initDatabase } = require("../db/database");
 const { appSettingsGetMany } = require("../db/appSettingsRepo");
 const projectsRepo = require("../db/projectsRepo");
 const { buildStoragePreviewPaths, sanitizeDirName, resolveProjectFolderName } = require("./projectStoragePaths");
+
+function _getExportRoot() {
+  const settings = appSettingsGetMany(["pdf.protocolsDir"]) || {};
+  const baseDir = String(settings["pdf.protocolsDir"] || "").trim() || app.getPath("downloads");
+  return path.join(baseDir, "bbm", "export");
+}
+
+function _isPathInside(childPath, parentPath) {
+  const absChild = path.resolve(String(childPath || ""));
+  const absParent = path.resolve(String(parentPath || ""));
+  return absChild == absParent || absChild.startsWith(absParent + path.sep);
+}
 
 function _sanitizeFilePart(value, fallback = "Projekt") {
   const clean = String(value || "").trim() || fallback;
@@ -128,6 +140,9 @@ async function _createExportZip({ exportPath, projectDir, manifest, payloads }) 
 
     if (projectDir && fs.existsSync(projectDir)) {
       archive.directory(projectDir, "project-folder");
+    } else {
+      // Stelle sicher, dass project-folder im ZIP existiert (auch leer)
+      archive.append("", { name: "project-folder/" });
     }
 
     archive.finalize();
@@ -241,6 +256,131 @@ function _sanitizeProjectRow(project) {
   return cleaned;
 }
 
+async function _importProjectZip(filePath) {
+  if (!filePath) return { ok: false, error: "filePath required" };
+
+  const absPath = path.resolve(String(filePath));
+  try {
+    const stat = await fs.promises.stat(absPath);
+    if (!stat.isFile()) return { ok: false, error: "Datei nicht gefunden." };
+  } catch (err) {
+    return { ok: false, error: err?.message || "Datei nicht lesbar." };
+  }
+
+  const basicValidation = await _validateExportZip(absPath);
+  if (!basicValidation.ok) return basicValidation;
+
+  const tempDir = path.join(app.getPath("temp"), `bbm-import-${Date.now()}-${process.pid}`);
+  try {
+    await _extractZipToTemp(absPath, tempDir);
+
+    const manifestPath = path.join(tempDir, "manifest.json");
+    const dataDir = path.join(tempDir, "data");
+
+    const manifestRes = await _readJsonSafe(manifestPath, "manifest");
+    if (!manifestRes.ok) return { ok: false, error: manifestRes.error };
+    const manifest = manifestRes.data || {};
+
+    // Neue Exportstruktur: getrennte JSON-Dateien unter data/
+    const payload = {};
+    const projectJson = await _readJsonIfExists(path.join(dataDir, "project.json"), "project.json");
+    if (projectJson.ok && projectJson.data?.project) {
+      payload.project = projectJson.data.project;
+    }
+    const settingsJson = await _readJsonIfExists(path.join(dataDir, "settings.json"), "settings.json");
+    if (settingsJson.ok) payload.projectSettings = settingsJson.data?.projectSettings || [];
+    const meetingsJson = await _readJsonIfExists(path.join(dataDir, "meetings.json"), "meetings.json");
+    if (meetingsJson.ok) payload.meetings = meetingsJson.data?.meetings || [];
+    const topsJson = await _readJsonIfExists(path.join(dataDir, "tops.json"), "tops.json");
+    if (topsJson.ok) payload.tops = topsJson.data?.tops || [];
+    const mtJson = await _readJsonIfExists(path.join(dataDir, "meeting_tops.json"), "meeting_tops.json");
+    if (mtJson.ok) payload.meetingTops = mtJson.data?.meeting_tops || [];
+    const mpJson = await _readJsonIfExists(path.join(dataDir, "meeting_participants.json"), "meeting_participants.json");
+    if (mpJson.ok) payload.meetingParticipants = mpJson.data?.meeting_participants || [];
+    const pfJson = await _readJsonIfExists(path.join(dataDir, "project_firms.json"), "project_firms.json");
+    if (pfJson.ok) payload.projectFirms = pfJson.data?.project_firms || [];
+    const ppJson = await _readJsonIfExists(path.join(dataDir, "project_persons.json"), "project_persons.json");
+    if (ppJson.ok) payload.projectPersons = ppJson.data?.project_persons || [];
+    const pcJson = await _readJsonIfExists(path.join(dataDir, "project_candidates.json"), "project_candidates.json");
+    if (pcJson.ok) payload.projectCandidates = pcJson.data?.project_candidates || [];
+    const pgfJson = await _readJsonIfExists(path.join(dataDir, "project_global_firms.json"), "project_global_firms.json");
+    if (pgfJson.ok) payload.projectGlobalFirms = pgfJson.data?.project_global_firms || [];
+
+    const project = payload.project;
+    if (!project?.id) return { ok: false, error: "Projekt-ID fehlt im Export." };
+
+    const projectNumber = project.project_number ?? project.projectNumber ?? manifest.projectNumber ?? null;
+    const projectShortName = project.short ?? project.projectShortName ?? manifest.projectShortName ?? null;
+
+    const db = initDatabase();
+    if (_rowExists(db, "projects", project.id)) {
+      return { ok: false, error: "Projekt existiert bereits (ID)." };
+    }
+    if (projectNumber) {
+      const dup = db.prepare("SELECT id FROM projects WHERE project_number = ? LIMIT 1").get(projectNumber);
+      if (dup) return { ok: false, error: "Projekt mit gleicher Projektnummer existiert bereits." };
+    }
+
+    const projectFolderSource = path.join(tempDir, "project-folder");
+    try {
+      const s = await fs.promises.stat(projectFolderSource);
+      if (!s.isDirectory()) throw new Error("project-folder fehlt.");
+    } catch (err) {
+      return { ok: false, error: "project-folder fehlt im Export." };
+    }
+
+    const settings = appSettingsGetMany(["pdf.protocolsDir"]) || {};
+    const baseDir = String(settings["pdf.protocolsDir"] || "").trim() || app.getPath("downloads");
+    const projectFolderName = resolveProjectFolderName({
+      project_number: projectNumber,
+      short: projectShortName,
+      name: project.name,
+    });
+    const targetDir = path.join(baseDir, "bbm", projectFolderName);
+    if (fs.existsSync(targetDir)) {
+      return { ok: false, error: "Projektordner existiert bereits." };
+    }
+
+    const tx = db.transaction(() => {
+      const sanitizedProject = _sanitizeProjectRow(project);
+      if (!sanitizedProject?.id) throw new Error("Projektdaten unvollst?ndig (id fehlt).");
+      _insertRow(db, "projects", sanitizedProject);
+      const pid = sanitizedProject.id;
+      const withPid = (rows = []) => rows.map((r) => ({ ...(r || {}), project_id: pid }));
+
+      _insertRows(db, "project_settings", withPid(payload.projectSettings || []));
+      _insertRows(db, "project_firms", withPid(payload.projectFirms || []));
+      _insertRows(db, "project_persons", payload.projectPersons || []);
+      _insertRows(db, "project_candidates", withPid(payload.projectCandidates || []));
+      _insertRows(db, "project_global_firms", withPid(payload.projectGlobalFirms || []));
+      _insertRows(db, "meetings", withPid(payload.meetings || []));
+      _insertRows(db, "tops", withPid(payload.tops || []));
+      _insertRows(db, "meeting_tops", payload.meetingTops || []);
+      _insertRows(db, "meeting_participants", payload.meetingParticipants || []);
+    });
+
+    tx();
+
+    await fs.promises.mkdir(path.dirname(targetDir), { recursive: true });
+    await fs.promises.cp(projectFolderSource, targetDir, { recursive: true });
+
+    return {
+      ok: true,
+      projectId: project.id,
+      projectNumber,
+      projectShortName,
+    };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  } finally {
+    try {
+      await fs.promises.rm(tempDir, { recursive: true, force: true });
+    } catch (_e) {
+      // ignore cleanup errors
+    }
+  }
+}
+
 function registerProjectTransferIpc() {
   ipcMain.handle("projectTransfer:export", async (_evt, raw) => {
     const projectId = raw?.projectId ?? raw?.project_id ?? raw?.id ?? null;
@@ -250,12 +390,10 @@ function registerProjectTransferIpc() {
       const project = projectsRepo.getById(projectId);
       if (!project) throw new Error("Projekt nicht gefunden.");
 
-      const settings = appSettingsGetMany(["pdf.protocolsDir"]) || {};
-      const baseDir = String(settings["pdf.protocolsDir"] || "").trim() || app.getPath("downloads");
-
+      const exportRoot = _getExportRoot();
+      const baseDir = path.dirname(path.dirname(exportRoot)); // <baseDir>/bbm/export -> <baseDir>
       const storage = buildStoragePreviewPaths({ baseDir, project });
       const projectDir = path.dirname(storage.previewDir); // .../bbm/<Projektordner>
-      const exportRoot = path.join(storage.baseDir, "bbm", "export");
 
       const fileNumber = _sanitizeFilePart(
         project.project_number ?? project.projectNumber ?? project.number ?? project.id
@@ -343,130 +481,70 @@ function registerProjectTransferIpc() {
 
   ipcMain.handle("projectTransfer:import", async (_evt, raw) => {
     const filePath = typeof raw === "string" ? raw : raw?.filePath || raw?.path || null;
-    if (!filePath) return { ok: false, error: "filePath required" };
+    return _importProjectZip(filePath);
+  });
 
-    const absPath = path.resolve(String(filePath));
+  ipcMain.handle("projectTransfer:listExports", async () => {
+    const exportRoot = _getExportRoot();
     try {
-      const stat = await fs.promises.stat(absPath);
-      if (!stat.isFile()) return { ok: false, error: "Datei nicht gefunden." };
+      await fs.promises.mkdir(exportRoot, { recursive: true });
+      const entries = await fs.promises.readdir(exportRoot, { withFileTypes: true });
+      const list = [];
+      for (const ent of entries) {
+        if (!ent.isFile()) continue;
+        if (!String(ent.name || "").toLowerCase().endsWith(".zip")) continue;
+        const fullPath = path.join(exportRoot, ent.name);
+        try {
+          const stat = await fs.promises.stat(fullPath);
+          if (!stat.isFile()) continue;
+          list.push({
+            fileName: ent.name,
+            filePath: fullPath,
+            size: stat.size || 0,
+            mtimeMs: stat.mtimeMs || 0,
+          });
+        } catch (_e) {
+          // ignore unreadable entries
+        }
+      }
+      list.sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0));
+      return { ok: true, exportRoot, list };
     } catch (err) {
-      return { ok: false, error: err?.message || "Datei nicht lesbar." };
+      return { ok: false, error: err?.message || "Export-Ordner konnte nicht gelesen werden." };
     }
+  });
 
-    const basicValidation = await _validateExportZip(absPath);
-    if (!basicValidation.ok) return basicValidation;
 
-    const tempDir = path.join(app.getPath("temp"), `bbm-import-${Date.now()}-${process.pid}`);
+  ipcMain.handle("projectTransfer:openExportFolder", async () => {
+    const exportRoot = _getExportRoot();
     try {
-      await _extractZipToTemp(absPath, tempDir);
-
-      const manifestPath = path.join(tempDir, "manifest.json");
-      const dataDir = path.join(tempDir, "data");
-
-      const manifestRes = await _readJsonSafe(manifestPath, "manifest");
-      if (!manifestRes.ok) return { ok: false, error: manifestRes.error };
-      const manifest = manifestRes.data || {};
-
-      // Neue Exportstruktur: getrennte JSON-Dateien unter data/
-      const payload = {};
-      const projectJson = await _readJsonIfExists(path.join(dataDir, "project.json"), "project.json");
-      if (projectJson.ok && projectJson.data?.project) {
-        payload.project = projectJson.data.project;
-      }
-      const settingsJson = await _readJsonIfExists(path.join(dataDir, "settings.json"), "settings.json");
-      if (settingsJson.ok) payload.projectSettings = settingsJson.data?.projectSettings || [];
-      const meetingsJson = await _readJsonIfExists(path.join(dataDir, "meetings.json"), "meetings.json");
-      if (meetingsJson.ok) payload.meetings = meetingsJson.data?.meetings || [];
-      const topsJson = await _readJsonIfExists(path.join(dataDir, "tops.json"), "tops.json");
-      if (topsJson.ok) payload.tops = topsJson.data?.tops || [];
-      const mtJson = await _readJsonIfExists(path.join(dataDir, "meeting_tops.json"), "meeting_tops.json");
-      if (mtJson.ok) payload.meetingTops = mtJson.data?.meeting_tops || [];
-      const mpJson = await _readJsonIfExists(path.join(dataDir, "meeting_participants.json"), "meeting_participants.json");
-      if (mpJson.ok) payload.meetingParticipants = mpJson.data?.meeting_participants || [];
-      const pfJson = await _readJsonIfExists(path.join(dataDir, "project_firms.json"), "project_firms.json");
-      if (pfJson.ok) payload.projectFirms = pfJson.data?.project_firms || [];
-      const ppJson = await _readJsonIfExists(path.join(dataDir, "project_persons.json"), "project_persons.json");
-      if (ppJson.ok) payload.projectPersons = ppJson.data?.project_persons || [];
-      const pcJson = await _readJsonIfExists(path.join(dataDir, "project_candidates.json"), "project_candidates.json");
-      if (pcJson.ok) payload.projectCandidates = pcJson.data?.project_candidates || [];
-      const pgfJson = await _readJsonIfExists(path.join(dataDir, "project_global_firms.json"), "project_global_firms.json");
-      if (pgfJson.ok) payload.projectGlobalFirms = pgfJson.data?.project_global_firms || [];
-
-      const project = payload.project;
-      if (!project?.id) return { ok: false, error: "Projekt-ID fehlt im Export." };
-
-      const projectNumber = project.project_number ?? project.projectNumber ?? manifest.projectNumber ?? null;
-      const projectShortName = project.short ?? project.projectShortName ?? manifest.projectShortName ?? null;
-
-      const db = initDatabase();
-      if (_rowExists(db, "projects", project.id)) {
-        return { ok: false, error: "Projekt existiert bereits (ID)." };
-      }
-      if (projectNumber) {
-        const dup = db
-          .prepare("SELECT id FROM projects WHERE project_number = ? LIMIT 1")
-          .get(projectNumber);
-        if (dup) return { ok: false, error: "Projekt mit gleicher Projektnummer existiert bereits." };
-      }
-
-      const projectFolderSource = path.join(tempDir, "project-folder");
-      try {
-        const s = await fs.promises.stat(projectFolderSource);
-        if (!s.isDirectory()) throw new Error("project-folder fehlt.");
-      } catch (err) {
-        return { ok: false, error: "project-folder fehlt im Export." };
-      }
-
-      const settings = appSettingsGetMany(["pdf.protocolsDir"]) || {};
-      const baseDir = String(settings["pdf.protocolsDir"] || "").trim() || app.getPath("downloads");
-      const projectFolderName = resolveProjectFolderName({
-        project_number: projectNumber,
-        short: projectShortName,
-        name: project.name,
-      });
-      const targetDir = path.join(baseDir, "bbm", projectFolderName);
-      if (fs.existsSync(targetDir)) {
-        return { ok: false, error: "Projektordner existiert bereits." };
-      }
-
-      const tx = db.transaction(() => {
-        const sanitizedProject = _sanitizeProjectRow(project);
-        if (!sanitizedProject?.id) throw new Error("Projektdaten unvollst�ndig (id fehlt).");
-        _insertRow(db, "projects", sanitizedProject);
-        const pid = sanitizedProject.id;
-        const withPid = (rows = []) => rows.map((r) => ({ ...(r || {}), project_id: pid }));
-
-        _insertRows(db, "project_settings", withPid(payload.projectSettings || []));
-        _insertRows(db, "project_firms", withPid(payload.projectFirms || []));
-        _insertRows(db, "project_persons", payload.projectPersons || []);
-        _insertRows(db, "project_candidates", withPid(payload.projectCandidates || []));
-        _insertRows(db, "project_global_firms", withPid(payload.projectGlobalFirms || []));
-        _insertRows(db, "meetings", withPid(payload.meetings || []));
-        _insertRows(db, "tops", withPid(payload.tops || []));
-        _insertRows(db, "meeting_tops", payload.meetingTops || []);
-        _insertRows(db, "meeting_participants", payload.meetingParticipants || []);
-      });
-
-      tx();
-
-      await fs.promises.mkdir(path.dirname(targetDir), { recursive: true });
-      await fs.promises.cp(projectFolderSource, targetDir, { recursive: true });
-
-      return {
-        ok: true,
-        projectId: project.id,
-        projectNumber,
-        projectShortName,
-      };
+      await fs.promises.mkdir(exportRoot, { recursive: true });
+      const errorText = await shell.openPath(exportRoot);
+      if (errorText) return { ok: false, error: errorText };
+      return { ok: true, exportRoot };
     } catch (err) {
       return { ok: false, error: err?.message || String(err) };
-    } finally {
-      try {
-        await fs.promises.rm(tempDir, { recursive: true, force: true });
-      } catch (_e) {
-        // ignore cleanup errors
-      }
     }
+  });
+
+  ipcMain.handle("projectTransfer:importFromExport", async (_evt, raw) => {
+    const exportRoot = _getExportRoot();
+    const filePath = raw?.filePath || (raw?.fileName ? path.join(exportRoot, raw.fileName) : null);
+    if (!filePath) return { ok: false, error: "filePath required" };
+    if (!_isPathInside(filePath, exportRoot)) {
+      return { ok: false, error: "Dateipfad liegt nicht im Export-Ordner." };
+    }
+
+    const res = await _importProjectZip(filePath);
+    if (!res?.ok) return res;
+
+    try {
+      await fs.promises.rm(filePath, { force: true });
+    } catch (err) {
+      return { ok: false, error: err?.message || "Import ok, aber Exportdatei konnte nicht gel?scht werden." };
+    }
+
+    return { ...res, deleted: true };
   });
 }
 

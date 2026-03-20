@@ -247,4 +247,7 @@ contextBridge.exposeInMainWorld("bbmMail", {
 contextBridge.exposeInMainWorld("bbmProjectTransfer", {
   exportProject: (payload) => ipcRenderer.invoke("projectTransfer:export", payload),
   importProject: (filePath) => ipcRenderer.invoke("projectTransfer:import", filePath),
+  listExports: () => ipcRenderer.invoke("projectTransfer:listExports"),
+  importFromExport: (payload) => ipcRenderer.invoke("projectTransfer:importFromExport", payload),
+  openExportFolder: () => ipcRenderer.invoke("projectTransfer:openExportFolder"),
 });
