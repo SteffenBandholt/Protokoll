@@ -20,8 +20,11 @@ const getProjectSubtitle = (p) => {
 
 const getProjectMeta = (p) => {
   const number = getProjectNumber(p);
-  if (number) return `Nr. ${number}`;
-  return "";
+  const city = pick(p?.city);
+  const parts = [];
+  if (number) parts.push(`Nr. ${number}`);
+  if (city) parts.push(`Ort: ${city}`);
+  return parts.join(" · ");
 };
 
 const getMeetingTitle = (m) => {
@@ -45,6 +48,7 @@ export default function App() {
   const { useEffect, useMemo, useState } = React || {};
   const [view, setView] = useState("projects");
   const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [projectQuery, setProjectQuery] = useState("");
 
   const [projectsState, setProjectsState] = useState(() => ({
     loading: true,
@@ -191,21 +195,6 @@ export default function App() {
     window.__bbmReactBridge.openProjectMeetings(pid);
   };
 
-  const switchToStandard = () => {
-    try {
-      window.localStorage?.setItem?.("bbm.uiMode", "new");
-    } catch (_e) {
-      // ignore
-    }
-    try {
-      window.location.reload();
-    } catch (_e) {
-      // ignore
-    }
-  };
-
-  const badge = React.createElement("span", { className: "react-badge" }, "React Pilot");
-
   const openLegacyMeeting = (m, e) => {
     if (e?.stopPropagation) e.stopPropagation();
     if (!canOpenMeeting) return;
@@ -221,6 +210,36 @@ export default function App() {
     setSelectedProjectId(next);
   };
 
+  const switchToStandard = () => {
+    try {
+      window.localStorage?.setItem?.("bbm.uiMode", "new");
+    } catch (_e) {
+      // ignore
+    }
+    try {
+      window.location.reload();
+    } catch (_e) {
+      // ignore
+    }
+  };
+
+  const badge = React.createElement("span", { className: "react-badge" }, "React Pilot");
+
+  const query = String(projectQuery || "").trim().toLowerCase();
+  const filteredProjects = query
+    ? projects.filter((p) => {
+        const hay = [
+          getProjectNumber(p),
+          pick(p?.short),
+          pick(p?.name),
+          pick(p?.city),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(query);
+      })
+    : projects;
+
   const header = view === "projects"
     ? React.createElement(
         "div",
@@ -232,7 +251,7 @@ export default function App() {
           React.createElement(
             "p",
             { className: "react-subtitle" },
-            "Alle Projekte im Ueberblick. React-Modus (Pilot)."
+            "Uebersicht und Einstieg in alle Projekte."
           )
         ),
         React.createElement(
@@ -312,11 +331,23 @@ export default function App() {
       React.createElement("div", { className: "react-card-meta" }, meta || " "),
       React.createElement("h3", { className: "react-card-title" }, title),
       subtitle
-        ? React.createElement("div", { className: "react-card-meta" }, subtitle)
+        ? React.createElement("div", { className: "react-card-subtitle" }, subtitle)
         : null,
       React.createElement(
         "div",
         { className: "react-card-actions" },
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            className: "react-btn react-btn-primary",
+            onClick: (e) => {
+              if (e?.stopPropagation) e.stopPropagation();
+              openMeetingsForProject(p);
+            },
+          },
+          "Protokolle anzeigen"
+        ),
         React.createElement(
           "button",
           {
@@ -381,17 +412,42 @@ export default function App() {
     ? React.createElement("div", { className: "react-loading" }, "Lade Projekte...")
     : projectsState.error
       ? React.createElement("div", { className: "react-empty" }, projectsState.error)
-      : projects.length
-        ? React.createElement(
+      : React.createElement(
+          "div",
+          { className: "react-projects-root" },
+          React.createElement(
             "div",
-            { className: "react-project-grid" },
-            projects.map(renderProjectCard)
-          )
-        : React.createElement(
-            "div",
-            { className: "react-empty" },
-            "Noch keine Projekte vorhanden."
-          );
+            { className: "react-toolbar" },
+            React.createElement(
+              "div",
+              { className: "react-search" },
+              React.createElement("span", { className: "react-search-label" }, "Suche"),
+              React.createElement("input", {
+                className: "react-search-input",
+                type: "text",
+                placeholder: "Projekt suchen (Nr., Kurz, Name, Ort)",
+                value: projectQuery,
+                onChange: (e) => setProjectQuery(String(e?.target?.value || "")),
+              })
+            ),
+            React.createElement(
+              "div",
+              { className: "react-count" },
+              `${filteredProjects.length} Projekte`
+            )
+          ),
+          filteredProjects.length
+            ? React.createElement(
+                "div",
+                { className: "react-project-grid" },
+                filteredProjects.map(renderProjectCard)
+              )
+            : React.createElement(
+                "div",
+                { className: "react-empty" },
+                "Keine Projekte gefunden."
+              )
+        );
 
   const meetings = meetingsState.meetings || [];
   const meetingsContent = meetingsState.loading
