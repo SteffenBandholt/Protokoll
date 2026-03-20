@@ -134,8 +134,18 @@ body {
   cursor: pointer;
 }
 
+.react-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .react-btn-ghost {
   background: rgba(255, 255, 255, 0.92);
+}
+
+.react-btn-small {
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 .react-project-grid {
@@ -164,6 +174,12 @@ body {
   border-color: #cbd5f5;
   box-shadow: 0 8px 22px rgba(37, 99, 235, 0.12);
   transform: translateY(-1px);
+}
+
+.react-card-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .react-card-title {

@@ -58,6 +58,8 @@ export default function App() {
     meetings: [],
   }));
 
+  const canOpenLegacy = typeof window.__bbmReactBridge?.openProjectMeetings === "function";
+
   useEffect(() => {
     let alive = true;
 
@@ -180,6 +182,14 @@ export default function App() {
     setView("meetings");
   };
 
+  const openLegacyProject = (p, e) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    if (!canOpenLegacy) return;
+    const pid = String(p?.id ?? "").trim();
+    if (!pid) return;
+    window.__bbmReactBridge.openProjectMeetings(pid);
+  };
+
   const handleProjectSelectChange = (e) => {
     const next = String(e?.target?.value || "").trim();
     if (!next) return;
@@ -254,7 +264,24 @@ export default function App() {
       React.createElement("h3", { className: "react-card-title" }, title),
       subtitle
         ? React.createElement("div", { className: "react-card-meta" }, subtitle)
-        : null
+        : null,
+      React.createElement(
+        "div",
+        { className: "react-card-actions" },
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            className: "react-btn react-btn-small",
+            disabled: !canOpenLegacy,
+            onClick: (e) => openLegacyProject(p, e),
+            title: canOpenLegacy
+              ? "Projekt im Standardmodus oeffnen"
+              : "Standardmodus ist nicht verfuegbar",
+          },
+          "Im Standard oeffnen"
+        )
+      )
     );
   };
 

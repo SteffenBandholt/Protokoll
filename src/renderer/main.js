@@ -578,6 +578,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     contentRoot: content,
     onSectionChange: (section) => setActive(section),
   });
+  try {
+    window.__bbmRouter = router;
+    window.__bbmStandardUiBooted = true;
+  } catch (_e) {
+    // ignore
+  }
   router.featureFlags = {
     useNewCompanyWorkflow: readUseNewCompanyWorkflowFlag(),
   };
@@ -913,6 +919,46 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   const initUiReact = async () => {
+    const ensureLegacyUi = () => {
+      try {
+        if (window.__bbmStandardUiBooted && window.__bbmRouter) return true;
+      } catch (_e) {
+        // ignore
+      }
+      initUiNew();
+      return !!window.__bbmRouter;
+    };
+
+    try {
+      window.__bbmReactBridge = {
+        openProjectMeetings: async (projectId) => {
+          try {
+            const pid = String(projectId ?? "").trim();
+            if (!pid) return false;
+            try {
+              const node = document.getElementById("bbm-react-root");
+              if (node && window.ReactDOM?.unmountComponentAtNode) {
+                window.ReactDOM.unmountComponentAtNode(node);
+              }
+            } catch (_e) {
+              // ignore
+            }
+
+            if (!ensureLegacyUi()) return false;
+            const routerRef = window.__bbmRouter;
+            if (!routerRef || typeof routerRef.showMeetings !== "function") return false;
+            await routerRef.showMeetings(pid);
+            return true;
+          } catch (err) {
+            console.error("[ui] React->Router fehlgeschlagen:", err);
+            return false;
+          }
+        },
+      };
+    } catch (_e) {
+      // ignore
+    }
+
     try {
       const mod = await import("./react/main-react.js");
       if (typeof mod?.mountReactApp !== "function") return false;
