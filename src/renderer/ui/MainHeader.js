@@ -112,14 +112,8 @@ export default class MainHeader {
 
   render() {
     const root = document.createElement("div");
-    root.style.boxSizing = "border-box";
-    root.style.width = "100%";
+    root.className = "header-a";
     root.style.padding = `${this.padding}px`;
-    root.style.borderBottom = "1px solid var(--card-border)";
-    root.style.background = "var(--header-bg)";
-    root.style.color = "var(--header-text)";
-    root.style.position = "sticky";
-    root.style.top = "0";
     root.style.zIndex = String(HEADER);
     if (this._isNewUi) {
       root.style.setProperty("--header-action-underline", "2.5px");
@@ -128,22 +122,9 @@ export default class MainHeader {
     }
 
     // fixed-ish layout, PDF-nah
-    root.style.display = "grid";
-    root.style.gridTemplateColumns = "1fr auto 1fr";
-    root.style.gridTemplateRows = "auto auto auto auto";
-    root.style.columnGap = "12px";
-    root.style.rowGap = "6px";
-    root.style.alignItems = "start";
 
     const logoGroup = document.createElement("div");
-    logoGroup.style.gridColumn = "1";
-    logoGroup.style.gridRow = "1";
-    logoGroup.style.alignSelf = "start";
-    logoGroup.style.justifySelf = "start";
-    logoGroup.style.display = "none";
-    logoGroup.style.flexDirection = "column";
-    logoGroup.style.alignItems = "flex-start";
-    logoGroup.style.gap = "4px";
+    logoGroup.className = "header-logo-group";
 
     const logoWrap = document.createElement("div");
     logoWrap.style.display = "inline-flex";
@@ -164,65 +145,28 @@ export default class MainHeader {
     // Center title (row 1, col 2) - only in TopsView
     const elCenterTitle = document.createElement("div");
     elCenterTitle.textContent = "Protokoll";
-    elCenterTitle.style.gridColumn = "2";
-    elCenterTitle.style.gridRow = "1";
-    elCenterTitle.style.textAlign = "center";
-    elCenterTitle.style.whiteSpace = "nowrap";
-    elCenterTitle.style.fontSize = "36px";
-    elCenterTitle.style.lineHeight = "40px";
-    elCenterTitle.style.fontWeight = "600";
-    elCenterTitle.style.userSelect = "none";
+    elCenterTitle.className = "header-center-title";
 
     // Active label (row 2, col 1) bottom-left
     const elActive = document.createElement("div");
-    elActive.style.gridColumn = "1";
-    elActive.style.gridRow = "2";
-    elActive.style.alignSelf = "end";
-    elActive.style.justifySelf = "start";
-    elActive.style.display = "inline-flex";
-    elActive.style.alignItems = "baseline";
-    elActive.style.whiteSpace = "nowrap";
-    elActive.style.overflow = "hidden";
-    elActive.style.textOverflow = "ellipsis";
-    elActive.style.maxWidth = "100%";
+    elActive.className = "header-active-label";
 
     // Right info (row 2, col 3) bottom-right
     const rightInfo = document.createElement("div");
-    rightInfo.style.gridColumn = "3";
-    rightInfo.style.gridRow = "2";
-    rightInfo.style.alignSelf = "end";
-    rightInfo.style.justifySelf = "end";
-    rightInfo.style.display = "flex";
-    rightInfo.style.flexDirection = "column";
-    rightInfo.style.alignItems = "flex-end";
-    rightInfo.style.justifyContent = "flex-end";
-    rightInfo.style.gap = "2px";
-    rightInfo.style.minWidth = "160px";
+    rightInfo.className = "header-right-info";
 
     const elUserName = document.createElement("div");
-    elUserName.style.fontSize = "12px";
-    elUserName.style.opacity = "0.9";
-    elUserName.style.fontWeight = "600";
-    elUserName.style.userSelect = "none";
+    elUserName.className = "header-user-name";
 
     const elUserCompany = document.createElement("div");
-    elUserCompany.style.fontSize = "11px";
-    elUserCompany.style.opacity = "0.7";
-    elUserCompany.style.fontWeight = "400";
-    elUserCompany.style.userSelect = "none";
+    elUserCompany.className = "header-user-company";
 
     rightInfo.append(elUserName, elUserCompany);
 
     logoGroup.append(logoWrap);
 
     const actionWrap = document.createElement("div");
-    actionWrap.style.gridColumn = "3";
-    actionWrap.style.gridRow = "1";
-    actionWrap.style.justifySelf = "end";
-    actionWrap.style.alignSelf = "start";
-    actionWrap.style.display = "inline-flex";
-    actionWrap.style.alignItems = "center";
-    actionWrap.style.gap = "8px";
+    actionWrap.className = "header-actions";
     actionWrap.style.paddingRight = this._isNewUi ? "clamp(8px, 1.6vw, 18px)" : "0px";
 
     // Trial Info (Header) – existiert, aber wird NICHT angezeigt (Fenster-Titel bleibt aktiv)
@@ -241,46 +185,11 @@ export default class MainHeader {
     // DEV Badge (rot oben rechts)
     const devBadge = document.createElement("div");
     devBadge.textContent = "DEV";
-    devBadge.style.position = "absolute";
-    devBadge.style.top = "8px";
-    devBadge.style.right = "10px";
-    devBadge.style.background = "#dc2626";
-    devBadge.style.color = "#fff";
-    devBadge.style.fontSize = "11px";
-    devBadge.style.fontWeight = "800";
-    devBadge.style.padding = "2px 10px";
-    devBadge.style.borderRadius = "999px";
-    devBadge.style.letterSpacing = "0.6px";
-    devBadge.style.display = "none";
-    devBadge.style.userSelect = "none";
-    devBadge.style.pointerEvents = "none";
+    devBadge.className = "header-dev-badge";
 
     const applyActionTextButtonStyle = (btn) => {
       if (!btn) return;
-      btn.style.display = "inline-flex";
-      btn.style.alignItems = "center";
-      btn.style.justifyContent = "center";
-      btn.style.border = "none";
-      btn.style.background = "transparent";
-      btn.style.color = "var(--header-text)";
-      btn.style.padding = "0 2px 2px";
-      btn.style.margin = "0";
-      btn.style.minHeight = "0";
-      btn.style.lineHeight = "1.25";
-      btn.style.fontSize = "13px";
-      btn.style.fontWeight = "700";
-      btn.style.borderRadius = "0";
-      btn.style.borderBottom = "var(--header-action-underline) solid currentColor";
-      btn.style.borderBottomColor = "currentColor";
-      btn.style.cursor = "pointer";
-      btn.style.whiteSpace = "nowrap";
-      btn.onmouseenter = () => {
-        if (btn.disabled) return;
-        btn.style.borderBottomColor = "#ff8c00";
-      };
-      btn.onmouseleave = () => {
-        btn.style.borderBottomColor = "currentColor";
-      };
+      btn.classList.add("header-action-btn");
     };
 
     const runProjectAction = async (fn) => {
@@ -301,18 +210,11 @@ export default class MainHeader {
     setupBtn.style.minHeight = "30px";
 
     const setupMenu = document.createElement("div");
+    setupMenu.className = "header-menu";
     setupMenu.style.position = "absolute";
     setupMenu.style.top = "calc(100% + 4px)";
     setupMenu.style.right = "0";
     setupMenu.style.minWidth = "190px";
-    setupMenu.style.display = "none";
-    setupMenu.style.flexDirection = "column";
-    setupMenu.style.gap = "0";
-    setupMenu.style.padding = "4px";
-    setupMenu.style.border = "1px solid var(--card-border)";
-    setupMenu.style.borderRadius = "8px";
-    setupMenu.style.background = "var(--card-bg)";
-    setupMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
     setupMenu.style.zIndex = String(POPOVER_MENU);
 
     const runSetupAction = async (fn) => {
@@ -327,22 +229,7 @@ export default class MainHeader {
       const item = document.createElement("button");
       item.type = "button";
       item.textContent = label;
-      item.style.display = "block";
-      item.style.width = "100%";
-      item.style.textAlign = "left";
-      item.style.border = "none";
-      item.style.background = "transparent";
-      item.style.color = "var(--text-main)";
-      item.style.padding = "8px 10px";
-      item.style.borderRadius = "6px";
-      item.style.minHeight = "30px";
-      item.style.cursor = "pointer";
-      item.onmouseenter = () => {
-        item.style.background = "var(--btn-outline-hover-bg)";
-      };
-      item.onmouseleave = () => {
-        item.style.background = "transparent";
-      };
+      item.className = "header-menu-item";
       item.onclick = async () => {
         try {
           await runSetupAction(onPick);
@@ -409,42 +296,18 @@ export default class MainHeader {
     applyActionTextButtonStyle(printBtn);
 
     const printMenu = document.createElement("div");
+    printMenu.className = "header-menu";
     printMenu.style.position = "absolute";
     printMenu.style.top = "calc(100% + 4px)";
     printMenu.style.right = "0";
     printMenu.style.minWidth = "236px";
-    printMenu.style.display = "none";
-    printMenu.style.flexDirection = "column";
-    printMenu.style.gap = "0";
-    printMenu.style.padding = "4px";
-    printMenu.style.border = "1px solid var(--card-border)";
-    printMenu.style.borderRadius = "8px";
-    printMenu.style.background = "var(--card-bg)";
-    printMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
     printMenu.style.zIndex = String(POPOVER_MENU);
 
     const mkPrintItem = (label, onPick) => {
       const item = document.createElement("button");
       item.type = "button";
       item.textContent = label;
-      item.style.display = "block";
-      item.style.width = "100%";
-      item.style.textAlign = "left";
-      item.style.border = "none";
-      item.style.background = "transparent";
-      item.style.color = "var(--text-main)";
-      item.style.padding = "8px 10px";
-      item.style.borderRadius = "6px";
-      item.style.minHeight = "30px";
-      item.style.cursor = "pointer";
-      item.onmouseenter = () => {
-        if (item.disabled) return;
-        item.style.background = "var(--btn-outline-hover-bg)";
-      };
-      item.onmouseleave = () => {
-        if (item.disabled) return;
-        item.style.background = "transparent";
-      };
+      item.className = "header-menu-item";
       item.onclick = async (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -470,24 +333,7 @@ export default class MainHeader {
       const trigger = document.createElement("button");
       trigger.type = "button";
       trigger.textContent = label;
-      trigger.style.display = "block";
-      trigger.style.width = "100%";
-      trigger.style.textAlign = "left";
-      trigger.style.border = "none";
-      trigger.style.background = "transparent";
-      trigger.style.color = "var(--text-main)";
-      trigger.style.padding = "8px 10px";
-      trigger.style.borderRadius = "6px";
-      trigger.style.minHeight = "30px";
-      trigger.style.cursor = "pointer";
-      trigger.onmouseenter = () => {
-        if (trigger.disabled) return;
-        trigger.style.background = "var(--btn-outline-hover-bg)";
-      };
-      trigger.onmouseleave = () => {
-        if (trigger.disabled) return;
-        trigger.style.background = "transparent";
-      };
+      trigger.className = "header-menu-item";
       trigger.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -496,18 +342,11 @@ export default class MainHeader {
       };
 
       const submenu = document.createElement("div");
+      submenu.className = "header-menu";
       submenu.style.position = "absolute";
       submenu.style.top = "0";
       submenu.style.left = "calc(100% + 4px)";
       submenu.style.minWidth = "210px";
-      submenu.style.display = "none";
-      submenu.style.flexDirection = "column";
-      submenu.style.gap = "0";
-      submenu.style.padding = "4px";
-      submenu.style.border = "1px solid var(--card-border)";
-      submenu.style.borderRadius = "8px";
-      submenu.style.background = "var(--card-bg)";
-      submenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
       submenu.style.zIndex = String(POPOVER_MENU);
 
       wrap.addEventListener("pointerenter", () => {
@@ -564,42 +403,18 @@ export default class MainHeader {
     mailBtn.style.opacity = "0.6";
 
     const mailMenu = document.createElement("div");
+    mailMenu.className = "header-menu";
     mailMenu.style.position = "absolute";
     mailMenu.style.top = "calc(100% + 4px)";
     mailMenu.style.right = "0";
     mailMenu.style.minWidth = "240px";
-    mailMenu.style.display = "none";
-    mailMenu.style.flexDirection = "column";
-    mailMenu.style.gap = "0";
-    mailMenu.style.padding = "4px";
-    mailMenu.style.border = "1px solid var(--card-border)";
-    mailMenu.style.borderRadius = "8px";
-    mailMenu.style.background = "var(--card-bg)";
-    mailMenu.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
     mailMenu.style.zIndex = String(POPOVER_MENU);
 
     const mkMailItem = (label, onPick) => {
       const item = document.createElement("button");
       item.type = "button";
       item.textContent = label;
-      item.style.display = "block";
-      item.style.width = "100%";
-      item.style.textAlign = "left";
-      item.style.border = "none";
-      item.style.background = "transparent";
-      item.style.color = "var(--text-main)";
-      item.style.padding = "8px 10px";
-      item.style.borderRadius = "6px";
-      item.style.minHeight = "30px";
-      item.style.cursor = "pointer";
-      item.onmouseenter = () => {
-        if (item.disabled) return;
-        item.style.background = "var(--btn-outline-hover-bg)";
-      };
-      item.onmouseleave = () => {
-        if (item.disabled) return;
-        item.style.background = "transparent";
-      };
+      item.className = "header-menu-item";
       item.onclick = async (e) => {
         e.preventDefault();
         e.stopPropagation();

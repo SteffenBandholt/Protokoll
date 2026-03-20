@@ -509,19 +509,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const sidebar = document.createElement("div");
   sidebar.setAttribute("data-bbm-sidebar", "true");
+  sidebar.className = "sidebar-a";
   sidebar.style.width = `${SIDEBAR_WIDTH}px`;
   sidebar.style.minWidth = `${SIDEBAR_WIDTH}px`;
   sidebar.style.maxWidth = `${SIDEBAR_WIDTH}px`;
   sidebar.style.flex = `0 0 ${SIDEBAR_WIDTH}px`;
-  sidebar.style.borderRight = "1px solid #1e293b";
   sidebar.style.padding = `${PAD}px`;
   sidebar.style.boxSizing = "border-box";
   sidebar.style.display = "flex";
   sidebar.style.flexDirection = "column";
   sidebar.style.overflowY = "auto";
   sidebar.style.overflowX = "visible";
-  sidebar.style.background = "var(--sidebar-bg)";
-  sidebar.style.color = "var(--sidebar-text)";
 
   const content = document.createElement("div");
   content.style.flex = "1";
@@ -534,21 +532,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   bodyRow.append(sidebar, content);
 
   const topBox = document.createElement("div");
-  topBox.style.width = "100%";
-  topBox.style.boxSizing = "border-box";
-  topBox.style.padding = "0";
-  topBox.style.display = "flex";
-  topBox.style.flexDirection = "column";
-  topBox.style.gap = "8px";
+  topBox.className = "sidebar-section-a";
 
   const bottomBox = document.createElement("div");
-  bottomBox.style.width = "100%";
-  bottomBox.style.boxSizing = "border-box";
-  bottomBox.style.padding = "0";
-  bottomBox.style.marginTop = "auto";
-  bottomBox.style.display = "flex";
-  bottomBox.style.flexDirection = "column";
-  bottomBox.style.gap = "8px";
+  bottomBox.className = "sidebar-section-a is-bottom";
 
   sidebar.append(topBox, bottomBox);
 
@@ -558,13 +545,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     for (const [k, btn] of buttonsByKey.entries()) {
       const active = k === key;
       btn.dataset.active = active ? "true" : "false";
-      btn.style.background = active ? "var(--sidebar-active-bg)" : "transparent";
-      btn.style.border = active
-        ? "1px solid var(--sidebar-active-bg)"
-        : "1px solid rgba(226, 232, 240, 0.28)";
-      btn.style.boxShadow = "none";
-      btn.style.color = "var(--sidebar-text)";
-      btn.style.fontWeight = active ? "700" : "400";
     }
   };
 
@@ -696,28 +676,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
-    b.style.display = "flex";
-    b.style.alignItems = "center";
-    b.style.width = "100%";
-    b.style.boxSizing = "border-box";
-    b.style.padding = "10px 10px";
-    b.style.borderRadius = "8px";
-    b.style.cursor = "pointer";
-    b.style.background = "transparent";
-    b.style.border = "1px solid rgba(226, 232, 240, 0.28)";
-    b.style.boxShadow = "none";
-    b.style.appearance = "none";
-    b.style.color = "var(--sidebar-text)";
-    b.style.textAlign = "left";
-    b.style.transition = "background 120ms ease, border-color 120ms ease";
-    b.onmouseenter = () => {
-      if (b.disabled || b.dataset.active === "true") return;
-      b.style.background = "var(--sidebar-hover-bg)";
-    };
-    b.onmouseleave = () => {
-      if (b.disabled || b.dataset.active === "true") return;
-      b.style.background = "transparent";
-    };
+    b.className = "nav-item-a";
+    b.dataset.active = "false";
     b.onclick = runNavSafe(onClick);
 
     buttonsByKey.set(key, b);
@@ -728,28 +688,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const b = document.createElement("button");
     b.type = "button";
     b.textContent = label;
-    b.style.display = "flex";
-    b.style.alignItems = "center";
-    b.style.width = "100%";
-    b.style.boxSizing = "border-box";
-    b.style.padding = "10px 10px";
-    b.style.borderRadius = "8px";
-    b.style.cursor = "pointer";
-    b.style.background = "transparent";
-    b.style.border = "1px solid rgba(226, 232, 240, 0.28)";
-    b.style.boxShadow = "none";
-    b.style.appearance = "none";
-    b.style.color = "var(--sidebar-text)";
-    b.style.textAlign = "left";
-    b.style.transition = "background 120ms ease, border-color 120ms ease";
-    b.onmouseenter = () => {
-      if (b.disabled) return;
-      b.style.background = "var(--sidebar-hover-bg)";
-    };
-    b.onmouseleave = () => {
-      if (b.disabled) return;
-      b.style.background = "transparent";
-    };
+    b.className = "nav-item-a";
     b.onclick = runNavSafe(onClick);
     return b;
   };
@@ -758,8 +697,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!btn) return;
     const isEnabled = !!enabled;
     btn.disabled = !isEnabled;
-    btn.style.opacity = isEnabled ? "1" : "0.55";
-    btn.style.cursor = isEnabled ? "pointer" : "not-allowed";
     btn.title = isEnabled ? "" : (titleWhenDisabled || "");
   };
 
@@ -836,14 +773,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnQuit = document.createElement("button");
   btnQuit.textContent = "Beenden";
   btnQuit.dataset.variant = "danger";
-  btnQuit.style.width = "100%";
-  btnQuit.style.padding = "10px 10px";
-  btnQuit.style.borderRadius = "8px";
-  btnQuit.style.cursor = "pointer";
-  btnQuit.style.border = "1px solid #b71c1c";
-  btnQuit.style.background = "#c62828";
-  btnQuit.style.color = "white";
-  btnQuit.style.fontWeight = "700";
+  btnQuit.className = "nav-item-a";
 
   btnQuit.onclick = async () => {
     try {

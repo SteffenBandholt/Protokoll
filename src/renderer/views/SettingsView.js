@@ -721,6 +721,7 @@ export default class SettingsView {
 
   render() {
     const root = document.createElement("div");
+    root.className = "page-stack";
     root.addEventListener("keydown", (e) => {
       if (e.key !== "Enter" && e.key !== "Escape") return;
 
@@ -750,14 +751,14 @@ export default class SettingsView {
     });
 
     const head = document.createElement("div");
-    head.style.display = "flex";
-    head.style.alignItems = "center";
-    head.style.gap = "10px";
-    head.style.marginBottom = "10px";
+    head.className = "page-header-a";
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "page-title-wrap";
 
     const title = document.createElement("h2");
     title.textContent = "Einstellungen";
-    title.style.margin = "0";
+    title.className = "page-title";
 
     const hasActiveProject = !!this.router?.currentProjectId;
     let btnBackToProject = null;
@@ -765,7 +766,7 @@ export default class SettingsView {
       btnBackToProject = document.createElement("button");
       btnBackToProject.type = "button";
       btnBackToProject.textContent = "Zurück zum Protokoll";
-      applyPopupButtonStyle(btnBackToProject, { variant: "neutral" });
+      btnBackToProject.className = "btn";
       btnBackToProject.onclick = async () => {
         const projectId = this.router?.currentProjectId || null;
         const meetingId = this.router?.currentMeetingId || null;
@@ -781,49 +782,32 @@ export default class SettingsView {
     }
 
     const msg = document.createElement("div");
-    msg.style.marginLeft = "auto";
-    msg.style.fontSize = "12px";
-    msg.style.opacity = "0.85";
+    msg.className = "settings-header-meta";
 
-    if (btnBackToProject) head.append(title, btnBackToProject, msg);
-    else head.append(title, msg);
+    const headActions = document.createElement("div");
+    headActions.className = "settings-header-actions";
+    if (btnBackToProject) headActions.append(btnBackToProject);
+    headActions.append(msg);
+
+    titleWrap.append(title);
+    head.append(titleWrap, headActions);
 
     const tiles = document.createElement("div");
-    tiles.style.display = "grid";
-    tiles.style.gridTemplateColumns = "repeat(auto-fill, minmax(220px, 1fr))";
-    tiles.style.gap = "10px";
-    tiles.style.marginBottom = "12px";
-    tiles.style.maxWidth = "720px";
+    tiles.className = "project-grid-a settings-tiles";
 
     const mkTile = ({ titleText, subText, onClick }) => {
       const t = document.createElement("div");
-      t.style.border = "1px solid #ddd";
-      t.style.borderRadius = "10px";
-      t.style.background = "#fff";
-      t.style.padding = "12px";
-      t.style.cursor = "pointer";
-      t.style.userSelect = "none";
+      t.className = "card settings-tile";
 
       const tt = document.createElement("div");
       tt.textContent = titleText;
-      tt.style.fontWeight = "900";
-      tt.style.fontSize = "16px";
-      tt.style.marginBottom = "6px";
+      tt.className = "settings-tile-title";
 
       const st = document.createElement("div");
       st.textContent = subText || "";
-      st.style.opacity = "0.8";
-      st.style.fontSize = "12px";
+      st.className = "settings-tile-subtitle";
 
       t.append(tt, st);
-
-      t.onmouseenter = () => {
-        if (this.saving) return;
-        t.style.borderColor = "#7aa7ff";
-      };
-      t.onmouseleave = () => {
-        t.style.borderColor = "#ddd";
-      };
 
       t.addEventListener("click", async () => {
         if (this.saving) return;
@@ -856,12 +840,7 @@ export default class SettingsView {
     tiles.append(tileArchive);
 
     const creditLine = document.createElement("div");
-    creditLine.style.marginTop = "4px";
-    creditLine.style.fontSize = "12px";
-    creditLine.style.opacity = "0.75";
-    creditLine.style.maxWidth = "720px";
-    creditLine.style.textAlign = "left";
-    creditLine.style.justifySelf = "start";
+    creditLine.className = "settings-credit-line";
     creditLine.textContent = "Entwickelt von Steffen Bandholt - ";
     const creditMail = document.createElement("a");
     creditMail.href = "mailto:info@bandholt.de";
@@ -871,13 +850,10 @@ export default class SettingsView {
 
     const mkRow = (labelContent, inputEl) => {
       const row = document.createElement("div");
-      row.style.display = "grid";
-      row.style.gridTemplateColumns = "160px 1fr";
-      row.style.gap = "10px";
-      row.style.alignItems = "center";
-      row.style.marginBottom = "8px";
+      row.className = "settings-form-row";
 
       const lbl = document.createElement("div");
+      lbl.className = "settings-form-label";
       if (labelContent instanceof Node) {
         lbl.appendChild(labelContent);
       } else {
@@ -890,31 +866,22 @@ export default class SettingsView {
 
     const mkSectionTile = (titleText) => {
       const tile = document.createElement("div");
-      tile.style.border = "1px solid #ddd";
-      tile.style.borderRadius = "10px";
-      tile.style.background = "#fff";
-      tile.style.padding = "12px";
+      tile.className = "card settings-section-card";
 
       const titleEl = document.createElement("div");
       titleEl.textContent = titleText;
-      titleEl.style.fontWeight = "900";
-      titleEl.style.fontSize = "16px";
-      titleEl.style.marginBottom = "10px";
+      titleEl.className = "settings-section-title";
 
       const body = document.createElement("div");
-      body.style.display = "grid";
-      body.style.gap = "10px";
+      body.className = "settings-section-body";
 
       tile.append(titleEl, body);
       return { tile, body };
     };
 
     const userBox = document.createElement("div");
+    userBox.className = "card settings-user-card";
     applyPopupCardStyle(userBox);
-    userBox.style.padding = "10px";
-    userBox.style.maxWidth = "360px";
-    userBox.style.width = "100%";
-    userBox.style.marginTop = "0";
     const userTitle = document.createElement("div");
     userTitle.textContent = "Nutzerdaten";
     userTitle.style.fontWeight = "bold";

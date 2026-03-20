@@ -1,5 +1,7 @@
 // src/renderer/app/Router.js
 
+import ProjectsPageA from "../ui/pages/ProjectsPageA.js";
+
 export default class Router {
   constructor({ contentRoot, onSectionChange } = {}) {
     this.contentRoot = contentRoot;
@@ -422,10 +424,11 @@ export default class Router {
   }
 
   async showProjects() {
-    const mod = await import("../views/ProjectsView.js");
-    const V = mod.default;
     this.currentMeetingId = null;
-    await this.show(new V({ router: this }), { section: "projects", isTopsView: false });
+    await this.show(new ProjectsPageA({ router: this }), {
+      section: "projects",
+      isTopsView: false,
+    });
   }
 
   async showFirmsPool(projectId) {

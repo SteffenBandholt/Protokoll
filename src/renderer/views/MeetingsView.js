@@ -1,4 +1,4 @@
-// src/renderer/views/MeetingsView.js
+﻿// src/renderer/views/MeetingsView.js
 
 export default class MeetingsView {
   constructor({ router, projectId, printSelectionMode = false, printKind = null }) {
@@ -213,16 +213,18 @@ export default class MeetingsView {
 
   render() {
     const root = document.createElement("div");
+    root.className = "page-stack";
 
     // ===== Header =====
     const head = document.createElement("div");
-    head.style.display = "flex";
-    head.style.gap = "8px";
-    head.style.alignItems = "center";
-    head.style.marginBottom = "10px";
+    head.className = "page-header-a";
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "page-title-wrap";
 
     const btnBackToTops = document.createElement("button");
     btnBackToTops.textContent = this.printSelectionMode ? "Abbrechen" : "zum Protokoll:";
+    btnBackToTops.className = "btn";
     btnBackToTops.onclick = () => {
       if (this.printSelectionMode) {
         if (typeof this.router?.cancelPrintSelection === "function") {
@@ -239,25 +241,31 @@ export default class MeetingsView {
       this.router.showProjects();
     };
 
-    const h = document.createElement("h2");
-    h.textContent = `#${this.projectId}`;
-    h.style.margin = "0";
+    const title = document.createElement("div");
+    title.className = "page-title";
+    title.textContent = "Protokolle";
 
-    head.append(btnBackToTops, h);
+    const subtitle = document.createElement("div");
+    subtitle.className = "page-subtitle";
+    subtitle.textContent = `#${this.projectId}`;
+
+    titleWrap.append(title, subtitle);
+
+    const headActions = document.createElement("div");
+    headActions.className = "meetings-header-actions";
+    headActions.append(btnBackToTops);
+
+    head.append(titleWrap, headActions);
 
     // ===== Suche/Filter =====
     const searchRow = document.createElement("div");
-    searchRow.style.display = "flex";
-    searchRow.style.gap = "8px";
-    searchRow.style.alignItems = "center";
-    searchRow.style.margin = "10px 0";
+    searchRow.className = "meetings-search-row";
 
     const searchInput = document.createElement("input");
     searchInput.type = "text";
-    searchInput.placeholder = "Schlagwort suchen…";
+    searchInput.placeholder = "Schlagwort suchen...";
     searchInput.maxLength = 50;
-    searchInput.style.minWidth = "320px";
-    searchInput.style.flex = "0 1 360px";
+    searchInput.className = "meetings-search-input";
     searchInput.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
@@ -272,6 +280,7 @@ export default class MeetingsView {
 
     const btnSearch = document.createElement("button");
     btnSearch.textContent = "Suchen";
+    btnSearch.className = "btn";
     btnSearch.onclick = () => {
       const raw = (searchInput.value || "").slice(0, 50);
       searchInput.value = raw;
@@ -283,6 +292,7 @@ export default class MeetingsView {
 
     const btnFilterToggle = document.createElement("button");
     btnFilterToggle.textContent = "Filter an";
+    btnFilterToggle.className = "btn";
     btnFilterToggle.onclick = () => {
       this.filterEnabled = !this.filterEnabled;
       if (this.filterEnabled) {
@@ -298,36 +308,27 @@ export default class MeetingsView {
     };
 
     const searchActions = document.createElement("div");
-    searchActions.style.display = "flex";
-    searchActions.style.gap = "8px";
+    searchActions.className = "meetings-search-actions";
     searchActions.append(btnSearch, btnFilterToggle);
 
-    searchRow.style.flexWrap = "wrap";
-    searchRow.style.justifyContent = "flex-start";
     searchRow.append(searchInput, searchActions);
 
     // ===== Liste =====
     const list = document.createElement("ul");
-    list.style.paddingLeft = "0";
+    list.className = "meetings-list";
 
     const selectionHint = document.createElement("div");
     selectionHint.style.display = this.printSelectionMode ? "block" : "none";
-    selectionHint.style.margin = "0 0 10px 0";
-    selectionHint.style.padding = "8px 10px";
-    selectionHint.style.border = "1px solid #b6d4ff";
-    selectionHint.style.borderRadius = "8px";
-    selectionHint.style.background = "#eef7ff";
-    selectionHint.style.color = "#0b4db4";
-    selectionHint.style.fontSize = "13px";
+    selectionHint.className = "meetings-selection-hint";
     selectionHint.textContent = this.printSelectionMode
-      ? `Geschlossene Besprechung ausw\u00e4hlen (${this._printKindLabel()})`
+      ? `Geschlossene Besprechung auswählen (${this._printKindLabel()})`
       : "";
 
     root.append(head, selectionHint, searchRow, list);
 
     this.root = root;
     this.listEl = list;
-    this.projectTitleEl = h;
+    this.projectTitleEl = subtitle;
     this.btnBackToTops = btnBackToTops;
     this.selectionHintEl = selectionHint;
     this.searchInput = searchInput;
@@ -452,7 +453,7 @@ export default class MeetingsView {
 
     const mid = this.selectedMeetingId || null;
     if (!mid) {
-      alert("Bitte ein Protokoll ausw\u00E4hlen.");
+      alert("Bitte ein Protokoll auswählen.");
       return;
     }
 
@@ -470,7 +471,7 @@ export default class MeetingsView {
   async _openPdfPreviewForMeeting(meetingId) {
     const mid = meetingId || null;
     if (!mid) {
-      alert("Bitte ein Protokoll ausw\u00E4hlen.");
+      alert("Bitte ein Protokoll auswählen.");
       return false;
     }
 
@@ -489,7 +490,7 @@ export default class MeetingsView {
         });
         return true;
       }
-      alert("PrintModal unterst\u00FCtzt keinen Vorabzug (openPrintVorabzug fehlt).");
+      alert("PrintModal unterstützt keinen Vorabzug (openPrintVorabzug fehlt).");
       return false;
     }
 
@@ -507,14 +508,14 @@ export default class MeetingsView {
       return true;
     }
 
-    alert("PrintModal unterst\u00FCtzt keine Protokoll-Vorschau (openMeetingPrintPreview fehlt).");
+    alert("PrintModal unterstützt keine Protokoll-Vorschau (openMeetingPrintPreview fehlt).");
     return false;
   }
 
   async printSelectedProtocolPreviewFromHeader() {
     const mid = this.selectedMeetingId || null;
     if (!mid) {
-      alert("Bitte ein Protokoll ausw\u00E4hlen.");
+      alert("Bitte ein Protokoll auswählen.");
       return { handled: true, ok: false };
     }
     if (this._printBusy) {
@@ -578,11 +579,7 @@ export default class MeetingsView {
 
     if (!visible.length) {
       const empty = document.createElement("li");
-      empty.style.listStyle = "none";
-      empty.style.padding = "8px 8px";
-      empty.style.margin = "4px 0";
-      empty.style.color = "var(--text-muted, #666)";
-      empty.style.cursor = "default";
+      empty.className = "meetings-empty";
       empty.textContent = this.filterEnabled && this.searchText
         ? "Keine Treffer in Protokollen."
         : "Keine Protokolle vorhanden.";
@@ -592,14 +589,7 @@ export default class MeetingsView {
 
     for (const m of visible) {
       const li = document.createElement("li");
-      li.style.listStyle = "none";
-      li.style.padding = "6px 8px";
-      li.style.margin = "4px 0";
-      li.style.borderRadius = "6px";
-      li.style.background = "#f3f3f3";
-      li.style.border = "1px solid transparent";
-      li.style.fontWeight = "normal";
-      li.style.cursor = "pointer";
+      li.className = "meetings-item";
 
       const closed = Number(m.is_closed) === 1;
       const selectableInPrintMode = !this.printSelectionMode || closed;
@@ -609,33 +599,19 @@ export default class MeetingsView {
       const titleLine = document.createElement("div");
       titleLine.textContent = `${displayTitle}${closed ? " (geschlossen)" : ""}`;
       li.appendChild(titleLine);
-      if (closed) li.style.opacity = "0.75";
-      if (this.printSelectionMode && !closed) li.style.opacity = "0.45";
+
+      if (closed) li.classList.add("is-closed");
+      if (this.printSelectionMode && !closed) li.classList.add("is-disabled");
       const isSelected = !this.printSelectionMode && this.selectedMeetingId && m.id === this.selectedMeetingId;
-      const baseBg = isOpen ? "#ffffff" : "#f3f3f3";
-      li.style.background = isSelected ? "#eaf3ff" : baseBg;
-      li.style.cursor = selectableInPrintMode ? "pointer" : "not-allowed";
 
       if (isSelected) {
-        li.style.border = "1px solid #b6d4ff";
+        li.classList.add("is-selected");
       }
       if (isOpen) {
-        li.style.border = "1px solid #f39c12";
+        li.classList.add("is-open");
       }
 
       li.tabIndex = selectableInPrintMode ? 0 : -1;
-      li.addEventListener("mouseenter", () => {
-        if (!selectableInPrintMode) return;
-        if (isSelected) return;
-        li.style.background = "#eaf3ff";
-        if (!isOpen) li.style.border = "1px solid #b6d4ff";
-      });
-      li.addEventListener("mouseleave", () => {
-        if (!selectableInPrintMode) return;
-        if (isSelected) return;
-        li.style.background = baseBg;
-        li.style.border = isOpen ? "1px solid #f39c12" : "1px solid transparent";
-      });
       li.addEventListener("click", () => {
         if (this.printSelectionMode) {
           if (!closed) return;

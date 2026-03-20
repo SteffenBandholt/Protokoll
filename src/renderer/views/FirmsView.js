@@ -168,57 +168,47 @@ export default class FirmsView {
   // ------------------------------------------------------------
   render() {
     const root = document.createElement("div");
+    root.className = "page-stack";
 
     const head = document.createElement("div");
-    head.style.display = "flex";
-    head.style.alignItems = "center";
-    head.style.gap = "10px";
-    head.style.marginBottom = "10px";
+    head.className = "page-header-a";
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "page-title-wrap";
 
     const title = document.createElement("h2");
     title.textContent = "Firmen";
-    title.style.margin = "0";
+    title.className = "page-title";
 
     const msg = document.createElement("div");
-    msg.style.marginLeft = "auto";
-    msg.style.fontSize = "12px";
-    msg.style.opacity = "0.85";
+    msg.className = "firms-header-meta";
 
-    head.append(title, msg);
+    titleWrap.append(title);
+    head.append(titleWrap, msg);
 
     const buttonBar = document.createElement("div");
-    buttonBar.style.display = "flex";
-    buttonBar.style.alignItems = "center";
-    buttonBar.style.gap = "8px";
-    buttonBar.style.flexWrap = "wrap";
+    buttonBar.className = "firms-button-bar";
 
     // ---- Firms list ----
     const listWrap = document.createElement("div");
-    listWrap.style.border = "1px solid #ddd";
-    listWrap.style.borderRadius = "8px";
-    listWrap.style.padding = "10px";
-    listWrap.style.background = "#fafafa";
-    listWrap.style.display = "flex";
-    listWrap.style.flexDirection = "column";
-    listWrap.style.overflow = "hidden";
-    listWrap.style.maxHeight = "calc(100vh - 220px)";
+    listWrap.className = "card firms-list-card";
     const listHead = document.createElement("div");
-    listHead.style.display = "flex";
-    listHead.style.alignItems = "center";
-    listHead.style.marginBottom = "8px";
+    listHead.className = "firms-list-head";
     const listTitle = document.createElement("div");
     listTitle.textContent = "Firmenliste";
-    listTitle.style.fontWeight = "600";
+    listTitle.className = "firms-list-title";
     listHead.append(listTitle);
 
     const btnNewFirm = document.createElement("button");
     btnNewFirm.textContent = "Neue Firma";
+    btnNewFirm.className = "btn btn-primary";
     btnNewFirm.onclick = async () => {
       await this._openFirmEditor({ mode: "create" });
     };
 
     const btnImportCsv = document.createElement("button");
     btnImportCsv.textContent = "Import (CSV)";
+    btnImportCsv.className = "btn";
     btnImportCsv.onclick = async () => {
       if (this.savingFirm || this.savingPerson) return;
       this._openImportModal();
@@ -226,6 +216,7 @@ export default class FirmsView {
 
     const btnImportPersonsCsv = document.createElement("button");
     btnImportPersonsCsv.textContent = "Import Kontakt (CSV)";
+    btnImportPersonsCsv.className = "btn";
     btnImportPersonsCsv.onclick = async () => {
       if (this.savingFirm || this.savingPerson) return;
       this._openPersonImportModal();
@@ -234,8 +225,7 @@ export default class FirmsView {
     buttonBar.append(btnNewFirm, btnImportCsv);
 
     const firmsTable = document.createElement("table");
-    firmsTable.style.width = "100%";
-    firmsTable.style.borderCollapse = "collapse";
+    firmsTable.className = "firms-table";
 
     const thead = document.createElement("thead");
     thead.innerHTML = `
@@ -248,57 +238,28 @@ export default class FirmsView {
     const tbody = document.createElement("tbody");
     firmsTable.append(thead, tbody);
     const tableContainer = document.createElement("div");
-    tableContainer.style.flex = "1";
-    tableContainer.style.minHeight = "0";
-    tableContainer.style.overflowY = "auto";
+    tableContainer.className = "firms-table-container";
     tableContainer.appendChild(firmsTable);
     listWrap.append(listHead, tableContainer);
 
     const listColumn = document.createElement("div");
-    listColumn.style.flex = "1 1 0";
-    listColumn.style.minWidth = "0";
-    listColumn.style.minHeight = "0";
-    listColumn.style.display = "flex";
-    listColumn.style.flexDirection = "column";
+    listColumn.className = "firms-column";
     listColumn.append(listWrap);
 
     const detailColumn = document.createElement("div");
-    detailColumn.style.flex = "1 1 0";
-    detailColumn.style.minWidth = "0";
-    detailColumn.style.minHeight = "0";
-    detailColumn.style.display = "flex";
-    detailColumn.style.flexDirection = "column";
-    detailColumn.style.gap = "12px";
+    detailColumn.className = "firms-column firms-column-detail";
 
     const detailCard = document.createElement("div");
-    detailCard.style.border = "1px solid #ddd";
-    detailCard.style.borderRadius = "12px";
-    detailCard.style.background = "#fff";
-    detailCard.style.padding = "16px";
-    detailCard.style.boxShadow = "0 3px 12px rgba(0,0,0,0.08)";
-    detailCard.style.display = "flex";
-    detailCard.style.flexDirection = "column";
-    detailCard.style.gap = "6px";
-    detailCard.style.maxHeight = "220px";
-    detailCard.style.minHeight = "180px";
-    detailCard.style.overflow = "hidden";
+    detailCard.className = "card firms-detail-card";
 
     let personsWrap = null;
 
     const detailTitle = document.createElement("div");
     detailTitle.textContent = "Ausgewählte Firma";
-    detailTitle.style.fontWeight = "700";
-    detailTitle.style.fontSize = "16px";
+    detailTitle.className = "firms-detail-title";
 
     const detailBody = document.createElement("div");
-    detailBody.style.flex = "1";
-    detailBody.style.display = "flex";
-    detailBody.style.flexDirection = "column";
-    detailBody.style.gap = "6px";
-    detailBody.style.fontSize = "14px";
-    detailBody.style.color = "#1a1a1a";
-    detailBody.style.opacity = "0.9";
-    detailBody.style.overflow = "hidden";
+    detailBody.className = "firms-detail-body";
 
     const detailPlaceholder = document.createElement("div");
     detailPlaceholder.textContent =
@@ -307,30 +268,17 @@ export default class FirmsView {
     detailCard.append(detailTitle, detailBody);
 
     const personsContainer = document.createElement("div");
-    personsContainer.style.display = "flex";
-    personsContainer.style.flexDirection = "column";
-    personsContainer.style.flex = "1";
-    personsContainer.style.gap = "10px";
-    personsContainer.style.overflow = "hidden";
+    personsContainer.className = "firms-persons-container";
 
     detailColumn.append(detailCard, personsContainer);
 
     const main = document.createElement("div");
-    main.style.display = "flex";
-    main.style.flex = "1";
-    main.style.gap = "18px";
-    main.style.minHeight = "0";
-    main.style.alignItems = "stretch";
+    main.className = "firms-main";
     main.append(listColumn, detailColumn);
 
     // ---- Firm edit wrapper (hidden until select/create) ----
     const editWrap = document.createElement("div");
-    editWrap.style.marginTop = "8px";
-    editWrap.style.border = "1px solid #ddd";
-    editWrap.style.borderRadius = "8px";
-    editWrap.style.padding = "6px 8px 10px";
-    editWrap.style.background = "#fff";
-    editWrap.style.display = "none";
+    editWrap.className = "firms-edit-wrap";
 
     const mkLbl = (t) => {
       const d = document.createElement("div");
@@ -443,25 +391,18 @@ const taFirmNotes = document.createElement("textarea");
 
     // ---- Persons ----
     personsWrap = document.createElement("div");
-    personsWrap.style.display = "flex";
-    personsWrap.style.flexDirection = "column";
-    personsWrap.style.flex = "1";
-    personsWrap.style.minHeight = "0";
-    personsWrap.style.overflow = "hidden";
+    personsWrap.className = "firms-persons-wrap";
 
     const personsTitle = document.createElement("div");
     personsTitle.textContent = "Mitarbeiter (Stamm)";
-    personsTitle.style.fontWeight = "700";
-    personsTitle.style.margin = "0";
+    personsTitle.className = "firms-section-title";
 
     const personsHead = document.createElement("div");
-    personsHead.style.display = "flex";
-    personsHead.style.gap = "8px";
-    personsHead.style.alignItems = "center";
-    personsHead.style.margin = "0";
+    personsHead.className = "firms-persons-head";
 
     const btnNewPerson = document.createElement("button");
     btnNewPerson.textContent = "Neuer Mitarbeiter";
+    btnNewPerson.className = "btn";
     btnNewPerson.onclick = async () => {
       if (!this._hasFirmSelectedSaved()) return;
       await this._openPersonEditor({ mode: "create" });
@@ -470,8 +411,7 @@ const taFirmNotes = document.createElement("textarea");
     personsHead.append(btnNewPerson, btnImportPersonsCsv);
 
     const personsTable = document.createElement("table");
-    personsTable.style.width = "100%";
-    personsTable.style.borderCollapse = "collapse";
+    personsTable.className = "firms-table";
 
     const personsThead = document.createElement("thead");
     personsThead.innerHTML = `
@@ -487,24 +427,15 @@ const taFirmNotes = document.createElement("textarea");
     personsTable.append(personsThead, personsTbody);
 
     const personsTableWrap = document.createElement("div");
-    personsTableWrap.style.flex = "1";
-    personsTableWrap.style.minHeight = "0";
-    personsTableWrap.style.overflowY = "auto";
+    personsTableWrap.className = "firms-table-container";
     personsTableWrap.appendChild(personsTable);
 
     // Person form (hidden until create/edit)
     const personForm = document.createElement("div");
-    personForm.style.marginTop = "10px";
-    personForm.style.borderTop = "1px dashed #ddd";
-    personForm.style.paddingTop = "10px";
-    personForm.style.display = "none";
+    personForm.className = "firms-person-form";
 
     const pGrid = document.createElement("div");
-    pGrid.style.display = "grid";
-    pGrid.style.gridTemplateColumns = "160px 1fr";
-    pGrid.style.gap = "8px";
-    pGrid.style.alignItems = "center";
-    pGrid.style.marginBottom = "10px";
+    pGrid.className = "firms-person-grid";
 
     const inpFirstName = mkInp("Vorname…");
     const inpLastName = mkInp("Nachname…");
