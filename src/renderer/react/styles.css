@@ -268,6 +268,34 @@ body {
   gap: 14px;
 }
 
+.react-meetings-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: var(--react-panel);
+  border: 1px solid var(--react-border);
+  border-radius: 12px;
+  box-shadow: var(--react-shadow);
+}
+
+.react-meetings-context {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.react-meetings-context-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.react-meetings-context-meta {
+  font-size: 12px;
+  color: var(--react-muted);
+}
+
 .react-project-switch {
   display: flex;
   align-items: center;
@@ -302,7 +330,7 @@ body {
 }
 
 .react-meeting-card {
-  gap: 8px;
+  gap: 10px;
 }
 
 .react-meeting-head {
@@ -310,6 +338,21 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.react-meeting-head-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.react-meeting-index {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--react-text);
+  background: rgba(15, 23, 42, 0.06);
+  padding: 4px 8px;
+  border-radius: 999px;
 }
 
 .react-meeting-title {
@@ -325,6 +368,7 @@ body {
 .react-meeting-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 
 .react-status {
