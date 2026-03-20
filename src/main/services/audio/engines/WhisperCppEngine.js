@@ -426,7 +426,11 @@ class WhisperCppEngine {
 
   getModelAvailability(modelFileName = "ggml-base.bin") {
     const availability = this._getAvailabilityForModel(modelFileName);
-    return { available: !!availability.available, modelPath: availability.modelPath };
+    return {
+      available: !!availability.available,
+      modelPath: availability.modelPath,
+      executablePath: availability.executablePath,
+    };
   }
 
   _ensureAvailable(modelFileName = "ggml-base.bin") {

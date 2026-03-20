@@ -130,12 +130,29 @@ function registerAudioIpc() {
       const tiny = transcriptionEngine.getModelAvailability("ggml-tiny.bin");
       const base = transcriptionEngine.getModelAvailability("ggml-base.bin");
       const small = transcriptionEngine.getModelAvailability("ggml-small.bin");
+
+      const toModelState = (fileName, availability) => {
+        const modelPath = availability?.modelPath || null;
+        const executablePath = availability?.executablePath || null;
+        const available = !!availability?.available;
+        let missingReason = null;
+        if (!available) {
+          if (!executablePath) {
+            missingReason = "Whisper-Executable fehlt.";
+          } else if (!modelPath) {
+            missingReason = `Modell fehlt: ${fileName}`;
+          } else {
+            missingReason = "Whisper-Runtime nicht verfuegbar.";
+          }
+        }
+        return { fileName, available, missingReason };
+      };
       return {
         ok: true,
         models: {
-          fast: { fileName: "ggml-tiny.bin", available: !!tiny?.available },
-          balanced: { fileName: "ggml-base.bin", available: !!base?.available },
-          best: { fileName: "ggml-small.bin", available: !!small?.available },
+          fast: toModelState("ggml-tiny.bin", tiny),
+          balanced: toModelState("ggml-base.bin", base),
+          best: toModelState("ggml-small.bin", small),
         },
       };
     } catch (err) {

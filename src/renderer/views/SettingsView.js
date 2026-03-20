@@ -1673,7 +1673,12 @@ export default class SettingsView {
       setWhisperBtnEnabled(btnWhisperBalanced, !!whisperModels.balanced?.available);
       setWhisperBtnEnabled(btnWhisperBest, !!whisperModels.best?.available);
       const current = whisperModels[whisperQuality];
-      whisperMsg.textContent = current && current.available ? "" : "Modell nicht installiert.";
+      if (current && current.available) {
+        whisperMsg.textContent = "";
+      } else {
+        whisperMsg.textContent =
+          (current && current.missingReason) || "Modell nicht installiert.";
+      }
     };
 
     const loadWhisperQualitySettings = async () => {
