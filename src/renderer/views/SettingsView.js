@@ -1704,12 +1704,12 @@ export default class SettingsView {
           whisperQuality = ["fast", "balanced", "best", "large"].includes(raw) ? raw : "fast";
         }
       }
-      if (typeof api.appGetBuildChannel === "function") {
+      if (typeof api.appIsPackaged === "function") {
         try {
-          const res = await api.appGetBuildChannel();
-          allowLarge = !!res?.ok && String(res.channel || "").trim().toLowerCase() === "dev";
+          const res = await api.appIsPackaged();
+          allowLarge = !!res?.ok && res.packaged === false;
         } catch (_e) {
-          allowLarge = false;
+          allowLarge = true;
         }
       }
       if (!allowLarge) {
