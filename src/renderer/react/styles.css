@@ -253,6 +253,11 @@ body {
   color: var(--react-muted);
 }
 
+.react-meeting-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .react-status {
   display: inline-flex;
   align-items: center;

@@ -59,6 +59,7 @@ export default function App() {
   }));
 
   const canOpenLegacy = typeof window.__bbmReactBridge?.openProjectMeetings === "function";
+  const canOpenMeeting = typeof window.__bbmReactBridge?.openMeetingTops === "function";
 
   useEffect(() => {
     let alive = true;
@@ -190,6 +191,15 @@ export default function App() {
     window.__bbmReactBridge.openProjectMeetings(pid);
   };
 
+  const openLegacyMeeting = (m, e) => {
+    if (e?.stopPropagation) e.stopPropagation();
+    if (!canOpenMeeting) return;
+    const mid = String(m?.id ?? "").trim();
+    const pid = String(selectedProjectId ?? "").trim();
+    if (!mid || !pid) return;
+    window.__bbmReactBridge.openMeetingTops({ projectId: pid, meetingId: mid });
+  };
+
   const handleProjectSelectChange = (e) => {
     const next = String(e?.target?.value || "").trim();
     if (!next) return;
@@ -307,6 +317,23 @@ export default function App() {
         "div",
         { className: "react-meeting-meta" },
         date ? `Datum: ${date}` : "Datum: (unbekannt)"
+      ),
+      React.createElement(
+        "div",
+        { className: "react-meeting-actions" },
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            className: "react-btn react-btn-small",
+            disabled: !canOpenMeeting,
+            onClick: (e) => openLegacyMeeting(m, e),
+            title: canOpenMeeting
+              ? "Protokoll im Standardmodus oeffnen"
+              : "Standardmodus ist nicht verfuegbar",
+          },
+          "Im Standard oeffnen"
+        )
       )
     );
   };

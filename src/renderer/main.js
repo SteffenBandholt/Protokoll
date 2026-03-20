@@ -954,6 +954,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             return false;
           }
         },
+        openMeetingTops: async ({ projectId, meetingId } = {}) => {
+          try {
+            const pid = String(projectId ?? "").trim();
+            const mid = String(meetingId ?? "").trim();
+            if (!pid || !mid) return false;
+            try {
+              const node = document.getElementById("bbm-react-root");
+              if (node && window.ReactDOM?.unmountComponentAtNode) {
+                window.ReactDOM.unmountComponentAtNode(node);
+              }
+            } catch (_e) {
+              // ignore
+            }
+
+            if (!ensureLegacyUi()) return false;
+            const routerRef = window.__bbmRouter;
+            if (!routerRef || typeof routerRef.showTops !== "function") return false;
+            await routerRef.showTops(mid, pid);
+            return true;
+          } catch (err) {
+            console.error("[ui] React->Tops fehlgeschlagen:", err);
+            return false;
+          }
+        },
       };
     } catch (_e) {
       // ignore
