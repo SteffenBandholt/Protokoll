@@ -230,7 +230,45 @@ export default class ProjectContextQuicklane {
     meetingRow.append(meetingLabel, meetingValue);
     idsWrap.append(projectIdRow, meetingRow);
     contextCard.append(projectNumberRow, projectShortRow, idsWrap);
-    body.append(sectionTitle, contextCard);
+
+    const quicklaneSections = document.createElement("div");
+    quicklaneSections.style.display = "grid";
+    quicklaneSections.style.gridTemplateColumns = "1fr";
+    quicklaneSections.style.gap = "12px";
+    quicklaneSections.style.marginTop = "18px";
+
+    const createPlaceholderSection = (titleText, detailText) => {
+      const section = document.createElement("div");
+      section.style.display = "flex";
+      section.style.flexDirection = "column";
+      section.style.gap = "6px";
+      section.style.padding = "12px";
+      section.style.border = "1px solid #e8e8e8";
+      section.style.borderRadius = "10px";
+      section.style.background = "#fbfbfb";
+
+      const title = document.createElement("div");
+      title.textContent = titleText;
+      title.style.fontSize = "13px";
+      title.style.fontWeight = "700";
+      title.style.color = "#222";
+
+      const detail = document.createElement("div");
+      detail.textContent = detailText;
+      detail.style.fontSize = "12px";
+      detail.style.color = "#666";
+
+      section.append(title, detail);
+      return section;
+    };
+
+    quicklaneSections.append(
+      createPlaceholderSection("Projekt", "folgt"),
+      createPlaceholderSection("Firmen", "noch ohne Funktion"),
+      createPlaceholderSection("Mitarbeiter", "noch ohne Funktion")
+    );
+
+    body.append(sectionTitle, contextCard, quicklaneSections);
 
     wrap.append(tab, header, body);
 
