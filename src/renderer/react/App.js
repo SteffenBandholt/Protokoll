@@ -46,6 +46,26 @@ const isMeetingClosed = (m) => {
   return raw === 1;
 };
 
+const getTopId = (t) => pick(t?.id ?? "");
+const getTopTitle = (t) => pick(t?.title) || "(ohne Bezeichnung)";
+const getTopNumber = (t) => pick(t?.displayNumber ?? t?.number ?? "");
+const getTopLevel = (t) => {
+  const raw = Number(t?.level ?? 0);
+  return Number.isFinite(raw) && raw > 0 ? raw : 1;
+};
+const isTopHidden = (t) => Number(t?.is_hidden ?? t?.isHidden ?? 0) === 1;
+const isTopImportant = (t) => Number(t?.is_important ?? t?.isImportant ?? 0) === 1;
+const isTopTask = (t) => Number(t?.is_task ?? t?.isTask ?? 0) === 1;
+const isTopDecision = (t) => Number(t?.is_decision ?? t?.isDecision ?? 0) === 1;
+const getTopLongtext = (t) => pick(t?.longtext ?? t?.longText ?? "");
+const getTopDueDate = (t) => pick(t?.due_date ?? t?.dueDate ?? "");
+
+const formatDate = (raw) => {
+  const value = pick(raw);
+  if (!value) return "";
+  return value.length >= 10 ? value.slice(0, 10) : value;
+};
+
 const sortMeetings = (list) => {
   const items = Array.isArray(list) ? [...list] : [];
   items.sort((a, b) => {
@@ -95,6 +115,7 @@ export default function App() {
   const { useEffect, useMemo, useState } = React || {};
   const [view, setView] = useState(() => readReturnView());
   const [selectedProjectId, setSelectedProjectId] = useState(() => readReturnProjectId());
+  const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [projectQuery, setProjectQuery] = useState("");
 
   const [projectsState, setProjectsState] = useState(() => ({
@@ -108,6 +129,15 @@ export default function App() {
     error: "",
     meetings: [],
   }));
+
+  const [topsState, setTopsState] = useState(() => ({
+    loading: false,
+    error: "",
+    meeting: null,
+    tops: [],
+  }));
+
+  const [selectedTopId, setSelectedTopId] = useState(null);
 
   const canOpenLegacy = typeof window.__bbmReactBridge?.openProjectMeetings === "function";
   const canOpenMeeting = typeof window.__bbmReactBridge?.openMeetingTops === "function";
@@ -225,6 +255,84 @@ export default function App() {
     };
   }, [view, selectedProjectId]);
 
+  useEffect(() => {
+    let alive = true;
+
+    const loadTops = async () => {
+      if (view !== "tops") return;
+
+      const meetingId = String(selectedMeetingId || "").trim();
+      if (!meetingId) {
+        setTopsState({
+          loading: false,
+          error: "Bitte zuerst ein Protokoll auswaehlen.",
+          meeting: null,
+          tops: [],
+        });
+        return;
+      }
+
+      try {
+        const api = window.bbmDb || {};
+        if (typeof api.topsListByMeeting !== "function") {
+          setTopsState({
+            loading: false,
+            error: "topsListByMeeting ist nicht verfuegbar (Preload/IPC fehlt).",
+            meeting: null,
+            tops: [],
+          });
+          return;
+        }
+
+        setTopsState({ loading: true, error: "", meeting: null, tops: [] });
+        const res = await api.topsListByMeeting(meetingId);
+        if (!alive) return;
+        if (!res?.ok) {
+          setTopsState({
+            loading: false,
+            error: res?.error || "Fehler beim Laden der TOPs.",
+            meeting: null,
+            tops: [],
+          });
+          return;
+        }
+
+        setTopsState({
+          loading: false,
+          error: "",
+          meeting: res.meeting || null,
+          tops: Array.isArray(res.list) ? res.list : [],
+        });
+      } catch (err) {
+        if (!alive) return;
+        setTopsState({
+          loading: false,
+          error: err?.message || "Fehler beim Laden der TOPs.",
+          meeting: null,
+          tops: [],
+        });
+      }
+    };
+
+    loadTops();
+    return () => {
+      alive = false;
+    };
+  }, [view, selectedMeetingId]);
+
+  useEffect(() => {
+    if (view !== "tops") return;
+    const items = Array.isArray(topsState.tops) ? topsState.tops : [];
+    if (!items.length) {
+      if (selectedTopId) setSelectedTopId(null);
+      return;
+    }
+    const selected = items.find((t) => getTopId(t) === String(selectedTopId || ""));
+    if (!selected) {
+      setSelectedTopId(items[0]?.id ?? null);
+    }
+  }, [view, topsState.tops]);
+
   const projects = projectsState.projects || [];
   const selectedProject = useMemo(() => {
     if (!selectedProjectId) return null;
@@ -253,6 +361,14 @@ export default function App() {
     const pid = String(selectedProjectId ?? "").trim();
     if (!mid || !pid) return;
     window.__bbmReactBridge.openMeetingTops({ projectId: pid, meetingId: mid });
+  };
+
+  const openReactMeeting = (m) => {
+    const mid = String(m?.id ?? "").trim();
+    if (!mid) return;
+    setSelectedMeetingId(mid);
+    setSelectedTopId(null);
+    setView("tops");
   };
 
   const handleProjectSelectChange = (e) => {
@@ -325,7 +441,8 @@ export default function App() {
           )
         )
       )
-    : React.createElement(
+    : view === "meetings"
+    ? React.createElement(
         "div",
         { className: "react-topbar" },
         React.createElement(
@@ -352,6 +469,45 @@ export default function App() {
               onClick: () => setView("projects"),
             },
             "Zurueck zu Projekte"
+          ),
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              className: "react-btn react-btn-ghost",
+              onClick: switchToStandard,
+            },
+            "Standardmodus"
+          )
+        )
+      )
+    : React.createElement(
+        "div",
+        { className: "react-topbar react-topbar-tops" },
+        React.createElement(
+          "div",
+          { className: "react-title-wrap" },
+          React.createElement("h1", { className: "react-title" }, "TOPs"),
+          React.createElement(
+            "p",
+            { className: "react-subtitle" },
+            selectedProject
+              ? `Projekt: ${getProjectTitle(selectedProject)}`
+              : "Projektkontext nicht verfuegbar."
+          )
+        ),
+        React.createElement(
+          "div",
+          { className: "react-header-actions" },
+          badge,
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              className: "react-btn react-btn-ghost",
+              onClick: () => setView("meetings"),
+            },
+            "Zurueck zu Protokolle"
           ),
           React.createElement(
             "button",
@@ -465,8 +621,7 @@ export default function App() {
           {
             type: "button",
             className: "react-btn react-btn-primary",
-            onClick: (e) => openLegacyMeeting(m, e),
-            disabled: !canOpenMeeting,
+            onClick: () => openReactMeeting(m),
           },
           "Details oeffnen"
         ),
@@ -595,7 +750,232 @@ export default function App() {
               )
         );
 
-  const content = view === "projects" ? projectsContent : meetingsContent;
+  const topsMeeting = topsState.meeting
+    || meetings.find((m) => String(m?.id ?? "") === String(selectedMeetingId ?? ""))
+    || null;
+  const topsItems = Array.isArray(topsState.tops) ? topsState.tops : [];
+  const selectedTop = topsItems.find((t) => getTopId(t) === String(selectedTopId || "")) || null;
+  const level1Count = topsItems.filter((t) => getTopLevel(t) === 1).length;
+  const openMeetingStandard = () => {
+    if (!topsMeeting) return;
+    const pid = String(selectedProjectId ?? "").trim();
+    const mid = String(topsMeeting?.id ?? selectedMeetingId ?? "").trim();
+    if (!pid || !mid || !canOpenMeeting) return;
+    window.__bbmReactBridge.openMeetingTops({ projectId: pid, meetingId: mid });
+  };
+
+  const renderTopItem = (t) => {
+    const id = getTopId(t);
+    const title = getTopTitle(t);
+    const number = getTopNumber(t);
+    const level = getTopLevel(t);
+    const isSelected = id === String(selectedTopId || "");
+    const classes = [
+      "react-top-item",
+      `level-${level}`,
+      isSelected ? "is-selected" : "",
+      isTopHidden(t) ? "is-hidden" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return React.createElement(
+      "button",
+      {
+        key: id || `${title}-${level}`,
+        type: "button",
+        className: classes,
+        onClick: () => setSelectedTopId(t?.id ?? null),
+      },
+      React.createElement(
+        "div",
+        { className: "react-top-item-title" },
+        number ? `TOP ${number}` : `Level ${level}`
+      ),
+      React.createElement("div", { className: "react-top-item-text" }, title)
+    );
+  };
+
+  const topsContent = topsState.loading
+    ? React.createElement("div", { className: "react-loading" }, "Lade TOPs...")
+    : topsState.error
+      ? React.createElement("div", { className: "react-empty" }, topsState.error)
+      : React.createElement(
+          "div",
+          { className: "react-tops-layout" },
+          React.createElement(
+            "section",
+            { className: "react-tops-list" },
+            React.createElement(
+              "div",
+              { className: "react-tops-list-head" },
+              React.createElement("div", { className: "react-tops-list-title" }, "TOP-Liste"),
+              React.createElement(
+                "div",
+                { className: "react-tops-list-meta" },
+                `${topsItems.length} TOPs · ${level1Count} Ebene 1`
+              )
+            ),
+            topsItems.length
+              ? React.createElement(
+                  "div",
+                  { className: "react-tops-list-body" },
+                  topsItems.map(renderTopItem)
+                )
+              : React.createElement("div", { className: "react-empty" }, "Keine TOPs vorhanden.")
+          ),
+          React.createElement(
+            "section",
+            { className: "react-tops-detail" },
+            selectedTop
+              ? React.createElement(
+                  "div",
+                  { className: "react-tops-detail-card" },
+                  React.createElement(
+                    "div",
+                    { className: "react-tops-detail-head" },
+                    React.createElement(
+                      "div",
+                      { className: "react-tops-detail-title" },
+                      getTopTitle(selectedTop)
+                    ),
+                    React.createElement(
+                      "div",
+                      { className: "react-tops-detail-meta" },
+                      getTopNumber(selectedTop)
+                        ? `TOP ${getTopNumber(selectedTop)}`
+                        : `Level ${getTopLevel(selectedTop)}`
+                    )
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "react-tops-detail-tags" },
+                    isTopImportant(selectedTop)
+                      ? React.createElement("span", { className: "react-tag is-warn" }, "Wichtig")
+                      : null,
+                    isTopTask(selectedTop)
+                      ? React.createElement("span", { className: "react-tag is-info" }, "Aufgabe")
+                      : null,
+                    isTopDecision(selectedTop)
+                      ? React.createElement("span", { className: "react-tag is-info" }, "Entscheidung")
+                      : null,
+                    isTopHidden(selectedTop)
+                      ? React.createElement("span", { className: "react-tag is-muted" }, "Ausgeblendet")
+                      : null
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "react-tops-detail-body" },
+                    React.createElement(
+                      "div",
+                      { className: "react-tops-detail-section" },
+                      React.createElement(
+                        "div",
+                        { className: "react-tops-detail-label" },
+                        "Kurztext"
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "react-tops-detail-value" },
+                        getTopTitle(selectedTop)
+                      )
+                    ),
+                    getTopLongtext(selectedTop)
+                      ? React.createElement(
+                          "div",
+                          { className: "react-tops-detail-section" },
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-label" },
+                            "Langtext"
+                          ),
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-value" },
+                            getTopLongtext(selectedTop)
+                          )
+                        )
+                      : null,
+                    getTopDueDate(selectedTop)
+                      ? React.createElement(
+                          "div",
+                          { className: "react-tops-detail-section" },
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-label" },
+                            "Faellig"
+                          ),
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-value" },
+                            formatDate(getTopDueDate(selectedTop))
+                          )
+                        )
+                      : null
+                  )
+                )
+              : React.createElement(
+                  "div",
+                  { className: "react-empty" },
+                  "Bitte einen TOP auswaehlen."
+                )
+          ),
+          React.createElement(
+            "aside",
+            { className: "react-tops-context" },
+            React.createElement(
+              "div",
+              { className: "react-tops-context-card" },
+              React.createElement("div", { className: "react-tops-context-title" }, "Meeting-Kontext"),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-row" },
+                React.createElement("span", null, "Titel"),
+                React.createElement(
+                  "span",
+                  null,
+                  topsMeeting ? getMeetingTitle(topsMeeting) : "(unbekannt)"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-row" },
+                React.createElement("span", null, "Datum"),
+                React.createElement(
+                  "span",
+                  null,
+                  formatDate(getMeetingDate(topsMeeting)) || "(unbekannt)"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-row" },
+                React.createElement("span", null, "Status"),
+                React.createElement(
+                  "span",
+                  { className: `react-status ${isMeetingClosed(topsMeeting) ? "is-closed" : "is-open"}` },
+                  isMeetingClosed(topsMeeting) ? "geschlossen" : "offen"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-actions" },
+                React.createElement(
+                  "button",
+                  {
+                    type: "button",
+                    className: "react-btn react-btn-small",
+                    disabled: !canOpenMeeting,
+                    onClick: openMeetingStandard,
+                  },
+                  "Im Standard oeffnen"
+                )
+              )
+            )
+          )
+        );
+
+  const content = view === "projects" ? projectsContent : view === "meetings" ? meetingsContent : topsContent;
 
   return React.createElement(
     "div",
@@ -619,7 +999,7 @@ export default function App() {
         React.createElement(
           "button",
           {
-            className: `react-nav-item ${view === "meetings" ? "is-active" : ""}`,
+            className: `react-nav-item ${view !== "projects" ? "is-active" : ""}`,
             type: "button",
             onClick: () => setView("meetings"),
           },
