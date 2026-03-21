@@ -1,7 +1,8 @@
 // src/renderer/ui/ProjectContextQuicklane.js
 
 export default class ProjectContextQuicklane {
-  constructor() {
+  constructor({ router } = {}) {
+    this.router = router || null;
     this.root = null;
     this.tabEl = null;
     this.closeBtn = null;
@@ -177,6 +178,10 @@ export default class ProjectContextQuicklane {
     const firmsSection = createToolItem({
       icon: "🏢",
       title: "Firmen",
+      actionHandler: () => {
+        if (!this._lastOpts?.projectId) return;
+        this.router?.showProjectFirms?.(this._lastOpts.projectId);
+      },
     });
 
     const employeesSection = createToolItem({
@@ -316,8 +321,9 @@ export default class ProjectContextQuicklane {
           : String(this._lastOpts.meetingId);
     }
 
-    this._applyToolItemState(this.projectSectionEl, true);
-    this._applyToolItemState(this.firmsSectionEl, false);
+    const hasProject = !!this._lastOpts?.projectId;
+    this._applyToolItemState(this.projectSectionEl, hasProject);
+    this._applyToolItemState(this.firmsSectionEl, hasProject);
     this._applyToolItemState(this.employeesSectionEl, false);
   }
 
