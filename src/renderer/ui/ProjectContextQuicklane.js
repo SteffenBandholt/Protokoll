@@ -7,7 +7,10 @@ export default class ProjectContextQuicklane {
     this.closeBtn = null;
     this.pinBtn = null;
     this.bodyEl = null;
+    this.contextMetaEl = null;
     this.projectSectionEl = null;
+    this.firmsSectionEl = null;
+    this.employeesSectionEl = null;
     this.projectNumberValueEl = null;
     this.projectShortValueEl = null;
     this.projectIdValueEl = null;
@@ -35,11 +38,10 @@ export default class ProjectContextQuicklane {
     wrap.style.top = "0";
     wrap.style.right = "0";
     wrap.style.height = "100%";
-    wrap.style.width = "320px";
-    wrap.style.maxWidth = "92vw";
-    wrap.style.background = "#ffffff";
+    wrap.style.width = "56px";
+    wrap.style.background = "#f7f7f7";
     wrap.style.boxShadow = "-8px 0 22px rgba(0,0,0,0.14)";
-    wrap.style.borderLeft = "1px solid #e4e4e4";
+    wrap.style.borderLeft = "1px solid #dfdfdf";
     wrap.style.display = "flex";
     wrap.style.flexDirection = "column";
     wrap.style.transform = "translateX(calc(100% - 22px))";
@@ -47,10 +49,12 @@ export default class ProjectContextQuicklane {
     wrap.style.transition = "transform 220ms ease-out";
     wrap.style.willChange = "transform";
     wrap.style.zIndex = "24";
+    wrap.style.overflow = "hidden";
 
     const tab = document.createElement("button");
     tab.type = "button";
-    tab.textContent = "Projekt";
+    tab.textContent = "Tools";
+    tab.title = "Projektkontext";
     tab.setAttribute("aria-label", "Projektkontext");
     tab.style.position = "absolute";
     tab.style.left = "-22px";
@@ -60,7 +64,7 @@ export default class ProjectContextQuicklane {
     tab.style.border = "1px solid #d9d9d9";
     tab.style.borderRight = "none";
     tab.style.borderRadius = "10px 0 0 10px";
-    tab.style.background = "#f6f6f6";
+    tab.style.background = "#f1f1f1";
     tab.style.color = "#333";
     tab.style.cursor = "pointer";
     tab.style.display = "flex";
@@ -69,224 +73,160 @@ export default class ProjectContextQuicklane {
     tab.style.padding = "8px 0";
     tab.style.writingMode = "vertical-rl";
     tab.style.transform = "rotate(180deg)";
-    tab.style.fontSize = "12px";
-    tab.style.fontWeight = "600";
-    tab.style.letterSpacing = "0.04em";
+    tab.style.fontSize = "11px";
+    tab.style.fontWeight = "700";
+    tab.style.letterSpacing = "0.08em";
     tab.style.boxShadow = "-4px 0 12px rgba(0,0,0,0.08)";
 
     const header = document.createElement("div");
     header.style.display = "flex";
+    header.style.flexDirection = "column";
     header.style.alignItems = "center";
-    header.style.justifyContent = "space-between";
-    header.style.padding = "14px 16px";
-    header.style.borderBottom = "1px solid #ededed";
+    header.style.gap = "6px";
+    header.style.padding = "8px";
+    header.style.borderBottom = "1px solid #e8e8e8";
     header.style.background = "#fafafa";
-
-    const title = document.createElement("div");
-    title.textContent = "Projektkontext";
-    title.style.fontWeight = "700";
-    title.style.fontSize = "15px";
-    title.style.letterSpacing = "0.01em";
-
-    const actions = document.createElement("div");
-    actions.style.display = "inline-flex";
-    actions.style.alignItems = "center";
-    actions.style.gap = "8px";
 
     const pinBtn = document.createElement("button");
     pinBtn.type = "button";
-    pinBtn.textContent = "Pin";
+    pinBtn.textContent = "P";
+    pinBtn.title = "Anheften";
     pinBtn.style.border = "1px solid #d5d5d5";
     pinBtn.style.background = "#ffffff";
-    pinBtn.style.borderRadius = "6px";
-    pinBtn.style.minWidth = "42px";
-    pinBtn.style.height = "32px";
-    pinBtn.style.padding = "0 10px";
+    pinBtn.style.borderRadius = "10px";
+    pinBtn.style.width = "40px";
+    pinBtn.style.height = "40px";
+    pinBtn.style.padding = "0";
     pinBtn.style.cursor = "pointer";
     pinBtn.style.display = "inline-flex";
     pinBtn.style.alignItems = "center";
     pinBtn.style.justifyContent = "center";
+    pinBtn.style.fontSize = "12px";
+    pinBtn.style.fontWeight = "700";
     pinBtn.onclick = () => this._togglePinned();
 
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.textContent = "X";
+    closeBtn.title = "Schliessen";
     closeBtn.style.border = "1px solid #d5d5d5";
     closeBtn.style.background = "#ffffff";
-    closeBtn.style.borderRadius = "6px";
-    closeBtn.style.width = "32px";
-    closeBtn.style.height = "32px";
+    closeBtn.style.borderRadius = "10px";
+    closeBtn.style.width = "40px";
+    closeBtn.style.height = "40px";
+    closeBtn.style.padding = "0";
     closeBtn.style.cursor = "pointer";
-    closeBtn.style.display = "inline-flex";
+    closeBtn.style.display = "none";
     closeBtn.style.alignItems = "center";
     closeBtn.style.justifyContent = "center";
+    closeBtn.style.fontSize = "12px";
+    closeBtn.style.fontWeight = "700";
     closeBtn.onclick = () => this.close();
 
-    actions.append(pinBtn, closeBtn);
-    header.append(title, actions);
+    header.append(pinBtn, closeBtn);
 
     const body = document.createElement("div");
     body.style.flex = "1 1 auto";
-    body.style.padding = "16px";
+    body.style.padding = "10px 8px";
     body.style.overflowY = "auto";
-    body.style.color = "#333";
-    body.style.fontSize = "14px";
-    body.style.lineHeight = "1.5";
+    body.style.display = "flex";
+    body.style.flexDirection = "column";
+    body.style.alignItems = "center";
+    body.style.gap = "10px";
 
-    const sectionTitle = document.createElement("div");
-    sectionTitle.textContent = "Kontext";
-    sectionTitle.style.fontSize = "12px";
-    sectionTitle.style.fontWeight = "700";
-    sectionTitle.style.letterSpacing = "0.05em";
-    sectionTitle.style.textTransform = "uppercase";
-    sectionTitle.style.color = "#666";
-    sectionTitle.style.marginBottom = "12px";
-
-    const contextCard = document.createElement("div");
-    contextCard.style.display = "grid";
-    contextCard.style.gridTemplateColumns = "1fr";
-    contextCard.style.gap = "10px";
-    contextCard.style.padding = "12px";
-    contextCard.style.border = "1px solid #e8e8e8";
-    contextCard.style.borderRadius = "10px";
-    contextCard.style.background = "#fbfbfb";
-
-    const projectNumberRow = document.createElement("div");
-    projectNumberRow.style.display = "flex";
-    projectNumberRow.style.flexDirection = "column";
-    projectNumberRow.style.gap = "3px";
-
-    const projectNumberLabel = document.createElement("div");
-    projectNumberLabel.textContent = "Projektnummer";
-    projectNumberLabel.style.fontSize = "12px";
-    projectNumberLabel.style.color = "#666";
-
-    const projectNumberValue = document.createElement("div");
-    projectNumberValue.textContent = "\u2014";
-    projectNumberValue.style.fontSize = "14px";
-    projectNumberValue.style.fontWeight = "600";
-    projectNumberValue.style.color = "#222";
-
-    projectNumberRow.append(projectNumberLabel, projectNumberValue);
-
-    const projectShortRow = document.createElement("div");
-    projectShortRow.style.display = "flex";
-    projectShortRow.style.flexDirection = "column";
-    projectShortRow.style.gap = "3px";
-
-    const projectShortLabel = document.createElement("div");
-    projectShortLabel.textContent = "Kurzbezeichnung";
-    projectShortLabel.style.fontSize = "12px";
-    projectShortLabel.style.color = "#666";
-
-    const projectShortValue = document.createElement("div");
-    projectShortValue.textContent = "\u2014";
-    projectShortValue.style.fontSize = "14px";
-    projectShortValue.style.fontWeight = "600";
-    projectShortValue.style.color = "#222";
-
-    projectShortRow.append(projectShortLabel, projectShortValue);
-
-    const idsWrap = document.createElement("div");
-    idsWrap.style.display = "grid";
-    idsWrap.style.gridTemplateColumns = "1fr";
-    idsWrap.style.gap = "10px";
-    idsWrap.style.paddingTop = "4px";
-    idsWrap.style.borderTop = "1px solid #ececec";
-
-    const projectIdRow = document.createElement("div");
-    projectIdRow.style.display = "flex";
-    projectIdRow.style.flexDirection = "column";
-    projectIdRow.style.gap = "3px";
-
-    const projectLabel = document.createElement("div");
-    projectLabel.textContent = "Projekt-ID";
-    projectLabel.style.fontSize = "12px";
-    projectLabel.style.color = "#666";
-
-    const projectValue = document.createElement("div");
-    projectValue.textContent = "\u2014";
-    projectValue.style.fontSize = "12px";
-    projectValue.style.fontWeight = "500";
-    projectValue.style.color = "#666";
-
-    projectIdRow.append(projectLabel, projectValue);
-
-    const meetingRow = document.createElement("div");
-    meetingRow.style.display = "flex";
-    meetingRow.style.flexDirection = "column";
-    meetingRow.style.gap = "3px";
-
-    const meetingLabel = document.createElement("div");
-    meetingLabel.textContent = "Meeting-ID";
-    meetingLabel.style.fontSize = "12px";
-    meetingLabel.style.color = "#666";
-
-    const meetingValue = document.createElement("div");
-    meetingValue.textContent = "\u2014";
-    meetingValue.style.fontSize = "12px";
-    meetingValue.style.fontWeight = "500";
-    meetingValue.style.color = "#666";
-
-    meetingRow.append(meetingLabel, meetingValue);
-    idsWrap.append(projectIdRow, meetingRow);
-    contextCard.append(projectNumberRow, projectShortRow, idsWrap);
-
-    const quicklaneSections = document.createElement("div");
-    quicklaneSections.style.display = "grid";
-    quicklaneSections.style.gridTemplateColumns = "1fr";
-    quicklaneSections.style.gap = "12px";
-    quicklaneSections.style.marginTop = "18px";
-
-    const createPlaceholderSection = (titleText, detailText, actionHandler = null) => {
-      const section = document.createElement("div");
-      section.style.display = "flex";
-      section.style.flexDirection = "column";
-      section.style.gap = "6px";
-      section.style.padding = "12px";
-      section.style.border = "1px solid #e8e8e8";
-      section.style.borderRadius = "10px";
-      section.style.background = "#fbfbfb";
-      section.style.transition = "border-color 140ms ease-out, background 140ms ease-out";
-
-      const title = document.createElement("div");
-      title.textContent = titleText;
-      title.style.fontSize = "13px";
-      title.style.fontWeight = "700";
-      title.style.color = "#222";
-
-      const detail = document.createElement("div");
-      detail.textContent = detailText;
-      detail.style.fontSize = "12px";
-      detail.style.color = "#666";
-
-      section.append(title, detail);
+    const createToolItem = ({ icon, title, actionHandler = null }) => {
+      const item = document.createElement("div");
+      item.title = title;
+      item.style.width = "40px";
+      item.style.height = "40px";
+      item.style.border = "1px solid #dfdfdf";
+      item.style.borderRadius = "10px";
+      item.style.background = "#ffffff";
+      item.style.display = "flex";
+      item.style.alignItems = "center";
+      item.style.justifyContent = "center";
+      item.style.fontSize = "20px";
+      item.style.lineHeight = "1";
+      item.style.userSelect = "none";
+      item.style.transition = "background 140ms ease-out, border-color 140ms ease-out";
 
       if (typeof actionHandler === "function") {
-        section.tabIndex = 0;
-        section.setAttribute("role", "button");
-        section.onclick = actionHandler;
-        section.addEventListener("keydown", (e) => {
+        item.tabIndex = 0;
+        item.setAttribute("role", "button");
+        item.onclick = actionHandler;
+        item.addEventListener("keydown", (e) => {
           if (e.key !== "Enter" && e.key !== " ") return;
           e.preventDefault();
           actionHandler();
         });
       }
 
-      return section;
+      item.textContent = icon;
+      return item;
     };
 
-    const projectSection = createPlaceholderSection("Projekt", "folgt", () => {
-      if (!this._lastOpts?.projectId) return;
-      this.router?.openProjectFormModal?.({ projectId: this._lastOpts.projectId });
+    const projectSection = createToolItem({
+      icon: "📁",
+      title: "Projekt",
+      actionHandler: () => {
+        if (!this._lastOpts?.projectId) return;
+        this.router?.openProjectFormModal?.({ projectId: this._lastOpts.projectId });
+      },
     });
-    const firmsSection = createPlaceholderSection("Firmen", "noch ohne Funktion");
-    const employeesSection = createPlaceholderSection("Mitarbeiter", "noch ohne Funktion");
 
-    quicklaneSections.append(projectSection, firmsSection, employeesSection);
+    const firmsSection = createToolItem({
+      icon: "🏢",
+      title: "Firmen",
+    });
 
-    body.append(sectionTitle, contextCard, quicklaneSections);
+    const employeesSection = createToolItem({
+      icon: "👥",
+      title: "Mitarbeiter",
+    });
 
+    const contextMeta = document.createElement("div");
+    contextMeta.style.display = "none";
+    contextMeta.style.width = "100%";
+    contextMeta.style.boxSizing = "border-box";
+    contextMeta.style.padding = "10px 8px 12px";
+    contextMeta.style.borderTop = "1px solid #e4e4e4";
+    contextMeta.style.background = "#fafafa";
+    contextMeta.style.flexDirection = "column";
+    contextMeta.style.gap = "6px";
+
+    const createMetaRow = (labelText, valueEl) => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.flexDirection = "column";
+      row.style.gap = "1px";
+
+      const label = document.createElement("div");
+      label.textContent = labelText;
+      label.style.fontSize = "10px";
+      label.style.color = "#666";
+
+      valueEl.textContent = "—";
+      valueEl.style.fontSize = "11px";
+      valueEl.style.fontWeight = "600";
+      valueEl.style.color = "#222";
+
+      row.append(label, valueEl);
+      return row;
+    };
+
+    const projectNumberValue = document.createElement("div");
+    const projectShortValue = document.createElement("div");
+    const projectIdValue = document.createElement("div");
+    const meetingIdValue = document.createElement("div");
+
+    contextMeta.append(
+      createMetaRow("Projektnummer", projectNumberValue),
+      createMetaRow("Kurzbezeichnung", projectShortValue),
+      createMetaRow("Projekt-ID", projectIdValue),
+      createMetaRow("Meeting-ID", meetingIdValue)
+    );
+
+    body.append(projectSection, firmsSection, employeesSection, contextMeta);
     wrap.append(tab, header, body);
 
     tab.addEventListener("mouseenter", () => {
@@ -324,14 +264,17 @@ export default class ProjectContextQuicklane {
 
     this.root = wrap;
     this.tabEl = tab;
-    this.pinBtn = pinBtn;
     this.closeBtn = closeBtn;
+    this.pinBtn = pinBtn;
     this.bodyEl = body;
+    this.contextMetaEl = contextMeta;
     this.projectSectionEl = projectSection;
+    this.firmsSectionEl = firmsSection;
+    this.employeesSectionEl = employeesSection;
     this.projectNumberValueEl = projectNumberValue;
     this.projectShortValueEl = projectShortValue;
-    this.projectIdValueEl = projectValue;
-    this.meetingIdValueEl = meetingValue;
+    this.projectIdValueEl = projectIdValue;
+    this.meetingIdValueEl = meetingIdValue;
 
     this._applyState();
     return wrap;
@@ -351,39 +294,51 @@ export default class ProjectContextQuicklane {
         const altParts = projectLabel.split(" – ");
         if (altParts.length >= 2) {
           if (!projectNumber) projectNumber = altParts[0].trim();
-          if (!projectShort) projectShort = altParts.slice(1).join(" – ").trim();
+          if (!projectShort) projectShort = altParts.slice(1).join(" - ").trim();
         } else if (!projectShort && !projectLabel.startsWith("#")) {
           projectShort = projectLabel;
         }
       }
     }
 
-    if (this.projectNumberValueEl) {
-      this.projectNumberValueEl.textContent = projectNumber || "\u2014";
-    }
-    if (this.projectShortValueEl) {
-      this.projectShortValueEl.textContent = projectShort || "\u2014";
-    }
+    if (this.projectNumberValueEl) this.projectNumberValueEl.textContent = projectNumber || "—";
+    if (this.projectShortValueEl) this.projectShortValueEl.textContent = projectShort || "—";
     if (this.projectIdValueEl) {
       this.projectIdValueEl.textContent =
         this._lastOpts?.projectId === undefined || this._lastOpts?.projectId === null
-          ? "\u2014"
+          ? "—"
           : String(this._lastOpts.projectId);
     }
     if (this.meetingIdValueEl) {
       this.meetingIdValueEl.textContent =
         this._lastOpts?.meetingId === undefined || this._lastOpts?.meetingId === null
-          ? "\u2014"
+          ? "—"
           : String(this._lastOpts.meetingId);
     }
-    if (this.projectSectionEl) {
-      const disabled = !this._lastOpts?.projectId;
-      this.projectSectionEl.style.opacity = disabled ? "0.55" : "1";
-      this.projectSectionEl.style.cursor = disabled ? "default" : "pointer";
-      this.projectSectionEl.style.background = disabled ? "#fbfbfb" : "#f7f7f7";
-      this.projectSectionEl.style.borderColor = disabled ? "#e8e8e8" : "#dcdcdc";
-      this.projectSectionEl.tabIndex = disabled ? -1 : 0;
-      this.projectSectionEl.setAttribute("aria-disabled", disabled ? "true" : "false");
+
+    this._applyToolItemState(this.projectSectionEl, true);
+    this._applyToolItemState(this.firmsSectionEl, false);
+    this._applyToolItemState(this.employeesSectionEl, false);
+  }
+
+  _applyToolItemState(el, interactive) {
+    if (!el) return;
+    el.style.opacity = interactive ? "1" : "0.45";
+    el.style.cursor = interactive ? "pointer" : "default";
+    el.style.background = interactive ? "#ffffff" : "#f3f3f3";
+    el.style.borderColor = interactive ? "#d8d8d8" : "#e3e3e3";
+    el.tabIndex = interactive ? 0 : -1;
+    el.setAttribute("aria-disabled", interactive ? "false" : "true");
+    if (interactive) {
+      el.onmouseenter = () => {
+        el.style.background = "#f0f0f0";
+      };
+      el.onmouseleave = () => {
+        el.style.background = "#ffffff";
+      };
+    } else {
+      el.onmouseenter = null;
+      el.onmouseleave = null;
     }
   }
 
@@ -460,11 +415,16 @@ export default class ProjectContextQuicklane {
 
     this.root.style.display = "flex";
     this.root.style.pointerEvents = "auto";
-    const isVisible = this._isOpen || this._isPinned;
-    this.root.style.transform = isVisible ? "translateX(0)" : "translateX(calc(100% - 22px))";
+    this.root.style.width = this._isPinned ? "176px" : "56px";
+    this.root.style.transform =
+      this._isOpen || this._isPinned ? "translateX(0)" : "translateX(calc(100% - 22px))";
+
+    if (this.closeBtn) this.closeBtn.style.display = this._isPinned ? "inline-flex" : "none";
+    if (this.contextMetaEl) this.contextMetaEl.style.display = this._isPinned ? "flex" : "none";
 
     if (this.pinBtn) {
-      this.pinBtn.textContent = this._isPinned ? "Unpin" : "Pin";
+      this.pinBtn.textContent = this._isPinned ? "U" : "P";
+      this.pinBtn.title = this._isPinned ? "Loesen" : "Anheften";
       this.pinBtn.style.background = this._isPinned ? "#eef7ff" : "#ffffff";
       this.pinBtn.style.borderColor = this._isPinned ? "#b6d4ff" : "#d5d5d5";
       this.pinBtn.style.color = this._isPinned ? "#0b4db4" : "#222";
