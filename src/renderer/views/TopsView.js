@@ -10,6 +10,9 @@ import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonSty
 import AudioSuggestionsPanel from "../ui/AudioSuggestionsPanel.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
+import { openProjectTasksDialog } from "../ui/dialogs/ProjectTasksDialog.js";
+import { openMeetingKeywordDialog } from "../ui/dialogs/MeetingKeywordDialog.js";
+import { openNumberGapDialog } from "../ui/dialogs/NumberGapDialog.js";
 
 const EMPTY_LEVEL1_HINT_PNG = new URL("../assets/icon-bbm.png", import.meta.url).href;
 const TODO_PNG = new URL("../assets/todo.png", import.meta.url).href;
@@ -151,6 +154,7 @@ export default class TopsView {
     // Markierungen für Nummernlücken
     this._markTopIds = new Set();
     this._gapPopupOverlay = null;
+    this._gapPopupClose = null;
 
     // UI sizing (Meta-Spalte ~30% schmaler)
     this.META_COL_W = 133; // px
@@ -186,6 +190,7 @@ export default class TopsView {
     this._viewMenuEl = null;
     this._viewMenuBtn = null;
     this._projectTasksOverlayEl = null;
+    this._projectTasksPopupClose = null;
   }
 
   _updateTopBarProtocolTitle() {
@@ -289,6 +294,12 @@ export default class TopsView {
   }
 
   _closeProjectTasksPopup() {
+    if (this._projectTasksPopupClose) {
+      const close = this._projectTasksPopupClose;
+      this._projectTasksPopupClose = null;
+      close();
+      return;
+    }
     if (this._projectTasksOverlayEl && this._projectTasksOverlayEl.parentElement) {
       this._projectTasksOverlayEl.parentElement.removeChild(this._projectTasksOverlayEl);
     }
@@ -307,147 +318,20 @@ export default class TopsView {
       alert("Projekt nicht gefunden.");
       return;
     }
-
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.background = "rgba(0,0,0,0.35)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "1400";
-    overlay.tabIndex = -1;
-
-    const card = document.createElement("div");
-    applyPopupCardStyle(card);
-    card.style.width = "min(900px, calc(100vw - 24px))";
-    card.style.maxHeight = "80vh";
-    card.style.display = "flex";
-    card.style.flexDirection = "column";
-    card.style.overflow = "hidden";
-    card.style.background = "#fff";
-
-    const header = document.createElement("div");
-    header.style.display = "flex";
-    header.style.alignItems = "center";
-    header.style.gap = "10px";
-    header.style.padding = "12px 16px";
-    header.style.borderBottom = "1px solid #e2e8f0";
-
-    const title = document.createElement("div");
-    title.textContent = "Projekt-Aufgaben";
-    title.style.fontWeight = "800";
-
-    const btnClose = document.createElement("button");
-    btnClose.type = "button";
-    btnClose.textContent = "X";
-    applyPopupButtonStyle(btnClose);
-    btnClose.style.marginLeft = "auto";
-    btnClose.onclick = () => this._closeProjectTasksPopup();
-
-    header.append(title, btnClose);
-
-    const body = document.createElement("div");
-    body.style.flex = "1 1 auto";
-    body.style.overflow = "auto";
-    body.style.padding = "12px 16px";
-    body.textContent = "Lade...";
-
-    const renderTasks = (rows) => {
-      body.innerHTML = "";
-      const list = Array.isArray(rows) ? rows : [];
-      title.textContent = `Projekt-Aufgaben (${list.length})`;
-
-      if (!list.length) {
-        const empty = document.createElement("div");
-        empty.textContent = "Keine Aufgaben vorhanden.";
-        empty.style.opacity = "0.75";
-        body.appendChild(empty);
-        return;
-      }
-
-      const wrap = document.createElement("div");
-      wrap.style.display = "grid";
-      wrap.style.gap = "8px";
-
-      const mkMeta = (label, value) => {
-        const el = document.createElement("div");
-        el.textContent = `${label}: ${value}`;
-        return el;
-      };
-
-      for (const t of list) {
-        const item = document.createElement("div");
-        item.style.border = "1px solid #e5e7eb";
-        item.style.borderRadius = "8px";
-        item.style.padding = "8px 10px";
-        item.style.display = "grid";
-        item.style.gap = "6px";
-
-        const titleEl = document.createElement("div");
-        titleEl.textContent = String(t?.title || t?.short_text || t?.shortText || "(ohne Bezeichnung)");
-        titleEl.style.fontWeight = "600";
-
-        const meta = document.createElement("div");
-        meta.style.display = "flex";
-        meta.style.flexWrap = "wrap";
-        meta.style.gap = "8px";
-        meta.style.fontSize = "12px";
-        meta.style.color = "#374151";
-
-        const resp = String(t?.responsible_label || t?.responsibleLabel || "").trim() || "-";
-        const dueRaw = t?.due_date ?? t?.dueDate ?? "";
-        const due = this._formatDateToDdMmYyyy(dueRaw) || String(dueRaw || "").trim() || "-";
-        const statusRaw = String(t?.status || "").trim();
-        const status = this._formatStatus(statusRaw);
-        const meetingRef = String(t?.meeting_id ?? t?.meetingId ?? "").trim() || "-";
-
-        if (statusRaw && statusRaw.toLowerCase() !== "erledigt") {
-          item.style.borderColor = "#b6d4ff";
-          item.style.background = "#eef7ff";
-        }
-
-        meta.append(mkMeta("Verantw.", resp));
-        meta.append(mkMeta("Faellig", due));
-        meta.append(mkMeta("Status", status));
-        meta.append(mkMeta("Meeting", meetingRef));
-
-        item.append(titleEl, meta);
-        wrap.appendChild(item);
-      }
-
-      body.appendChild(wrap);
-    };
-
-    overlay.addEventListener("mousedown", (e) => {
-      if (e.target === overlay) this._closeProjectTasksPopup();
+    const { overlay, close } = openProjectTasksDialog({
+      projectId: this.projectId,
+      loadTasks: () => api.meetingsListProjectTasks({ projectId: this.projectId }),
+      applyPopupButtonStyle,
+      applyPopupCardStyle,
+      formatDateToDdMmYyyy: (raw) => this._formatDateToDdMmYyyy(raw),
+      formatStatus: (raw) => this._formatStatus(raw),
+      onClose: () => {
+        this._projectTasksOverlayEl = null;
+        this._projectTasksPopupClose = null;
+      },
     });
-    overlay.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      this._closeProjectTasksPopup();
-    });
-
-    card.append(header, body);
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
     this._projectTasksOverlayEl = overlay;
-    try {
-      overlay.focus();
-    } catch (_e) {
-      // ignore
-    }
-
-    try {
-      const res = await api.meetingsListProjectTasks({ projectId: this.projectId });
-      if (!res?.ok) {
-        body.textContent = res?.error || "Aufgaben konnten nicht geladen werden.";
-        return;
-      }
-      renderTasks(res.list || []);
-    } catch (err) {
-      body.textContent = err?.message || "Aufgaben konnten nicht geladen werden.";
-    }
+    this._projectTasksPopupClose = close;
   }
 
   _parseMeetingTitleParts() {
@@ -539,88 +423,6 @@ _isoToDDMMYYYY(iso) {
     }
 
     const parts = this._parseMeetingTitleParts();
-
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.background = "rgba(0,0,0,0.35)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "1400";
-    overlay.tabIndex = -1;
-
-    const modal = document.createElement("div");
-    applyPopupCardStyle(modal);
-    modal.style.width = "min(560px, calc(100vw - 24px))";
-    modal.style.background = "#fff";
-    modal.style.padding = "12px";
-    modal.style.display = "grid";
-    modal.style.gap = "10px";
-
-    const title = document.createElement("div");
-    title.textContent = "Schlagwort bearbeiten";
-    title.style.fontWeight = "700";
-
-    const mkReadOnly = (labelText, value) => {
-      const row = document.createElement("div");
-      row.style.display = "grid";
-      row.style.gridTemplateColumns = "170px 1fr";
-      row.style.gap = "8px";
-      const lab = document.createElement("div");
-      lab.textContent = labelText;
-      const inp = document.createElement("input");
-      inp.type = "text";
-      inp.readOnly = true;
-      inp.value = String(value || "");
-      inp.style.width = "100%";
-      row.append(lab, inp);
-      return row;
-    };
-
-    const rowKeyword = document.createElement("div");
-    rowKeyword.style.display = "grid";
-    rowKeyword.style.gridTemplateColumns = "170px 1fr";
-    rowKeyword.style.gap = "8px";
-    const keywordLabel = document.createElement("div");
-    keywordLabel.textContent = "Schlagwort";
-    const keywordInput = document.createElement("input");
-    keywordInput.type = "text";
-    keywordInput.value = parts.meetingKeyword || "";
-    keywordInput.maxLength = 120;
-    keywordInput.style.width = "100%";
-    rowKeyword.append(keywordLabel, keywordInput);
-
-    const actions = document.createElement("div");
-    actions.style.display = "flex";
-    actions.style.justifyContent = "flex-end";
-    actions.style.gap = "8px";
-
-    const btnCancel = document.createElement("button");
-    btnCancel.type = "button";
-    btnCancel.textContent = "Abbrechen";
-    applyPopupButtonStyle(btnCancel);
-
-    const btnDelete = document.createElement("button");
-    btnDelete.type = "button";
-    btnDelete.textContent = "Loeschen";
-    applyPopupButtonStyle(btnDelete);
-
-    const btnSave = document.createElement("button");
-    btnSave.type = "button";
-    btnSave.textContent = "Speichern";
-    applyPopupButtonStyle(btnSave, { variant: "primary" });
-
-    actions.append(btnCancel, btnDelete, btnSave);
-
-    const close = () => {
-      try {
-        overlay.remove();
-      } catch (e) {
-        // ignore
-      }
-    };
-
     const applyKeyword = async (nextKeywordRaw) => {
       const nextKeyword = String(nextKeywordRaw || "").trim();
       const titleValue = parts.meetingDateText
@@ -629,50 +431,22 @@ _isoToDDMMYYYY(iso) {
       const res = await api.meetingsUpdateTitle({ meetingId: this.meetingId, title: titleValue });
       if (!res?.ok) {
         alert(res?.error || "Schlagwort konnte nicht gespeichert werden.");
-        return;
+        return false;
       }
       if (res.meeting) {
         this.meetingMeta = res.meeting;
         this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
       }
       this._updateTopBarProtocolTitle();
-      close();
+      return true;
     };
 
-    btnSave.onclick = async () => {
-      await applyKeyword(keywordInput.value);
-    };
-    btnDelete.onclick = async () => {
-      await applyKeyword("");
-    };
-    btnCancel.onclick = () => close();
-
-    overlay.addEventListener("mousedown", (e) => {
-      if (e.target === overlay) close();
+    openMeetingKeywordDialog({
+      parts,
+      applyPopupButtonStyle,
+      applyPopupCardStyle,
+      onApply: applyKeyword,
     });
-    overlay.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      close();
-    });
-
-    modal.append(
-      title,
-      mkReadOnly("Besprechungsnummer", parts.meetingIndex),
-      mkReadOnly("Datum", parts.meetingDateText),
-      rowKeyword,
-      actions
-    );
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-    setTimeout(() => {
-      try {
-        keywordInput.focus();
-        keywordInput.select();
-      } catch (e) {
-        // ignore
-      }
-    }, 0);
   }
 
   _readUiMode() {
@@ -7094,6 +6868,12 @@ const textCol = document.createElement("div");
   }
 
   _clearGapPopup() {
+    if (this._gapPopupClose) {
+      const close = this._gapPopupClose;
+      this._gapPopupClose = null;
+      close();
+      return;
+    }
     if (this._gapPopupOverlay && this._gapPopupOverlay.parentElement) {
       this._gapPopupOverlay.parentElement.removeChild(this._gapPopupOverlay);
     }
@@ -7140,109 +6920,20 @@ const textCol = document.createElement("div");
 
   async _showNumberGapPopup({ gap, onConfirm, onCancel }) {
     this._clearGapPopup();
-
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.inset = "0";
-    overlay.style.background = "rgba(0,0,0,0.35)";
-    overlay.style.display = "flex";
-    overlay.style.alignItems = "center";
-    overlay.style.justifyContent = "center";
-    overlay.style.zIndex = "20000";
-    overlay.tabIndex = -1;
-
-    const card = document.createElement("div");
-    card.style.width = "min(560px, 92vw)";
-    card.style.maxHeight = "80vh";
-    card.style.display = "flex";
-    card.style.flexDirection = "column";
-    card.style.background = "#fff";
-    card.style.borderRadius = "10px";
-    card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)";
-    applyPopupCardStyle(card);
-
-    const header = document.createElement("div");
-    header.style.padding = "14px 16px 10px 16px";
-    header.style.borderBottom = "1px solid rgba(0,0,0,0.08)";
-    header.style.fontWeight = "700";
-    header.textContent = "Nummernlücke gefunden";
-
-    const content = document.createElement("div");
-    content.style.padding = "12px 16px";
-    content.style.overflow = "auto";
-    content.style.flex = "1 1 auto";
-    content.style.lineHeight = "1.4";
-
-    const intro = document.createElement("div");
-    intro.textContent =
-      "Das Protokoll kann erst geschlossen werden, wenn die Nummerierung lückenlos ist.";
-    intro.style.marginBottom = "8px";
-    content.appendChild(intro);
-
-    const lines = this._buildGapDetailsText(gap);
-    for (const line of lines) {
-      const p = document.createElement("div");
-      p.textContent = line;
-      p.style.marginBottom = "6px";
-      content.appendChild(p);
-    }
-
-    const footer = document.createElement("div");
-    footer.style.display = "flex";
-    footer.style.justifyContent = "flex-end";
-    footer.style.gap = "8px";
-    footer.style.padding = "10px 16px";
-    footer.style.borderTop = "1px solid rgba(0,0,0,0.08)";
-    footer.style.background = "rgba(255,255,255,0.98)";
-
-    const btnCancel = document.createElement("button");
-    btnCancel.textContent = "Abbrechen";
-    applyPopupButtonStyle(btnCancel, { variant: "neutral" });
-
-    const btnOk = document.createElement("button");
-    btnOk.textContent = "Letzten TOP in Lücke setzen";
-    applyPopupButtonStyle(btnOk, { variant: "primary" });
-    const canRepair = !!gap?.lastTopId;
-    btnOk.disabled = !canRepair;
-    btnOk.style.opacity = canRepair ? "1" : "0.55";
-
-    btnCancel.onclick = () => {
-      this._clearGapPopup();
-      if (typeof onCancel === "function") onCancel();
-    };
-
-    btnOk.onclick = async () => {
-      if (!gap?.lastTopId) {
-        alert("Reparatur nicht möglich: letzter TOP nicht ermittelt");
-        return;
-      }
-      if (typeof onConfirm === "function") await onConfirm();
-    };
-
-    overlay.onclick = (e) => {
-      if (e.target === overlay) {
-        this._clearGapPopup();
-        if (typeof onCancel === "function") onCancel();
-      }
-    };
-    overlay.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      this._clearGapPopup();
-      if (typeof onCancel === "function") onCancel();
+    const { overlay, close } = openNumberGapDialog({
+      gap,
+      lines: this._buildGapDetailsText(gap),
+      applyPopupButtonStyle,
+      applyPopupCardStyle,
+      onConfirm,
+      onCancel,
+      onClose: () => {
+        this._gapPopupOverlay = null;
+        this._gapPopupClose = null;
+      },
     });
-
-    footer.append(btnCancel, btnOk);
-    card.append(header, content, footer);
-    overlay.appendChild(card);
-    document.body.appendChild(overlay);
-    try {
-      overlay.focus();
-    } catch (_e) {
-      // ignore
-    }
-
     this._gapPopupOverlay = overlay;
+    this._gapPopupClose = close;
   }
 
   async destroy() {
