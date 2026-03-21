@@ -112,7 +112,7 @@ const clearReturnContext = () => {
 };
 
 export default function App() {
-  const { useEffect, useMemo, useState } = React || {};
+  const { useEffect, useMemo, useRef, useState } = React || {};
   const [view, setView] = useState(() => readReturnView());
   const [selectedProjectId, setSelectedProjectId] = useState(() => readReturnProjectId());
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
@@ -138,6 +138,7 @@ export default function App() {
   }));
 
   const [selectedTopId, setSelectedTopId] = useState(null);
+  const topsListRef = useRef(null);
 
   const canOpenLegacy = typeof window.__bbmReactBridge?.openProjectMeetings === "function";
   const canOpenMeeting = typeof window.__bbmReactBridge?.openMeetingTops === "function";
@@ -332,6 +333,17 @@ export default function App() {
       setSelectedTopId(items[0]?.id ?? null);
     }
   }, [view, topsState.tops]);
+
+  useEffect(() => {
+    if (view !== "tops") return;
+    if (!selectedTopId) return;
+    const host = topsListRef?.current;
+    if (!host || typeof host.querySelector !== "function") return;
+    const item = host.querySelector(`[data-top-id="${String(selectedTopId)}"]`);
+    if (item && typeof item.scrollIntoView === "function") {
+      item.scrollIntoView({ block: "nearest" });
+    }
+  }, [view, selectedTopId]);
 
   const projects = projectsState.projects || [];
   const selectedProject = useMemo(() => {
@@ -789,6 +801,7 @@ export default function App() {
         key: id || `${title}-${level}`,
         type: "button",
         className: classes,
+        "data-top-id": id,
         onClick: () => setSelectedTopId(t?.id ?? null),
       },
       React.createElement(
@@ -809,6 +822,9 @@ export default function App() {
       React.createElement(
         "div",
         { className: "react-top-item-meta" },
+        isSelected
+          ? React.createElement("span", { className: "react-top-item-active" }, "Aktiver TOP")
+          : null,
         isTopImportant(t) ? React.createElement("span", { className: "react-dot is-warn" }) : null,
         isTopTask(t) ? React.createElement("span", { className: "react-dot is-info" }) : null,
         isTopDecision(t) ? React.createElement("span", { className: "react-dot is-info" }) : null,
@@ -846,7 +862,7 @@ export default function App() {
             topsItems.length
               ? React.createElement(
                   "div",
-                  { className: "react-tops-list-body" },
+                  { className: "react-tops-list-body", ref: topsListRef },
                   topsItems.map(renderTopItem)
                 )
               : React.createElement(
@@ -861,7 +877,7 @@ export default function App() {
             selectedTop
               ? React.createElement(
                   "div",
-                  { className: "react-tops-detail-card" },
+                  { className: "react-tops-detail-card is-active" },
                   React.createElement(
                     "div",
                     { className: "react-tops-detail-head" },
@@ -876,6 +892,16 @@ export default function App() {
                       getTopNumber(selectedTop)
                         ? `TOP ${getTopNumber(selectedTop)}`
                         : `Level ${getTopLevel(selectedTop)}`
+                    )
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "react-tops-detail-active" },
+                    React.createElement("span", { className: "react-tops-detail-active-pill" }, "Arbeitsmodus"),
+                    React.createElement(
+                      "span",
+                      { className: "react-tops-detail-active-text" },
+                      "Aktueller Fokus im React-Modus."
                     )
                   ),
                   React.createElement(
