@@ -604,6 +604,7 @@ body {
   border-radius: 10px;
   background: rgba(37, 99, 235, 0.1);
   border: 1px solid rgba(37, 99, 235, 0.2);
+  flex-wrap: wrap;
 }
 
 .react-tops-detail-active-pill {
@@ -621,6 +622,15 @@ body {
   font-size: 12px;
   color: #1e3a8a;
   font-weight: 600;
+}
+
+.react-top-extra-toggle {
+  margin-left: auto;
+}
+
+.react-tops-detail-extra {
+  border-style: dashed;
+  background: rgba(248, 250, 252, 0.9);
 }
 
 .react-tops-detail-head {

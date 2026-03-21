@@ -139,6 +139,7 @@ export default function App() {
 
   const [selectedTopId, setSelectedTopId] = useState(null);
   const topsListRef = useRef(null);
+  const [isTopExtraOpen, setIsTopExtraOpen] = useState(false);
 
   const canOpenLegacy = typeof window.__bbmReactBridge?.openProjectMeetings === "function";
   const canOpenMeeting = typeof window.__bbmReactBridge?.openMeetingTops === "function";
@@ -333,6 +334,11 @@ export default function App() {
       setSelectedTopId(items[0]?.id ?? null);
     }
   }, [view, topsState.tops]);
+
+  useEffect(() => {
+    if (view !== "tops") return;
+    setIsTopExtraOpen(false);
+  }, [view, selectedTopId]);
 
   useEffect(() => {
     if (view !== "tops") return;
@@ -772,6 +778,12 @@ export default function App() {
   const taskCount = topsItems.filter((t) => isTopTask(t)).length;
   const decisionCount = topsItems.filter((t) => isTopDecision(t)).length;
   const importantCount = topsItems.filter((t) => isTopImportant(t)).length;
+  const selectedHasLongtext = !!(selectedTop && getTopLongtext(selectedTop));
+  const selectedHasDue = !!(selectedTop && getTopDueDate(selectedTop));
+  const selectedHasTags = !!(
+    selectedTop && (isTopImportant(selectedTop) || isTopTask(selectedTop) || isTopDecision(selectedTop) || isTopHidden(selectedTop))
+  );
+  const selectedHasExtras = !!(selectedHasLongtext || selectedHasDue || selectedHasTags);
   const openMeetingStandard = () => {
     if (!topsMeeting) return;
     const pid = String(selectedProjectId ?? "").trim();
@@ -902,7 +914,18 @@ export default function App() {
                       "span",
                       { className: "react-tops-detail-active-text" },
                       "Aktueller Fokus im React-Modus."
-                    )
+                    ),
+                    selectedHasExtras
+                      ? React.createElement(
+                          "button",
+                          {
+                            type: "button",
+                            className: "react-btn react-btn-small react-btn-ghost react-top-extra-toggle",
+                            onClick: () => setIsTopExtraOpen((open) => !open),
+                          },
+                          isTopExtraOpen ? "Weniger anzeigen" : "Mehr anzeigen"
+                        )
+                      : null
                   ),
                   React.createElement(
                     "div",
@@ -940,11 +963,11 @@ export default function App() {
                         { className: "react-tops-detail-label" },
                         "Metadaten"
                       ),
-                      React.createElement(
-                        "div",
-                        { className: "react-tops-detail-grid" },
                         React.createElement(
                           "div",
+                          { className: "react-tops-detail-grid" },
+                          React.createElement(
+                            "div",
                           { className: "react-tops-detail-section" },
                           React.createElement(
                             "div",
@@ -970,48 +993,79 @@ export default function App() {
                             { className: "react-tops-detail-value" },
                             getTopNumber(selectedTop) ? `TOP ${getTopNumber(selectedTop)}` : "—"
                           )
-                        ),
-                        React.createElement(
-                          "div",
-                          { className: "react-tops-detail-section" },
-                          React.createElement(
-                            "div",
-                            { className: "react-tops-detail-label" },
-                            "Faellig"
-                          ),
-                          React.createElement(
-                            "div",
-                            { className: "react-tops-detail-value" },
-                            getTopDueDate(selectedTop) ? formatDate(getTopDueDate(selectedTop)) : "—"
-                          )
-                        ),
-                        React.createElement(
-                          "div",
-                          { className: "react-tops-detail-section" },
-                          React.createElement(
-                            "div",
-                            { className: "react-tops-detail-label" },
-                            "Marker"
-                          ),
-                          React.createElement(
-                            "div",
-                            { className: "react-tops-detail-tags" },
-                            isTopImportant(selectedTop)
-                              ? React.createElement("span", { className: "react-tag is-warn" }, "Wichtig")
-                              : null,
-                            isTopTask(selectedTop)
-                              ? React.createElement("span", { className: "react-tag is-info" }, "Aufgabe")
-                              : null,
-                            isTopDecision(selectedTop)
-                              ? React.createElement("span", { className: "react-tag is-info" }, "Entscheidung")
-                              : null,
-                            isTopHidden(selectedTop)
-                              ? React.createElement("span", { className: "react-tag is-muted" }, "Ausgeblendet")
-                              : React.createElement("span", { className: "react-tag is-muted" }, "Sichtbar")
-                          )
                         )
                       )
-                    )
+                    ),
+                    selectedHasExtras && isTopExtraOpen
+                      ? React.createElement(
+                          "div",
+                          { className: "react-tops-detail-block react-tops-detail-extra" },
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-label" },
+                            "Zusatzinfos"
+                          ),
+                          selectedHasLongtext
+                            ? React.createElement(
+                                "div",
+                                { className: "react-tops-detail-section" },
+                                React.createElement(
+                                  "div",
+                                  { className: "react-tops-detail-label" },
+                                  "Langtext"
+                                ),
+                                React.createElement(
+                                  "div",
+                                  { className: "react-tops-detail-value react-tops-detail-long" },
+                                  getTopLongtext(selectedTop)
+                                )
+                              )
+                            : null,
+                          selectedHasDue
+                            ? React.createElement(
+                                "div",
+                                { className: "react-tops-detail-section" },
+                                React.createElement(
+                                  "div",
+                                  { className: "react-tops-detail-label" },
+                                  "Faellig"
+                                ),
+                                React.createElement(
+                                  "div",
+                                  { className: "react-tops-detail-value" },
+                                  formatDate(getTopDueDate(selectedTop))
+                                )
+                              )
+                            : null,
+                          selectedHasTags
+                            ? React.createElement(
+                                "div",
+                                { className: "react-tops-detail-section" },
+                                React.createElement(
+                                  "div",
+                                  { className: "react-tops-detail-label" },
+                                  "Marker"
+                                ),
+                                React.createElement(
+                                  "div",
+                                  { className: "react-tops-detail-tags" },
+                                  isTopImportant(selectedTop)
+                                    ? React.createElement("span", { className: "react-tag is-warn" }, "Wichtig")
+                                    : null,
+                                  isTopTask(selectedTop)
+                                    ? React.createElement("span", { className: "react-tag is-info" }, "Aufgabe")
+                                    : null,
+                                  isTopDecision(selectedTop)
+                                    ? React.createElement("span", { className: "react-tag is-info" }, "Entscheidung")
+                                    : null,
+                                  isTopHidden(selectedTop)
+                                    ? React.createElement("span", { className: "react-tag is-muted" }, "Ausgeblendet")
+                                    : React.createElement("span", { className: "react-tag is-muted" }, "Sichtbar")
+                                )
+                              )
+                            : null
+                        )
+                      : null
                   )
                 )
               : React.createElement(
