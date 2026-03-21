@@ -339,16 +339,18 @@ export default class ProjectsView {
       btnCreate.textContent = "Anlegen";
       applyPopupButtonStyle(btnCreate, { variant: "primary" });
 
-      btnCancel.onclick = () => this._closeCreateMeetingModal(null);
+      const close = (result) => this._closeCreateMeetingModal(result);
+
+      btnCancel.onclick = () => close(null);
       btnCreate.onclick = () =>
-        this._closeCreateMeetingModal({
+        close({
           dateISO: String(inpDate.value || "").trim(),
           keyword: String(inpKeyword.value || "").trim(),
           editParticipants: chkEditParticipants.checked,
         });
 
       const submitCreate = () =>
-        this._closeCreateMeetingModal({
+        close({
           dateISO: String(inpDate.value || "").trim(),
           keyword: String(inpKeyword.value || "").trim(),
           editParticipants: chkEditParticipants.checked,
@@ -366,13 +368,13 @@ export default class ProjectsView {
       });
 
       overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) this._closeCreateMeetingModal(null);
+        if (e.target === overlay) close(null);
       });
 
       overlay.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
           e.preventDefault();
-          this._closeCreateMeetingModal(null);
+          close(null);
         }
       });
 
