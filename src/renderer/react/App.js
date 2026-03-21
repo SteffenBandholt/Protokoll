@@ -756,6 +756,10 @@ export default function App() {
   const topsItems = Array.isArray(topsState.tops) ? topsState.tops : [];
   const selectedTop = topsItems.find((t) => getTopId(t) === String(selectedTopId || "")) || null;
   const level1Count = topsItems.filter((t) => getTopLevel(t) === 1).length;
+  const hiddenCount = topsItems.filter((t) => isTopHidden(t)).length;
+  const taskCount = topsItems.filter((t) => isTopTask(t)).length;
+  const decisionCount = topsItems.filter((t) => isTopDecision(t)).length;
+  const importantCount = topsItems.filter((t) => isTopImportant(t)).length;
   const openMeetingStandard = () => {
     if (!topsMeeting) return;
     const pid = String(selectedProjectId ?? "").trim();
@@ -789,10 +793,33 @@ export default function App() {
       },
       React.createElement(
         "div",
-        { className: "react-top-item-title" },
-        number ? `TOP ${number}` : `Level ${level}`
+        { className: "react-top-item-head" },
+        React.createElement(
+          "div",
+          { className: "react-top-item-index" },
+          number ? `TOP ${number}` : `Level ${level}`
+        ),
+        React.createElement(
+          "div",
+          { className: "react-top-item-level" },
+          `Ebene ${level}`
+        )
       ),
-      React.createElement("div", { className: "react-top-item-text" }, title)
+      React.createElement("div", { className: "react-top-item-text" }, title),
+      React.createElement(
+        "div",
+        { className: "react-top-item-meta" },
+        isTopImportant(t) ? React.createElement("span", { className: "react-dot is-warn" }) : null,
+        isTopTask(t) ? React.createElement("span", { className: "react-dot is-info" }) : null,
+        isTopDecision(t) ? React.createElement("span", { className: "react-dot is-info" }) : null,
+        getTopDueDate(t)
+          ? React.createElement(
+              "span",
+              { className: "react-top-item-due" },
+              `Faellig ${formatDate(getTopDueDate(t))}`
+            )
+          : null
+      )
     );
   };
 
@@ -822,7 +849,11 @@ export default function App() {
                   { className: "react-tops-list-body" },
                   topsItems.map(renderTopItem)
                 )
-              : React.createElement("div", { className: "react-empty" }, "Keine TOPs vorhanden.")
+              : React.createElement(
+                  "div",
+                  { className: "react-empty" },
+                  "Keine TOPs vorhanden. Bitte zuerst im Standardmodus TOPs anlegen."
+                )
           ),
           React.createElement(
             "section",
@@ -849,55 +880,72 @@ export default function App() {
                   ),
                   React.createElement(
                     "div",
-                    { className: "react-tops-detail-tags" },
-                    isTopImportant(selectedTop)
-                      ? React.createElement("span", { className: "react-tag is-warn" }, "Wichtig")
-                      : null,
-                    isTopTask(selectedTop)
-                      ? React.createElement("span", { className: "react-tag is-info" }, "Aufgabe")
-                      : null,
-                    isTopDecision(selectedTop)
-                      ? React.createElement("span", { className: "react-tag is-info" }, "Entscheidung")
-                      : null,
-                    isTopHidden(selectedTop)
-                      ? React.createElement("span", { className: "react-tag is-muted" }, "Ausgeblendet")
-                      : null
-                  ),
-                  React.createElement(
-                    "div",
                     { className: "react-tops-detail-body" },
                     React.createElement(
                       "div",
-                      { className: "react-tops-detail-section" },
+                      { className: "react-tops-detail-block" },
                       React.createElement(
                         "div",
                         { className: "react-tops-detail-label" },
-                        "Kurztext"
+                        "Inhalt"
                       ),
                       React.createElement(
                         "div",
                         { className: "react-tops-detail-value" },
                         getTopTitle(selectedTop)
-                      )
+                      ),
+                      getTopLongtext(selectedTop)
+                        ? React.createElement(
+                            "div",
+                            { className: "react-tops-detail-value react-tops-detail-long" },
+                            getTopLongtext(selectedTop)
+                          )
+                        : React.createElement(
+                            "div",
+                            { className: "react-tops-detail-hint" },
+                            "Kein Langtext vorhanden."
+                          )
                     ),
-                    getTopLongtext(selectedTop)
-                      ? React.createElement(
+                    React.createElement(
+                      "div",
+                      { className: "react-tops-detail-block" },
+                      React.createElement(
+                        "div",
+                        { className: "react-tops-detail-label" },
+                        "Metadaten"
+                      ),
+                      React.createElement(
+                        "div",
+                        { className: "react-tops-detail-grid" },
+                        React.createElement(
                           "div",
                           { className: "react-tops-detail-section" },
                           React.createElement(
                             "div",
                             { className: "react-tops-detail-label" },
-                            "Langtext"
+                            "Ebene"
                           ),
                           React.createElement(
                             "div",
                             { className: "react-tops-detail-value" },
-                            getTopLongtext(selectedTop)
+                            `Ebene ${getTopLevel(selectedTop)}`
                           )
-                        )
-                      : null,
-                    getTopDueDate(selectedTop)
-                      ? React.createElement(
+                        ),
+                        React.createElement(
+                          "div",
+                          { className: "react-tops-detail-section" },
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-label" },
+                            "Nummer"
+                          ),
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-value" },
+                            getTopNumber(selectedTop) ? `TOP ${getTopNumber(selectedTop)}` : "—"
+                          )
+                        ),
+                        React.createElement(
                           "div",
                           { className: "react-tops-detail-section" },
                           React.createElement(
@@ -908,16 +956,42 @@ export default function App() {
                           React.createElement(
                             "div",
                             { className: "react-tops-detail-value" },
-                            formatDate(getTopDueDate(selectedTop))
+                            getTopDueDate(selectedTop) ? formatDate(getTopDueDate(selectedTop)) : "—"
+                          )
+                        ),
+                        React.createElement(
+                          "div",
+                          { className: "react-tops-detail-section" },
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-label" },
+                            "Marker"
+                          ),
+                          React.createElement(
+                            "div",
+                            { className: "react-tops-detail-tags" },
+                            isTopImportant(selectedTop)
+                              ? React.createElement("span", { className: "react-tag is-warn" }, "Wichtig")
+                              : null,
+                            isTopTask(selectedTop)
+                              ? React.createElement("span", { className: "react-tag is-info" }, "Aufgabe")
+                              : null,
+                            isTopDecision(selectedTop)
+                              ? React.createElement("span", { className: "react-tag is-info" }, "Entscheidung")
+                              : null,
+                            isTopHidden(selectedTop)
+                              ? React.createElement("span", { className: "react-tag is-muted" }, "Ausgeblendet")
+                              : React.createElement("span", { className: "react-tag is-muted" }, "Sichtbar")
                           )
                         )
-                      : null
+                      )
+                    )
                   )
                 )
               : React.createElement(
                   "div",
                   { className: "react-empty" },
-                  "Bitte einen TOP auswaehlen."
+                  "Bitte links einen TOP auswaehlen, um Details zu sehen."
                 )
           ),
           React.createElement(
@@ -926,11 +1000,31 @@ export default function App() {
             React.createElement(
               "div",
               { className: "react-tops-context-card" },
-              React.createElement("div", { className: "react-tops-context-title" }, "Meeting-Kontext"),
+              React.createElement("div", { className: "react-tops-context-title" }, "Kontext"),
               React.createElement(
                 "div",
                 { className: "react-tops-context-row" },
-                React.createElement("span", null, "Titel"),
+                React.createElement("span", null, "Projekt"),
+                React.createElement(
+                  "span",
+                  null,
+                  selectedProject ? getProjectTitle(selectedProject) : "(unbekannt)"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-row" },
+                React.createElement("span", null, "Projekt-Meta"),
+                React.createElement(
+                  "span",
+                  null,
+                  selectedProject ? getProjectMeta(selectedProject) || "—" : "—"
+                )
+              ),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-row" },
+                React.createElement("span", null, "Meeting"),
                 React.createElement(
                   "span",
                   null,
@@ -955,6 +1049,64 @@ export default function App() {
                   "span",
                   { className: `react-status ${isMeetingClosed(topsMeeting) ? "is-closed" : "is-open"}` },
                   isMeetingClosed(topsMeeting) ? "geschlossen" : "offen"
+                )
+              ),
+              React.createElement("div", { className: "react-tops-context-divider" }),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-title" },
+                "Uebersicht"
+              ),
+              React.createElement(
+                "div",
+                { className: "react-tops-context-grid" },
+                React.createElement(
+                  "div",
+                  { className: "react-tops-context-stat" },
+                  React.createElement("div", { className: "react-tops-context-stat-label" }, "TOPs gesamt"),
+                  React.createElement("div", { className: "react-tops-context-stat-value" }, String(topsItems.length))
+                ),
+                React.createElement(
+                  "div",
+                  { className: "react-tops-context-stat" },
+                  React.createElement("div", { className: "react-tops-context-stat-label" }, "Ebene 1"),
+                  React.createElement("div", { className: "react-tops-context-stat-value" }, String(level1Count))
+                ),
+                React.createElement(
+                  "div",
+                  { className: "react-tops-context-stat" },
+                  React.createElement("div", { className: "react-tops-context-stat-label" }, "Aufgaben"),
+                  React.createElement("div", { className: "react-tops-context-stat-value" }, String(taskCount))
+                ),
+                React.createElement(
+                  "div",
+                  { className: "react-tops-context-stat" },
+                  React.createElement("div", { className: "react-tops-context-stat-label" }, "Entscheidungen"),
+                  React.createElement(
+                    "div",
+                    { className: "react-tops-context-stat-value" },
+                    String(decisionCount)
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "react-tops-context-stat" },
+                  React.createElement("div", { className: "react-tops-context-stat-label" }, "Wichtig"),
+                  React.createElement(
+                    "div",
+                    { className: "react-tops-context-stat-value" },
+                    String(importantCount)
+                  )
+                ),
+                React.createElement(
+                  "div",
+                  { className: "react-tops-context-stat" },
+                  React.createElement("div", { className: "react-tops-context-stat-label" }, "Ausgeblendet"),
+                  React.createElement(
+                    "div",
+                    { className: "react-tops-context-stat-value" },
+                    String(hiddenCount)
+                  )
                 )
               ),
               React.createElement(

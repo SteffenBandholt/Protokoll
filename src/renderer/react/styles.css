@@ -466,9 +466,10 @@ body {
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   cursor: pointer;
   transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  position: relative;
 }
 
 .react-top-item:hover {
@@ -482,20 +483,76 @@ body {
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.18);
 }
 
+.react-top-item.is-selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 6px 6px 0;
+  background: var(--react-accent);
+}
+
 .react-top-item.is-hidden {
   opacity: 0.7;
 }
 
-.react-top-item-title {
-  font-size: 12px;
-  color: var(--react-muted);
+.react-top-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.react-top-item-index {
+  font-size: 11px;
   font-weight: 700;
+  color: var(--react-text);
+  background: rgba(37, 99, 235, 0.12);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.react-top-item-level {
+  font-size: 11px;
+  color: var(--react-muted);
+  font-weight: 600;
 }
 
 .react-top-item-text {
   font-size: 13px;
   font-weight: 600;
   color: var(--react-text);
+}
+
+.react-top-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--react-muted);
+}
+
+.react-top-item-due {
+  font-size: 11px;
+  color: var(--react-muted);
+}
+
+.react-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.6);
+  display: inline-block;
+}
+
+.react-dot.is-warn {
+  background: #f59e0b;
+}
+
+.react-dot.is-info {
+  background: #2563eb;
 }
 
 .react-top-item.level-2 {
@@ -580,6 +637,21 @@ body {
   gap: 12px;
 }
 
+.react-tops-detail-block {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--react-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.react-tops-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
 .react-tops-detail-section {
   display: grid;
   gap: 6px;
@@ -596,6 +668,16 @@ body {
   font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.react-tops-detail-long {
+  color: var(--react-text);
+  opacity: 0.9;
+}
+
+.react-tops-detail-hint {
+  font-size: 12px;
+  color: var(--react-muted);
 }
 
 .react-tops-context-card {
@@ -624,6 +706,39 @@ body {
 
 .react-tops-context-row span:first-child {
   color: var(--react-muted);
+}
+
+.react-tops-context-divider {
+  height: 1px;
+  background: var(--react-border);
+  margin: 6px 0;
+}
+
+.react-tops-context-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.react-tops-context-stat {
+  background: rgba(15, 23, 42, 0.04);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.react-tops-context-stat-label {
+  font-size: 11px;
+  color: var(--react-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.react-tops-context-stat-value {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--react-text);
 }
 
 .react-tops-context-actions {
