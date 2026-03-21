@@ -7,6 +7,7 @@ export default class ProjectContextQuicklane {
     this.closeBtn = null;
     this.pinBtn = null;
     this.bodyEl = null;
+    this.projectSectionEl = null;
     this.projectNumberValueEl = null;
     this.projectShortValueEl = null;
     this.projectIdValueEl = null;
@@ -237,7 +238,7 @@ export default class ProjectContextQuicklane {
     quicklaneSections.style.gap = "12px";
     quicklaneSections.style.marginTop = "18px";
 
-    const createPlaceholderSection = (titleText, detailText) => {
+    const createPlaceholderSection = (titleText, detailText, actionHandler = null) => {
       const section = document.createElement("div");
       section.style.display = "flex";
       section.style.flexDirection = "column";
@@ -246,6 +247,7 @@ export default class ProjectContextQuicklane {
       section.style.border = "1px solid #e8e8e8";
       section.style.borderRadius = "10px";
       section.style.background = "#fbfbfb";
+      section.style.transition = "border-color 140ms ease-out, background 140ms ease-out";
 
       const title = document.createElement("div");
       title.textContent = titleText;
@@ -259,14 +261,29 @@ export default class ProjectContextQuicklane {
       detail.style.color = "#666";
 
       section.append(title, detail);
+
+      if (typeof actionHandler === "function") {
+        section.tabIndex = 0;
+        section.setAttribute("role", "button");
+        section.onclick = actionHandler;
+        section.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter" && e.key !== " ") return;
+          e.preventDefault();
+          actionHandler();
+        });
+      }
+
       return section;
     };
 
-    quicklaneSections.append(
-      createPlaceholderSection("Projekt", "folgt"),
-      createPlaceholderSection("Firmen", "noch ohne Funktion"),
-      createPlaceholderSection("Mitarbeiter", "noch ohne Funktion")
-    );
+    const projectSection = createPlaceholderSection("Projekt", "folgt", () => {
+      if (!this._lastOpts?.projectId) return;
+      this.router?.openProjectFormModal?.({ projectId: this._lastOpts.projectId });
+    });
+    const firmsSection = createPlaceholderSection("Firmen", "noch ohne Funktion");
+    const employeesSection = createPlaceholderSection("Mitarbeiter", "noch ohne Funktion");
+
+    quicklaneSections.append(projectSection, firmsSection, employeesSection);
 
     body.append(sectionTitle, contextCard, quicklaneSections);
 
@@ -310,6 +327,7 @@ export default class ProjectContextQuicklane {
     this.pinBtn = pinBtn;
     this.closeBtn = closeBtn;
     this.bodyEl = body;
+    this.projectSectionEl = projectSection;
     this.projectNumberValueEl = projectNumberValue;
     this.projectShortValueEl = projectShortValue;
     this.projectIdValueEl = projectValue;
@@ -357,6 +375,15 @@ export default class ProjectContextQuicklane {
         this._lastOpts?.meetingId === undefined || this._lastOpts?.meetingId === null
           ? "\u2014"
           : String(this._lastOpts.meetingId);
+    }
+    if (this.projectSectionEl) {
+      const disabled = !this._lastOpts?.projectId;
+      this.projectSectionEl.style.opacity = disabled ? "0.55" : "1";
+      this.projectSectionEl.style.cursor = disabled ? "default" : "pointer";
+      this.projectSectionEl.style.background = disabled ? "#fbfbfb" : "#f7f7f7";
+      this.projectSectionEl.style.borderColor = disabled ? "#e8e8e8" : "#dcdcdc";
+      this.projectSectionEl.tabIndex = disabled ? -1 : 0;
+      this.projectSectionEl.setAttribute("aria-disabled", disabled ? "true" : "false");
     }
   }
 
