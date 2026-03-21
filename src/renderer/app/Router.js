@@ -38,11 +38,17 @@ export default class Router {
     this._printModalLoading = null;
     this._helpModal = null;
     this._helpModalLoading = null;
+    this._projectContextLane = null;
+    this._projectContextLaneLoading = null;
     this.currentView = null;
     this.activeView = null;
 
     this._setupStatusRefreshTimer = null;
     this._printSelectionState = null;
+
+    Promise.resolve().then(() => {
+      this._ensureProjectContextQuicklane().catch(() => {});
+    });
   }
 
   _emitContextChange() {
@@ -405,10 +411,28 @@ export default class Router {
     this.context.ui.isTopsView = !!isTopsView;
     this.context.ui.pageTitle = pageTitle;
 
+    try {
+      const lane = await this._ensureProjectContextQuicklane();
+      lane?.setEnabled?.(!!isTopsView);
+    } catch (_e) {
+      // ignore
+    }
+
     this._setActiveSection(section);
 
     await this.ensureAppSettingsLoaded({ force: false });
     await this.ensureCurrentProjectLabelLoaded({ force: false });
+
+    try {
+      const lane = await this._ensureProjectContextQuicklane();
+      lane?.setContext?.({
+        projectId: this.currentProjectId || this.lastTopsProjectId || null,
+        meetingId: this.currentMeetingId || this.lastTopsMeetingId || null,
+        projectLabel: this.context.projectLabel || null,
+      });
+    } catch (_e) {
+      // ignore
+    }
 
     this.contentRoot.innerHTML = "";
     const e = v.render();
@@ -990,6 +1014,29 @@ export default class Router {
     } finally {
       await this.closePrintModal({ keepPreview: false });
     }
+  }
+
+  async _ensureProjectContextQuicklane() {
+    if (this._projectContextLane) return this._projectContextLane;
+    if (this._projectContextLaneLoading) return await this._projectContextLaneLoading;
+
+    this._projectContextLaneLoading = (async () => {
+      const mod = await import("../ui/ProjectContextQuicklane.js");
+      const Lane = mod.default;
+      this._projectContextLane = new Lane();
+      return this._projectContextLane;
+    })();
+
+    try {
+      return await this._projectContextLaneLoading;
+    } finally {
+      this._projectContextLaneLoading = null;
+    }
+  }
+
+  async openProjectContextQuicklane(opts = {}) {
+    const lane = await this._ensureProjectContextQuicklane();
+    lane?.open?.(opts && typeof opts === "object" ? opts : {});
   }
 
   async _ensureHelpModal() {
