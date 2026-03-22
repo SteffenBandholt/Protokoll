@@ -29,6 +29,7 @@ export default class FirmsView {
     importContext = "stamm",
     getImportProjectId = null,
     getImportProjectFirmId = null,
+    lockPersonImportFirmSelection = false,
     onImportRefresh = null,
   } = {}) {
     this.router = router;
@@ -160,6 +161,7 @@ export default class FirmsView {
     this.getImportProjectId = typeof getImportProjectId === "function" ? getImportProjectId : null;
     this.getImportProjectFirmId =
       typeof getImportProjectFirmId === "function" ? getImportProjectFirmId : null;
+    this.lockPersonImportFirmSelection = !!lockPersonImportFirmSelection;
     this.onImportRefresh = typeof onImportRefresh === "function" ? onImportRefresh : null;
   }
 
@@ -1105,7 +1107,10 @@ const taFirmNotes = document.createElement("textarea");
   _getImportContextPayload() {
     const ctx = String(this.importContext || "stamm").trim().toLowerCase();
     const isProject = ctx === "projekt" || ctx === "project";
-    if (!isProject) return { context: "stamm" };
+    const personImportFirmId = this._getProjectFirmIdForPersonImport();
+    if (!isProject) {
+      return personImportFirmId ? { context: "stamm", personImportFirmId } : { context: "stamm" };
+    }
 
     let projectId = "";
     if (typeof this.getImportProjectId === "function") {
@@ -1119,7 +1124,9 @@ const taFirmNotes = document.createElement("textarea");
       projectId = String(this.router?.currentProjectId || "").trim();
     }
 
-    return { context: "projekt", projectId };
+    return personImportFirmId
+      ? { context: "projekt", projectId, personImportFirmId }
+      : { context: "projekt", projectId };
   }
 
   _getProjectFirmIdForPersonImport() {
@@ -2673,11 +2680,14 @@ const taFirmNotes = document.createElement("textarea");
       o.textContent = f.name;
       sel.appendChild(o);
     }
-    const newFirmOption = document.createElement("option");
-    newFirmOption.value = "__new__";
-    newFirmOption.textContent = "+ Firma neu…";
-    sel.appendChild(newFirmOption);
+    if (!this.lockPersonImportFirmSelection) {
+      const newFirmOption = document.createElement("option");
+      newFirmOption.value = "__new__";
+      newFirmOption.textContent = "+ Firma neu…";
+      sel.appendChild(newFirmOption);
+    }
     sel.value = String(item?.firm_id || "");
+    sel.disabled = this.lockPersonImportFirmSelection;
     sel.addEventListener("change", async () => {
       const next = String(sel.value || "");
       if (next === "__new__") {
@@ -3612,12 +3622,14 @@ const taFirmNotes = document.createElement("textarea");
         o.textContent = f.name;
         detail.firm.appendChild(o);
       }
-      const newFirmOption = document.createElement("option");
-      newFirmOption.value = "__new__";
-      newFirmOption.textContent = "+ Firma neu…";
-      detail.firm.appendChild(newFirmOption);
+      if (!this.lockPersonImportFirmSelection) {
+        const newFirmOption = document.createElement("option");
+        newFirmOption.value = "__new__";
+        newFirmOption.textContent = "+ Firma neu…";
+        detail.firm.appendChild(newFirmOption);
+      }
       detail.firm.value = String(item.firm_id || "");
-      detail.firm.disabled = false;
+      detail.firm.disabled = this.lockPersonImportFirmSelection;
     }
 
     setVal(detail.first_name, item.first_name || "");
@@ -4212,21 +4224,23 @@ const taFirmNotes = document.createElement("textarea");
       }
     }
 
-    const newFirmRow = document.createElement("div");
-    newFirmRow.textContent = "+ Firma neu…";
-    newFirmRow.style.padding = "8px 10px";
-    newFirmRow.style.cursor = "pointer";
-    newFirmRow.style.fontWeight = "600";
-    newFirmRow.style.borderTop = firms.length ? "1px solid #e9edf3" : "none";
-    newFirmRow.style.marginTop = firms.length ? "4px" : "0";
-    newFirmRow.addEventListener("dblclick", async () => {
-      const item = this._getSelectedPersonImportItem();
-      if (!item) return;
-      await this._openPersonImportNewFirmPopup(item);
-      this._closePersonImportFirmList();
-    });
-    newFirmRow.addEventListener("click", (event) => event.stopPropagation());
-    panel.appendChild(newFirmRow);
+    if (!this.lockPersonImportFirmSelection) {
+      const newFirmRow = document.createElement("div");
+      newFirmRow.textContent = "+ Firma neu…";
+      newFirmRow.style.padding = "8px 10px";
+      newFirmRow.style.cursor = "pointer";
+      newFirmRow.style.fontWeight = "600";
+      newFirmRow.style.borderTop = firms.length ? "1px solid #e9edf3" : "none";
+      newFirmRow.style.marginTop = firms.length ? "4px" : "0";
+      newFirmRow.addEventListener("dblclick", async () => {
+        const item = this._getSelectedPersonImportItem();
+        if (!item) return;
+        await this._openPersonImportNewFirmPopup(item);
+        this._closePersonImportFirmList();
+      });
+      newFirmRow.addEventListener("click", (event) => event.stopPropagation());
+      panel.appendChild(newFirmRow);
+    }
   }
 
   async _applyPersonImportFirmSelection(firm) {

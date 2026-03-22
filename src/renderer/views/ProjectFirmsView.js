@@ -182,10 +182,20 @@ export default class ProjectFirmsView {
       getImportProjectFirmId: () => {
         return this._hasFirmSelectedSaved() ? this.selectedFirmId : "";
       },
+      lockPersonImportFirmSelection: true,
       onImportRefresh: async () => {
+        const selectedFirmId = this._hasFirmSelectedSaved() ? this.selectedFirmId : "";
+        const selectedFirmIsAssignedGlobal =
+          !!selectedFirmId && this._selectedFirmIsAssignedGlobal();
         try {
           await this.reloadFirms();
           await this.reloadGlobalAssignments();
+          if (selectedFirmIsAssignedGlobal) {
+            await this._ensureGlobalFirmPersonsProjectCandidates(selectedFirmId);
+          }
+          if (this._hasFirmSelectedSaved()) {
+            await this._reloadPersons();
+          }
         } finally {
           this.savingFirm = false;
           this.savingPerson = false;
@@ -1339,6 +1349,11 @@ const taFirmNotes = document.createElement("textarea");
       alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
+    if (!this._hasFirmSelectedSaved()) {
+      alert("Bitte zuerst eine Firma auswählen.");
+      return;
+    }
+    this.importPopupView.importContext = this._selectedFirmIsAssignedGlobal() ? "stamm" : "projekt";
     this.importPopupView?._openPersonImportModal?.();
   }
 
@@ -1746,6 +1761,57 @@ const taFirmNotes = document.createElement("textarea");
     this._applyPersonFormState();
     this._notifyPoolDataChanged("person-active-changed");
     return true;
+  }
+
+  async _ensureGlobalFirmPersonsProjectCandidates(firmId) {
+    const api = window.bbmDb || {};
+    const targetFirmId = String(firmId || "").trim();
+    if (!this.projectId || !targetFirmId) return true;
+    if (
+      typeof api.projectCandidatesList !== "function" ||
+      typeof api.projectCandidatesSet !== "function" ||
+      typeof api.personsListByFirm !== "function"
+    ) {
+      return true;
+    }
+
+    const [existingCandidatesRes, personsRes] = await Promise.all([
+      api.projectCandidatesList({ projectId: this.projectId }),
+      api.personsListByFirm(targetFirmId),
+    ]);
+
+    if (!existingCandidatesRes?.ok || !personsRes?.ok) return false;
+
+    const merged = new Map();
+    for (const item of existingCandidatesRes.items || []) {
+      const kind = String(item?.kind || "").trim();
+      const personId = String(item?.personId ?? item?.person_id ?? "").trim();
+      if (!kind || !personId) continue;
+      merged.set(`${kind}::${personId}`, {
+        kind,
+        personId,
+        isActive: this._parseActiveFlag(item?.is_active ?? item?.isActive) === 1,
+      });
+    }
+
+    for (const person of personsRes.list || []) {
+      const personId = String(person?.id || "").trim();
+      if (!personId) continue;
+      const key = `global_person::${personId}`;
+      if (merged.has(key)) continue;
+      merged.set(key, {
+        kind: "global_person",
+        personId,
+        isActive: 0,
+      });
+    }
+
+    const setRes = await api.projectCandidatesSet({
+      projectId: this.projectId,
+      items: [...merged.values()],
+    });
+
+    return !!setRes?.ok;
   }
 
   async _canDeactivateFirm(firmId) {
@@ -2191,8 +2257,9 @@ const taFirmNotes = document.createElement("textarea");
         this.btnImportCsv.style.opacity = can ? "1" : "0.55";
       }
       if (this.btnImportPersonsCsv) {
-        this.btnImportPersonsCsv.disabled = false;
-        this.btnImportPersonsCsv.style.opacity = "1";
+        const canImportPersons = can && this._hasFirmSelectedSaved();
+        this.btnImportPersonsCsv.disabled = !canImportPersons;
+        this.btnImportPersonsCsv.style.opacity = canImportPersons ? "1" : "0.55";
       }
     }
 
@@ -2254,8 +2321,7 @@ const taFirmNotes = document.createElement("textarea");
     }
 
     if (this.btnImportPersonsCsv) {
-      const canImportPersons =
-        !isSaving && !ro && this._hasFirmSelectedSaved() && !this._selectedFirmIsAssignedGlobal();
+      const canImportPersons = !isSaving && !ro && this._hasFirmSelectedSaved();
       this.btnImportPersonsCsv.disabled = !canImportPersons;
       this.btnImportPersonsCsv.style.opacity = canImportPersons ? "1" : "0.55";
     }

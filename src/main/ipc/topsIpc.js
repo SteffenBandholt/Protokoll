@@ -139,6 +139,35 @@ function _requireProjectId(payload) {
   return projectId;
 }
 
+function _getPersonImportFirmId(payload) {
+  return _normStr(payload?.personImportFirmId ?? payload?.projectFirmId ?? payload?.firmId);
+}
+
+function _resolveBoundPersonImportFirm(payload) {
+  const target = _resolveImportTarget(payload);
+  const firmId = _getPersonImportFirmId(payload);
+  if (!firmId) return null;
+
+  if (target === "project") {
+    const projectId = _requireProjectId(payload);
+    const firm = projectFirmsRepo.getById(firmId);
+    if (!firm || _normStr(firm?.project_id) !== projectId || _normStr(firm?.removed_at)) {
+      throw new Error("Projektfirma fehlt");
+    }
+    return {
+      id: _normStr(firm.id),
+      name: _normStr(firm.name || firm.short),
+    };
+  }
+
+  const firm = firmsRepo.listActive().find((row) => _normStr(row?.id) === firmId) || null;
+  if (!firm) throw new Error("Firma fehlt");
+  return {
+    id: _normStr(firm.id),
+    name: _normStr(firm.name || firm.short),
+  };
+}
+
 function _normKey(v) {
   return _normStr(v)
     .toLowerCase()
@@ -561,6 +590,71 @@ function _buildPersonsStagingFromRows(parsedRows, firms, existingPersons) {
   }
 
   return { items, missingFirm, ambiguousFirm, missingName, duplicateCount };
+}
+
+function _bindPersonsStagingToFirm(items, firm, existingPersons) {
+  if (!firm?.id) {
+    return { items: Array.isArray(items) ? items : [], missingFirm: 0, ambiguousFirm: 0, missingName: 0, duplicateCount: 0 };
+  }
+
+  const byEmail = new Map();
+  const byName = new Map();
+  for (const p of existingPersons || []) {
+    const keys = _buildPersonImportKeys({
+      firm_id: firm.id,
+      email: p?.email,
+      first_name: p?.first_name,
+      last_name: p?.last_name,
+    });
+    if (keys.byEmail && !byEmail.has(keys.byEmail)) byEmail.set(keys.byEmail, p);
+    if (keys.byName && !byName.has(keys.byName)) byName.set(keys.byName, p);
+  }
+
+  let missingName = 0;
+  let duplicateCount = 0;
+  const out = [];
+
+  for (const item of items || []) {
+    const firstName = _normStr(item?.first_name);
+    const lastName = _normStr(item?.last_name);
+    const email = _normStr(item?.email).toLocaleLowerCase("de-DE");
+    const hasName = !!firstName || !!lastName;
+    if (!hasName) missingName += 1;
+
+    const keys = _buildPersonImportKeys({
+      firm_id: firm.id,
+      email,
+      first_name: firstName,
+      last_name: lastName,
+    });
+
+    let existingMatch = null;
+    let matchMode = "";
+    if (keys.byEmail && byEmail.has(keys.byEmail)) {
+      existingMatch = byEmail.get(keys.byEmail) || null;
+      matchMode = "email";
+    } else if (keys.byName && byName.has(keys.byName)) {
+      existingMatch = byName.get(keys.byName) || null;
+      matchMode = "name";
+    }
+
+    if (existingMatch) duplicateCount += 1;
+
+    out.push({
+      ...item,
+      take: hasName ? 1 : 0,
+      firm_id: firm.id,
+      firm_name: firm.name || "",
+      status_base: existingMatch ? "Existiert" : "Neu",
+      match_mode: matchMode,
+      existing_person_id: _normStr(existingMatch?.id),
+      existing_person: _buildPersonExistingSnapshot(existingMatch),
+      conflict_state: existingMatch ? "needs_decision" : "none",
+      conflict_action: "",
+    });
+  }
+
+  return { items: out, missingFirm: 0, ambiguousFirm: 0, missingName, duplicateCount };
 }
 
 const PERSON_IMPORT_OVERWRITE_FIELDS = [
@@ -1256,37 +1350,71 @@ function registerTopsIpc() {
       const filePath = payload?.filePath;
       const parsed = _loadCsvAndBuildRows(filePath);
       const target = _resolveImportTarget(payload);
+      const boundFirm = _resolveBoundPersonImportFirm(payload);
       let firms = [];
       let existingPersons = [];
       if (target === "project") {
         const projectId = _requireProjectId(payload);
-        firms = projectFirmsRepo.listActiveByProject(projectId).map((f) => ({ id: f.id, name: f.name }));
-        existingPersons = projectPersonsRepo.listActiveByProject(projectId).map((p) => ({
-          id: p.id,
-          firm_id: p.project_firm_id,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          email: p.email,
-          phone: p.phone,
-          funktion: p.funktion,
-          rolle: p.rolle,
-          notes: p.notes,
-        }));
+        if (boundFirm) {
+          firms = [boundFirm];
+          existingPersons = projectPersonsRepo.listActiveByProjectFirm(boundFirm.id).map((p) => ({
+            id: p.id,
+            firm_id: p.project_firm_id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            email: p.email,
+            phone: p.phone,
+            funktion: p.funktion,
+            rolle: p.rolle,
+            notes: p.notes,
+          }));
+        } else {
+          firms = projectFirmsRepo.listActiveByProject(projectId).map((f) => ({ id: f.id, name: f.name }));
+          existingPersons = projectPersonsRepo.listActiveByProject(projectId).map((p) => ({
+            id: p.id,
+            firm_id: p.project_firm_id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            email: p.email,
+            phone: p.phone,
+            funktion: p.funktion,
+            rolle: p.rolle,
+            notes: p.notes,
+          }));
+        }
       } else {
-        firms = firmsRepo.listActive().map((f) => ({ id: f.id, name: f.name }));
-        existingPersons = personsRepo.listActiveAll().map((p) => ({
-          id: p.id,
-          firm_id: p.firm_id,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          email: p.email,
-          phone: p.phone,
-          funktion: p.funktion,
-          rolle: p.rolle,
-          notes: p.notes,
-        }));
+        if (boundFirm) {
+          firms = [boundFirm];
+          existingPersons = personsRepo.listActiveByFirm(boundFirm.id).map((p) => ({
+            id: p.id,
+            firm_id: p.firm_id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            email: p.email,
+            phone: p.phone,
+            funktion: p.funktion,
+            rolle: p.rolle,
+            notes: p.notes,
+          }));
+        } else {
+          firms = firmsRepo.listActive().map((f) => ({ id: f.id, name: f.name }));
+          existingPersons = personsRepo.listActiveAll().map((p) => ({
+            id: p.id,
+            firm_id: p.firm_id,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            email: p.email,
+            phone: p.phone,
+            funktion: p.funktion,
+            rolle: p.rolle,
+            notes: p.notes,
+          }));
+        }
       }
-      const staging = _buildPersonsStagingFromRows(parsed.rows, firms, existingPersons);
+      const stagingBase = _buildPersonsStagingFromRows(parsed.rows, firms, existingPersons);
+      const staging = boundFirm
+        ? _bindPersonsStagingToFirm(stagingBase.items, boundFirm, existingPersons)
+        : stagingBase;
       return {
         ok: true,
         filePath: _normStr(filePath),
@@ -1311,18 +1439,26 @@ function registerTopsIpc() {
   ipcMain.handle("persons:importApplyStaging", (_e, payload) => {
     try {
       const target = _resolveImportTarget(payload);
+      const boundFirm = _resolveBoundPersonImportFirm(payload);
       const items = Array.isArray(payload?.items) ? payload.items : [];
       const prepared = _cleanPersonsImportItems(items, {
         strictDecision: true,
         skipConflicts: false,
       });
+      const cleanedItems = boundFirm
+        ? prepared.cleaned.map((item) => ({
+            ...item,
+            firm_id: boundFirm.id,
+            firm_name: boundFirm.name || "",
+          }))
+        : prepared.cleaned;
       const summary =
         target === "project"
           ? projectPersonsRepo.importPersonsFromOutlookStaging({
               projectId: _requireProjectId(payload),
-              stagingRows: prepared.cleaned,
+              stagingRows: cleanedItems,
             })
-          : personsRepo.importPersonsFromOutlookStaging(prepared.cleaned);
+          : personsRepo.importPersonsFromOutlookStaging(cleanedItems);
       return { ok: true, summary };
     } catch (err) {
       console.error("[topsIpc] persons:importApplyStaging failed", {
