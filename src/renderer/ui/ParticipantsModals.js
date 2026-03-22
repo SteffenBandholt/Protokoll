@@ -855,10 +855,8 @@ export default class ParticipantsModals {
     if (typeof api.projectParticipantsPool !== "function") {
       this._setError("API fehlt: projectParticipantsPool");
       this.pool = [];
-    }
-    if (typeof api.projectCandidatesList !== "function") {
-      this._setError("API fehlt: projectCandidatesList");
       this.projectCandidates = [];
+      return;
     }
     if (typeof api.meetingParticipantsList !== "function") {
       this._setError("API fehlt: meetingParticipantsList");
@@ -887,6 +885,7 @@ export default class ParticipantsModals {
             rolle: (x.rolle || x.role || "").toString(),
             firm: (x.firm || x.firm_name || x.firmName || "").toString(),
             firmId: x.firmId ?? x.firm_id ?? null,
+            is_active: this._parseActiveFlag(x?.is_active ?? x?.isActive),
             firmIsActive: this._parseActiveFlag(
               x.firm_is_active ?? x.firmIsActive ?? x.is_firm_active
             ),
@@ -895,46 +894,20 @@ export default class ParticipantsModals {
         .filter((x) => x.kind && x.personId);
 
       this.pool = this._sortPersons(pool);
+      this.projectCandidates = this._sortPersons(
+        pool
+          .filter((x) => this._parseActiveFlag(x?.is_active ?? x?.isActive) === 1)
+          .map((x) => ({
+            ...x,
+            is_active: 1,
+          }))
+      );
     } else {
       this.pool = [];
+      this.projectCandidates = [];
     }
 
     const poolMap = new Map(this.pool.map((p) => [this._key(p.kind, p.personId), p]));
-
-    const resC = await this._invokeCompatAny(
-      api.projectCandidatesList,
-      { projectId: this.projectId },
-      this.projectId
-    );
-
-    if (resC?.ok) {
-      const candRaw = this._pickArray(resC);
-      const items = (candRaw || [])
-        .map((x) => ({
-          kind: this._normKind(x),
-          personId: this._normPersonId(x),
-          is_active: this._parseActiveFlag(x?.is_active ?? x?.isActive),
-        }))
-        .filter((x) => x.kind && x.personId);
-
-      const right = [];
-      for (const it of items) {
-        if (this._parseActiveFlag(it?.is_active) !== 1) continue;
-        const k = this._key(it.kind, it.personId);
-        const p = poolMap.get(k);
-        if (!p) continue; // keine "Leichen" rechts anzeigen
-        right.push({
-          ...p,
-          is_active: 1,
-          firmIsActive: this._parseActiveFlag(
-            p.firmIsActive ?? p.firm_is_active ?? p.is_firm_active
-          ),
-        });
-      }
-      this.projectCandidates = this._sortPersons(right);
-    } else {
-      this.projectCandidates = [];
-    }
 
     const resP = await api.meetingParticipantsList({ meetingId: this.meetingId });
     if (!resP?.ok) {

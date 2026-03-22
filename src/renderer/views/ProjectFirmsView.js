@@ -12,11 +12,11 @@ import { fireAndForget } from "../utils/async.js";
 //   links: "Lokale Firmen" (Kurzbezeichnung + Funktion/Gewerk) + bestehender Editor weiter genutzt
 //   rechts: "Globale Firmen" (nur zugeordnet) + Button "Global zuordnen"
 // - "Global zuordnen": Zuordnungsmaske (Modal) mit 2 Listen (alle vs zugeordnet),
-//   Doppelklick zum Hinzufügen/Entfernen, Speichern persistiert Zielzustand (Diff -> assign/unassign)
+//   Doppelklick zum HinzufÃ¼gen/Entfernen, Speichern persistiert Zielzustand (Diff -> assign/unassign)
 //
 // WICHTIG (User-Wunsch):
 // - Die Zuordnungsmaske MUSS bei Klick auf "Speichern" geschlossen werden.
-//   => Modal schließt sofort, Speichern läuft danach weiter; Fehler werden per alert angezeigt.
+//   => Modal schlieÃŸt sofort, Speichern lÃ¤uft danach weiter; Fehler werden per alert angezeigt.
 
 export default class ProjectFirmsView {
   constructor({ router, projectId, readOnly } = {}) {
@@ -48,13 +48,13 @@ export default class ProjectFirmsView {
 
     // state (global assignment)
     this.globalFirms = []; // alle globalen Firmen (firmsListGlobal)
-    this.assignedGlobalFirms = []; // zugeordnete globale Firmen (für Hauptscreen rechts)
+    this.assignedGlobalFirms = []; // zugeordnete globale Firmen (fÃ¼r Hauptscreen rechts)
 
     // modal state
     this.globalAssignOpen = false;
-    this.globalAssignAll = []; // alle globalen Firmen für Modal
+    this.globalAssignAll = []; // alle globalen Firmen fÃ¼r Modal
     this.globalAssignSelectedIds = new Set(); // rechter Zustand im Modal
-    this.globalAssignInitialIds = new Set(); // Initialzustand (für Diff)
+    this.globalAssignInitialIds = new Set(); // Initialzustand (fÃ¼r Diff)
     this.globalAssignErr = "";
     this.savingGlobalAssign = false;
 
@@ -211,7 +211,7 @@ export default class ProjectFirmsView {
     head.style.marginBottom = "10px";
 
     const title = document.createElement("h2");
-    title.textContent = "Firmen (intern)";
+    title.textContent = "Firmen";
     title.style.margin = "0";
 
     const viewLabel = document.createElement("div");
@@ -306,11 +306,11 @@ export default class ProjectFirmsView {
     listHead.style.marginBottom = "8px";
 
     const localTitle = document.createElement("div");
-    localTitle.textContent = "Firmenliste";
+    localTitle.textContent = "Firmen im Projekt";
     localTitle.style.fontWeight = "bold";
 
     const btnNewFirm = document.createElement("button");
-    btnNewFirm.textContent = "Firma neu";
+    btnNewFirm.textContent = "Neue Firma";
     applyPopupButtonStyle(btnNewFirm);
     btnNewFirm.onclick = async () => {
       if (this._isReadOnly()) return;
@@ -319,7 +319,7 @@ export default class ProjectFirmsView {
       // projektId immer nochmal nachziehen
       this._ensureProjectId();
       if (!this.projectId) {
-        alert("Bitte zuerst ein Projekt auswählen.");
+        alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
         return;
       }
 
@@ -328,6 +328,15 @@ export default class ProjectFirmsView {
     const listActions = document.createElement("div");
     listActions.style.display = "flex";
     listActions.style.gap = "6px";
+
+    const btnGlobalAssign = document.createElement("button");
+    btnGlobalAssign.textContent = "Aus globaler Liste hinzufuegen";
+    applyPopupButtonStyle(btnGlobalAssign);
+    btnGlobalAssign.onclick = async () => {
+      if (this._isReadOnly()) return;
+      if (this.savingFirm || this.savingPerson || this.savingGlobalAssign) return;
+      await this._openGlobalAssignModal();
+    };
 
     const btnImportCsv = document.createElement("button");
     btnImportCsv.textContent = "Import (CSV)";
@@ -338,7 +347,7 @@ export default class ProjectFirmsView {
       this._openProjectFirmImportModal();
     };
 
-    listActions.append(btnNewFirm, btnImportCsv);
+    listActions.append(btnNewFirm, btnGlobalAssign, btnImportCsv);
 
     listHead.append(localTitle, listActions);
 
@@ -418,9 +427,9 @@ export default class ProjectFirmsView {
     };
 
     const btnDeleteSelectedFirm = document.createElement("button");
-    btnDeleteSelectedFirm.textContent = "Papierkorb";
+    btnDeleteSelectedFirm.textContent = "Loeschen";
     applyPopupButtonStyle(btnDeleteSelectedFirm, { variant: "danger" });
-    btnDeleteSelectedFirm.title = "In Papierkorb";
+    btnDeleteSelectedFirm.title = "Loeschen";
     btnDeleteSelectedFirm.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -466,17 +475,17 @@ export default class ProjectFirmsView {
     firmGrid.style.alignItems = "center";
     firmGrid.style.marginBottom = "10px";
 
-    const inpFirmName1 = mkInp("Name 1…");
-    const inpFirmName2 = mkInp("Name 2…");
+    const inpFirmName1 = mkInp("Name 1â€¦");
+    const inpFirmName2 = mkInp("Name 2â€¦");
     const inpFirmShort = mkInp("verantw. im Projekt");
-    const inpFirmStreet = mkInp("Straße / HsNr…");
-    const inpFirmZip = mkInp("PLZ…");
-    const inpFirmCity = mkInp("Ort…");
-    const inpFirmPhone = mkInp("Telefon…");
+    const inpFirmStreet = mkInp("StraÃŸe / HsNrâ€¦");
+    const inpFirmZip = mkInp("PLZâ€¦");
+    const inpFirmCity = mkInp("Ortâ€¦");
+    const inpFirmPhone = mkInp("Telefonâ€¦");
 
     const inpFirmEmail = document.createElement("input");
     inpFirmEmail.type = "email";
-    inpFirmEmail.placeholder = "E-Mail…";
+    inpFirmEmail.placeholder = "E-Mailâ€¦";
     inpFirmEmail.style.width = "100%";
 
     const inpFirmGewerk = mkInp("Funktion / Gewerk?");
@@ -488,7 +497,7 @@ export default class ProjectFirmsView {
     this._renderRoleOptions(selFirmRole);
 
 const taFirmNotes = document.createElement("textarea");
-    taFirmNotes.placeholder = "Notizen…";
+    taFirmNotes.placeholder = "Notizenâ€¦";
     taFirmNotes.rows = 4;
     taFirmNotes.style.width = "100%";
 
@@ -540,7 +549,7 @@ const taFirmNotes = document.createElement("textarea");
 
     // ---- Persons (lokal) ----
     const personsTitle = document.createElement("div");
-    personsTitle.textContent = "Mitarbeiter (Lokal)";
+    personsTitle.textContent = "Mitarbeiter";
     personsTitle.style.fontWeight = "bold";
     personsTitle.style.margin = "0";
 
@@ -609,19 +618,19 @@ const taFirmNotes = document.createElement("textarea");
     pGrid.style.alignItems = "center";
     pGrid.style.marginBottom = "10px";
 
-    const inpFirstName = mkInp("Vorname…");
-    const inpLastName = mkInp("Nachname…");
-    const inpFunktionRolle = mkInp("Funktion/Rolle…");
+    const inpFirstName = mkInp("Vornameâ€¦");
+    const inpLastName = mkInp("Nachnameâ€¦");
+    const inpFunktionRolle = mkInp("Funktion/Rolleâ€¦");
 
     const inpEmail = document.createElement("input");
     inpEmail.type = "email";
-    inpEmail.placeholder = "E-Mail…";
+    inpEmail.placeholder = "E-Mailâ€¦";
     inpEmail.style.width = "100%";
 
-    const inpPhone = mkInp("Telefon…");
+    const inpPhone = mkInp("Telefonâ€¦");
 
     const taPersonNotes = document.createElement("textarea");
-    taPersonNotes.placeholder = "Notizen…";
+    taPersonNotes.placeholder = "Notizenâ€¦";
     taPersonNotes.rows = 3;
     taPersonNotes.style.width = "100%";
 
@@ -660,13 +669,13 @@ const taFirmNotes = document.createElement("textarea");
     };
 
     const btnDeletePerson = document.createElement("button");
-    btnDeletePerson.textContent = "Papierkorb";
+    btnDeletePerson.textContent = "Loeschen";
     btnDeletePerson.style.background = "#c62828";
     btnDeletePerson.style.color = "white";
     btnDeletePerson.style.border = "1px solid rgba(0,0,0,0.25)";
     btnDeletePerson.style.borderRadius = "6px";
     btnDeletePerson.style.padding = "6px 10px";
-    btnDeletePerson.title = "In Papierkorb";
+    btnDeletePerson.title = "Loeschen";
     btnDeletePerson.onclick = async () => {
       if (!this.editPersonId) return;
       await this._deletePerson(this.editPersonId);
@@ -729,7 +738,7 @@ const taFirmNotes = document.createElement("textarea");
     modalHead.style.borderBottom = "1px solid #e2e8f0";
 
     const modalTitle = document.createElement("div");
-    modalTitle.textContent = "Firmen(extern) zuordnen";
+    modalTitle.textContent = "Aus globaler Liste hinzufuegen";
     modalTitle.style.fontWeight = "bold";
 
     const btnClose = document.createElement("button");
@@ -778,8 +787,8 @@ const taFirmNotes = document.createElement("textarea");
       return { col, list };
     };
 
-    const leftCol = mkListCol("Firmenliste (extern)");
-    const rightCol = mkListCol(`Zugeordnet zu ${this._projectScopeText()}`);
+    const leftCol = mkListCol("Globale Firmen");
+    const rightCol = mkListCol("Firmen im Projekt");
 
     modalGrid.append(leftCol.col, rightCol.col);
 
@@ -791,7 +800,7 @@ const taFirmNotes = document.createElement("textarea");
     modalFoot.style.borderTop = "1px solid #e2e8f0";
     modalFoot.style.padding = "10px 12px";
     const modalHint = document.createElement("div");
-    modalHint.textContent = "Auswahl mit Doppelklick";
+    modalHint.textContent = "Doppelklick fuegt hinzu oder entfernt";
     modalHint.style.fontSize = "12px";
     modalHint.style.opacity = "0.75";
 
@@ -971,8 +980,8 @@ const taFirmNotes = document.createElement("textarea");
       await this._saveLocalFirmModal();
     };
     const localFirmBtnDelete = document.createElement("button");
-    localFirmBtnDelete.textContent = "Papierkorb";
-    localFirmBtnDelete.title = "In Papierkorb";
+    localFirmBtnDelete.textContent = "Loeschen";
+    localFirmBtnDelete.title = "Loeschen";
     applyPopupButtonStyle(localFirmBtnDelete);
     this._applyDangerDeleteButtonStyle(localFirmBtnDelete, true);
     localFirmBtnDelete.onclick = async () => {
@@ -1094,8 +1103,8 @@ const taFirmNotes = document.createElement("textarea");
       await this._saveLocalPersonModal();
     };
     const localPersonBtnDelete = document.createElement("button");
-    localPersonBtnDelete.textContent = "Papierkorb";
-    localPersonBtnDelete.title = "In Papierkorb";
+    localPersonBtnDelete.textContent = "Loeschen";
+    localPersonBtnDelete.title = "Loeschen";
     applyPopupButtonStyle(localPersonBtnDelete);
     this._applyDangerDeleteButtonStyle(localPersonBtnDelete, true);
     localPersonBtnDelete.onclick = async () => {
@@ -1117,6 +1126,7 @@ const taFirmNotes = document.createElement("textarea");
     // local refs
     this.btnNewFirm = btnNewFirm;
     this.btnImportCsv = btnImportCsv;
+    this.btnGlobalAssign = btnGlobalAssign;
     this.tableBodyEl = tbody;
 
     this.editWrapEl = editWrap;
@@ -1212,7 +1222,7 @@ const taFirmNotes = document.createElement("textarea");
     await this._loadRoleMeta();
 
     if (!this.projectId) {
-      this._setMsg("Bitte zuerst ein Projekt auswählen (Projekt-Kontext fehlt).");
+      this._setMsg("Bitte zuerst ein Projekt auswÃ¤hlen (Projekt-Kontext fehlt).");
       // Editor sicher zu
       this._closeFirmEditor();
       this._renderFirmsOnly();
@@ -1316,7 +1326,7 @@ const taFirmNotes = document.createElement("textarea");
   _openProjectFirmImportModal() {
     this._ensureProjectId();
     if (!this.projectId) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
     this.importPopupView?._openImportModal?.();
@@ -1325,7 +1335,7 @@ const taFirmNotes = document.createElement("textarea");
   _openProjectPersonImportModal() {
     this._ensureProjectId();
     if (!this.projectId) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
     this.importPopupView?._openPersonImportModal?.();
@@ -1343,6 +1353,26 @@ const taFirmNotes = document.createElement("textarea");
   _selectFirm(firmId) {
     this.selectedFirmId = firmId || null;
     this.selectedFirm = this.firms.find((f) => this._sameId(f?.id, this.selectedFirmId)) || null;
+  }
+
+  _isAssignedGlobalFirm(firm) {
+    return String(firm?.__firmSource || "") === "global_assigned";
+  }
+
+  _selectedFirmIsAssignedGlobal() {
+    return this._isAssignedGlobalFirm(this.selectedFirm);
+  }
+
+  _getSelectedFirmDeleteAction() {
+    const isAssignedGlobalFirm = this._selectedFirmIsAssignedGlobal();
+    return {
+      isAssignedGlobalFirm,
+      label: isAssignedGlobalFirm ? "Aus Projekt entfernen" : "Loeschen",
+      title: isAssignedGlobalFirm ? "Aus Projekt entfernen" : "Loeschen",
+      blockedTitle: "Loeschen nur moeglich, wenn keine Mitarbeiter vorhanden sind.",
+      busyMessage: isAssignedGlobalFirm ? "Entferne Firma aus Projekt..." : "Loesche Firma...",
+      errorMessage: isAssignedGlobalFirm ? "Entfernen fehlgeschlagen" : "Loeschen fehlgeschlagen",
+    };
   }
 
   _beginCreateFirm() {
@@ -1382,19 +1412,30 @@ const taFirmNotes = document.createElement("textarea");
     this._renderSelectedFirmDetails();
     if (this.btnEditSelectedFirm) {
       const busy = !!this.savingFirm || !!this.savingPerson || !!this.savingGlobalAssign;
-      const can = !busy && !this._isReadOnly() && !!this.selectedFirmId && !!this.selectedFirm;
+      const can =
+        !busy &&
+        !this._isReadOnly() &&
+        !!this.selectedFirmId &&
+        !!this.selectedFirm &&
+        !this._isAssignedGlobalFirm(this.selectedFirm);
       this.btnEditSelectedFirm.disabled = !can;
       this.btnEditSelectedFirm.style.opacity = can ? "1" : "0.55";
     }
     if (this.btnDeleteSelectedFirm) {
       const busy = !!this.savingFirm || !!this.savingPerson || !!this.savingGlobalAssign;
       const hasPersons = Array.isArray(this.persons) && this.persons.length > 0;
-      const can = !busy && !this._isReadOnly() && !!this.selectedFirmId && !!this.selectedFirm && !hasPersons;
+      const deleteAction = this._getSelectedFirmDeleteAction();
+      const can =
+        !busy &&
+        !this._isReadOnly() &&
+        !!this.selectedFirmId &&
+        !!this.selectedFirm &&
+        (deleteAction.isAssignedGlobalFirm || !hasPersons);
       this.btnDeleteSelectedFirm.disabled = !can;
       this.btnDeleteSelectedFirm.style.opacity = can ? "1" : "0.55";
-      this.btnDeleteSelectedFirm.title = hasPersons
-        ? "In Papierkorb nur möglich, wenn keine Mitarbeiter vorhanden sind."
-        : "";
+      this.btnDeleteSelectedFirm.textContent = deleteAction.label;
+      this.btnDeleteSelectedFirm.title =
+        !deleteAction.isAssignedGlobalFirm && hasPersons ? deleteAction.blockedTitle : deleteAction.title;
     }
   }
 
@@ -1404,7 +1445,7 @@ const taFirmNotes = document.createElement("textarea");
 
     if (!this.selectedFirm || !this.selectedFirmId) {
       const placeholder = document.createElement("div");
-      placeholder.textContent = "Bitte links eine Projektfirma auswaehlen.";
+      placeholder.textContent = "Bitte links eine Firma auswaehlen.";
       this.detailFirmBodyEl.appendChild(placeholder);
       return;
     }
@@ -1743,7 +1784,10 @@ const taFirmNotes = document.createElement("textarea");
       return;
     }
 
-    this.firms = res.list || [];
+    this.firms = (res.list || []).map((firm) => ({
+      ...firm,
+      __firmSource: "project",
+    }));
 
     if (this.selectedFirmId && this.firmMode === "edit") {
       const still = this.firms.find((f) => this._sameId(f?.id, this.selectedFirmId));
@@ -1779,6 +1823,50 @@ const taFirmNotes = document.createElement("textarea");
       return;
     }
 
+    if (this._selectedFirmIsAssignedGlobal()) {
+      const api = window.bbmDb || {};
+      if (
+        typeof api.personsListByFirm !== "function" ||
+        typeof api.projectCandidatesList !== "function"
+      ) {
+        this.persons = [];
+        this._renderPersonsOnly();
+        return;
+      }
+
+      const [personsRes, candidatesRes] = await Promise.all([
+        api.personsListByFirm(this.selectedFirmId),
+        api.projectCandidatesList({ projectId: this.projectId }),
+      ]);
+      if (!personsRes?.ok) {
+        this._setMsg(personsRes?.error || "Fehler beim Laden der Mitarbeiter");
+        this.persons = [];
+        this._renderPersonsOnly();
+        return;
+      }
+
+      const activeById = new Map();
+      if (candidatesRes?.ok) {
+        for (const item of candidatesRes.items || []) {
+          if (String(item?.kind || "") !== "global_person") continue;
+          activeById.set(
+            String(item?.personId ?? item?.person_id ?? ""),
+            Number(item?.is_active ?? item?.isActive ?? 0) === 1 ? 1 : 0
+          );
+        }
+      }
+
+      this.persons = (personsRes.list || []).map((person) => ({
+        ...person,
+        __personKind: "global_person",
+        is_active: activeById.has(String(person?.id ?? ""))
+          ? activeById.get(String(person?.id ?? ""))
+          : 0,
+      }));
+      this._renderPersonsOnly();
+      return;
+    }
+
     const res = await window.bbmDb.projectPersonsListByProjectFirm(this.selectedFirmId);
     if (!res?.ok) {
       this._setMsg(res?.error || "Fehler beim Laden der Mitarbeiter");
@@ -1803,15 +1891,16 @@ const taFirmNotes = document.createElement("textarea");
     for (const f of this.firms) {
       const tr = document.createElement("tr");
       tr.style.cursor = "pointer";
+      const isAssignedGlobalFirm = this._isAssignedGlobalFirm(f);
 
       const isSel = this._sameId(f?.id, this.selectedFirmId) && this.firmMode === "edit";
-      tr.style.background = isSel ? "#dff0ff" : "transparent";
+      tr.style.background = isSel ? "#dff0ff" : isAssignedGlobalFirm ? "#fff7e8" : "transparent";
       tr.onmouseenter = () => {
         if (isSel) return;
-        tr.style.background = "#f3f8ff";
+        tr.style.background = isAssignedGlobalFirm ? "#ffefcc" : "#f3f8ff";
       };
       tr.onmouseleave = () => {
-        tr.style.background = isSel ? "#dff0ff" : "transparent";
+        tr.style.background = isSel ? "#dff0ff" : isAssignedGlobalFirm ? "#fff7e8" : "transparent";
       };
 
       const tdShort = document.createElement("td");
@@ -1831,7 +1920,11 @@ const taFirmNotes = document.createElement("textarea");
       const cb = document.createElement("input");
       cb.type = "checkbox";
       cb.checked = this._parseActiveFlag(f?.is_active) === 1;
-      cb.disabled = this._isReadOnly() || this.savingFirm || this.savingPerson || this.savingGlobalAssign;
+      cb.disabled =
+        this._isReadOnly() ||
+        this.savingFirm ||
+        this.savingPerson ||
+        this.savingGlobalAssign;
       cb.style.cursor = cb.disabled ? "default" : "pointer";
       cb.onclick = (e) => e.stopPropagation();
       cb.onchange = async (e) => {
@@ -1872,7 +1965,7 @@ const taFirmNotes = document.createElement("textarea");
       td.style.padding = "10px 6px";
       td.style.fontSize = "12px";
       td.style.opacity = "0.75";
-      td.textContent = "Keine Projektfirma zugeordnet.";
+      td.textContent = "Keine Firma im Projekt vorhanden.";
       tr.appendChild(td);
       tb.appendChild(tr);
     }
@@ -1883,6 +1976,7 @@ const taFirmNotes = document.createElement("textarea");
     if (!tb) return;
 
     tb.innerHTML = "";
+    const selectedFirmIsAssignedGlobal = this._selectedFirmIsAssignedGlobal();
 
     if (!this._hasFirmSelectedSaved()) {
       const tr = document.createElement("tr");
@@ -1891,7 +1985,7 @@ const taFirmNotes = document.createElement("textarea");
       td.style.padding = "10px 6px";
       td.style.fontSize = "12px";
       td.style.opacity = "0.75";
-      td.textContent = "Bitte zuerst eine Projektfirma auswaehlen.";
+      td.textContent = "Bitte zuerst eine Firma auswaehlen.";
       tr.appendChild(td);
       tb.appendChild(tr);
       return;
@@ -1899,14 +1993,22 @@ const taFirmNotes = document.createElement("textarea");
 
     for (const p of this.persons) {
       const tr = document.createElement("tr");
-      tr.style.cursor = "pointer";
+      tr.style.cursor = selectedFirmIsAssignedGlobal ? "default" : "pointer";
       const isSel = this.personMode === "edit" && this._sameId(this.editPersonId, p.id);
       tr.style.background = isSel ? "#dff0ff" : "transparent";
+      tr.style.opacity =
+        selectedFirmIsAssignedGlobal && Number(p?.is_active ?? p?.isActive ?? 0) !== 1 ? "0.65" : "1";
+      tr.title =
+        selectedFirmIsAssignedGlobal && Number(p?.is_active ?? p?.isActive ?? 0) !== 1
+          ? "Im Projekt inaktiv"
+          : "";
       tr.onmouseenter = () => {
+        if (selectedFirmIsAssignedGlobal) return;
         if (isSel) return;
         tr.style.background = "#f3f8ff";
       };
       tr.onmouseleave = () => {
+        if (selectedFirmIsAssignedGlobal) return;
         tr.style.background = isSel ? "#dff0ff" : "transparent";
       };
 
@@ -1937,6 +2039,7 @@ const taFirmNotes = document.createElement("textarea");
       tr.append(tdName, tdRole, tdEmail, tdPhone);
 
       tr.onclick = () => {
+        if (selectedFirmIsAssignedGlobal) return;
         if (this._isReadOnly()) return;
         if (this.savingPerson || this.savingFirm || this.savingGlobalAssign) return;
         this.personMode = "edit";
@@ -2025,23 +2128,32 @@ const taFirmNotes = document.createElement("textarea");
 
     if (this.btnDeleteSelectedFirm) {
       const hasPersons = Array.isArray(this.persons) && this.persons.length > 0;
+      const deleteAction = this._getSelectedFirmDeleteAction();
       const canDelete =
         !isSaving &&
         !ro &&
         this.firmMode === "edit" &&
         !!this.selectedFirmId &&
-        !hasPersons;
+        (deleteAction.isAssignedGlobalFirm || !hasPersons);
       this.btnDeleteSelectedFirm.disabled = !canDelete;
       this.btnDeleteSelectedFirm.style.opacity = canDelete ? "1" : "0.55";
-      this.btnDeleteSelectedFirm.title = hasPersons
-        ? "In Papierkorb nur möglich, wenn keine Mitarbeiter vorhanden sind."
-        : "In Papierkorb";
+      this.btnDeleteSelectedFirm.textContent = deleteAction.label;
+      this.btnDeleteSelectedFirm.title =
+        !deleteAction.isAssignedGlobalFirm && hasPersons ? deleteAction.blockedTitle : deleteAction.title;
     }
 
     if (this.btnNewPerson) {
-      const canNewPerson = !isSaving && !ro && this._hasFirmSelectedSaved();
+      const canNewPerson =
+        !isSaving && !ro && this._hasFirmSelectedSaved() && !this._selectedFirmIsAssignedGlobal();
       this.btnNewPerson.disabled = !canNewPerson;
       this.btnNewPerson.style.opacity = canNewPerson ? "1" : "0.55";
+    }
+
+    if (this.btnImportPersonsCsv) {
+      const canImportPersons =
+        !isSaving && !ro && this._hasFirmSelectedSaved() && !this._selectedFirmIsAssignedGlobal();
+      this.btnImportPersonsCsv.disabled = !canImportPersons;
+      this.btnImportPersonsCsv.style.opacity = canImportPersons ? "1" : "0.55";
     }
   }
 
@@ -2087,7 +2199,7 @@ const taFirmNotes = document.createElement("textarea");
       this.btnDeletePerson.disabled = !canDelete;
       this.btnDeletePerson.style.opacity = canDelete ? "1" : "0.55";
       this.btnDeletePerson.style.display = show ? "inline-block" : "none";
-      this.btnDeletePerson.title = canDelete ? "In Papierkorb" : "Nur beim Bearbeiten möglich";
+      this.btnDeletePerson.title = canDelete ? "Loeschen" : "Nur beim Bearbeiten moeglich";
     }
   }
 
@@ -2159,8 +2271,8 @@ const taFirmNotes = document.createElement("textarea");
       this.localFirmBtnDeleteEl.style.display =
         this.localFirmModalMode === "edit" ? "inline-block" : "none";
       this.localFirmBtnDeleteEl.title = hasPersons
-        ? "In Papierkorb nur möglich, wenn keine Mitarbeiter vorhanden sind."
-        : "In Papierkorb";
+        ? "Loeschen nur moeglich, wenn keine Mitarbeiter vorhanden sind."
+        : "Loeschen";
     }
     setDisabled(this.localFirmBtnCancelEl, busy);
     setDisabled(this.localFirmBtnCloseEl, busy);
@@ -2183,7 +2295,7 @@ const taFirmNotes = document.createElement("textarea");
       this.localPersonBtnDeleteEl.disabled = !canDelete;
       this._applyDangerDeleteButtonStyle(this.localPersonBtnDeleteEl, canDelete);
       this.localPersonBtnDeleteEl.style.display = "inline-block";
-      this.localPersonBtnDeleteEl.title = canDelete ? "In Papierkorb" : "Nur beim Bearbeiten möglich";
+      this.localPersonBtnDeleteEl.title = canDelete ? "Loeschen" : "Nur beim Bearbeiten moeglich";
     }
     setDisabled(this.localPersonBtnCancelEl, busy);
     setDisabled(this.localPersonBtnCloseEl, busy);
@@ -2658,7 +2770,7 @@ const taFirmNotes = document.createElement("textarea");
     if (this._isReadOnly()) return;
     if (this.savingPerson) return;
     if (!this._hasFirmSelectedSaved()) {
-      this._setLocalPersonCreateError("Bitte zuerst eine Projektfirma auswaehlen.");
+      this._setLocalPersonCreateError("Bitte zuerst eine Firma auswaehlen.");
       return;
     }
 
@@ -2846,7 +2958,7 @@ const taFirmNotes = document.createElement("textarea");
     try {
       const res = await window.bbmDb.projectPersonsDelete(personId);
       if (!res?.ok) {
-        this._setLocalPersonCreateError(res?.error || "Papierkorb fehlgeschlagen.");
+        this._setLocalPersonCreateError(res?.error || "Loeschen fehlgeschlagen.");
         return;
       }
       this.persons = (this.persons || []).filter((p) => p.id !== personId);
@@ -2887,8 +2999,8 @@ const taFirmNotes = document.createElement("textarea");
     if (Array.isArray(this.persons) && this.persons.length > 0) {
       this._setLocalFirmCreateError(
         this.isNewUi
-          ? "In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen."
-          : "In Papierkorb nicht möglich: Projektfirma hat noch aktive Mitarbeiter."
+          ? "Loeschen nicht moeglich: zuerst zugeordnete Mitarbeiter entfernen."
+          : "Loeschen nicht moeglich: Firma hat noch aktive Mitarbeiter."
       );
       return;
     }
@@ -2899,7 +3011,7 @@ const taFirmNotes = document.createElement("textarea");
     let reloadFirmsAfter = false;
     let reloadGlobalAfter = false;
     this._setLocalFirmCreateError("");
-    this._setMsg("Lösche Firma...");
+    this._setMsg("Loesche Firma...");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
@@ -2907,7 +3019,7 @@ const taFirmNotes = document.createElement("textarea");
     try {
       const res = await window.bbmDb.projectFirmsDelete(firmId);
       if (!res?.ok) {
-        this._setLocalFirmCreateError(res?.error || "Papierkorb fehlgeschlagen.");
+        this._setLocalFirmCreateError(res?.error || "Loeschen fehlgeschlagen.");
         return;
       }
 
@@ -2922,7 +3034,7 @@ const taFirmNotes = document.createElement("textarea");
 
       reloadFirmsAfter = true;
       reloadGlobalAfter = true;
-      this._setMsg("Firma wurde gelöscht.");
+      this._setMsg("Firma wurde geloescht.");
       setupChanged = true;
     } finally {
       this.savingFirm = false;
@@ -2944,7 +3056,6 @@ const taFirmNotes = document.createElement("textarea");
       );
     }
   }
-
   // ------------------------------------------------------------
   // Actions (lokal)
   // ------------------------------------------------------------
@@ -2954,7 +3065,7 @@ const taFirmNotes = document.createElement("textarea");
 
     this._ensureProjectId();
     if (!this.projectId) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
 
@@ -2977,7 +3088,7 @@ const taFirmNotes = document.createElement("textarea");
     let setupChanged = false;
     let reloadFirmsAfter = false;
     let reloadGlobalAfter = false;
-    this._setMsg("Speichere…");
+    this._setMsg("Speichereâ€¦");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
@@ -3059,11 +3170,12 @@ const taFirmNotes = document.createElement("textarea");
     if (this._isReadOnly()) return;
     if (this.savingFirm) return;
     if (this.firmMode !== "edit" || !this.selectedFirmId) return;
-    if (Array.isArray(this.persons) && this.persons.length > 0) {
+    const deleteAction = this._getSelectedFirmDeleteAction();
+    if (!deleteAction.isAssignedGlobalFirm && Array.isArray(this.persons) && this.persons.length > 0) {
       alert(
         this.isNewUi
-          ? "In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen."
-          : "In Papierkorb nicht möglich: Projektfirma hat noch aktive Mitarbeiter."
+          ? "Loeschen nicht moeglich: zuerst zugeordnete Mitarbeiter entfernen."
+          : "Loeschen nicht moeglich: Firma hat noch aktive Mitarbeiter."
       );
       return;
     }
@@ -3072,16 +3184,18 @@ const taFirmNotes = document.createElement("textarea");
     let setupChanged = false;
     let reloadFirmsAfter = false;
     let reloadGlobalAfter = false;
-    this._setMsg("Verschiebe in Papierkorb…");
+    this._setMsg(deleteAction.busyMessage);
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
 
     try {
       const firmId = this.selectedFirmId;
-      const res = await window.bbmDb.projectFirmsDelete(firmId);
+      const res = deleteAction.isAssignedGlobalFirm
+        ? await window.bbmDb.projectFirmsUnassignGlobalFirm({ projectId: this.projectId, firmId })
+        : await window.bbmDb.projectFirmsDelete(firmId);
       if (!res?.ok) {
-        alert(res?.error || "Papierkorb fehlgeschlagen");
+        alert(res?.error || deleteAction.errorMessage);
         return;
       }
 
@@ -3116,7 +3230,6 @@ const taFirmNotes = document.createElement("textarea");
       );
     }
   }
-
   async _savePerson() {
     if (this._isReadOnly()) return;
     if (this.savingPerson) return;
@@ -3134,7 +3247,7 @@ const taFirmNotes = document.createElement("textarea");
     let reloadPersonsAfter = false;
     let reloadFirmsAfter = false;
     let reloadGlobalAfter = false;
-    this._setMsg("Speichere Mitarbeiter…");
+    this._setMsg("Speichere Mitarbeiterâ€¦");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
@@ -3221,7 +3334,7 @@ const taFirmNotes = document.createElement("textarea");
     let reloadPersonsAfter = false;
     let reloadFirmsAfter = false;
     let reloadGlobalAfter = false;
-    this._setMsg("Verschiebe Mitarbeiter in Papierkorb…");
+    this._setMsg("Loesche Mitarbeiter...");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
@@ -3229,7 +3342,7 @@ const taFirmNotes = document.createElement("textarea");
     try {
       const res = await window.bbmDb.projectPersonsDelete(projectPersonId);
       if (!res?.ok) {
-        alert(res?.error || "Papierkorb fehlgeschlagen");
+        alert(res?.error || "Loeschen fehlgeschlagen");
         return;
       }
 
@@ -3267,7 +3380,6 @@ const taFirmNotes = document.createElement("textarea");
       );
     }
   }
-
   // ------------------------------------------------------------
   // Global-Firmen ? Projekt: Daten laden (Hauptscreen rechts)
   // ------------------------------------------------------------
@@ -3298,7 +3410,7 @@ const taFirmNotes = document.createElement("textarea");
       this.globalFirms = [];
     }
 
-    // 2) zugeordnet (aktuell wird dafür candidates-API verwendet)
+    // 2) zugeordnet (aktuell wird dafÃ¼r candidates-API verwendet)
     const resC = await window.bbmDb.projectFirmsListFirmCandidatesByProject(this.projectId);
     const assignedIds = new Set();
     let fallbackAssigned = [];
@@ -3339,7 +3451,10 @@ const taFirmNotes = document.createElement("textarea");
         });
       }
 
-      this.assignedGlobalFirms = assigned;
+      this.assignedGlobalFirms = assigned.map((firm) => ({
+        ...firm,
+        __firmSource: "global_assigned",
+      }));
     } else {
       // fallback: nur candidates
       this.assignedGlobalFirms = (fallbackAssigned || []).map((x) => ({
@@ -3348,9 +3463,22 @@ const taFirmNotes = document.createElement("textarea");
         name: x.name ?? null,
         gewerk: null,
         is_active: x?.is_active ?? x?.isActive,
+        __firmSource: "global_assigned",
       }));
     }
 
+    const localFirms = (this.firms || []).filter((firm) => !this._isAssignedGlobalFirm(firm));
+    const visibleFirms = [...localFirms];
+    for (const firm of this.assignedGlobalFirms || []) {
+      if (visibleFirms.some((entry) => this._sameId(entry?.id, firm?.id))) continue;
+      visibleFirms.push(firm);
+    }
+    this.firms = visibleFirms;
+    if (this.selectedFirmId && this.firmMode === "edit") {
+      this.selectedFirm = this.firms.find((firm) => this._sameId(firm?.id, this.selectedFirmId)) || null;
+    }
+
+    this._renderFirmsOnly();
     this._renderAssignedGlobalFirmsOnly();
     this._applyGlobalAssignState();
   }
@@ -3385,7 +3513,7 @@ const taFirmNotes = document.createElement("textarea");
       td.style.padding = "10px 6px";
       td.style.fontSize = "12px";
       td.style.opacity = "0.75";
-      td.textContent = "Keine globalen Firmen zugeordnet.";
+      td.textContent = "Keine Firmen aus der globalen Liste hinzugefÃ¼gt.";
       tr.appendChild(td);
       tb.appendChild(tr);
     }
@@ -3430,7 +3558,7 @@ const taFirmNotes = document.createElement("textarea");
 
     this._ensureProjectId();
     if (!this.projectId) {
-      alert("Bitte zuerst ein Projekt auswählen.");
+      alert("Bitte zuerst ein Projekt auswÃ¤hlen.");
       return;
     }
 
@@ -3451,7 +3579,7 @@ const taFirmNotes = document.createElement("textarea");
   }
 
   _closeGlobalAssignModal() {
-    // absichtlich OHNE "wenn saving -> return", damit "Speichern" den Dialog sicher schließen kann
+    // absichtlich OHNE "wenn saving -> return", damit "Speichern" den Dialog sicher schlieÃŸen kann
     this.globalAssignOpen = false;
     this.globalAssignErr = "";
     this.globalAssignAll = [];
@@ -3510,7 +3638,7 @@ const taFirmNotes = document.createElement("textarea");
       this._setGlobalAssignError(resC?.error || "Fehler beim Laden der Zuordnungen");
     }
 
-    // IDs nur übernehmen, die auch in 'all' existieren (firmsListGlobal filtert removed_at)
+    // IDs nur Ã¼bernehmen, die auch in 'all' existieren (firmsListGlobal filtert removed_at)
     const allIds = new Set(all.map((x) => x.id));
     const filtered = new Set();
     for (const id of assignedIds) if (allIds.has(id)) filtered.add(id);
@@ -3578,7 +3706,7 @@ const taFirmNotes = document.createElement("textarea");
         empty.style.padding = "10px";
         empty.style.fontSize = "12px";
         empty.style.opacity = "0.7";
-        empty.textContent = "Keine Einträge";
+        empty.textContent = "Keine EintrÃ¤ge";
         el.appendChild(empty);
       }
     };
@@ -3602,9 +3730,9 @@ const taFirmNotes = document.createElement("textarea");
 
     this._ensureProjectId();
     if (!this.projectId) {
-      // Modal soll trotzdem schließen (User-Regel), aber wir können nicht speichern
+      // Modal soll trotzdem schlieÃŸen (User-Regel), aber wir kÃ¶nnen nicht speichern
       this._closeGlobalAssignModal();
-      alert("Projekt-Kontext fehlt. Bitte Projekt auswählen.");
+      alert("Projekt-Kontext fehlt. Bitte Projekt auswÃ¤hlen.");
       return;
     }
 
@@ -3619,13 +3747,13 @@ const taFirmNotes = document.createElement("textarea");
     for (const id of current) if (!initial.has(id)) toAssign.push(id);
     for (const id of initial) if (!current.has(id)) toUnassign.push(id);
 
-    // ? User-Regel: Modal sofort schließen bei Klick auf Speichern
+    // ? User-Regel: Modal sofort schlieÃŸen bei Klick auf Speichern
     this._closeGlobalAssignModal();
 
     this.savingGlobalAssign = true;
     let hasSaveError = false;
     let setupChanged = false;
-    this._setMsg("Speichere Zuordnung…");
+    this._setMsg("Speichere Zuordnungâ€¦");
     this._applyFirmFormState();
     this._applyPersonFormState();
     this._applyGlobalAssignState();
@@ -3657,19 +3785,55 @@ const taFirmNotes = document.createElement("textarea");
         setupChanged = true;
       }
 
-      const blockedUnassign = [];
-      if (this.isNewUi) {
-        const allowed = [];
-        for (const firmId of toUnassign) {
-          const cnt = await this._countGlobalFirmAssignedPersons(firmId);
-          if (cnt > 0) {
-            blockedUnassign.push(firmId);
-            continue;
+      if (toAssign.length) {
+        const api = window.bbmDb || {};
+        if (
+          typeof api.projectCandidatesList === "function" &&
+          typeof api.projectCandidatesSet === "function" &&
+          typeof api.personsListByFirm === "function"
+        ) {
+          const existingCandidatesRes = await api.projectCandidatesList({ projectId });
+          const merged = new Map();
+
+          if (existingCandidatesRes?.ok) {
+            for (const item of existingCandidatesRes.items || []) {
+              const kind = String(item?.kind || "").trim();
+              const personId = String(item?.personId ?? item?.person_id ?? "").trim();
+              if (!kind || !personId) continue;
+              merged.set(`${kind}::${personId}`, {
+                kind,
+                personId,
+                isActive: Number(item?.is_active ?? item?.isActive ?? 0) === 1 ? 1 : 0,
+              });
+            }
           }
-          allowed.push(firmId);
+
+          for (const firmId of toAssign) {
+            const personsRes = await api.personsListByFirm(firmId);
+            if (!personsRes?.ok) continue;
+            for (const person of personsRes.list || []) {
+              const personId = String(person?.id || "").trim();
+              if (!personId) continue;
+              const key = `global_person::${personId}`;
+              if (merged.has(key)) continue;
+              merged.set(key, {
+                kind: "global_person",
+                personId,
+                isActive: 1,
+              });
+            }
+          }
+
+          const setRes = await api.projectCandidatesSet({
+            projectId,
+            items: [...merged.values()],
+          });
+          if (!setRes?.ok) {
+            throw new Error(setRes?.error || "Mitarbeiter konnten nicht uebernommen werden");
+          }
         }
-        toUnassign = allowed;
       }
+
 
       for (const firmId of toUnassign) {
         const res = await window.bbmDb.projectFirmsUnassignGlobalFirm({ projectId, firmId });
@@ -3679,9 +3843,6 @@ const taFirmNotes = document.createElement("textarea");
 
       if (duplicateAssign.length) {
         alert("Stammfirma bereits zugeordnet.");
-      }
-      if (blockedUnassign.length) {
-        alert("In Papierkorb nicht möglich: zuerst zugeordnete Mitarbeiter entfernen.");
       }
     } catch (e) {
       hasSaveError = true;
@@ -3695,9 +3856,6 @@ const taFirmNotes = document.createElement("textarea");
       await this.reloadFirms();
       await this.reloadGlobalAssignments();
       if (setupChanged) this._notifyPoolDataChanged("global-assignments-saved");
-      if (!hasSaveError && typeof this.router?.showFirmsPool === "function") {
-        await this.router.showFirmsPool(projectId);
-      }
     }
   }
 }

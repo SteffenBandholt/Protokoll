@@ -130,6 +130,51 @@ function _cleanupProjectPersonLinks(projectPersonId) {
   };
 }
 
+function _cleanupGlobalFirmLinks({ projectId, firmId }) {
+  if (!projectId || !firmId) return { openMeetingsRemoved: 0, poolRemoved: 0 };
+  const db = initDatabase();
+
+  const delOpen = db
+    .prepare(
+      `
+      DELETE FROM meeting_participants
+      WHERE kind = 'global_person'
+        AND meeting_id IN (
+          SELECT id
+          FROM meetings
+          WHERE project_id = ?
+            AND is_closed = 0
+        )
+        AND person_id IN (
+          SELECT id
+          FROM persons
+          WHERE firm_id = ?
+        )
+    `
+    )
+    .run(projectId, firmId);
+
+  const delPool = db
+    .prepare(
+      `
+      DELETE FROM project_candidates
+      WHERE project_id = ?
+        AND kind = 'global_person'
+        AND person_id IN (
+          SELECT id
+          FROM persons
+          WHERE firm_id = ?
+        )
+    `
+    )
+    .run(projectId, firmId);
+
+  return {
+    openMeetingsRemoved: Number(delOpen?.changes || 0),
+    poolRemoved: Number(delPool?.changes || 0),
+  };
+}
+
 function registerProjectFirmsIpc() {
   // --------------------------------------------
   // HINWEIS:
@@ -206,11 +251,15 @@ function registerProjectFirmsIpc() {
 
   ipcMain.handle("projectFirms:unassignGlobalFirm", (_evt, data) => {
     try {
+      const cleanup = _cleanupGlobalFirmLinks({
+        projectId: data?.projectId,
+        firmId: data?.firmId,
+      });
       const result = projectFirmsRepo.unassignGlobalFirmFromProject({
         projectId: data?.projectId,
         firmId: data?.firmId,
       });
-      return { ok: true, result };
+      return { ok: true, result, cleanup };
     } catch (e) {
       return { ok: false, error: _err(e) };
     }

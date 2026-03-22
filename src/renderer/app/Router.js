@@ -40,6 +40,7 @@ export default class Router {
     this._helpModalLoading = null;
     this._projectContextLane = null;
     this._projectContextLaneLoading = null;
+    this._projectFormModal = null;
     this.currentView = null;
     this.activeView = null;
 
@@ -1020,12 +1021,12 @@ export default class Router {
     if (this._projectContextLane) return this._projectContextLane;
     if (this._projectContextLaneLoading) return await this._projectContextLaneLoading;
 
-    this._projectContextLaneLoading = (async () => {
-      const mod = await import("../ui/ProjectContextQuicklane.js");
-      const Lane = mod.default;
-      this._projectContextLane = new Lane();
-      return this._projectContextLane;
-    })();
+      this._projectContextLaneLoading = (async () => {
+        const mod = await import("../ui/ProjectContextQuicklane.js");
+        const Lane = mod.default;
+        this._projectContextLane = new Lane({ router: this });
+        return this._projectContextLane;
+      })();
 
     try {
       return await this._projectContextLaneLoading;
@@ -1037,6 +1038,47 @@ export default class Router {
   async openProjectContextQuicklane(opts = {}) {
     const lane = await this._ensureProjectContextQuicklane();
     lane?.open?.(opts && typeof opts === "object" ? opts : {});
+  }
+
+  async openProjectFormModal({ projectId } = {}) {
+    const effectiveProjectId = projectId || this.currentProjectId || null;
+    if (!effectiveProjectId) return;
+    if (this._projectFormModal) return;
+
+    const cleanup = () => {
+      this._projectFormModal = null;
+    };
+
+    try {
+      const mod = await import("../views/ProjectFormView.js");
+      const ProjectFormView = mod.default;
+
+      const view = new ProjectFormView({
+        router: this,
+        projectId: effectiveProjectId,
+        mode: "modal",
+        onClose: cleanup,
+        onSaved: async () => {
+          await this.ensureCurrentProjectLabelLoaded({ force: true });
+          const lane = await this._ensureProjectContextQuicklane();
+          lane?.setContext?.({
+            projectId: this.currentProjectId || this.lastTopsProjectId || null,
+            meetingId: this.currentMeetingId || this.lastTopsMeetingId || null,
+            projectLabel: this.context.projectLabel || null,
+          });
+          this._refreshHeaderSafe();
+          cleanup();
+        },
+      });
+
+      this._projectFormModal = view;
+      view.render();
+      await view.load();
+      await view.openModal();
+    } catch (err) {
+      console.error("[router] project form modal failed:", err);
+      cleanup();
+    }
   }
 
   async _ensureHelpModal() {

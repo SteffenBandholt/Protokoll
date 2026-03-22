@@ -308,9 +308,14 @@ function listProjectParticipantsPool(dbConn, projectId) {
         COALESCE(pp.rolle, pp.funktion, '') AS rolle,
         COALESCE(pf.short, pf.name, '') AS firm,
         pp.project_firm_id AS firmId,
-        COALESCE(pf.is_active, 1) AS firm_is_active
+        COALESCE(pf.is_active, 1) AS firm_is_active,
+        COALESCE(pc.is_active, 1) AS is_active
       FROM project_persons pp
       INNER JOIN project_firms pf ON pf.id = pp.project_firm_id
+      LEFT JOIN project_candidates pc
+        ON pc.project_id = pf.project_id
+       AND pc.kind = 'project_person'
+       AND pc.person_id = pp.id
       WHERE pf.project_id = ?
         AND pf.removed_at IS NULL
         AND pp.removed_at IS NULL
@@ -325,10 +330,15 @@ function listProjectParticipantsPool(dbConn, projectId) {
         COALESCE(p.rolle, p.funktion, '') AS rolle,
         COALESCE(f.short, f.name, '') AS firm,
         f.id AS firmId,
-        COALESCE(pgf.is_active, 1) AS firm_is_active
+        COALESCE(pgf.is_active, 1) AS firm_is_active,
+        COALESCE(pc.is_active, 1) AS is_active
       FROM project_global_firms pgf
       INNER JOIN firms f ON f.id = pgf.firm_id
       INNER JOIN persons p ON p.firm_id = f.id
+      LEFT JOIN project_candidates pc
+        ON pc.project_id = pgf.project_id
+       AND pc.kind = 'global_person'
+       AND pc.person_id = p.id
       WHERE pgf.project_id = ?
         AND pgf.removed_at IS NULL
         AND f.removed_at IS NULL
