@@ -22,6 +22,7 @@ export async function openClosedProtocolSelector({
   const { React, ReactDOM } = await loadReactRuntime();
 
   return await new Promise((resolve) => {
+    let closed = false;
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
     overlay.style.inset = "0";
@@ -30,6 +31,7 @@ export async function openClosedProtocolSelector({
     overlay.style.alignItems = "center";
     overlay.style.justifyContent = "center";
     overlay.style.zIndex = "12500";
+    overlay.tabIndex = -1;
 
     const host = document.createElement("div");
     overlay.appendChild(host);
@@ -38,6 +40,8 @@ export async function openClosedProtocolSelector({
     const root = ReactDOM.createRoot ? ReactDOM.createRoot(host) : null;
 
     const cleanup = (result = null) => {
+      if (closed) return;
+      closed = true;
       document.removeEventListener("keydown", escHandler, true);
       if (root) root.unmount();
       else ReactDOM.unmountComponentAtNode(host);
@@ -62,10 +66,15 @@ export async function openClosedProtocolSelector({
       cleanup(null);
     };
     document.addEventListener("keydown", escHandler, true);
+    try {
+      overlay.focus();
+    } catch (_err) {}
 
     function ClosedProtocolSelector(props) {
       const [query, setQuery] = React.useState("");
       const [currentId, setCurrentId] = React.useState(props.selectedId || props.items[0]?.id || null);
+      const [isSubmitting, setIsSubmitting] = React.useState(false);
+      const searchRef = React.useRef(null);
 
       const filtered = React.useMemo(() => {
         const raw = String(query || "").trim().toLowerCase();
@@ -76,10 +85,61 @@ export async function openClosedProtocolSelector({
         });
       }, [props.items, query]);
 
+      React.useEffect(() => {
+        if (props.searchEnabled && searchRef.current) {
+          try {
+            searchRef.current.focus();
+          } catch (_err) {}
+        }
+      }, [props.searchEnabled]);
+
+      React.useEffect(() => {
+        if (!filtered.length) {
+          if (currentId !== null) setCurrentId(null);
+          return;
+        }
+        const hasCurrent = filtered.some((item) => String(item.id) === String(currentId || ""));
+        if (!hasCurrent) setCurrentId(filtered[0]?.id || null);
+      }, [filtered, currentId]);
+
       const activeItem =
         filtered.find((item) => String(item.id) === String(currentId || "")) ||
-        props.items.find((item) => String(item.id) === String(currentId || "")) ||
         null;
+
+      const handleMoveSelection = (direction) => {
+        if (!filtered.length) return;
+        const currentIndex = filtered.findIndex((item) => String(item.id) === String(currentId || ""));
+        const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+        const nextIndex = Math.min(filtered.length - 1, Math.max(0, baseIndex + direction));
+        setCurrentId(filtered[nextIndex]?.id || null);
+      };
+
+      const submitActiveItem = async (item) => {
+        if (!item || isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+          await props.onConfirm(item);
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+
+      const handleListKeyDown = (e) => {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          handleMoveSelection(1);
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          handleMoveSelection(-1);
+          return;
+        }
+        if (e.key === "Enter" && activeItem) {
+          e.preventDefault();
+          submitActiveItem(activeItem);
+        }
+      };
 
       return React.createElement(
         "div",
@@ -151,9 +211,11 @@ export async function openClosedProtocolSelector({
           props.searchEnabled
             ? React.createElement("input", {
                 type: "text",
+                ref: searchRef,
                 value: query,
                 placeholder: "Protokoll suchen",
                 onChange: (e) => setQuery(e.target.value || ""),
+                onKeyDown: handleListKeyDown,
                 style: {
                   width: "100%",
                   boxSizing: "border-box",
@@ -188,7 +250,8 @@ export async function openClosedProtocolSelector({
                       key: item.id,
                       type: "button",
                       onClick: () => setCurrentId(item.id),
-                      onDoubleClick: () => props.onConfirm(item),
+                      onDoubleClick: () => submitActiveItem(item),
+                      onKeyDown: handleListKeyDown,
                       style: {
                         display: "flex",
                         flexDirection: "column",
@@ -205,6 +268,7 @@ export async function openClosedProtocolSelector({
                         borderRadius: "12px",
                         padding: "12px 14px",
                         cursor: "pointer",
+                        outline: "none",
                       },
                     },
                     React.createElement(
@@ -231,7 +295,7 @@ export async function openClosedProtocolSelector({
                       color: "#64748b",
                     },
                   },
-                  "Keine geschlossenen Protokolle gefunden."
+                  query ? "Keine Treffer in den geschlossenen Protokollen." : "Keine geschlossenen Protokolle gefunden."
                 )
           ),
           React.createElement(
@@ -262,18 +326,18 @@ export async function openClosedProtocolSelector({
               "button",
               {
                 type: "button",
-                disabled: !activeItem,
-                onClick: () => activeItem && props.onConfirm(activeItem),
+                disabled: !activeItem || isSubmitting,
+                onClick: () => activeItem && submitActiveItem(activeItem),
                 style: {
                   border: "1px solid #2563eb",
-                  background: activeItem ? "#2563eb" : "#94a3b8",
+                  background: activeItem && !isSubmitting ? "#2563eb" : "#94a3b8",
                   color: "#ffffff",
                   borderRadius: "10px",
                   padding: "10px 14px",
-                  cursor: activeItem ? "pointer" : "default",
+                  cursor: activeItem && !isSubmitting ? "pointer" : "default",
                 },
               },
-              getPrimaryLabel(props.mode)
+              isSubmitting ? "Bitte warten..." : getPrimaryLabel(props.mode)
             )
           )
         )
