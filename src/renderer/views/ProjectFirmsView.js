@@ -587,6 +587,7 @@ const taFirmNotes = document.createElement("textarea");
     const personsThead = document.createElement("thead");
     personsThead.innerHTML = `
       <tr>
+        <th style="text-align:center;padding:6px;border-bottom:1px solid #ddd;">Aktiv</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Name</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">Funktion/Rolle</th>
         <th style="text-align:left;padding:6px;border-bottom:1px solid #ddd;">E-Mail</th>
@@ -1363,6 +1364,10 @@ const taFirmNotes = document.createElement("textarea");
     return this._isAssignedGlobalFirm(this.selectedFirm);
   }
 
+  _selectedPersonCandidateKind() {
+    return this._selectedFirmIsAssignedGlobal() ? "global_person" : "project_person";
+  }
+
   _getSelectedFirmDeleteAction() {
     const isAssignedGlobalFirm = this._selectedFirmIsAssignedGlobal();
     return {
@@ -1663,6 +1668,86 @@ const taFirmNotes = document.createElement("textarea");
     return 1;
   }
 
+  _candidateActiveById(items, expectedKind) {
+    const activeById = new Map();
+    for (const item of items || []) {
+      if (String(item?.kind || "") !== String(expectedKind || "")) continue;
+      const personId = String(item?.personId ?? item?.person_id ?? "").trim();
+      if (!personId) continue;
+      activeById.set(personId, this._parseActiveFlag(item?.is_active ?? item?.isActive));
+    }
+    return activeById;
+  }
+
+  async _setPersonActive(person, isActive) {
+    const api = window.bbmDb || {};
+    const kind = this._selectedPersonCandidateKind();
+    const personId = String(person?.id ?? person?.personId ?? person?.person_id ?? "").trim();
+    if (!this.projectId || !kind || !personId) return false;
+
+    const next = this._parseActiveFlag(isActive);
+
+    if (typeof api.projectCandidatesSetActive === "function") {
+      const res = await api.projectCandidatesSetActive({
+        projectId: this.projectId,
+        kind,
+        personId,
+        isActive: next === 1,
+      });
+      if (!res?.ok) {
+        alert(res?.error || "Aktiv/Inaktiv konnte nicht gespeichert werden.");
+        return false;
+      }
+    } else if (
+      typeof api.projectCandidatesList === "function" &&
+      typeof api.projectCandidatesSet === "function"
+    ) {
+      const currentRes = await api.projectCandidatesList({ projectId: this.projectId });
+      if (!currentRes?.ok) {
+        alert(currentRes?.error || "Aktiv/Inaktiv konnte nicht gespeichert werden.");
+        return false;
+      }
+
+      const merged = new Map();
+      for (const item of currentRes.items || []) {
+        const itemKind = String(item?.kind || "").trim();
+        const itemPersonId = String(item?.personId ?? item?.person_id ?? "").trim();
+        if (!itemKind || !itemPersonId) continue;
+        merged.set(`${itemKind}::${itemPersonId}`, {
+          kind: itemKind,
+          personId: itemPersonId,
+          isActive: this._parseActiveFlag(item?.is_active ?? item?.isActive) === 1,
+        });
+      }
+
+      merged.set(`${kind}::${personId}`, {
+        kind,
+        personId,
+        isActive: next === 1,
+      });
+
+      const setRes = await api.projectCandidatesSet({
+        projectId: this.projectId,
+        items: [...merged.values()],
+      });
+      if (!setRes?.ok) {
+        alert(setRes?.error || "Aktiv/Inaktiv konnte nicht gespeichert werden.");
+        return false;
+      }
+    } else {
+      alert("API fuer Aktiv/Inaktiv fehlt.");
+      return false;
+    }
+
+    this.persons = (this.persons || []).map((entry) =>
+      this._sameId(entry?.id, personId) ? { ...entry, is_active: next } : entry
+    );
+    this._renderPersonsOnly();
+    this._applyPersonFormState();
+    this._notifyPoolDataChanged("person-active-changed");
+    return true;
+  }
+
   async _canDeactivateFirm(firmId) {
     const api = window.bbmDb || {};
     if (typeof api.projectFirmsCanDeactivate !== "function") return { ok: true, can: true };
@@ -1825,10 +1910,7 @@ const taFirmNotes = document.createElement("textarea");
 
     if (this._selectedFirmIsAssignedGlobal()) {
       const api = window.bbmDb || {};
-      if (
-        typeof api.personsListByFirm !== "function" ||
-        typeof api.projectCandidatesList !== "function"
-      ) {
+      if (typeof api.personsListByFirm !== "function") {
         this.persons = [];
         this._renderPersonsOnly();
         return;
@@ -1836,7 +1918,9 @@ const taFirmNotes = document.createElement("textarea");
 
       const [personsRes, candidatesRes] = await Promise.all([
         api.personsListByFirm(this.selectedFirmId),
-        api.projectCandidatesList({ projectId: this.projectId }),
+        typeof api.projectCandidatesList === "function"
+          ? api.projectCandidatesList({ projectId: this.projectId })
+          : Promise.resolve(null),
       ]);
       if (!personsRes?.ok) {
         this._setMsg(personsRes?.error || "Fehler beim Laden der Mitarbeiter");
@@ -1845,16 +1929,7 @@ const taFirmNotes = document.createElement("textarea");
         return;
       }
 
-      const activeById = new Map();
-      if (candidatesRes?.ok) {
-        for (const item of candidatesRes.items || []) {
-          if (String(item?.kind || "") !== "global_person") continue;
-          activeById.set(
-            String(item?.personId ?? item?.person_id ?? ""),
-            Number(item?.is_active ?? item?.isActive ?? 0) === 1 ? 1 : 0
-          );
-        }
-      }
+      const activeById = this._candidateActiveById(candidatesRes?.items, "global_person");
 
       this.persons = (personsRes.list || []).map((person) => ({
         ...person,
@@ -1867,7 +1942,13 @@ const taFirmNotes = document.createElement("textarea");
       return;
     }
 
-    const res = await window.bbmDb.projectPersonsListByProjectFirm(this.selectedFirmId);
+    const api = window.bbmDb || {};
+    const [res, candidatesRes] = await Promise.all([
+      window.bbmDb.projectPersonsListByProjectFirm(this.selectedFirmId),
+      typeof api.projectCandidatesList === "function"
+        ? api.projectCandidatesList({ projectId: this.projectId })
+        : Promise.resolve(null),
+    ]);
     if (!res?.ok) {
       this._setMsg(res?.error || "Fehler beim Laden der Mitarbeiter");
       this.persons = [];
@@ -1875,7 +1956,13 @@ const taFirmNotes = document.createElement("textarea");
       return;
     }
 
-    this.persons = res.list || [];
+    const activeById = this._candidateActiveById(candidatesRes?.items, "project_person");
+    this.persons = (res.list || []).map((person) => ({
+      ...person,
+      is_active: activeById.has(String(person?.id ?? ""))
+        ? activeById.get(String(person?.id ?? ""))
+        : 1,
+    }));
     this._renderPersonsOnly();
   }
 
@@ -1981,7 +2068,7 @@ const taFirmNotes = document.createElement("textarea");
     if (!this._hasFirmSelectedSaved()) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 4;
+      td.colSpan = 5;
       td.style.padding = "10px 6px";
       td.style.fontSize = "12px";
       td.style.opacity = "0.75";
@@ -1995,13 +2082,10 @@ const taFirmNotes = document.createElement("textarea");
       const tr = document.createElement("tr");
       tr.style.cursor = selectedFirmIsAssignedGlobal ? "default" : "pointer";
       const isSel = this.personMode === "edit" && this._sameId(this.editPersonId, p.id);
+      const isActive = this._parseActiveFlag(p?.is_active ?? p?.isActive) === 1;
       tr.style.background = isSel ? "#dff0ff" : "transparent";
-      tr.style.opacity =
-        selectedFirmIsAssignedGlobal && Number(p?.is_active ?? p?.isActive ?? 0) !== 1 ? "0.65" : "1";
-      tr.title =
-        selectedFirmIsAssignedGlobal && Number(p?.is_active ?? p?.isActive ?? 0) !== 1
-          ? "Im Projekt inaktiv"
-          : "";
+      tr.style.opacity = isActive ? "1" : "0.65";
+      tr.title = isActive ? "" : "Im Projekt inaktiv";
       tr.onmouseenter = () => {
         if (selectedFirmIsAssignedGlobal) return;
         if (isSel) return;
@@ -2036,7 +2120,28 @@ const taFirmNotes = document.createElement("textarea");
       tdPhone.style.borderBottom = "1px solid #eee";
       tdPhone.textContent = (p.phone || "").trim() || "?";
 
-      tr.append(tdName, tdRole, tdEmail, tdPhone);
+      const tdActive = document.createElement("td");
+      tdActive.style.padding = "6px";
+      tdActive.style.borderBottom = "1px solid #eee";
+      tdActive.style.textAlign = "center";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = isActive;
+      cb.disabled =
+        this._isReadOnly() ||
+        this.savingFirm ||
+        this.savingPerson ||
+        this.savingGlobalAssign;
+      cb.style.cursor = cb.disabled ? "default" : "pointer";
+      cb.onclick = (e) => e.stopPropagation();
+      cb.onchange = async (e) => {
+        e.stopPropagation();
+        const ok = await this._setPersonActive(p, cb.checked);
+        if (!ok) cb.checked = !cb.checked;
+      };
+      tdActive.appendChild(cb);
+
+      tr.append(tdActive, tdName, tdRole, tdEmail, tdPhone);
 
       tr.onclick = () => {
         if (selectedFirmIsAssignedGlobal) return;
@@ -2055,7 +2160,7 @@ const taFirmNotes = document.createElement("textarea");
     if (!(this.persons || []).length) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 4;
+      td.colSpan = 5;
       td.style.padding = "10px 6px";
       td.style.fontSize = "12px";
       td.style.opacity = "0.75";
@@ -3819,7 +3924,7 @@ const taFirmNotes = document.createElement("textarea");
               merged.set(key, {
                 kind: "global_person",
                 personId,
-                isActive: 1,
+                isActive: 0,
               });
             }
           }
