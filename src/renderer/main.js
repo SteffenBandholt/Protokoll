@@ -588,6 +588,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     padding: PAD,
   });
   const headerEl = header.render();
+  router.openOutputMail = async () => {
+    await header._openMailFileFlow();
+  };
 
   const featureToggleWrap = document.createElement("div");
   featureToggleWrap.style.gridColumn = "3";

@@ -748,6 +748,7 @@ _isoToDDMMYYYY(iso) {
       this.showAmpelInList = true;
       this._applyAmpelVisibility();
       if (typeof this._updateAmpelToggleUi === "function") this._updateAmpelToggleUi();
+      this._emitAmpelStateChanged();
       return;
     }
 
@@ -756,6 +757,7 @@ _isoToDDMMYYYY(iso) {
       this.showAmpelInList = true;
       this._applyAmpelVisibility();
       if (typeof this._updateAmpelToggleUi === "function") this._updateAmpelToggleUi();
+      this._emitAmpelStateChanged();
       return;
     }
 
@@ -763,6 +765,17 @@ _isoToDDMMYYYY(iso) {
     this.showAmpelInList = this._parseBool(data["tops.ampelEnabled"], true);
     this._applyAmpelVisibility();
     if (typeof this._updateAmpelToggleUi === "function") this._updateAmpelToggleUi();
+    this._emitAmpelStateChanged();
+  }
+
+  _emitAmpelStateChanged() {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("bbm:ampel-state", {
+          detail: { enabled: !!this.showAmpelInList },
+        })
+      );
+    } catch (_err) {}
   }
 
   async _loadTextLimitsSetting() {
@@ -847,6 +860,7 @@ _isoToDDMMYYYY(iso) {
         this.showLongtextInList = this._parseBool(data[key], this.showLongtextInList);
       }
       this._longtextSettingLoaded = true;
+      this._emitLongtextStateChanged();
       return;
     }
 
@@ -859,6 +873,17 @@ _isoToDDMMYYYY(iso) {
       // ignore
     }
     this._longtextSettingLoaded = true;
+    this._emitLongtextStateChanged();
+  }
+
+  _emitLongtextStateChanged() {
+    try {
+      window.dispatchEvent(
+        new CustomEvent("bbm:longtext-state", {
+          detail: { enabled: !!this.showLongtextInList },
+        })
+      );
+    } catch (_err) {}
   }
 
   async _saveLongtextSetting() {
@@ -3826,7 +3851,7 @@ _isoToDDMMYYYY(iso) {
     // Langtext Toggle (stabile Breite)
     const btnLongToggle = document.createElement("button");
     btnLongToggle.type = "button";
-    btnLongToggle.style.display = "inline-flex";
+    btnLongToggle.style.display = "none";
     btnLongToggle.style.alignItems = "center";
     btnLongToggle.style.justifyContent = "center";
     btnLongToggle.style.gap = "6px";
@@ -3855,6 +3880,7 @@ _isoToDDMMYYYY(iso) {
       this.showLongtextInList = !this.showLongtextInList;
       updateLongToggleUi();
       this._renderListOnly();
+      this._emitLongtextStateChanged();
       this._saveLongtextSetting().catch(() => {});
     };
 
@@ -3867,7 +3893,7 @@ _isoToDDMMYYYY(iso) {
     const btnProjectTasks = document.createElement("button");
     btnProjectTasks.type = "button";
     btnProjectTasks.textContent = "Aufgaben";
-    btnProjectTasks.style.display = "inline-flex";
+    btnProjectTasks.style.display = "none";
     btnProjectTasks.style.alignItems = "center";
     btnProjectTasks.style.justifyContent = "center";
     btnProjectTasks.style.gap = "6px";
@@ -3913,7 +3939,7 @@ _isoToDDMMYYYY(iso) {
     // Ampel Toggle
     const btnAmpelToggle = document.createElement("button");
     btnAmpelToggle.type = "button";
-    btnAmpelToggle.style.display = "inline-flex";
+    btnAmpelToggle.style.display = "none";
     btnAmpelToggle.style.alignItems = "center";
     btnAmpelToggle.style.justifyContent = "center";
     btnAmpelToggle.style.gap = "6px";
@@ -3942,6 +3968,7 @@ _isoToDDMMYYYY(iso) {
       updateAmpelToggleUi();
       this._applyAmpelVisibility();
       this._renderListOnly();
+      this._emitAmpelStateChanged();
       this._saveAmpelSetting().catch(() => {});
     };
 
@@ -5815,7 +5842,7 @@ async _closeViewOnly() {
     if (this.btnProjectTasks) {
       this.btnProjectTasks.disabled = busy || !this.projectId;
       this.btnProjectTasks.style.opacity = this.btnProjectTasks.disabled ? "0.65" : "1";
-      this.btnProjectTasks.style.display = this.meetingId ? "" : "none";
+      this.btnProjectTasks.style.display = "none";
     }
     if (this.btnCloseMeeting) {
       this.btnCloseMeeting.disabled = busy ? true : false;

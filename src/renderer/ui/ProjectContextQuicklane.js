@@ -13,6 +13,10 @@ export default class ProjectContextQuicklane {
     this.firmsSectionEl = null;
     this.employeesSectionEl = null;
     this.previewSectionEl = null;
+    this.ampelSectionEl = null;
+    this.longtextSectionEl = null;
+    this.outputSectionEl = null;
+    this.outputPopupEl = null;
     this.projectNumberValueEl = null;
     this.projectShortValueEl = null;
     this.projectIdValueEl = null;
@@ -24,11 +28,29 @@ export default class ProjectContextQuicklane {
     this._lastOpts = {};
     this._isHoveringTab = false;
     this._isHoveringPanel = false;
+    this._ampelEnabled = null;
+    this._longtextEnabled = null;
+    this._isOutputOpen = false;
+    this._ampelStateHandler = (e) => {
+      this._ampelEnabled = !!e?.detail?.enabled;
+      this._renderContext();
+    };
+    this._longtextStateHandler = (e) => {
+      this._longtextEnabled = !!e?.detail?.enabled;
+      this._renderContext();
+    };
     this._escHandler = (e) => {
-      if (e.key === "Escape") this.close();
+      if (e.key !== "Escape") return;
+      if (this._isOutputOpen) {
+        this._setOutputOpen(false);
+        return;
+      }
+      this.close();
     };
 
     this._ensureRoot();
+    window.addEventListener("bbm:ampel-state", this._ampelStateHandler);
+    window.addEventListener("bbm:longtext-state", this._longtextStateHandler);
   }
 
   _ensureRoot() {
@@ -209,6 +231,138 @@ export default class ProjectContextQuicklane {
       },
     });
 
+    const ampelSection = createToolItem({
+      icon: "",
+      title: "Ampel an/aus",
+      actionHandler: () => {
+        const activeView = this.router?.activeView || null;
+        activeView?.btnAmpelToggle?.click?.();
+      },
+    });
+    const ampelWrap = document.createElement("div");
+    ampelWrap.style.width = "16px";
+    ampelWrap.style.height = "26px";
+    ampelWrap.style.borderRadius = "8px";
+    ampelWrap.style.background = "#1f1f1f";
+    ampelWrap.style.padding = "3px 0";
+    ampelWrap.style.boxSizing = "border-box";
+    ampelWrap.style.display = "flex";
+    ampelWrap.style.flexDirection = "column";
+    ampelWrap.style.alignItems = "center";
+    ampelWrap.style.justifyContent = "space-between";
+    const ampelRed = document.createElement("span");
+    const ampelYellow = document.createElement("span");
+    const ampelGreen = document.createElement("span");
+    for (const lamp of [ampelRed, ampelYellow, ampelGreen]) {
+      lamp.style.width = "6px";
+      lamp.style.height = "6px";
+      lamp.style.borderRadius = "999px";
+      lamp.style.display = "block";
+      lamp.style.transition = "background 140ms ease-out, box-shadow 140ms ease-out, opacity 140ms ease-out";
+    }
+    ampelWrap.append(ampelRed, ampelYellow, ampelGreen);
+    ampelSection.replaceChildren(ampelWrap);
+
+    const longtextSection = createToolItem({
+      icon: "",
+      title: "Langtext an/aus",
+      actionHandler: () => {
+        const activeView = this.router?.activeView || null;
+        activeView?.btnLongToggle?.click?.();
+      },
+    });
+    const longtextWrap = document.createElement("div");
+    longtextWrap.style.width = "18px";
+    longtextWrap.style.height = "18px";
+    longtextWrap.style.display = "flex";
+    longtextWrap.style.flexDirection = "column";
+    longtextWrap.style.justifyContent = "space-between";
+    const longtextLines = [];
+    for (let i = 0; i < 4; i += 1) {
+      const line = document.createElement("span");
+      line.style.display = "block";
+      line.style.height = "2px";
+      line.style.borderRadius = "999px";
+      line.style.background = "#3d4a5c";
+      line.style.transition = "opacity 140ms ease-out, width 140ms ease-out, background 140ms ease-out";
+      longtextLines.push(line);
+      longtextWrap.appendChild(line);
+    }
+    longtextSection.replaceChildren(longtextWrap);
+
+    const outputSection = createToolItem({
+      icon: "🖨",
+      title: "Ausgabe",
+      actionHandler: () => {
+        if (!this._lastOpts?.projectId) return;
+        this._setOutputOpen(!this._isOutputOpen);
+      },
+    });
+
+    const createOutputAction = (label, actionHandler) => {
+      const item = document.createElement("div");
+      item.textContent = label;
+      item.style.width = "100%";
+      item.style.minHeight = "32px";
+      item.style.padding = "8px 10px";
+      item.style.boxSizing = "border-box";
+      item.style.borderRadius = "8px";
+      item.style.border = "1px solid #dfdfdf";
+      item.style.background = "#ffffff";
+      item.style.fontSize = "12px";
+      item.style.fontWeight = "600";
+      item.style.color = "#222";
+      item.style.cursor = "pointer";
+      item.style.userSelect = "none";
+      item.tabIndex = 0;
+      item.setAttribute("role", "button");
+      item.onclick = actionHandler;
+      item.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        actionHandler();
+      });
+      item.onmouseenter = () => {
+        item.style.background = "#f0f0f0";
+      };
+      item.onmouseleave = () => {
+        item.style.background = "#ffffff";
+      };
+      return item;
+    };
+
+    const outputPopup = document.createElement("div");
+    outputPopup.style.position = "fixed";
+    outputPopup.style.display = "none";
+    outputPopup.style.minWidth = "180px";
+    outputPopup.style.maxWidth = "220px";
+    outputPopup.style.boxSizing = "border-box";
+    outputPopup.style.padding = "8px";
+    outputPopup.style.border = "1px solid #d8d8d8";
+    outputPopup.style.borderRadius = "12px";
+    outputPopup.style.background = "#ffffff";
+    outputPopup.style.boxShadow = "-8px 8px 24px rgba(0,0,0,0.16)";
+    outputPopup.style.flexDirection = "column";
+    outputPopup.style.gap = "6px";
+    outputPopup.style.zIndex = "40";
+
+    const outputProtocols = createOutputAction("Protokolle", async () => {
+      if (!this._lastOpts?.projectId) return;
+      await this.router?.showMeetings?.(this._lastOpts.projectId);
+      this._setOutputOpen(false);
+    });
+    const outputPrint = createOutputAction("Drucken", async () => {
+      if (!this._lastOpts?.projectId) return;
+      await this.router?.openPrintModal?.({ projectId: this._lastOpts.projectId });
+      this._setOutputOpen(false);
+    });
+    const outputMail = createOutputAction("E-Mail senden", async () => {
+      if (!this._lastOpts?.projectId) return;
+      await this.router?.openOutputMail?.();
+      this._setOutputOpen(false);
+    });
+    outputPopup.append(outputProtocols, outputPrint, outputMail);
+
     const contextMeta = document.createElement("div");
     contextMeta.style.display = "none";
     contextMeta.style.width = "100%";
@@ -251,8 +405,9 @@ export default class ProjectContextQuicklane {
       createMetaRow("Meeting-ID", meetingIdValue)
     );
 
-    body.append(projectSection, firmsSection, employeesSection, previewSection, contextMeta);
+    body.append(projectSection, firmsSection, employeesSection, previewSection, ampelSection, longtextSection, outputSection, contextMeta);
     wrap.append(tab, header, body);
+    document.body.appendChild(outputPopup);
 
     tab.addEventListener("mouseenter", () => {
       if (!this._enabled) return;
@@ -283,6 +438,16 @@ export default class ProjectContextQuicklane {
       if (this.root?.contains(e.relatedTarget)) return;
       this._scheduleClose();
     });
+    document.addEventListener(
+      "mousedown",
+      (e) => {
+        if (!this._isOutputOpen) return;
+        if (outputSection.contains(e.target)) return;
+        if (outputPopup.contains(e.target)) return;
+        this._setOutputOpen(false);
+      },
+      true
+    );
 
     document.body.appendChild(wrap);
     document.addEventListener("keydown", this._escHandler, true);
@@ -297,6 +462,10 @@ export default class ProjectContextQuicklane {
     this.firmsSectionEl = firmsSection;
     this.employeesSectionEl = employeesSection;
     this.previewSectionEl = previewSection;
+    this.ampelSectionEl = ampelSection;
+    this.longtextSectionEl = longtextSection;
+    this.outputSectionEl = outputSection;
+    this.outputPopupEl = outputPopup;
     this.projectNumberValueEl = projectNumberValue;
     this.projectShortValueEl = projectShortValue;
     this.projectIdValueEl = projectIdValue;
@@ -345,10 +514,69 @@ export default class ProjectContextQuicklane {
     const hasProject = !!this._lastOpts?.projectId;
     const hasParticipants = hasProject && !!this._lastOpts?.meetingId;
     const hasPreview = hasProject && !!this._lastOpts?.meetingId;
+    const ampelOn =
+      typeof this._ampelEnabled === "boolean"
+        ? this._ampelEnabled
+        : !!this.router?.activeView?.showAmpelInList;
+    const hasAmpel = !!this.router?.activeView?.btnAmpelToggle;
+    const longtextOn =
+      typeof this._longtextEnabled === "boolean"
+        ? this._longtextEnabled
+        : !!this.router?.activeView?.showLongtextInList;
+    const hasLongtext = !!this.router?.activeView?.btnLongToggle;
+    const hasOutput = hasProject;
     this._applyToolItemState(this.projectSectionEl, hasProject);
     this._applyToolItemState(this.firmsSectionEl, hasProject);
     this._applyToolItemState(this.employeesSectionEl, hasParticipants);
     this._applyToolItemState(this.previewSectionEl, hasPreview);
+    this._applyToolItemState(this.ampelSectionEl, hasAmpel);
+    this._applyToolItemState(this.longtextSectionEl, hasLongtext);
+    this._applyToolItemState(this.outputSectionEl, hasOutput);
+    if (this.ampelSectionEl?.firstChild) {
+      const lamps = this.ampelSectionEl.firstChild.children || [];
+      const red = lamps[0];
+      const yellow = lamps[1];
+      const green = lamps[2];
+      if (red && yellow && green) {
+        red.style.background = ampelOn ? "#5b2323" : "#ff3b30";
+        red.style.opacity = ampelOn ? "0.32" : "1";
+        red.style.boxShadow = ampelOn ? "none" : "0 0 10px rgba(255,59,48,0.8)";
+        yellow.style.background = "#f4c542";
+        yellow.style.opacity = "0.45";
+        yellow.style.boxShadow = "none";
+        green.style.background = ampelOn ? "#22c55e" : "#1f4d2f";
+        green.style.opacity = ampelOn ? "1" : "0.32";
+        green.style.boxShadow = ampelOn ? "0 0 10px rgba(34,197,94,0.85)" : "none";
+      }
+    }
+    if (this.longtextSectionEl?.firstChild) {
+      const lines = this.longtextSectionEl.firstChild.children || [];
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        if (!line) continue;
+        if (longtextOn) {
+          const widths = ["18px", "16px", "18px", "13px"];
+          line.style.width = widths[i] || "18px";
+          line.style.opacity = "1";
+          line.style.background = "#304255";
+        } else {
+          line.style.width = i === 0 ? "18px" : "8px";
+          line.style.opacity = i === 0 ? "0.95" : "0.18";
+          line.style.background = "#5d6a7a";
+        }
+      }
+    }
+    if (!hasOutput) this._isOutputOpen = false;
+    if (this.outputPopupEl && this.outputSectionEl) {
+      if (this._isOutputOpen && hasOutput) {
+        const rect = this.outputSectionEl.getBoundingClientRect();
+        this.outputPopupEl.style.top = `${Math.max(12, rect.top)}px`;
+        this.outputPopupEl.style.left = `${Math.max(12, rect.left - 196)}px`;
+        this.outputPopupEl.style.display = "flex";
+      } else {
+        this.outputPopupEl.style.display = "none";
+      }
+    }
   }
 
   _applyToolItemState(el, interactive) {
@@ -405,6 +633,11 @@ export default class ProjectContextQuicklane {
     this._applyState();
   }
 
+  _setOutputOpen(nextOpen) {
+    this._isOutputOpen = !!nextOpen;
+    this._renderContext();
+  }
+
   setContext({ projectId, meetingId, projectLabel, projectNumber, projectShort } = {}) {
     this._ensureRoot();
     this._lastOpts = {
@@ -428,6 +661,7 @@ export default class ProjectContextQuicklane {
       this._isOpen = false;
       this._isHoveringTab = false;
       this._isHoveringPanel = false;
+      this._isOutputOpen = false;
     }
 
     this._applyState();
