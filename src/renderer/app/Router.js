@@ -709,7 +709,7 @@ export default class Router {
         return;
       }
       if (c.section === "firmsPool") {
-        await this.showFirmsPool(c.projectId || fallbackProject);
+        await this.showProjectFirms(c.projectId || fallbackProject);
         return;
       }
       if (c.section === "meetings") {

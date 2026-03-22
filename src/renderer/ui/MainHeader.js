@@ -357,23 +357,7 @@ export default class MainHeader {
       if (typeof this.router?.showProjectFirms !== "function") return;
       await this.router.showProjectFirms(projectId);
     });
-    const itemFirmsPool = mkSetupItem("Firmenpool", async (projectId) => {
-      if (typeof this.router?.showFirmsPool !== "function") return;
-      await this.router.showFirmsPool(projectId);
-    });
-    const itemCandidates = mkSetupItem("Personalpool", async (projectId) => {
-      if (typeof this.router?.openCandidatesModal !== "function") {
-        alert("Personalpool ist nicht verfügbar.");
-        return;
-      }
-      try {
-        await this.router.openCandidatesModal({ projectId });
-      } catch (err) {
-        console.error("[header] setup Personalpool failed:", err);
-        alert("Personalpool konnte nicht geöffnet werden.");
-      }
-    });
-    setupMenu.append(itemProjectFirms, itemFirmsPool, itemCandidates);
+    setupMenu.append(itemProjectFirms);
 
     if (!this._isNewUi) {
       setupBtn.onclick = (e) => {
@@ -709,25 +693,6 @@ export default class MainHeader {
       }
     };
 
-    const btnFirmsPool = document.createElement("button");
-    btnFirmsPool.type = "button";
-    btnFirmsPool.textContent = "Firmenpool";
-    applyActionTextButtonStyle(btnFirmsPool);
-    btnFirmsPool.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (btnFirmsPool.disabled) return;
-      this._setPrintOpen(false);
-      try {
-        await runProjectAction(async (projectId) => {
-          if (typeof this.router?.showFirmsPool !== "function") return;
-          await this.router.showFirmsPool(projectId);
-        });
-      } catch (err) {
-        console.error("[header] action Firmenpool failed:", err);
-      }
-    };
-
     const btnMeetings = document.createElement("button");
     btnMeetings.type = "button";
     btnMeetings.textContent = "Protokolle";
@@ -767,7 +732,7 @@ export default class MainHeader {
     };
 
     if (this._isNewUi) {
-      actionWrap.append(btnProjectFirms, btnFirmsPool, btnParticipants, btnMeetings, printWrap, mailWrap);
+      actionWrap.append(btnProjectFirms, btnParticipants, btnMeetings, printWrap, mailWrap);
     } else {
       actionWrap.append(btnMeetings, setupWrap, printWrap, mailWrap);
     }
@@ -866,7 +831,6 @@ export default class MainHeader {
     this.elPrintItemTopList = itemTopList;
     this.elPrintItemMeetings = itemMeetingsClosed;
     this.elActionProjectFirmsBtn = btnProjectFirms;
-    this.elActionFirmsPoolBtn = btnFirmsPool;
     this.elActionMeetingsBtn = btnMeetings;
     this.elActionCandidatesBtn = null;
     this.elActionParticipantsBtn = btnParticipants;
@@ -1093,7 +1057,7 @@ export default class MainHeader {
       dot.style.border = "1px solid rgba(0,0,0,0.2)";
       readyValEl.appendChild(dot);
       readyValEl.title = setupStatus
-        ? `Zuordnung: ${setupStatus.firmsAssignedCount}, Firmenpool: ${setupStatus.firmsActiveCount}, Personalpool: ${setupStatus.peopleActiveCount}`
+        ? `Zuordnung: ${setupStatus.firmsAssignedCount}, Firmen im Projekt: ${setupStatus.firmsActiveCount}, aktive Mitarbeiter im Projekt: ${setupStatus.peopleActiveCount}`
         : "";
     }
 
@@ -1597,7 +1561,6 @@ export default class MainHeader {
       this.elMailBtn.title = hasProject ? "E-Mail senden" : projectDisabledTitle;
     }
     this._setMenuButtonEnabled(this.elActionProjectFirmsBtn, hasProject, projectDisabledTitle);
-    this._setMenuButtonEnabled(this.elActionFirmsPoolBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionMeetingsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionCandidatesBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(

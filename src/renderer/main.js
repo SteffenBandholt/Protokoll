@@ -775,14 +775,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     await router.showProjects();
   });
 
-  const btnCandidates = mkActionBtn("Personalpool", async () => {
-    if (!router.currentProjectId) {
-      alert("Bitte zuerst ein Projekt auswählen.");
-      return;
-    }
-    await router.openCandidatesModal({ projectId: router.currentProjectId });
-  });
-
   const btnParticipants = mkActionBtn("Teilnehmer", async () => {
     if (!router.currentProjectId) {
       alert("Bitte zuerst ein Projekt auswählen.");
@@ -799,14 +791,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
 
-  const btnFirmsPool = mkNavBtn("firmsPool", "Firmenpool", async () => {
-    if (router.currentProjectId) {
-      await router.showFirmsPool(router.currentProjectId);
-      return;
-    }
-    alert("Bitte zuerst ein Projekt auswählen.");
-    await router.showProjects();
-  });
   const btnProjectFirms = mkNavBtn("projectFirms", "Projektfirmen", async () => {
     if (router.currentProjectId) {
       await router.showProjectFirms(router.currentProjectId);
@@ -824,10 +808,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     btnHome,
     btnProjects,
     btnMeetings,
-    btnCandidates,
     btnParticipants,
     btnProjectFirms,
-    btnFirmsPool,
     btnFirms,
     btnSettings,
     btnHelp
@@ -880,10 +862,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const hasProject = !!router.currentProjectId;
     const hasMeeting = !!router.currentMeetingId;
 
-    setBtnEnabled(btnCandidates, hasProject, "Bitte zuerst ein Projekt auswählen.");
     setBtnEnabled(btnMeetings, hasProject, "Bitte zuerst ein Projekt auswählen.");
     setBtnEnabled(btnProjectFirms, hasProject, "Bitte zuerst ein Projekt auswählen.");
-    setBtnEnabled(btnFirmsPool, hasProject, "Bitte zuerst ein Projekt auswählen.");
 
     if (!hasProject) {
       setBtnEnabled(btnParticipants, false, "Bitte zuerst ein Projekt auswählen.");

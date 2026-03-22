@@ -2248,8 +2248,7 @@ const taFirmNotes = document.createElement("textarea");
     }
 
     if (this.btnNewPerson) {
-      const canNewPerson =
-        !isSaving && !ro && this._hasFirmSelectedSaved() && !this._selectedFirmIsAssignedGlobal();
+      const canNewPerson = !isSaving && !ro && this._hasFirmSelectedSaved();
       this.btnNewPerson.disabled = !canNewPerson;
       this.btnNewPerson.style.opacity = canNewPerson ? "1" : "0.55";
     }
@@ -2923,19 +2922,34 @@ const taFirmNotes = document.createElement("textarea");
         this._setMsg("Mitarbeiter wurde gespeichert.");
       } else {
         const funktionRolle = (this.localPersonInpFunktion?.value || this.localPersonInpRolle?.value || "").trim();
-        const res = await window.bbmDb.projectPersonsCreate({
-          projectFirmId: this.selectedFirmId,
-          firstName,
-          lastName,
-          funktion: funktionRolle,
-          phone: (this.localPersonInpPhone?.value || "").trim(),
-          email: (this.localPersonInpEmail?.value || "").trim(),
-          rolle: funktionRolle,
-          notes: (this.localPersonTaNotes?.value || "").trim(),
-        });
+        const isAssignedGlobalFirm = this._selectedFirmIsAssignedGlobal();
+        const res = isAssignedGlobalFirm
+          ? await window.bbmDb.personsCreate({
+              firmId: this.selectedFirmId,
+              firstName,
+              lastName,
+              funktion: funktionRolle,
+              phone: (this.localPersonInpPhone?.value || "").trim(),
+              email: (this.localPersonInpEmail?.value || "").trim(),
+              rolle: funktionRolle,
+              notes: (this.localPersonTaNotes?.value || "").trim(),
+            })
+          : await window.bbmDb.projectPersonsCreate({
+              projectFirmId: this.selectedFirmId,
+              firstName,
+              lastName,
+              funktion: funktionRolle,
+              phone: (this.localPersonInpPhone?.value || "").trim(),
+              email: (this.localPersonInpEmail?.value || "").trim(),
+              rolle: funktionRolle,
+              notes: (this.localPersonTaNotes?.value || "").trim(),
+            });
         if (!res?.ok) {
           this._setLocalPersonCreateError(res?.error || "Fehler beim Anlegen.");
           return;
+        }
+        if (isAssignedGlobalFirm && res?.person?.id) {
+          await this._setPersonActive(res.person, 0);
         }
 
         reloadPersonsAfter = true;
@@ -3359,20 +3373,35 @@ const taFirmNotes = document.createElement("textarea");
 
     try {
       if (this.personMode === "create") {
-        const res = await window.bbmDb.projectPersonsCreate({
-          projectFirmId: this.selectedFirmId,
-          firstName: data.firstName,
-          lastName: data.lastName,
-          funktion: data.funktion,
-          email: data.email,
-          phone: data.phone,
-          rolle: data.rolle,
-          notes: data.notes,
-        });
+        const isAssignedGlobalFirm = this._selectedFirmIsAssignedGlobal();
+        const res = isAssignedGlobalFirm
+          ? await window.bbmDb.personsCreate({
+              firmId: this.selectedFirmId,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              funktion: data.funktion,
+              email: data.email,
+              phone: data.phone,
+              rolle: data.rolle,
+              notes: data.notes,
+            })
+          : await window.bbmDb.projectPersonsCreate({
+              projectFirmId: this.selectedFirmId,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              funktion: data.funktion,
+              email: data.email,
+              phone: data.phone,
+              rolle: data.rolle,
+              notes: data.notes,
+            });
 
         if (!res?.ok) {
           alert(res?.error || "Fehler beim Anlegen");
           return;
+        }
+        if (isAssignedGlobalFirm && res?.person?.id) {
+          await this._setPersonActive(res.person, 0);
         }
 
         this.personMode = "none";
