@@ -591,6 +591,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   router.openOutputMail = async () => {
     await header._openMailFileFlow();
   };
+  router.openOutputPrint = async () => {
+    await header._openPrintFileFlow();
+  };
+  router.openClosedProtocolSelector = async ({ mode } = {}) => {
+    await header._openClosedProtocolSelectorFlow(mode || "view");
+  };
 
   const featureToggleWrap = document.createElement("div");
   featureToggleWrap.style.gridColumn = "3";

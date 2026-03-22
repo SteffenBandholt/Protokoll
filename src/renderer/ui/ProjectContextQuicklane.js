@@ -348,17 +348,17 @@ export default class ProjectContextQuicklane {
 
     const outputProtocols = createOutputAction("Protokolle", async () => {
       if (!this._lastOpts?.projectId) return;
-      await this.router?.showMeetings?.(this._lastOpts.projectId);
+      await this.router?.openClosedProtocolSelector?.({ mode: "view" });
       this._setOutputOpen(false);
     });
     const outputPrint = createOutputAction("Drucken", async () => {
       if (!this._lastOpts?.projectId) return;
-      await this.router?.openPrintModal?.({ projectId: this._lastOpts.projectId });
+      await this.router?.openOutputPrint?.();
       this._setOutputOpen(false);
     });
     const outputMail = createOutputAction("E-Mail senden", async () => {
       if (!this._lastOpts?.projectId) return;
-      await this.router?.openOutputMail?.();
+      await this.router?.openClosedProtocolSelector?.({ mode: "mail" });
       this._setOutputOpen(false);
     });
     outputPopup.append(outputProtocols, outputPrint, outputMail);

@@ -5,6 +5,7 @@
 //
 import { HEADER, POPOVER_MENU } from "./zIndex.js";
 import { sendMailPayload } from "../services/mail/sendMailPayload.js";
+import { openClosedProtocolSelector } from "./react/ClosedProtocolSelector.js";
 import { resolveProtocolsDir } from "../utils/pdfProtocolsDir.js";
 
 export default class MainHeader {
@@ -2243,15 +2244,61 @@ async _openMailClient(mailType = "", options = {}) {
 }
 
   async _openMailFileFlow() {
+    await this._openClosedProtocolSelectorFlow("mail");
+  }
+
+  async _openPrintFileFlow() {
+    await this._openClosedProtocolSelectorFlow("print");
+  }
+
+  async _openClosedProtocolSelectorFlow(mode = "view") {
+    this._setPrintOpen(false);
     this._setMailOpen(false);
     const projectId = this.router?.currentProjectId || null;
     if (!projectId) {
       alert("Bitte zuerst ein Projekt auswählen.");
       return;
     }
-    const meeting = await this._promptMeetingSelection(projectId);
-    if (!meeting) return;
-    await this._openMailSendModal({ projectId, meeting });
+    const meetings = await this._fetchClosedMeetings(projectId);
+    if (!meetings.length) {
+      alert("Keine geschlossenen Protokolle gefunden.");
+      return;
+    }
+
+    const items = meetings
+      .slice()
+      .sort((a, b) => (Number(b?.meeting_index || 0) || 0) - (Number(a?.meeting_index || 0) || 0))
+      .map((meeting) => ({
+        id: meeting?.id || meeting?.meeting_id || null,
+        label: this._formatMeetingListEntry(meeting),
+        searchText: `${meeting?.title || ""} ${meeting?.meeting_index || ""} ${meeting?.meeting_date || ""}`,
+        meeting,
+      }))
+      .filter((item) => item.id);
+
+    await openClosedProtocolSelector({
+      mode,
+      items,
+      searchEnabled: mode === "view",
+      onConfirm: async (item) => {
+        const meeting = item?.meeting || null;
+        const meetingId = meeting?.id || meeting?.meeting_id || null;
+        if (!meetingId) return;
+        if (mode === "mail") {
+          await this._openMailSendModal({ projectId, meeting });
+          return;
+        }
+        if (mode === "print") {
+          await this.router?.openMeetingPrintPreview?.({
+            projectId,
+            meetingId,
+            mode: "closed",
+          });
+          return;
+        }
+        await this.router?.showTops?.(meetingId, projectId);
+      },
+    });
   }
 
   async _fetchClosedMeetings(projectId) {
