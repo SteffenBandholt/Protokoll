@@ -186,7 +186,14 @@ export default class ProjectContextQuicklane {
 
     const employeesSection = createToolItem({
       icon: "👥",
-      title: "Mitarbeiter",
+      title: "Teilnehmer",
+      actionHandler: () => {
+        if (!this._lastOpts?.projectId || !this._lastOpts?.meetingId) return;
+        this.router?.openParticipantsModal?.({
+          projectId: this._lastOpts.projectId,
+          meetingId: this._lastOpts.meetingId,
+        });
+      },
     });
 
     const contextMeta = document.createElement("div");
@@ -322,9 +329,10 @@ export default class ProjectContextQuicklane {
     }
 
     const hasProject = !!this._lastOpts?.projectId;
+    const hasParticipants = hasProject && !!this._lastOpts?.meetingId;
     this._applyToolItemState(this.projectSectionEl, hasProject);
     this._applyToolItemState(this.firmsSectionEl, hasProject);
-    this._applyToolItemState(this.employeesSectionEl, false);
+    this._applyToolItemState(this.employeesSectionEl, hasParticipants);
   }
 
   _applyToolItemState(el, interactive) {
