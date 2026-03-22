@@ -12,6 +12,7 @@ export default class ProjectContextQuicklane {
     this.projectSectionEl = null;
     this.firmsSectionEl = null;
     this.employeesSectionEl = null;
+    this.previewSectionEl = null;
     this.projectNumberValueEl = null;
     this.projectShortValueEl = null;
     this.projectIdValueEl = null;
@@ -196,6 +197,18 @@ export default class ProjectContextQuicklane {
       },
     });
 
+    const previewSection = createToolItem({
+      icon: "📄",
+      title: "Vorschau",
+      actionHandler: () => {
+        if (!this._lastOpts?.projectId || !this._lastOpts?.meetingId) return;
+        this.router?.openPrintVorabzug?.({
+          projectId: this._lastOpts.projectId,
+          meetingId: this._lastOpts.meetingId,
+        });
+      },
+    });
+
     const contextMeta = document.createElement("div");
     contextMeta.style.display = "none";
     contextMeta.style.width = "100%";
@@ -238,7 +251,7 @@ export default class ProjectContextQuicklane {
       createMetaRow("Meeting-ID", meetingIdValue)
     );
 
-    body.append(projectSection, firmsSection, employeesSection, contextMeta);
+    body.append(projectSection, firmsSection, employeesSection, previewSection, contextMeta);
     wrap.append(tab, header, body);
 
     tab.addEventListener("mouseenter", () => {
@@ -283,6 +296,7 @@ export default class ProjectContextQuicklane {
     this.projectSectionEl = projectSection;
     this.firmsSectionEl = firmsSection;
     this.employeesSectionEl = employeesSection;
+    this.previewSectionEl = previewSection;
     this.projectNumberValueEl = projectNumberValue;
     this.projectShortValueEl = projectShortValue;
     this.projectIdValueEl = projectIdValue;
@@ -330,9 +344,11 @@ export default class ProjectContextQuicklane {
 
     const hasProject = !!this._lastOpts?.projectId;
     const hasParticipants = hasProject && !!this._lastOpts?.meetingId;
+    const hasPreview = hasProject && !!this._lastOpts?.meetingId;
     this._applyToolItemState(this.projectSectionEl, hasProject);
     this._applyToolItemState(this.firmsSectionEl, hasProject);
     this._applyToolItemState(this.employeesSectionEl, hasParticipants);
+    this._applyToolItemState(this.previewSectionEl, hasPreview);
   }
 
   _applyToolItemState(el, interactive) {

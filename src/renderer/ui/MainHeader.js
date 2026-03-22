@@ -693,10 +693,11 @@ export default class MainHeader {
       }
     };
 
+    // Ausgabe bleibt intern vorbereitet; direkte Header-Hauptaktionen laufen vorerst nur ueber die Quicklane.
     if (this._isNewUi) {
-      actionWrap.append(btnMeetings, printWrap, mailWrap);
+      // bewusst leer: Ausgabe-/Protokoll-Aktionen bleiben intern verfuegbar, aber nicht direkt im Header priorisiert
     } else {
-      actionWrap.append(btnMeetings, setupWrap, printWrap, mailWrap);
+      actionWrap.append(setupWrap);
     }
 
     const stickyNotice = document.createElement("div");
