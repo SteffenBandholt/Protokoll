@@ -674,25 +674,6 @@ export default class MainHeader {
     };
     window.addEventListener("resize", this._printResizeHandler);
 
-    const btnProjectFirms = document.createElement("button");
-    btnProjectFirms.type = "button";
-    btnProjectFirms.textContent = "Firmen (intern)";
-    applyActionTextButtonStyle(btnProjectFirms);
-    btnProjectFirms.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (btnProjectFirms.disabled) return;
-      this._setPrintOpen(false);
-      try {
-        await runProjectAction(async (projectId) => {
-          if (typeof this.router?.showProjectFirms !== "function") return;
-          await this.router.showProjectFirms(projectId);
-        });
-      } catch (err) {
-        console.error("[header] action Firmen (intern) failed:", err);
-      }
-    };
-
     const btnMeetings = document.createElement("button");
     btnMeetings.type = "button";
     btnMeetings.textContent = "Protokolle";
@@ -712,27 +693,8 @@ export default class MainHeader {
       }
     };
 
-    const btnParticipants = document.createElement("button");
-    btnParticipants.type = "button";
-    btnParticipants.textContent = "Teilnehmer";
-    applyActionTextButtonStyle(btnParticipants);
-    btnParticipants.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (btnParticipants.disabled) return;
-      this._setPrintOpen(false);
-      try {
-        const projectId = this.router?.currentProjectId || null;
-        const meetingId = this.router?.currentMeetingId || null;
-        if (typeof this.router?.openParticipantsModal !== "function") return;
-        await this.router.openParticipantsModal({ projectId, meetingId });
-      } catch (err) {
-        console.error("[header] action Teilnehmer failed:", err);
-      }
-    };
-
     if (this._isNewUi) {
-      actionWrap.append(btnProjectFirms, btnParticipants, btnMeetings, printWrap, mailWrap);
+      actionWrap.append(btnMeetings, printWrap, mailWrap);
     } else {
       actionWrap.append(btnMeetings, setupWrap, printWrap, mailWrap);
     }
@@ -830,10 +792,10 @@ export default class MainHeader {
     this.elPrintItemTodoClosed = null;
     this.elPrintItemTopList = itemTopList;
     this.elPrintItemMeetings = itemMeetingsClosed;
-    this.elActionProjectFirmsBtn = btnProjectFirms;
+    this.elActionProjectFirmsBtn = null;
     this.elActionMeetingsBtn = btnMeetings;
     this.elActionCandidatesBtn = null;
-    this.elActionParticipantsBtn = btnParticipants;
+    this.elActionParticipantsBtn = null;
     this.elSetupWrap = setupWrap;
     this.elSetupBtn = setupBtn;
     this.elSetupMenu = setupMenu;
@@ -1560,14 +1522,8 @@ export default class MainHeader {
       this.elMailBtn.style.cursor = hasProject ? "pointer" : "not-allowed";
       this.elMailBtn.title = hasProject ? "E-Mail senden" : projectDisabledTitle;
     }
-    this._setMenuButtonEnabled(this.elActionProjectFirmsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionMeetingsBtn, hasProject, projectDisabledTitle);
     this._setMenuButtonEnabled(this.elActionCandidatesBtn, hasProject, projectDisabledTitle);
-    this._setMenuButtonEnabled(
-      this.elActionParticipantsBtn,
-      hasProject && hasMeeting,
-      participantsDisabledTitle
-    );
   }
 
   _applySetupState() {
