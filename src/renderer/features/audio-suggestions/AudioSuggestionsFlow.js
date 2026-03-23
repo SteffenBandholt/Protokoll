@@ -1,3 +1,4 @@
+import { TranscriptionService } from "../../services/audio/TranscriptionService.js";
 import AudioSuggestionsPanel from "../../ui/AudioSuggestionsPanel.js";
 
 export class AudioSuggestionsFlow {
@@ -7,6 +8,7 @@ export class AudioSuggestionsFlow {
     this._audioPanelBusy = false;
     this._audioPanelStatusMessage = "";
     this._audioSuggestionMarkTimer = null;
+    this.transcriptionService = new TranscriptionService();
   }
 
   _getAudioPanel() {
@@ -163,12 +165,14 @@ export class AudioSuggestionsFlow {
     if (!this.view?.meetingId || this.view?.isReadOnly) return;
     if (!(await this.view._ensureAudioAvailable())) return;
     const api = window.bbmDb || {};
-    if (
-      typeof api.audioImport !== "function" ||
-      typeof api.audioTranscribe !== "function" ||
-      typeof api.audioAnalyze !== "function"
-    ) {
+    if (typeof api.audioImport !== "function") {
       alert("Audio-Funktionen sind nicht verf\u00fcgbar.");
+      return;
+    }
+    try {
+      this.transcriptionService.ensureSuggestionsAvailable();
+    } catch (err) {
+      alert(err?.message || "Audio-Funktionen sind nicht verf\u00fcgbar.");
       return;
     }
 
@@ -194,7 +198,7 @@ export class AudioSuggestionsFlow {
       this._audioPanelStatusMessage = "Lokale Transkription wird gestartet...";
       await this.refresh({ statusMessage: this._audioPanelStatusMessage });
 
-      const transcribeRes = await api.audioTranscribe({ audioImportId });
+      const transcribeRes = await this.transcriptionService.transcribe({ audioImportId });
       if (!transcribeRes?.ok) {
         throw new Error(transcribeRes?.error || "Transkription fehlgeschlagen.");
       }
@@ -202,7 +206,7 @@ export class AudioSuggestionsFlow {
       this._audioPanelStatusMessage = "Zuordnungslogik wird als Platzhalter ausgef\u00fchrt...";
       await this.refresh({ statusMessage: this._audioPanelStatusMessage });
 
-      const analyzeRes = await api.audioAnalyze({
+      const analyzeRes = await this.transcriptionService.analyze({
         audioImportId,
         processingMode: "review",
       });

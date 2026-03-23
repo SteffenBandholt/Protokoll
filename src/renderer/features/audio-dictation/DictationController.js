@@ -1,3 +1,5 @@
+import { TranscriptionService } from "../../services/audio/TranscriptionService.js";
+
 export class DictationController {
   constructor({ view, ensureAudioAvailable }) {
     this.view = view;
@@ -16,6 +18,7 @@ export class DictationController {
     this._termCorrectionsLoading = null;
     this._termPromptEl = null;
     this._pendingTermPrompt = null;
+    this.transcriptionService = new TranscriptionService();
   }
 
   updateButtons({ readOnly = null, busy = null, meetingId = null } = {}) {
@@ -134,13 +137,7 @@ export class DictationController {
         return;
       }
       const base64 = await this._blobToBase64(blob);
-      const api = window.bbmDb || {};
-      if (typeof api.audioTranscribeBlob !== "function") {
-        alert("Audio-Transkription ist nicht verf\u00fcgbar.");
-        return;
-      }
-
-      const res = await api.audioTranscribeBlob({
+      const res = await this.transcriptionService.transcribeBlob({
         base64,
         mimeType: blob.type || "audio/webm",
         meetingId: meta?.meetingId,
