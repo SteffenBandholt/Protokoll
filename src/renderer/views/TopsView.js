@@ -11,6 +11,8 @@ import { attachAudioFeature } from "../features/audio/AudioFeature.js";
 import { DictationController } from "../features/audio-dictation/DictationController.js";
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
 import { CloseMeetingOutputFlow } from "../features/output/CloseMeetingOutputFlow.js";
+import { ResponsibleOptionsService } from "../features/assignments/ResponsibleOptionsService.js";
+import { ContactOptionsService } from "../features/assignments/ContactOptionsService.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
@@ -176,6 +178,54 @@ export default class TopsView {
     });
     this.audioSuggestionsFlow = new AudioSuggestionsFlow({ view: this });
     this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
+    this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
+    this.contactOptionsService = new ContactOptionsService({ view: this });
+
+    this._buildResponsibleDisplayLabel = (...args) =>
+      this.responsibleOptionsService.buildResponsibleDisplayLabel(...args);
+    this._normalizeResponsibleCandidates = (...args) =>
+      this.responsibleOptionsService.normalizeResponsibleCandidates(...args);
+    this._buildResponsibleOptionValue = (...args) =>
+      this.responsibleOptionsService.buildResponsibleOptionValue(...args);
+    this._parseResponsibleOptionValue = (...args) =>
+      this.responsibleOptionsService.parseResponsibleOptionValue(...args);
+    this._normalizeResponsibleKind = (...args) =>
+      this.responsibleOptionsService.normalizeResponsibleKind(...args);
+    this._resolveResponsibleSelection = (...args) =>
+      this.responsibleOptionsService.resolveResponsibleSelection(...args);
+    this._ensureProjectFirmsLoaded = (...args) =>
+      this.responsibleOptionsService.ensureProjectFirmsLoaded(...args);
+    this._computeRespOptionsKey = (...args) =>
+      this.responsibleOptionsService.computeRespOptionsKey(...args);
+    this._buildResponsibleOptionsIfNeeded = () =>
+      this.responsibleOptionsService.buildResponsibleOptionsIfNeeded(this.selResponsible);
+
+    this._sanitizeContactPersonLabel = (...args) =>
+      this.contactOptionsService.sanitizeContactPersonLabel(...args);
+    this._buildContactPersonDisplayLabel = (...args) =>
+      this.contactOptionsService.buildContactPersonDisplayLabel(...args);
+    this._getContactPersonLabelForSelection = (...args) =>
+      this.contactOptionsService.getContactPersonLabelForSelection(...args);
+    this._normalizeContactPersonCandidates = (...args) =>
+      this.contactOptionsService.normalizeContactPersonCandidates(...args);
+    this._buildContactPersonOptionValue = (...args) =>
+      this.contactOptionsService.buildContactPersonOptionValue(...args);
+    this._parseContactPersonOptionValue = (...args) =>
+      this.contactOptionsService.parseContactPersonOptionValue(...args);
+    this._findContactPersonOption = (...args) =>
+      this.contactOptionsService.findContactPersonOption(...args);
+    this._clearLegacyContactPersonOption = (...args) =>
+      this.contactOptionsService.clearLegacyContactPersonOption(...args);
+    this._setLegacyContactPersonOption = (...args) =>
+      this.contactOptionsService.setLegacyContactPersonOption(...args);
+    this._resolveContactPersonSelection = (...args) =>
+      this.contactOptionsService.resolveContactPersonSelection(...args);
+    this._loadContactPersonsForResponsible = (...args) =>
+      this.contactOptionsService.loadContactPersonsForResponsible(...args);
+    this._computeContactOptionsKey = (...args) =>
+      this.contactOptionsService.computeContactOptionsKey(...args);
+    this._buildContactOptionsIfNeeded = (...args) =>
+      this.contactOptionsService.buildContactOptionsIfNeeded(...args);
   }
 
   _updateTopBarProtocolTitle() {
@@ -1304,45 +1354,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   _sanitizeResponsibleLabel(label) {
-    const s = (label ?? "").toString().trim();
-    if (!s) return "";
-    if (s === "?" || s === "-" || s === "—") return "";
-    if (/^\?+$/.test(s)) return "";
-    return s;
-  }
-
-  _sanitizeContactPersonLabel(label) {
-    const s = (label ?? "").toString().trim();
-    if (!s) return "";
-    if (s === "?" || s === "-") return "";
-    if (/^\?+$/.test(s)) return "";
-    return s;
-  }
-
-  _buildResponsibleDisplayLabel(row) {
-    const s = (row?.short || "").toString().trim();
-    if (s) return s;
-    const n = (row?.name || "").toString().trim();
-    if (n) return n;
-
-    const rawId = row?.id ?? row?.firm_id ?? row?.firmId ?? "";
-    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
-    if (id) return `Unbenannte Firma (ID: ${id})`;
-    return "Unbenannte Firma";
-  }
-
-  _buildContactPersonDisplayLabel(row) {
-    const name = (row?.name || "").toString().trim();
-    if (name) return name;
-    const first = (row?.first_name ?? row?.firstName ?? "").toString().trim();
-    const last = (row?.last_name ?? row?.lastName ?? "").toString().trim();
-    const combined = `${first} ${last}`.trim();
-    if (combined) return combined;
-
-    const rawId = row?.id ?? row?.person_id ?? row?.personId ?? "";
-    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
-    if (id) return `Unbenannter Mitarbeiter (ID: ${id})`;
-    return "Unbenannter Mitarbeiter";
+    return this.responsibleOptionsService.sanitizeResponsibleLabel(label);
   }
 
   _parseActiveFlag(value) {
@@ -1357,555 +1369,7 @@ _isoToDDMMYYYY(iso) {
 
   _getResponsibleLabelForSelection(sel, parsed) {
     if (!parsed?.id) return null;
-
-    const selectedText = this._sanitizeResponsibleLabel(sel?.selectedOptions?.[0]?.textContent || "");
-    if (selectedText) return selectedText;
-
-    const value = (sel?.value || "").toString();
-    const fromCandidates = (this.projectFirms || []).find((c) => (
-      this._buildResponsibleOptionValue(c?.kind, c?.id ?? c?.firm_id ?? c?.firmId ?? null) === value
-    ));
-    if (fromCandidates) return this._buildResponsibleDisplayLabel(fromCandidates);
-
-    return this._buildResponsibleDisplayLabel({ id: parsed.id, kind: parsed.kind });
-  }
-
-  _getContactPersonLabelForSelection(sel, parsed) {
-    if (!parsed?.id) return null;
-
-    const selectedText = this._sanitizeContactPersonLabel(sel?.selectedOptions?.[0]?.textContent || "");
-    if (selectedText) return selectedText;
-
-    const value = (sel?.value || "").toString();
-    const fromCandidates = (this.contactPersons || []).find((c) => (
-      this._buildContactPersonOptionValue(c?.kind, c?.id ?? c?.person_id ?? c?.personId ?? null) === value
-    ));
-    if (fromCandidates) return this._buildContactPersonDisplayLabel(fromCandidates);
-
-    return this._buildContactPersonDisplayLabel({ id: parsed.id, kind: parsed.kind });
-  }
-
-  _normalizeResponsibleCandidates(list) {
-    const out = [];
-    const seen = new Set();
-    for (const row of list || []) {
-      const activeRaw = row?.is_active ?? row?.isActive;
-      if (activeRaw !== undefined && activeRaw !== null) {
-        if (this._parseActiveFlag(activeRaw) === 0) continue;
-      }
-      const rawId = row?.id ?? row?.firm_id ?? row?.firmId ?? null;
-      if (rawId === null || rawId === undefined || rawId === "") continue;
-
-      const kindRaw = (row?.kind || "").toString().trim();
-      const kind = kindRaw || (this.isNewUi ? "project_firm" : "company");
-      const id = String(rawId).trim();
-      if (!id) continue;
-
-      const short = (row?.short || "").toString().trim();
-      const name = (row?.name || "").toString().trim();
-      const displayLabel = this._buildResponsibleDisplayLabel({ kind, id, short, name });
-      const key = `${kind}::${id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      out.push({ kind, id, short, name, label: displayLabel, displayLabel });
-    }
-
-    out.sort((a, b) => {
-      const al = this._buildResponsibleDisplayLabel(a).toLocaleLowerCase("de-DE");
-      const bl = this._buildResponsibleDisplayLabel(b).toLocaleLowerCase("de-DE");
-      if (al < bl) return -1;
-      if (al > bl) return 1;
-      const ak = String(a?.kind || "");
-      const bk = String(b?.kind || "");
-      if (ak < bk) return -1;
-      if (ak > bk) return 1;
-      return String(a?.id || "").localeCompare(String(b?.id || ""));
-    });
-
-    return out;
-  }
-
-  _normalizeContactPersonCandidates(list, kind) {
-    const out = [];
-    const seen = new Set();
-    for (const row of list || []) {
-      const rawId = row?.id ?? row?.person_id ?? row?.personId ?? null;
-      if (rawId === null || rawId === undefined || rawId === "") continue;
-
-      const id = String(rawId).trim();
-      if (!id) continue;
-
-      const normalizedKind =
-        (kind || row?.kind || "").toString().trim() || (this.isNewUi ? "project_person" : "person");
-      const label = this._buildContactPersonDisplayLabel(row);
-      const key = `${normalizedKind}::${id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      out.push({ ...row, kind: normalizedKind, id, label, displayLabel: label });
-    }
-
-    out.sort((a, b) => {
-      const al = this._buildContactPersonDisplayLabel(a).toLocaleLowerCase("de-DE");
-      const bl = this._buildContactPersonDisplayLabel(b).toLocaleLowerCase("de-DE");
-      if (al < bl) return -1;
-      if (al > bl) return 1;
-      return String(a?.id || "").localeCompare(String(b?.id || ""));
-    });
-
-    return out;
-  }
-
-  _buildResponsibleOptionValue(kind, id) {
-    const idStr = id === null || id === undefined ? "" : String(id).trim();
-    if (!idStr) return "";
-    if (!this.isNewUi) return idStr;
-    const kindStr = (kind || "").toString().trim() || "project_firm";
-    return `${kindStr}::${idStr}`;
-  }
-
-  _parseResponsibleOptionValue(value) {
-    const raw = (value || "").toString().trim();
-    if (!raw) return null;
-    if (raw.startsWith("__legacy_responsible__")) return null;
-    if (!this.isNewUi) {
-      return { kind: "company", id: raw };
-    }
-
-    const sep = raw.indexOf("::");
-    if (sep <= 0) return null;
-    const kind = raw.slice(0, sep).trim();
-    const id = raw.slice(sep + 2).trim();
-    if (!kind || !id) return null;
-    return { kind, id };
-  }
-
-  _buildContactPersonOptionValue(kind, id) {
-    const idStr = id === null || id === undefined ? "" : String(id).trim();
-    if (!idStr) return "";
-    if (!this.isNewUi) return idStr;
-    const kindStr = (kind || "").toString().trim() || "project_person";
-    return `${kindStr}::${idStr}`;
-  }
-
-  _parseContactPersonOptionValue(value) {
-    const raw = (value || "").toString().trim();
-    if (!raw) return null;
-    if (raw.startsWith("__legacy_contact_person__")) return null;
-    if (!this.isNewUi) return { kind: "project_person", id: raw };
-
-    const sep = raw.indexOf("::");
-    if (sep <= 0) return null;
-    const kind = raw.slice(0, sep).trim();
-    const id = raw.slice(sep + 2).trim();
-    if (!kind || !id) return null;
-    return { kind, id };
-  }
-
-  _normalizeResponsibleKind(kind) {
-    const s = (kind || "").toString().trim().toLowerCase();
-    if (!s) return "";
-    if (s === "project_firm" || s === "global_firm") return s;
-    if (s.includes("global")) return "global_firm";
-    if (s.includes("project") || s.includes("local")) return "project_firm";
-    if (["company", "firma", "firm"].includes(s)) return "";
-    return s;
-  }
-
-  _findResponsibleOption(value) {
-    const sel = this.selResponsible;
-    if (!sel) return null;
-    const target = (value || "").toString();
-    return Array.from(sel.options || []).find((o) => String(o.value) === target) || null;
-  }
-
-  _findContactPersonOption(value) {
-    const sel = this.selContactPerson;
-    if (!sel) return null;
-    const target = (value || "").toString();
-    return Array.from(sel.options || []).find((o) => String(o.value) === target) || null;
-  }
-
-  _clearLegacyResponsibleOption() {
-    const sel = this.selResponsible;
-    if (!sel) return;
-    for (const opt of Array.from(sel.options || [])) {
-      if (opt?.dataset?.legacyResponsible === "1") {
-        opt.remove();
-      }
-    }
-    if (String(sel.value || "").startsWith("__legacy_responsible__")) {
-      sel.value = "";
-    }
-    this._respLegacyReadonly = false;
-  }
-
-  _clearLegacyContactPersonOption() {
-    const sel = this.selContactPerson;
-    if (!sel) return;
-    for (const opt of Array.from(sel.options || [])) {
-      if (opt?.dataset?.legacyContactPerson === "1") {
-        opt.remove();
-      }
-    }
-    if (String(sel.value || "").startsWith("__legacy_contact_person__")) {
-      sel.value = "";
-    }
-    this._contactLegacyReadonly = false;
-  }
-
-  _setLegacyResponsibleOption(label) {
-    const sel = this.selResponsible;
-    if (!sel) return;
-    const text = this._sanitizeResponsibleLabel(label);
-    if (!text) {
-      this._clearLegacyResponsibleOption();
-      return;
-    }
-
-    let opt = Array.from(sel.options || []).find((o) => o?.dataset?.legacyResponsible === "1") || null;
-    if (!opt) {
-      opt = document.createElement("option");
-      opt.dataset.legacyResponsible = "1";
-      sel.appendChild(opt);
-    }
-    opt.value = "__legacy_responsible__";
-    opt.textContent = text;
-    sel.value = opt.value;
-    this._respLegacyReadonly = true;
-  }
-
-  _setLegacyContactPersonOption(label) {
-    const sel = this.selContactPerson;
-    if (!sel) return;
-    const text = this._sanitizeContactPersonLabel(label);
-    if (!text) {
-      this._clearLegacyContactPersonOption();
-      return;
-    }
-
-    let opt = Array.from(sel.options || []).find((o) => o?.dataset?.legacyContactPerson === "1") || null;
-    if (!opt) {
-      opt = document.createElement("option");
-      opt.dataset.legacyContactPerson = "1";
-      sel.appendChild(opt);
-    }
-    opt.value = "__legacy_contact_person__";
-    opt.textContent = text;
-    sel.value = opt.value;
-    this._contactLegacyReadonly = true;
-  }
-
-  _resolveResponsibleSelection(top) {
-    const rid = (top?.responsible_id ?? "").toString().trim();
-    const rk = (top?.responsible_kind ?? "").toString().trim();
-    const rl = this._sanitizeResponsibleLabel(top?.responsible_label);
-    if (!rid) return { value: "", fallbackLabel: "" };
-    if (!this.isNewUi) return { value: rid, fallbackLabel: "" };
-
-    const candidates = this.projectFirms || [];
-    if (!candidates.length) {
-      return { value: "", fallbackLabel: rl || this._buildResponsibleDisplayLabel({ kind: rk, id: rid }) };
-    }
-
-    const exactKind = candidates.find((c) => String(c.kind) === rk && String(c.id) === rid);
-    if (exactKind) {
-      return { value: this._buildResponsibleOptionValue(exactKind.kind, exactKind.id), fallbackLabel: "" };
-    }
-
-    const mappedKind = this._normalizeResponsibleKind(rk);
-    if (mappedKind) {
-      const mapped = candidates.find((c) => String(c.kind) === mappedKind && String(c.id) === rid);
-      if (mapped) {
-        return { value: this._buildResponsibleOptionValue(mapped.kind, mapped.id), fallbackLabel: "" };
-      }
-    }
-
-    const sameId = candidates.filter((c) => String(c.id) === rid);
-    if (sameId.length === 1) {
-      const only = sameId[0];
-      return { value: this._buildResponsibleOptionValue(only.kind, only.id), fallbackLabel: "" };
-    }
-
-    if (sameId.length > 1 && rl) {
-      const rlNorm = rl.toLocaleLowerCase("de-DE");
-      const byLabel = sameId.find((c) => String(c.label || "").toLocaleLowerCase("de-DE") === rlNorm);
-      if (byLabel) {
-        return { value: this._buildResponsibleOptionValue(byLabel.kind, byLabel.id), fallbackLabel: "" };
-      }
-    }
-
-    if (rl) {
-      const rlNorm = rl.toLocaleLowerCase("de-DE");
-      const byAnyLabel = candidates.filter(
-        (c) => String(c.label || "").toLocaleLowerCase("de-DE") === rlNorm
-      );
-      if (byAnyLabel.length === 1) {
-        const one = byAnyLabel[0];
-        return { value: this._buildResponsibleOptionValue(one.kind, one.id), fallbackLabel: "" };
-      }
-    }
-
-    return { value: "", fallbackLabel: rl || this._buildResponsibleDisplayLabel({ kind: rk, id: rid }) };
-  }
-
-  async _ensureProjectFirmsLoaded() {
-    if (this._projectFirmsLoaded) return;
-    if (this._projectFirmsLoading) return await this._projectFirmsLoading;
-
-    const api = window.bbmDb || {};
-    this._projectFirmsLoading = (async () => {
-      if (!this.isNewUi) {
-        if (typeof api.projectFirmsListByProject === "function") {
-          const res = await api.projectFirmsListByProject(this.projectId);
-          if (res?.ok) {
-            const raw = (res.list || []).map((row) => ({
-              ...row,
-              kind: "company",
-              id: row?.id ?? row?.firm_id ?? row?.firmId ?? null,
-            }));
-            this.projectFirms = this._normalizeResponsibleCandidates(raw);
-          } else {
-            this.projectFirms = [];
-          }
-        } else {
-          this.projectFirms = [];
-        }
-        this._projectFirmsLoaded = true;
-        return;
-      }
-
-      let list = [];
-      if (this.isNewUi && typeof api.projectFirmsListFirmCandidatesByProject === "function") {
-        const res = await api.projectFirmsListFirmCandidatesByProject(this.projectId);
-        if (res?.ok) {
-          const raw = res.list || res.items || [];
-          list = this._normalizeResponsibleCandidates(raw);
-        }
-      }
-
-      if (!list.length && typeof api.projectFirmsListByProject === "function") {
-        const res = await api.projectFirmsListByProject(this.projectId);
-        if (res?.ok) {
-          const raw = (res.list || []).map((row) => ({
-            ...row,
-            kind: "company",
-            id: row?.id ?? row?.firm_id ?? row?.firmId ?? null,
-          }));
-          list = this._normalizeResponsibleCandidates(raw);
-        }
-      }
-
-      this.projectFirms = list;
-      this._projectFirmsLoaded = true;
-    })();
-
-    try {
-      await this._projectFirmsLoading;
-    } finally {
-      this._projectFirmsLoading = null;
-    }
-  }
-
-  _computeRespOptionsKey(list) {
-    const base = String(this.projectId || "");
-    const parts = (list || []).map((f) => {
-      const kind = (f?.kind || "").toString().trim();
-      const id = (f?.id ?? f?.firm_id ?? f?.firmId ?? "").toString().trim();
-      const label = this._buildResponsibleDisplayLabel(f);
-      return `${kind}|${id}|${label}`;
-    });
-    return `${base}::${parts.join("#")}`;
-  }
-
-  _buildResponsibleOptionsIfNeeded() {
-    if (!this.selResponsible) return;
-
-    const key = this._computeRespOptionsKey(this.projectFirms || []);
-    if (key === this._respOptionsKey) return;
-
-    const sel = this.selResponsible;
-    const current = (sel.value || "").toString();
-
-    sel.innerHTML = "";
-    this._respLegacyReadonly = false;
-
-    const optAll = document.createElement("option");
-    optAll.value = this._buildResponsibleOptionValue("all", "all");
-    optAll.textContent = "alle";
-    sel.appendChild(optAll);
-
-    const optEmpty = document.createElement("option");
-    optEmpty.value = "";
-    optEmpty.textContent = "-";
-    sel.appendChild(optEmpty);
-
-    for (const f of this.projectFirms || []) {
-      const value = this._buildResponsibleOptionValue(f?.kind, f?.id ?? f?.firm_id ?? f?.firmId ?? null);
-      if (!value) continue;
-      const label = this._buildResponsibleDisplayLabel(f);
-      const opt = document.createElement("option");
-      opt.value = value;
-      opt.textContent = label;
-      opt.dataset.displayLabel = label;
-      sel.appendChild(opt);
-    }
-
-    this._respOptionsKey = key;
-
-    if (current && this._findResponsibleOption(current)) {
-      sel.value = current;
-    } else {
-      sel.value = "";
-    }
-  }
-
-  _resolveContactPersonSelection(top) {
-    const pid = (top?.contact_person_id ?? "").toString().trim();
-    const pk = (top?.contact_person_kind ?? "").toString().trim();
-    const pl = this._sanitizeContactPersonLabel(top?.contact_person_label);
-    if (!pid) return { value: "", fallbackLabel: "" };
-    if (!this.isNewUi) return { value: pid, fallbackLabel: "" };
-
-    const candidates = this.contactPersons || [];
-    if (!candidates.length) {
-      return { value: "", fallbackLabel: pl || this._buildContactPersonDisplayLabel({ kind: pk, id: pid }) };
-    }
-
-    const exactKind = candidates.find((c) => String(c.kind) === pk && String(c.id) === pid);
-    if (exactKind) {
-      return { value: this._buildContactPersonOptionValue(exactKind.kind, exactKind.id), fallbackLabel: "" };
-    }
-
-    const sameId = candidates.filter((c) => String(c.id) === pid);
-    if (sameId.length === 1) {
-      const only = sameId[0];
-      return { value: this._buildContactPersonOptionValue(only.kind, only.id), fallbackLabel: "" };
-    }
-
-    if (pl) {
-      const plNorm = pl.toLocaleLowerCase("de-DE");
-      const byLabel = candidates.filter(
-        (c) => String(c.label || "").toLocaleLowerCase("de-DE") === plNorm
-      );
-      if (byLabel.length === 1) {
-        const one = byLabel[0];
-        return { value: this._buildContactPersonOptionValue(one.kind, one.id), fallbackLabel: "" };
-      }
-    }
-
-    return { value: "", fallbackLabel: pl || this._buildContactPersonDisplayLabel({ kind: pk, id: pid }) };
-  }
-
-  async _loadContactPersonsForResponsible(parsed) {
-    const api = window.bbmDb || {};
-    const kind = (parsed?.kind || "").toString().trim();
-    const id = (parsed?.id || "").toString().trim();
-    if (!id || kind === "all") {
-      this.contactPersons = [];
-      this._contactSourceKey = "";
-      return [];
-    }
-
-    let list = [];
-    let normalizedKind = "project_person";
-    let activeCandidateSet = null;
-
-    if (this.projectId && typeof api.projectCandidatesList === "function") {
-      try {
-        const candidateRes = await api.projectCandidatesList({ projectId: this.projectId });
-        if (candidateRes?.ok) {
-          const rawCandidates = candidateRes.items || candidateRes.list || candidateRes.data || [];
-          activeCandidateSet = new Set(
-            (rawCandidates || [])
-              .filter((row) => Number(row?.is_active ?? row?.isActive ?? 1) === 1)
-              .map((row) => {
-                const candidateKind = String(row?.kind || "").trim();
-                const personId = String(row?.personId ?? row?.person_id ?? "").trim();
-                return candidateKind && personId ? `${candidateKind}::${personId}` : "";
-              })
-              .filter((key) => !!key)
-          );
-        }
-      } catch (_) {}
-    }
-
-    if (kind === "project_firm" || kind === "company") {
-      normalizedKind = "project_person";
-      if (typeof api.projectPersonsListByProjectFirm === "function") {
-        const res = await api.projectPersonsListByProjectFirm(id);
-        if (res?.ok) {
-          list = this._normalizeContactPersonCandidates(res.list || res.items || res.rows || [], normalizedKind);
-          if (activeCandidateSet) {
-            list = list.filter((row) => activeCandidateSet.has(`project_person::${String(row?.id || "").trim()}`));
-          }
-        }
-      }
-    } else if (kind === "global_firm" || kind === "firm") {
-      normalizedKind = "global_person";
-      if (typeof api.personsListByFirm === "function") {
-        const res = await api.personsListByFirm(id);
-        if (res?.ok) {
-          list = this._normalizeContactPersonCandidates(res.list || res.items || res.rows || [], normalizedKind);
-          if (activeCandidateSet) {
-            list = list.filter((row) => activeCandidateSet.has(`global_person::${String(row?.id || "").trim()}`));
-          }
-        }
-      }
-    }
-
-    this.contactPersons = list;
-    this._contactSourceKey = `${kind}::${id}`;
-    return list;
-  }
-
-  _computeContactOptionsKey(sourceKey, list) {
-    const base = String(sourceKey || "");
-    const parts = (list || []).map((p) => {
-      const kind = (p?.kind || "").toString().trim();
-      const id = (p?.id ?? p?.person_id ?? p?.personId ?? "").toString().trim();
-      const label = this._buildContactPersonDisplayLabel(p);
-      return `${kind}|${id}|${label}`;
-    });
-    return `${base}::${parts.join("#")}`;
-  }
-
-  _buildContactOptionsIfNeeded(sourceKey) {
-    if (!this.selContactPerson) return;
-
-    const key = this._computeContactOptionsKey(sourceKey, this.contactPersons || []);
-    if (key === this._contactOptionsKey) return;
-
-    const sel = this.selContactPerson;
-    const current = (sel.value || "").toString();
-
-    sel.innerHTML = "";
-    this._contactLegacyReadonly = false;
-
-    const optEmpty = document.createElement("option");
-    optEmpty.value = "";
-    optEmpty.textContent = "-";
-    sel.appendChild(optEmpty);
-
-    for (const p of this.contactPersons || []) {
-      const value = this._buildContactPersonOptionValue(p?.kind, p?.id ?? p?.person_id ?? p?.personId ?? null);
-      if (!value) continue;
-      const label = this._buildContactPersonDisplayLabel(p);
-      const opt = document.createElement("option");
-      opt.value = value;
-      opt.textContent = label;
-      opt.dataset.displayLabel = label;
-      sel.appendChild(opt);
-    }
-
-    this._contactOptionsKey = key;
-
-    if (current && this._findContactPersonOption(current)) {
-      sel.value = current;
-    } else {
-      sel.value = "";
-    }
+    return this.responsibleOptionsService.getResponsibleLabelForSelection(sel, parsed);
   }
 
   // ========= Layout helper (Sidebar/Header offsets) =========
