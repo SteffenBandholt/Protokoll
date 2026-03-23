@@ -199,7 +199,10 @@ export default class TopsView {
       this.responsibleOptionsService.ensureProjectFirmsLoaded(...args);
     this._computeRespOptionsKey = (...args) =>
       this.responsibleOptionsService.computeRespOptionsKey(...args);
-    this._buildResponsibleOptionsIfNeeded = () =>
+    this._clearLegacyResponsibleOption = () =>
+      this.responsibleOptionsService.clearLegacyResponsibleOption(this.selResponsible);
+    this._setLegacyResponsibleOption = (label) =>
+      this.responsibleOptionsService.setLegacyResponsibleOption(this.selResponsible, label);    this._buildResponsibleOptionsIfNeeded = () =>
       this.responsibleOptionsService.buildResponsibleOptionsIfNeeded(this.selResponsible);
 
     this._sanitizeContactPersonLabel = (...args) =>
@@ -231,6 +234,7 @@ export default class TopsView {
     this._clearGapPopup = () => this.dialogs.clearGapPopup();
     this._buildGapDetailsText = (...args) => this.dialogs.buildGapDetailsText(...args);
     this._showNumberGapPopup = (...args) => this.dialogs.showNumberGapPopup(...args);
+        this._openMeetingKeywordPopup = (...args) => this.dialogs.openMeetingKeywordPopup(...args);
     this._openCreateMeetingModal = (...args) => this.dialogs.openCreateMeetingModal(...args);
   }
 
@@ -5226,3 +5230,6 @@ const textCol = document.createElement("div");
     this._closeProjectTasksPopup();
   }
 }
+
+
+
