@@ -10,6 +10,7 @@ import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonSty
 import { attachAudioFeature } from "../features/audio/AudioFeature.js";
 import { DictationController } from "../features/audio-dictation/DictationController.js";
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
+import { CloseMeetingOutputFlow } from "../features/output/CloseMeetingOutputFlow.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
@@ -174,6 +175,7 @@ export default class TopsView {
       ensureAudioAvailable: (options) => this._ensureAudioAvailable?.(options),
     });
     this.audioSuggestionsFlow = new AudioSuggestionsFlow({ view: this });
+    this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
   }
 
   _updateTopBarProtocolTitle() {
@@ -2490,6 +2492,8 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnEndMeeting);
     btnEndMeeting.onclick = async () => {
       if (this._busy) return;
+      await this.closeMeetingOutputFlow.run();
+      return;
       if (!(await this.audioSuggestionsFlow?.warnAboutManualAssignBeforeClose?.())) return;
 
       const defDate = this._computeNextMeetingDefaultDateIso();
@@ -4110,6 +4114,9 @@ _renderIdleState() {
 }
 
 _openMailClient() {
+  if (this.closeMeetingOutputFlow?._openMailClient) {
+    return this.closeMeetingOutputFlow._openMailClient();
+  }
   // Öffnet den Standard-Mailclient (Windows Handler für MAILTO).
   const subject = encodeURIComponent("Baubesprechung");
   const body = encodeURIComponent("Hallo,\n\n");
@@ -4122,20 +4129,22 @@ _openMailClient() {
 }
 
 getSelectedClosedMeetingForEmail() {
-  if (this._lastClosedMeetingForEmail && this._lastClosedMeetingForEmail.id) {
-    return this._lastClosedMeetingForEmail;
-  }
-  if (this.meetingMeta && Number(this.meetingMeta.is_closed) === 1) {
-    return { ...this.meetingMeta, id: this.meetingId };
+  if (this.closeMeetingOutputFlow?.getSelectedClosedMeetingForEmail) {
+    return this.closeMeetingOutputFlow.getSelectedClosedMeetingForEmail();
   }
   return null;
 }
 
 async _maybePromptSendAfterClose({ printResults, meeting }) {
-  await this._openSendMailAfterClose({ printResults, meeting });
+  if (this.closeMeetingOutputFlow) {
+    await this.closeMeetingOutputFlow._maybePromptSendAfterClose({ printResults, meeting });
+  }
 }
 
 async _openSendMailAfterClose({ printResults, meeting }) {
+  if (this.closeMeetingOutputFlow?._openSendMailAfterClose) {
+    return this.closeMeetingOutputFlow._openSendMailAfterClose({ printResults, meeting });
+  }
   const MainHeader = (await import("../ui/MainHeader.js")).default;
   const headerHelper = new MainHeader({ router: this.router });
   const meetingRef = meeting || this.getSelectedClosedMeetingForEmail() || { id: this.meetingId };
