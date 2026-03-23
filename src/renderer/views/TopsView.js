@@ -4114,8 +4114,8 @@ _renderIdleState() {
 }
 
 _openMailClient() {
-  if (this.closeMeetingOutputFlow?._openMailClient) {
-    return this.closeMeetingOutputFlow._openMailClient();
+  if (this.closeMeetingOutputFlow?.mailFlow?._openMailClient) {
+    return this.closeMeetingOutputFlow.mailFlow._openMailClient();
   }
   // Öffnet den Standard-Mailclient (Windows Handler für MAILTO).
   const subject = encodeURIComponent("Baubesprechung");
@@ -4129,21 +4129,21 @@ _openMailClient() {
 }
 
 getSelectedClosedMeetingForEmail() {
-  if (this.closeMeetingOutputFlow?.getSelectedClosedMeetingForEmail) {
-    return this.closeMeetingOutputFlow.getSelectedClosedMeetingForEmail();
+  if (this.closeMeetingOutputFlow?.mailFlow?.getSelectedClosedMeetingForEmail) {
+    return this.closeMeetingOutputFlow.mailFlow.getSelectedClosedMeetingForEmail();
   }
   return null;
 }
 
 async _maybePromptSendAfterClose({ printResults, meeting }) {
-  if (this.closeMeetingOutputFlow) {
-    await this.closeMeetingOutputFlow._maybePromptSendAfterClose({ printResults, meeting });
+  if (this.closeMeetingOutputFlow?.mailFlow) {
+    await this.closeMeetingOutputFlow.mailFlow.maybePromptSendAfterClose({ printResults, meeting });
   }
 }
 
 async _openSendMailAfterClose({ printResults, meeting }) {
-  if (this.closeMeetingOutputFlow?._openSendMailAfterClose) {
-    return this.closeMeetingOutputFlow._openSendMailAfterClose({ printResults, meeting });
+  if (this.closeMeetingOutputFlow?.mailFlow?._openSendMailAfterClose) {
+    return this.closeMeetingOutputFlow.mailFlow._openSendMailAfterClose({ printResults, meeting });
   }
   const MainHeader = (await import("../ui/MainHeader.js")).default;
   const headerHelper = new MainHeader({ router: this.router });
