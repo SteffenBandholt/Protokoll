@@ -9,6 +9,7 @@ import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { attachAudioFeature } from "../features/audio/AudioFeature.js";
 import { DictationController } from "../features/audio-dictation/DictationController.js";
+import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
@@ -172,6 +173,7 @@ export default class TopsView {
       view: this,
       ensureAudioAvailable: (options) => this._ensureAudioAvailable?.(options),
     });
+    this.audioSuggestionsFlow = new AudioSuggestionsFlow({ view: this });
   }
 
   _updateTopBarProtocolTitle() {
@@ -2488,7 +2490,7 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnEndMeeting);
     btnEndMeeting.onclick = async () => {
       if (this._busy) return;
-      if (!(await this._warnAboutManualAssignBeforeClose())) return;
+      if (!(await this.audioSuggestionsFlow?.warnAboutManualAssignBeforeClose?.())) return;
 
       const defDate = this._computeNextMeetingDefaultDateIso();
       const promptRes = await this.router?.promptNextMeetingSettings?.({
@@ -2689,7 +2691,7 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnAudioAnalyze);
     btnAudioAnalyze.onclick = async () => {
       if (this._busy || this.isReadOnly || !this.meetingId) return;
-      await this._openAudioPanel();
+      await this.audioSuggestionsFlow?.open?.();
     };
 
     const btnCloseMeeting = document.createElement("button");
@@ -4656,7 +4658,7 @@ async _createMeetingFromIdle() {
 
 async _enterIdleAfterClose() {
   // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
-  if (this._audioOnEnterIdleAfterClose) this._audioOnEnterIdleAfterClose();
+  this.audioSuggestionsFlow?.onEnterIdleAfterClose?.();
   this.meetingId = null;
   this.meetingMeta = null;
   this.selectedTopId = null;
@@ -4718,7 +4720,7 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
-    if (this._applyAudioReadOnlyState) this._applyAudioReadOnlyState(ro, busy);
+    this.audioSuggestionsFlow?.applyReadOnlyState?.(ro, busy);
     if (this.dictationController) this.dictationController.updateButtons({ readOnly: ro, busy, meetingId: this.meetingId });
     if (this.btnTasks) {
       this.btnTasks.disabled = ro || busy || !this.meetingId;
@@ -6159,7 +6161,7 @@ const textCol = document.createElement("div");
   }
 
   async destroy() {
-    if (this._audioDestroy) await this._audioDestroy();
+    await this.audioSuggestionsFlow?.destroy?.();
     if (this.dictationController) this.dictationController.destroy();
 
     if (this._viewMenuDocMouseDown) {
