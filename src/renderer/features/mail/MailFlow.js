@@ -6,35 +6,18 @@ export class MailFlow {
     this.router = router;
   }
 
-  _openMailClient() {
-    const subject = encodeURIComponent("Baubesprechung");
-    const body = encodeURIComponent("Hallo,\n\n");
-    const href = `mailto:?subject=${subject}&body=${body}`;
-    try {
-      window.location.href = href;
-    } catch (e) {
-      console.warn("[TopsView] mailto failed:", e);
-    }
-  }
-
-  getSelectedClosedMeetingForEmail() {
-    if (this.view._lastClosedMeetingForEmail && this.view._lastClosedMeetingForEmail.id) {
-      return this.view._lastClosedMeetingForEmail;
-    }
-    if (this.view.meetingMeta && Number(this.view.meetingMeta.is_closed) === 1) {
-      return { ...this.view.meetingMeta, id: this.view.meetingId };
-    }
-    return null;
-  }
-
   async maybePromptSendAfterClose({ printResults, meeting }) {
-    await this._openSendMailAfterClose({ printResults, meeting });
+    await this.openSendMailAfterClose({ printResults, meeting });
   }
 
-  async _openSendMailAfterClose({ printResults, meeting }) {
+  async openSendMailAfterClose({ printResults, meeting }) {
     const MainHeader = (await import("../../ui/MainHeader.js")).default;
     const headerHelper = new MainHeader({ router: this.router });
-    const meetingRef = meeting || this.getSelectedClosedMeetingForEmail() || { id: this.view.meetingId };
+    const meetingRef =
+      meeting ||
+      (typeof this.view.getSelectedClosedMeetingForEmail === "function"
+        ? this.view.getSelectedClosedMeetingForEmail()
+        : null) || { id: this.view.meetingId };
     const meetingId = meetingRef?.id || this.view.meetingId || null;
 
     const recOptions = await headerHelper._getMeetingRecipientOptions(meetingId);

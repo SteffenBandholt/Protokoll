@@ -173,4 +173,25 @@ export class CloseMeetingOutputFlow {
 
     await this.view._enterIdleAfterClose();
   }
+
+  _openMailClient() {
+    const subject = encodeURIComponent("Baubesprechung");
+    const body = encodeURIComponent("Hallo,\n\n");
+    const href = `mailto:?subject=${subject}&body=${body}`;
+    try {
+      window.location.href = href;
+    } catch (e) {
+      console.warn("[TopsView] mailto failed:", e);
+    }
+  }
+
+  getSelectedClosedMeetingForEmail() {
+    if (this.view._lastClosedMeetingForEmail && this.view._lastClosedMeetingForEmail.id) {
+      return this.view._lastClosedMeetingForEmail;
+    }
+    if (this.view.meetingMeta && Number(this.view.meetingMeta.is_closed) === 1) {
+      return { ...this.view.meetingMeta, id: this.view.meetingId };
+    }
+    return null;
+  }
 }
