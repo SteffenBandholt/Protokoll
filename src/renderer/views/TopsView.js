@@ -182,6 +182,14 @@ export default class TopsView {
     // === MODULE: Assignments ===
     this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
     this.responsibleEditor = new ResponsibleEditorController({ view: this });
+    this._initAssignmentDelegates();
+
+    // === MODULE: Dialogs ===
+    this.dialogs = new TopsViewDialogs({ view: this });
+    this._initDialogDelegates();
+  }
+
+  _initAssignmentDelegates() {
     this._buildResponsibleDisplayLabel = (...args) =>
       this.responsibleOptionsService.buildResponsibleDisplayLabel(...args);
     this._normalizeResponsibleCandidates = (...args) =>
@@ -204,10 +212,6 @@ export default class TopsView {
       this.responsibleOptionsService.setLegacyResponsibleOption(this.selResponsible, label);
     this._buildResponsibleOptionsIfNeeded = () =>
       this.responsibleOptionsService.buildResponsibleOptionsIfNeeded(this.selResponsible);
-
-    // === MODULE: Dialogs ===
-    this.dialogs = new TopsViewDialogs({ view: this });
-    this._initDialogDelegates();
   }
 
   _initDialogDelegates() {
