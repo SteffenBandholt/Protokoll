@@ -12,7 +12,6 @@ import { DictationController } from "../features/audio-dictation/DictationContro
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
 import { CloseMeetingOutputFlow } from "../features/output/CloseMeetingOutputFlow.js";
 import { ResponsibleOptionsService } from "../features/assignments/ResponsibleOptionsService.js";
-import { ContactOptionsService } from "../features/assignments/ContactOptionsService.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
@@ -68,7 +67,6 @@ export default class TopsView {
     this.inpDueDate = null;
     this.selStatus = null;
     this.selResponsible = null;
-    this.selContactPerson = null;
     this.dueAmpelEl = null;
     this.statusTaskMarkerEl = null;
     this.statusDecisionFlagEl = null;
@@ -82,13 +80,6 @@ export default class TopsView {
     this._respDirtyTopId = null;
     this._respLastSetTopId = null;
     this._respLegacyReadonly = false;
-    this.contactPersons = [];
-    this._contactOptionsKey = "";
-    this._contactSourceKey = "";
-    this._contactDirty = false;
-    this._contactDirtyTopId = null;
-    this._contactLastSetTopId = null;
-    this._contactLegacyReadonly = false;
     this.projectStartDate = null;
     this.projectEndDate = null;
     this._dueDirty = false;
@@ -180,7 +171,6 @@ export default class TopsView {
     this.audioSuggestionsFlow = new AudioSuggestionsFlow({ view: this });
     this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
     this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
-    this.contactOptionsService = new ContactOptionsService({ view: this });
     this.dialogs = new TopsViewDialogs({ view: this });
 
     this._buildResponsibleDisplayLabel = (...args) =>
@@ -202,35 +192,9 @@ export default class TopsView {
     this._clearLegacyResponsibleOption = () =>
       this.responsibleOptionsService.clearLegacyResponsibleOption(this.selResponsible);
     this._setLegacyResponsibleOption = (label) =>
-      this.responsibleOptionsService.setLegacyResponsibleOption(this.selResponsible, label);    this._buildResponsibleOptionsIfNeeded = () =>
+      this.responsibleOptionsService.setLegacyResponsibleOption(this.selResponsible, label);
+    this._buildResponsibleOptionsIfNeeded = () =>
       this.responsibleOptionsService.buildResponsibleOptionsIfNeeded(this.selResponsible);
-
-    this._sanitizeContactPersonLabel = (...args) =>
-      this.contactOptionsService.sanitizeContactPersonLabel(...args);
-    this._buildContactPersonDisplayLabel = (...args) =>
-      this.contactOptionsService.buildContactPersonDisplayLabel(...args);
-    this._getContactPersonLabelForSelection = (...args) =>
-      this.contactOptionsService.getContactPersonLabelForSelection(...args);
-    this._normalizeContactPersonCandidates = (...args) =>
-      this.contactOptionsService.normalizeContactPersonCandidates(...args);
-    this._buildContactPersonOptionValue = (...args) =>
-      this.contactOptionsService.buildContactPersonOptionValue(...args);
-    this._parseContactPersonOptionValue = (...args) =>
-      this.contactOptionsService.parseContactPersonOptionValue(...args);
-    this._findContactPersonOption = (...args) =>
-      this.contactOptionsService.findContactPersonOption(...args);
-    this._clearLegacyContactPersonOption = (...args) =>
-      this.contactOptionsService.clearLegacyContactPersonOption(...args);
-    this._setLegacyContactPersonOption = (...args) =>
-      this.contactOptionsService.setLegacyContactPersonOption(...args);
-    this._resolveContactPersonSelection = (...args) =>
-      this.contactOptionsService.resolveContactPersonSelection(...args);
-    this._loadContactPersonsForResponsible = (...args) =>
-      this.contactOptionsService.loadContactPersonsForResponsible(...args);
-    this._computeContactOptionsKey = (...args) =>
-      this.contactOptionsService.computeContactOptionsKey(...args);
-    this._buildContactOptionsIfNeeded = (...args) =>
-      this.contactOptionsService.buildContactOptionsIfNeeded(...args);
     this._clearGapPopup = () => this.dialogs.clearGapPopup();
     this._buildGapDetailsText = (...args) => this.dialogs.buildGapDetailsText(...args);
     this._showNumberGapPopup = (...args) => this.dialogs.showNumberGapPopup(...args);
@@ -1042,7 +1006,6 @@ _isoToDDMMYYYY(iso) {
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.selContactPerson) this.selContactPerson.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkHidden) this.chkHidden.disabled = true;
       if (this.chkTask) this.chkTask.disabled = true;
@@ -1081,17 +1044,6 @@ _isoToDDMMYYYY(iso) {
       delete nextPatch.responsible_id;
       delete nextPatch.responsible_label;
     }
-    if (this.selContactPerson?.disabled) {
-      const wantsContactClear =
-        nextPatch.contact_person_kind === null ||
-        nextPatch.contact_person_id === null ||
-        nextPatch.contact_person_label === null;
-      if (!wantsContactClear) {
-        delete nextPatch.contact_person_kind;
-        delete nextPatch.contact_person_id;
-        delete nextPatch.contact_person_label;
-      }
-    }
     if (this.chkHidden?.disabled) delete nextPatch.is_hidden;
     if (this.chkImportant?.disabled) delete nextPatch.is_important;
     if (this.chkTask?.disabled) delete nextPatch.is_task;
@@ -1116,30 +1068,7 @@ _isoToDDMMYYYY(iso) {
         return;
       }
 
-      const t = this._findTopById(selectedInItems.id) || this.selectedTop;
-      if (t && nextPatch) {
-        if (nextPatch.title !== undefined) t.title = nextPatch.title;
-        if (nextPatch.longtext !== undefined) t.longtext = nextPatch.longtext;
-        if (nextPatch.due_date !== undefined) t.due_date = nextPatch.due_date;
-        if (nextPatch.status !== undefined) t.status = nextPatch.status;
-        if (nextPatch.completed_in_meeting_id !== undefined) {
-          t.completed_in_meeting_id = nextPatch.completed_in_meeting_id;
-        }
-        if (nextPatch.is_hidden !== undefined) t.is_hidden = nextPatch.is_hidden ? 1 : 0;
-        if (nextPatch.is_important !== undefined) t.is_important = nextPatch.is_important ? 1 : 0;
-        if (nextPatch.is_task !== undefined) t.is_task = nextPatch.is_task ? 1 : 0;
-        if (nextPatch.is_decision !== undefined) t.is_decision = nextPatch.is_decision ? 1 : 0;
-        if (nextPatch.responsible_kind !== undefined) t.responsible_kind = nextPatch.responsible_kind;
-        if (nextPatch.responsible_id !== undefined) t.responsible_id = nextPatch.responsible_id;
-        if (nextPatch.responsible_label !== undefined) t.responsible_label = nextPatch.responsible_label;
-        if (nextPatch.contact_person_kind !== undefined) {
-          t.contact_person_kind = nextPatch.contact_person_kind;
-        }
-        if (nextPatch.contact_person_id !== undefined) t.contact_person_id = nextPatch.contact_person_id;
-        if (nextPatch.contact_person_label !== undefined) {
-          t.contact_person_label = nextPatch.contact_person_label;
-        }
-      }
+      this._applyPatchToCurrentSelection(nextPatch);
 
       if (pulse) this._showSavedPulse();
 
@@ -1199,20 +1128,6 @@ _isoToDDMMYYYY(iso) {
         patch.responsible_kind = null;
         patch.responsible_id = null;
         patch.responsible_label = null;
-      }
-    }
-
-    if (this.selContactPerson && !this.selContactPerson.disabled) {
-      const parsed = this._parseContactPersonOptionValue(this.selContactPerson.value);
-      if (parsed?.id) {
-        const lbl = this._getContactPersonLabelForSelection(this.selContactPerson, parsed);
-        patch.contact_person_kind = parsed.kind || "project_person";
-        patch.contact_person_id = String(parsed.id);
-        patch.contact_person_label = lbl;
-      } else {
-        patch.contact_person_kind = null;
-        patch.contact_person_id = null;
-        patch.contact_person_label = null;
       }
     }
 
@@ -1453,15 +1368,66 @@ _isoToDDMMYYYY(iso) {
     return s;
   }
 
-  _formatResponsible(top) {
-    const lbl = this._sanitizeResponsibleLabel(top?.responsible_label);
-    if (!lbl) return "—";
-    const max = 22;
-    return lbl.length <= max ? lbl : lbl.slice(0, max - 1) + "…";
+  _getTopResponsible(top) {
+    return {
+      kind: top?.responsible_kind ?? top?.responsibleKind ?? "",
+      id: top?.responsible_id ?? top?.responsibleId ?? "",
+      label: top?.responsible_label ?? top?.responsibleLabel ?? "",
+    };
   }
 
-  _formatContactPerson(top) {
-    const lbl = this._sanitizeContactPersonLabel(top?.contact_person_label);
+  _getTopMeta(top) {
+    const responsible = this._getTopResponsible(top);
+    return {
+      dueDate: top?.due_date ?? top?.dueDate ?? "",
+      status: top?.status ?? "",
+      responsible,
+    };
+  }
+
+  _shouldShowMetaColumn(top) {
+    const lvl = Number(top?.level);
+    if (!Number.isFinite(lvl)) return false;
+    return lvl >= 2 && lvl <= 4;
+  }
+
+  _applyPatchToLocalTop(top, patch) {
+    if (!top || !patch || typeof patch !== "object") return;
+
+    const applyField = (field, altField) => {
+      if (patch[field] !== undefined) top[field] = patch[field];
+      else if (altField && patch[altField] !== undefined) top[field] = patch[altField];
+    };
+
+    applyField("title");
+    applyField("longtext");
+    applyField("due_date", "dueDate");
+    applyField("status");
+    applyField("completed_in_meeting_id");
+    applyField("is_hidden");
+    applyField("is_important");
+    applyField("is_task");
+    applyField("is_decision");
+    applyField("responsible_kind");
+    applyField("responsible_id");
+    applyField("responsible_label");
+  }
+
+  _applyPatchToCurrentSelection(patch) {
+    if (!patch) return;
+    if (this.selectedTop) {
+      this._applyPatchToLocalTop(this.selectedTop, patch);
+    }
+    const selId = this.selectedTop?.id;
+    const inList = this.items.find((it) => this._sameTopId(it?.id, selId));
+    if (inList && inList !== this.selectedTop) {
+      this._applyPatchToLocalTop(inList, patch);
+    }
+  }
+
+  _formatResponsible(top) {
+    const resp = this._getTopResponsible(top);
+    const lbl = this._sanitizeResponsibleLabel(resp.label);
     if (!lbl) return "—";
     const max = 22;
     return lbl.length <= max ? lbl : lbl.slice(0, max - 1) + "…";
@@ -2827,14 +2793,7 @@ _isoToDDMMYYYY(iso) {
     selResponsible.style.width = "calc(100% + 3mm)";
     respWrap.append(selResponsible);
 
-    const contactWrap = mkMetaField("Ansprechp.");
-    const selContactPerson = document.createElement("select");
-    selContactPerson.style.width = "100%";
-    selContactPerson.style.marginLeft = "-3mm";
-    selContactPerson.style.width = "calc(100% + 3mm)";
-    contactWrap.append(selContactPerson);
-
-    metaCol.append(dueWrap, statusWrap, respWrap, contactWrap);
+    metaCol.append(dueWrap, statusWrap, respWrap);
     editorRow.append(leftCol, sep, metaCol);
 
     box.append(boxHeader, editorRow);
@@ -2870,7 +2829,6 @@ _isoToDDMMYYYY(iso) {
     this.inpDueDate = inpDueDate;
     this.selStatus = selStatus;
     this.selResponsible = selResponsible;
-    this.selContactPerson = selContactPerson;
     this.dueAmpelEl = dueAmpel;
     this.statusTaskMarkerEl = statusTaskMarker;
     this.statusDecisionFlagEl = statusDecisionFlag;
@@ -3106,9 +3064,6 @@ _isoToDDMMYYYY(iso) {
             responsible_kind: null,
             responsible_id: null,
             responsible_label: null,
-            contact_person_kind: null,
-            contact_person_id: null,
-            contact_person_label: null,
           },
           { reload: false, pulse: true }
         );
@@ -3117,25 +3072,10 @@ _isoToDDMMYYYY(iso) {
             this.selectedTop.responsible_kind = null;
             this.selectedTop.responsible_id = null;
             this.selectedTop.responsible_label = null;
-            this.selectedTop.contact_person_kind = null;
-            this.selectedTop.contact_person_id = null;
-            this.selectedTop.contact_person_label = null;
-          }
-          this.contactPersons = [];
-          this._contactSourceKey = "";
-          this._contactOptionsKey = "";
-          this._clearLegacyContactPersonOption();
-          if (this.selContactPerson) {
-            this.selContactPerson.innerHTML = "";
-            this.selContactPerson.value = "";
-            this.selContactPerson.disabled = true;
           }
           this._respDirty = false;
           this._respDirtyTopId = null;
           this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
-          this._contactDirty = false;
-          this._contactDirtyTopId = null;
-          this._contactLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
           this._renderListOnly();
         }
         this._updateTodoStatusAvailability();
@@ -3153,9 +3093,6 @@ _isoToDDMMYYYY(iso) {
           responsible_kind: parsed.kind || "company",
           responsible_id: String(parsed.id),
           responsible_label: lbl,
-          contact_person_kind: null,
-          contact_person_id: null,
-          contact_person_label: null,
         },
         { reload: false, pulse: true }
       );
@@ -3164,82 +3101,13 @@ _isoToDDMMYYYY(iso) {
           this.selectedTop.responsible_kind = parsed.kind || "company";
           this.selectedTop.responsible_id = String(parsed.id);
           this.selectedTop.responsible_label = lbl;
-          this.selectedTop.contact_person_kind = null;
-          this.selectedTop.contact_person_id = null;
-          this.selectedTop.contact_person_label = null;
-        }
-        this.contactPersons = [];
-        this._contactSourceKey = "";
-        this._contactOptionsKey = "";
-        this._clearLegacyContactPersonOption();
-        if (this.selContactPerson) {
-          this.selContactPerson.innerHTML = "";
-          this.selContactPerson.value = "";
-          this.selContactPerson.disabled = true;
         }
         this._respDirty = false;
         this._respDirtyTopId = null;
         this._respLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
-        this._contactDirty = false;
-        this._contactDirtyTopId = null;
-        this._contactLastSetTopId = this.selectedTop ? this.selectedTop.id : null;
-        const currentTopIdAfterSave = this.selectedTop ? this.selectedTop.id : null;
-        await this._loadContactPersonsForResponsible(parsed);
-        this._buildContactOptionsIfNeeded(`${parsed.kind || "company"}::${String(parsed.id)}`);
-        if (this.selContactPerson && this.selectedTop && this._sameTopId(this.selectedTop.id, currentTopIdAfterSave)) {
-          this.selContactPerson.value = "";
-          this.selContactPerson.disabled =
-            !this.contactPersons.length || this.isReadOnly || this._busy || !!this._contactLegacyReadonly;
-        }
         this._renderListOnly();
       }
       this._updateTodoStatusAvailability();
-    });
-
-    selContactPerson.addEventListener("change", async () => {
-      if (this.isReadOnly || this._busy) return;
-      if (selContactPerson.disabled) return;
-      if (!this.selectedTop) return;
-
-      const parsed = this._parseContactPersonOptionValue((selContactPerson.value || "").toString());
-      this._contactDirty = true;
-      this._contactDirtyTopId = this.selectedTop.id;
-
-      if (!parsed?.id) {
-        const res = await this._saveMeetingTopPatch(
-          { contact_person_kind: null, contact_person_id: null, contact_person_label: null },
-          { reload: false, pulse: true }
-        );
-        if (res?.ok && this.selectedTop) {
-          this.selectedTop.contact_person_kind = null;
-          this.selectedTop.contact_person_id = null;
-          this.selectedTop.contact_person_label = null;
-          this._contactDirty = false;
-          this._contactDirtyTopId = null;
-          this._contactLastSetTopId = this.selectedTop.id;
-          this._renderListOnly();
-        }
-        return;
-      }
-
-      const lbl = this._getContactPersonLabelForSelection(selContactPerson, parsed);
-      const res = await this._saveMeetingTopPatch(
-        {
-          contact_person_kind: parsed.kind || "project_person",
-          contact_person_id: String(parsed.id),
-          contact_person_label: lbl,
-        },
-        { reload: false, pulse: true }
-      );
-      if (res?.ok && this.selectedTop) {
-        this.selectedTop.contact_person_kind = parsed.kind || "project_person";
-        this.selectedTop.contact_person_id = String(parsed.id);
-        this.selectedTop.contact_person_label = lbl;
-        this._contactDirty = false;
-        this._contactDirtyTopId = null;
-        this._contactLastSetTopId = this.selectedTop.id;
-        this._renderListOnly();
-      }
     });
 
     chkImportant.addEventListener("change", async () => {
@@ -4444,13 +4312,14 @@ async _closeViewOnly() {
         return Number.isFinite(n) ? n === 1 : false;
       };
 
+      const meta = this._getTopMeta(top);
       const isOld = parseFlag(
         top.is_carried_over ??
           top.isCarriedOver ??
           top.frozen_is_carried_over ??
           top.frozenIsCarriedOver
       );
-      const statusLower = String(top.status || "").trim().toLowerCase();
+      const statusLower = String(meta.status || "").trim().toLowerCase();
       const isTask = statusLower === "todo" || parseFlag(top.is_task ?? top.isTask);
       const isTouched = parseFlag(
         top.is_touched ??
@@ -4626,7 +4495,7 @@ const textCol = document.createElement("div");
       }
 
       let metaCol = null;
-      if (this.showLongtextInList && !isLevel1) {
+      if (this._shouldShowMetaColumn(top)) {
         metaCol = document.createElement("div");
         metaCol.style.display = "flex";
         metaCol.style.flexDirection = "column";
@@ -4641,10 +4510,9 @@ const textCol = document.createElement("div");
         metaCol.style.paddingLeft = "10px";
         metaCol.style.borderLeft = "1px solid rgba(0,0,0,0.08)";
 
-        const due = this._formatDue(this._resolveDisplayDueForTop(top));
-        const st = this._formatStatus(top.status);
+        const due = this._formatDue(meta.dueDate || this._resolveDisplayDueForTop(top));
+        const st = this._formatStatus(meta.status);
         const resp = this._formatResponsible(top);
-        const contact = this._formatContactPerson(top);
 
         const dueRow = document.createElement("div");
         dueRow.style.display = "flex";
@@ -4713,13 +4581,7 @@ const textCol = document.createElement("div");
         respRow.style.overflow = "hidden";
         respRow.style.textOverflow = "ellipsis";
 
-        const contactRow = document.createElement("div");
-        contactRow.textContent = `${contact}`;
-        contactRow.style.whiteSpace = "nowrap";
-        contactRow.style.overflow = "hidden";
-        contactRow.style.textOverflow = "ellipsis";
-
-        metaCol.append(dueRow, stRow, respRow, contactRow);
+        metaCol.append(dueRow, stRow, respRow);
       }
 
       row.append(numBlock, textCol);
@@ -4918,32 +4780,19 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.value = "";
       if (this.selStatus) this.selStatus.value = "alle";
       if (this.selResponsible) this.selResponsible.value = "";
-      if (this.selContactPerson) this.selContactPerson.value = "";
       this._clearLegacyResponsibleOption();
-      this._clearLegacyContactPersonOption();
       this._respLegacyReadonly = false;
-      this._contactLegacyReadonly = false;
       this._respDirty = false;
-      this._contactDirty = false;
-      this.contactPersons = [];
-      this._contactOptionsKey = "";
-      this._contactSourceKey = "";
       this._updateDueAmpelFromInputs();
       this._updateStatusMarkers();
       this._respDirtyTopId = null;
       this._respLastSetTopId = null;
-      this._contactDirtyTopId = null;
-      this._contactLastSetTopId = null;
 
       this.inpTitle.disabled = true;
       if (this.taLongtext) this.taLongtext.disabled = true;
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.selContactPerson) {
-        this.selContactPerson.innerHTML = "";
-        this.selContactPerson.disabled = true;
-      }
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkTask) this.chkTask.disabled = true;
@@ -4966,6 +4815,7 @@ const textCol = document.createElement("div");
       return;
     }
 
+    const meta = this._getTopMeta(t);
     const titleVal = this._clampStr(t.title || "", this._titleMax());
     this.inpTitle.value = titleVal;
 
@@ -4979,13 +4829,13 @@ const textCol = document.createElement("div");
     if (this.chkDecision) this.chkDecision.checked = Number(t.is_decision ?? t.isDecision ?? 0) === 1;
 
     if (this.inpDueDate) {
-      const dueRaw = t.due_date ?? t.dueDate ?? "";
+      const dueRaw = meta.dueDate ?? "";
       const dueVal = (dueRaw || "").toString();
       this.inpDueDate.value = dueVal ? dueVal.slice(0, 10) : "";
     }
 
       if (this.selStatus) {
-        const st = (t.status || "").toString().trim();
+        const st = (meta.status || "").toString().trim();
         const stLower = st.toLowerCase();
         if (!st && (Number(t.is_task ?? t.isTask ?? 0) === 1)) {
           this.selStatus.value = "todo";
@@ -5000,16 +4850,13 @@ const textCol = document.createElement("div");
     this._updateTodoStatusAvailability();
     this.dictationController?.tryShowPendingTermPrompt();
     this._clearLegacyResponsibleOption();
-    this._clearLegacyContactPersonOption();
     this._respLegacyReadonly = false;
-    this._contactLegacyReadonly = false;
 
     const topId = t.id;
     const sameTopDirty = this._respDirty && this._sameTopId(this._respDirtyTopId, topId);
-    const sameContactDirty = this._contactDirty && this._sameTopId(this._contactDirtyTopId, topId);
 
     this._ensureProjectFirmsLoaded()
-      .then(async () => {
+      .then(() => {
         this._buildResponsibleOptionsIfNeeded();
         if (!sameTopDirty && this.selResponsible && !this._sameTopId(this._respLastSetTopId, topId)) {
           const resolved = this._resolveResponsibleSelection(t);
@@ -5028,40 +4875,6 @@ const textCol = document.createElement("div");
           this._respDirtyTopId = null;
           this._applyProjectDueDefaults(t);
         }
-
-        const selectedResponsible = this.selResponsible
-          ? this._parseResponsibleOptionValue(this.selResponsible.value)
-          : null;
-        await this._loadContactPersonsForResponsible(selectedResponsible);
-        if (!this.selectedTop || !this._sameTopId(this.selectedTop.id, topId)) return;
-        this._buildContactOptionsIfNeeded(this._contactSourceKey);
-
-        if (
-          !sameContactDirty &&
-          this.selContactPerson &&
-          !this._sameTopId(this._contactLastSetTopId, topId)
-        ) {
-          const resolvedContact = this._resolveContactPersonSelection(t);
-          if (resolvedContact.value && this._findContactPersonOption(resolvedContact.value)) {
-            this._clearLegacyContactPersonOption();
-            this.selContactPerson.value = resolvedContact.value;
-          } else if (resolvedContact.fallbackLabel) {
-            this._setLegacyContactPersonOption(resolvedContact.fallbackLabel);
-          } else {
-            this._clearLegacyContactPersonOption();
-            this.selContactPerson.value = "";
-          }
-          this.selContactPerson.disabled =
-            !selectedResponsible?.id ||
-            selectedResponsible?.kind === "all" ||
-            !!this._contactLegacyReadonly ||
-            (!this.contactPersons.length && !resolvedContact.fallbackLabel) ||
-            this.isReadOnly ||
-            this._busy;
-          this._contactLastSetTopId = topId;
-          this._contactDirty = false;
-          this._contactDirtyTopId = null;
-        }
       })
       .catch(() => {});
 
@@ -5075,7 +4888,6 @@ const textCol = document.createElement("div");
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
       if (this.selResponsible) this.selResponsible.disabled = true;
-      if (this.selContactPerson) this.selContactPerson.disabled = true;
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkTask) this.chkTask.disabled = true;
@@ -5103,25 +4915,11 @@ const textCol = document.createElement("div");
     if (this.inpDueDate) this.inpDueDate.disabled = false;
     if (this.selStatus) this.selStatus.disabled = false;
     if (this.selResponsible) this.selResponsible.disabled = !!this._respLegacyReadonly;
-    if (this.selContactPerson) {
-      const parsedResponsible = this.selResponsible
-        ? this._parseResponsibleOptionValue(this.selResponsible.value)
-        : null;
-      this.selContactPerson.disabled =
-        !parsedResponsible?.id ||
-        parsedResponsible?.kind === "all" ||
-        !!this._contactLegacyReadonly ||
-        !this.contactPersons.length;
-    }
 
     this.chkHidden.disabled = false;
     if (this.chkImportant) this.chkImportant.disabled = false;
     if (this.chkTask) this.chkTask.disabled = false;
     if (this.chkDecision) this.chkDecision.disabled = false;
-
-    if (this.isReadOnly || this._busy) {
-      if (this.selContactPerson) this.selContactPerson.disabled = true;
-    }
 
     if (this.btnSaveTop) {
       this.btnSaveTop.disabled = false;
@@ -5230,6 +5028,3 @@ const textCol = document.createElement("div");
     this._closeProjectTasksPopup();
   }
 }
-
-
-
