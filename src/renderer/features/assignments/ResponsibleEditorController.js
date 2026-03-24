@@ -3,6 +3,15 @@ export class ResponsibleEditorController {
     this.view = view;
   }
 
+  clearSelectionInEditor() {
+    if (this.view.selResponsible) this.view.selResponsible.value = "";
+    this.view._clearLegacyResponsibleOption();
+    this.view._respLegacyReadonly = false;
+    this.view._respDirty = false;
+    this.view._respDirtyTopId = null;
+    this.view._respLastSetTopId = null;
+  }
+
   applySelectionToEditor(top) {
     this.view._clearLegacyResponsibleOption();
     this.view._respLegacyReadonly = false;

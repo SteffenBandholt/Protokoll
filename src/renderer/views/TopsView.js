@@ -4637,14 +4637,9 @@ const textCol = document.createElement("div");
 
       if (this.inpDueDate) this.inpDueDate.value = "";
       if (this.selStatus) this.selStatus.value = "alle";
-      if (this.selResponsible) this.selResponsible.value = "";
-      this._clearLegacyResponsibleOption();
-      this._respLegacyReadonly = false;
-      this._respDirty = false;
+      this.responsibleEditor.clearSelectionInEditor();
       this._updateDueAmpelFromInputs();
       this._updateStatusMarkers();
-      this._respDirtyTopId = null;
-      this._respLastSetTopId = null;
 
       this._applyEditBoxDisabledState(true);
       if (this.btnTrashTop) {
