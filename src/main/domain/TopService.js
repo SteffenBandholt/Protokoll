@@ -491,11 +491,11 @@ class TopService {
         : (patch.responsibleLabel !== undefined ? patch.responsibleLabel : undefined);
 
     const ck =
-      patch.contact_kind !== undefined
-        ? patch.contact_kind
-        : (patch.contactKind !== undefined
-          ? patch.contactKind
-          : (patch.contact_person_kind !== undefined ? patch.contact_person_kind : undefined));
+      patch.contact_person_kind !== undefined
+        ? patch.contact_person_kind
+        : (patch.contact_kind !== undefined
+          ? patch.contact_kind
+          : (patch.contactKind !== undefined ? patch.contactKind : undefined));
 
     const cp =
       patch.contact_person_id !== undefined
@@ -503,11 +503,11 @@ class TopService {
         : (patch.contactPersonId !== undefined ? patch.contactPersonId : undefined);
 
     const cl =
-      patch.contact_label !== undefined
-        ? patch.contact_label
-        : (patch.contactLabel !== undefined
-          ? patch.contactLabel
-          : (patch.contact_person_label !== undefined ? patch.contact_person_label : undefined));
+      patch.contact_person_label !== undefined
+        ? patch.contact_person_label
+        : (patch.contact_label !== undefined
+          ? patch.contact_label
+          : (patch.contactLabel !== undefined ? patch.contactLabel : undefined));
 
     const imp =
       patch.is_important !== undefined
