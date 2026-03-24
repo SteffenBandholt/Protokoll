@@ -4768,6 +4768,44 @@ const textCol = document.createElement("div");
     }
   }
 
+  _applyEditBoxDisabledState(isDisabled) {
+    const isOld = Number(this.selectedTop?.is_carried_over) === 1;
+
+    if (isDisabled) {
+      this.inpTitle.disabled = true;
+      if (this.taLongtext) this.taLongtext.disabled = true;
+      if (this.inpDueDate) this.inpDueDate.disabled = true;
+      if (this.selStatus) this.selStatus.disabled = true;
+      if (this.selResponsible) this.selResponsible.disabled = true;
+      this.chkHidden.disabled = true;
+      if (this.chkImportant) this.chkImportant.disabled = true;
+      if (this.chkTask) this.chkTask.disabled = true;
+      if (this.chkDecision) this.chkDecision.disabled = true;
+
+      if (this.btnSaveTop) {
+        this.btnSaveTop.disabled = true;
+        this.btnSaveTop.style.opacity = "0.55";
+      }
+      return;
+    }
+
+    this.inpTitle.disabled = isOld;
+    if (this.taLongtext) this.taLongtext.disabled = false;
+    if (this.inpDueDate) this.inpDueDate.disabled = false;
+    if (this.selStatus) this.selStatus.disabled = false;
+    if (this.selResponsible) this.selResponsible.disabled = !!this._respLegacyReadonly;
+
+    this.chkHidden.disabled = false;
+    if (this.chkImportant) this.chkImportant.disabled = false;
+    if (this.chkTask) this.chkTask.disabled = false;
+    if (this.chkDecision) this.chkDecision.disabled = false;
+
+    if (this.btnSaveTop) {
+      this.btnSaveTop.disabled = false;
+      this.btnSaveTop.style.opacity = "1";
+    }
+  }
+
   // === CORE: Editor State ===
   applyEditBoxState() {
     const t = this.selectedTop;
@@ -4809,20 +4847,7 @@ const textCol = document.createElement("div");
       this._respDirtyTopId = null;
       this._respLastSetTopId = null;
 
-      this.inpTitle.disabled = true;
-      if (this.taLongtext) this.taLongtext.disabled = true;
-      if (this.inpDueDate) this.inpDueDate.disabled = true;
-      if (this.selStatus) this.selStatus.disabled = true;
-      if (this.selResponsible) this.selResponsible.disabled = true;
-      this.chkHidden.disabled = true;
-      if (this.chkImportant) this.chkImportant.disabled = true;
-      if (this.chkTask) this.chkTask.disabled = true;
-      if (this.chkDecision) this.chkDecision.disabled = true;
-
-      if (this.btnSaveTop) {
-        this.btnSaveTop.disabled = true;
-        this.btnSaveTop.style.opacity = "0.55";
-      }
+      this._applyEditBoxDisabledState(true);
       if (this.btnTrashTop) {
         this.btnTrashTop.disabled = true;
         this.btnTrashTop.style.opacity = "0.55";
@@ -4901,23 +4926,8 @@ const textCol = document.createElement("div");
 
     this._updateCharCounters();
 
-    const isOld = Number(t.is_carried_over) === 1;
-
     if (this.isReadOnly || this._busy) {
-      this.inpTitle.disabled = true;
-      if (this.taLongtext) this.taLongtext.disabled = true;
-      if (this.inpDueDate) this.inpDueDate.disabled = true;
-      if (this.selStatus) this.selStatus.disabled = true;
-      if (this.selResponsible) this.selResponsible.disabled = true;
-      this.chkHidden.disabled = true;
-      if (this.chkImportant) this.chkImportant.disabled = true;
-      if (this.chkTask) this.chkTask.disabled = true;
-      if (this.chkDecision) this.chkDecision.disabled = true;
-
-      if (this.btnSaveTop) {
-        this.btnSaveTop.disabled = true;
-        this.btnSaveTop.style.opacity = "0.55";
-      }
+      this._applyEditBoxDisabledState(true);
       if (this.btnTrashTop) {
         this.btnTrashTop.disabled = true;
         this.btnTrashTop.style.opacity = "0.55";
@@ -4931,21 +4941,7 @@ const textCol = document.createElement("div");
       return;
     }
 
-    this.inpTitle.disabled = isOld;
-    if (this.taLongtext) this.taLongtext.disabled = false;
-    if (this.inpDueDate) this.inpDueDate.disabled = false;
-    if (this.selStatus) this.selStatus.disabled = false;
-    if (this.selResponsible) this.selResponsible.disabled = !!this._respLegacyReadonly;
-
-    this.chkHidden.disabled = false;
-    if (this.chkImportant) this.chkImportant.disabled = false;
-    if (this.chkTask) this.chkTask.disabled = false;
-    if (this.chkDecision) this.chkDecision.disabled = false;
-
-    if (this.btnSaveTop) {
-      this.btnSaveTop.disabled = false;
-      this.btnSaveTop.style.opacity = "1";
-    }
+    this._applyEditBoxDisabledState(false);
     if (this.btnTrashTop) {
       const canTrash = this._canTrashSelected();
       this.btnTrashTop.disabled = !canTrash;
