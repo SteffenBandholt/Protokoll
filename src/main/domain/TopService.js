@@ -447,15 +447,6 @@ class TopService {
       "responsibleKind",
       "responsibleId",
       "responsibleLabel",
-
-      "contact_kind",
-      "contact_person_id",
-      "contact_label",
-      "contact_person_kind",
-      "contact_person_label",
-      "contactKind",
-      "contactPersonId",
-      "contactLabel",
     ]);
 
     for (const k of Object.keys(patch)) {
@@ -490,24 +481,9 @@ class TopService {
         ? patch.responsible_label
         : (patch.responsibleLabel !== undefined ? patch.responsibleLabel : undefined);
 
-    const ck =
-      patch.contact_kind !== undefined
-        ? patch.contact_kind
-        : (patch.contactKind !== undefined
-          ? patch.contactKind
-          : (patch.contact_person_kind !== undefined ? patch.contact_person_kind : undefined));
-
-    const cp =
-      patch.contact_person_id !== undefined
-        ? patch.contact_person_id
-        : (patch.contactPersonId !== undefined ? patch.contactPersonId : undefined);
-
-    const cl =
-      patch.contact_label !== undefined
-        ? patch.contact_label
-        : (patch.contactLabel !== undefined
-          ? patch.contactLabel
-          : (patch.contact_person_label !== undefined ? patch.contact_person_label : undefined));
+    const ck = undefined;
+    const cp = undefined;
+    const cl = undefined;
 
     const imp =
       patch.is_important !== undefined
@@ -540,10 +516,7 @@ class TopService {
       isDecision !== undefined ||
       rk !== undefined ||
       ri !== undefined ||
-      rl !== undefined ||
-      ck !== undefined ||
-      cp !== undefined ||
-      cl !== undefined;
+      rl !== undefined;
 
     if (!meetingFieldsTouched) {
       return this.meetingTopsRepo.getMeetingTop(meetingId, topId);
@@ -603,10 +576,6 @@ class TopService {
       responsible_kind: rk,
       responsible_id: ri,
       responsible_label: rl,
-
-      contact_kind: ck,
-      contact_person_id: cp,
-      contact_label: cl,
 
       is_touched: touch,
     });
