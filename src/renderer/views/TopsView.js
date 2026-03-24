@@ -1101,42 +1101,67 @@ _isoToDDMMYYYY(iso) {
 
   // === CORE: Save / Patch Flow ===
   _collectEditorPatch() {
+    const values = this._readEditorValues();
+    return this._buildPatchFromEditorValues(values);
+  }
+
+  _readEditorValues() {
+    return {
+      title: this.inpTitle && !this.inpTitle.disabled ? this.inpTitle.value : undefined,
+      longtext: this.taLongtext && !this.taLongtext.disabled ? this.taLongtext.value : undefined,
+      due_date: this.inpDueDate && !this.inpDueDate.disabled ? this.inpDueDate.value : undefined,
+      status: this.selStatus && !this.selStatus.disabled ? this.selStatus.value : undefined,
+      responsible_value:
+        this.selResponsible && !this.selResponsible.disabled ? this.selResponsible.value : undefined,
+      is_hidden: this.chkHidden && !this.chkHidden.disabled ? this.chkHidden.checked : undefined,
+      is_important:
+        this.chkImportant && !this.chkImportant.disabled ? this.chkImportant.checked : undefined,
+      is_task: this.chkTask && !this.chkTask.disabled ? this.chkTask.checked : undefined,
+      is_decision:
+        this.chkDecision && !this.chkDecision.disabled ? this.chkDecision.checked : undefined,
+      responsible_kind: undefined,
+      responsible_id: undefined,
+      responsible_label: undefined,
+    };
+  }
+
+  _buildPatchFromEditorValues(values) {
     const t = this.selectedTop;
     if (!t) return null;
 
     const patch = {};
 
-    if (this.inpTitle && !this.inpTitle.disabled) {
-      patch.title = this._normTitle(this.inpTitle.value);
+    if (values.title !== undefined) {
+      patch.title = this._normTitle(values.title);
     }
 
-    if (this.taLongtext && !this.taLongtext.disabled) {
-      patch.longtext = this._normLong(this.taLongtext.value);
+    if (values.longtext !== undefined) {
+      patch.longtext = this._normLong(values.longtext);
     }
 
-    if (this.chkImportant && !this.chkImportant.disabled) {
-      patch.is_important = this.chkImportant.checked ? 1 : 0;
+    if (values.is_important !== undefined) {
+      patch.is_important = values.is_important ? 1 : 0;
     }
 
 
-    if (this.chkDecision && !this.chkDecision.disabled) {
-      patch.is_decision = this.chkDecision.checked ? 1 : 0;
+    if (values.is_decision !== undefined) {
+      patch.is_decision = values.is_decision ? 1 : 0;
     }
 
-    if (this.inpDueDate && !this.inpDueDate.disabled) {
-      const dueVal = (this.inpDueDate.value || "").trim();
+    if (values.due_date !== undefined) {
+      const dueVal = (values.due_date || "").trim();
       patch.due_date = dueVal || null;
     }
 
-    if (this.selStatus && !this.selStatus.disabled) {
-      const rawStatus = (this.selStatus.value || "").trim();
+    if (values.status !== undefined) {
+      const rawStatus = (values.status || "").trim();
       const st = rawStatus && rawStatus.toLowerCase() === "alle" ? "" : rawStatus;
       patch.status = st;
       patch.completed_in_meeting_id = this._isDoneStatus(patch.status) ? this.meetingId : null;
     }
 
-    if (this.selResponsible && !this.selResponsible.disabled) {
-      const parsed = this._parseResponsibleOptionValue(this.selResponsible.value);
+    if (values.responsible_value !== undefined) {
+      const parsed = this._parseResponsibleOptionValue(values.responsible_value);
       if (parsed?.id) {
         const lbl = this._getResponsibleLabelForSelection(this.selResponsible, parsed);
         patch.responsible_kind = parsed.kind || "company";
