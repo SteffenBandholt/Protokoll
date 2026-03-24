@@ -167,6 +167,13 @@ export default class TopsView {
   }
 
   _initModules(router) {
+    this._initAudioModule();
+    this._initOutputModule(router);
+    this._initAssignmentsModule();
+    this._initDialogsModule();
+  }
+
+  _initAudioModule() {
     attachAudioFeature(this);
 
     // === MODULE: Audio ===
@@ -175,15 +182,21 @@ export default class TopsView {
       ensureAudioAvailable: (options) => this._ensureAudioAvailable?.(options),
     });
     this.audioSuggestionsFlow = new AudioSuggestionsFlow({ view: this });
+  }
 
+  _initOutputModule(router) {
     // === MODULE: Output ===
     this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
+  }
 
+  _initAssignmentsModule() {
     // === MODULE: Assignments ===
     this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
     this.responsibleEditor = new ResponsibleEditorController({ view: this });
     this._initAssignmentDelegates();
+  }
 
+  _initDialogsModule() {
     // === MODULE: Dialogs ===
     this.dialogs = new TopsViewDialogs({ view: this });
     this._initDialogDelegates();
