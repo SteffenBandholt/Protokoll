@@ -4575,7 +4575,7 @@ const textCol = document.createElement("div");
       if (this.taLongtext) this.taLongtext.disabled = true;
       if (this.inpDueDate) this.inpDueDate.disabled = true;
       if (this.selStatus) this.selStatus.disabled = true;
-      if (this.selResponsible) this.selResponsible.disabled = true;
+      this.responsibleEditor.applyDisabledState(true);
       this.chkHidden.disabled = true;
       if (this.chkImportant) this.chkImportant.disabled = true;
       if (this.chkTask) this.chkTask.disabled = true;
@@ -4592,7 +4592,7 @@ const textCol = document.createElement("div");
     if (this.taLongtext) this.taLongtext.disabled = false;
     if (this.inpDueDate) this.inpDueDate.disabled = false;
     if (this.selStatus) this.selStatus.disabled = false;
-    if (this.selResponsible) this.selResponsible.disabled = !!this._respLegacyReadonly;
+    this.responsibleEditor.applyDisabledState(false);
 
     this.chkHidden.disabled = false;
     if (this.chkImportant) this.chkImportant.disabled = false;

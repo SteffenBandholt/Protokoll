@@ -12,6 +12,11 @@ export class ResponsibleEditorController {
     this.view._respLastSetTopId = null;
   }
 
+  applyDisabledState(isDisabled) {
+    if (!this.view.selResponsible) return;
+    this.view.selResponsible.disabled = isDisabled ? true : !!this.view._respLegacyReadonly;
+  }
+
   applySelectionToEditor(top) {
     this.view._clearLegacyResponsibleOption();
     this.view._respLegacyReadonly = false;
