@@ -1079,17 +1079,23 @@ _isoToDDMMYYYY(iso) {
         return;
       }
 
-      this._applyPatchToCurrentSelection(nextPatch);
-
-      if (pulse) this._showSavedPulse();
-
-      if (reload) {
-        fireAndForget(() => this.reloadList(false), "TopsView reload after save");
-      }
-
+      this._applyPatchAndRefresh(nextPatch, { reload, pulse });
       return res;
     } finally {
       this._setBusy(false);
+    }
+  }
+
+  _applyPatchAndRefresh(nextPatch, { reload, pulse }) {
+    this._applyPatchToCurrentSelection(nextPatch);
+
+    if (pulse) this._showSavedPulse();
+
+    if (reload) {
+      fireAndForget(() => this.reloadList(false), "TopsView reload after save");
+    } else {
+      this._renderListOnly();
+      this.applyEditBoxState();
     }
   }
 
