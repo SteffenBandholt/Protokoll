@@ -210,7 +210,6 @@ export default class TopsView {
     this._clearGapPopup = () => this.dialogs.clearGapPopup();
     this._buildGapDetailsText = (...args) => this.dialogs.buildGapDetailsText(...args);
     this._showNumberGapPopup = (...args) => this.dialogs.showNumberGapPopup(...args);
-    this._openMeetingKeywordPopup = (...args) => this.dialogs.openMeetingKeywordPopup(...args);
     this._openCreateMeetingModal = (...args) => this.dialogs.openCreateMeetingModal(...args);
   }
 
@@ -2397,7 +2396,7 @@ _isoToDDMMYYYY(iso) {
     topsText.style.cursor = "pointer";
     topsText.title = "Schlagwort bearbeiten";
     topsText.onclick = async () => {
-      await this._openMeetingKeywordPopup();
+      await this.dialogs.openMeetingKeywordPopup();
     };
 
     const spacer = document.createElement("div");
