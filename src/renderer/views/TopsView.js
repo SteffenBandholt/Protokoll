@@ -12,6 +12,7 @@ import { DictationController } from "../features/audio-dictation/DictationContro
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
 import { CloseMeetingOutputFlow } from "../features/output/CloseMeetingOutputFlow.js";
 import { ResponsibleOptionsService } from "../features/assignments/ResponsibleOptionsService.js";
+import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
@@ -180,6 +181,7 @@ export default class TopsView {
 
     // === MODULE: Assignments ===
     this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
+    this.responsibleEditor = new ResponsibleEditorController({ view: this });
     this._buildResponsibleDisplayLabel = (...args) =>
       this.responsibleOptionsService.buildResponsibleDisplayLabel(...args);
     this._normalizeResponsibleCandidates = (...args) =>
@@ -4840,37 +4842,6 @@ const textCol = document.createElement("div");
     }
   }
 
-  _applyResponsibleSelectionToEditor(top) {
-    this._clearLegacyResponsibleOption();
-    this._respLegacyReadonly = false;
-
-    const topId = top.id;
-    const sameTopDirty = this._respDirty && this._sameTopId(this._respDirtyTopId, topId);
-
-    this._ensureProjectFirmsLoaded()
-      .then(() => {
-        this._buildResponsibleOptionsIfNeeded();
-        if (!sameTopDirty && this.selResponsible && !this._sameTopId(this._respLastSetTopId, topId)) {
-          const resolved = this._resolveResponsibleSelection(top);
-          if (resolved.value && this._findResponsibleOption(resolved.value)) {
-            this._clearLegacyResponsibleOption();
-            this.selResponsible.value = resolved.value;
-          } else if (resolved.fallbackLabel) {
-            this._setLegacyResponsibleOption(resolved.fallbackLabel);
-          } else {
-            this._clearLegacyResponsibleOption();
-            this.selResponsible.value = "";
-          }
-          this.selResponsible.disabled = !!this._respLegacyReadonly || this.isReadOnly || this._busy;
-          this._respLastSetTopId = topId;
-          this._respDirty = false;
-          this._respDirtyTopId = null;
-          this._applyProjectDueDefaults(top);
-        }
-      })
-      .catch(() => {});
-  }
-
   // === CORE: Editor State ===
   applyEditBoxState() {
     const t = this.selectedTop;
@@ -4960,7 +4931,7 @@ const textCol = document.createElement("div");
     this._updateStatusMarkers();
     this._updateTodoStatusAvailability();
     this.dictationController?.tryShowPendingTermPrompt();
-    this._applyResponsibleSelectionToEditor(t);
+    this.responsibleEditor.applySelectionToEditor(t);
 
     this._updateCharCounters();
 
