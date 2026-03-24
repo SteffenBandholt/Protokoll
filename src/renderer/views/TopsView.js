@@ -162,17 +162,24 @@ export default class TopsView {
     this._viewMenuBtn = null;
     this._projectTasksOverlayEl = null;
 
+    this._initModules(router);
+  }
+
+  _initModules(router) {
     attachAudioFeature(this);
 
+    // === MODULE: Audio ===
     this.dictationController = new DictationController({
       view: this,
       ensureAudioAvailable: (options) => this._ensureAudioAvailable?.(options),
     });
     this.audioSuggestionsFlow = new AudioSuggestionsFlow({ view: this });
-    this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
-    this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
-    this.dialogs = new TopsViewDialogs({ view: this });
 
+    // === MODULE: Output ===
+    this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
+
+    // === MODULE: Assignments ===
+    this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
     this._buildResponsibleDisplayLabel = (...args) =>
       this.responsibleOptionsService.buildResponsibleDisplayLabel(...args);
     this._normalizeResponsibleCandidates = (...args) =>
@@ -195,10 +202,13 @@ export default class TopsView {
       this.responsibleOptionsService.setLegacyResponsibleOption(this.selResponsible, label);
     this._buildResponsibleOptionsIfNeeded = () =>
       this.responsibleOptionsService.buildResponsibleOptionsIfNeeded(this.selResponsible);
+
+    // === MODULE: Dialogs ===
+    this.dialogs = new TopsViewDialogs({ view: this });
     this._clearGapPopup = () => this.dialogs.clearGapPopup();
     this._buildGapDetailsText = (...args) => this.dialogs.buildGapDetailsText(...args);
     this._showNumberGapPopup = (...args) => this.dialogs.showNumberGapPopup(...args);
-        this._openMeetingKeywordPopup = (...args) => this.dialogs.openMeetingKeywordPopup(...args);
+    this._openMeetingKeywordPopup = (...args) => this.dialogs.openMeetingKeywordPopup(...args);
     this._openCreateMeetingModal = (...args) => this.dialogs.openCreateMeetingModal(...args);
   }
 
@@ -1020,6 +1030,7 @@ _isoToDDMMYYYY(iso) {
     this._updateDeleteControls();
   }
 
+  // === CORE: Save / Patch Flow ===
   async _saveMeetingTopPatch(patch, { reload = true, pulse = false } = {}) {
     if (this.isReadOnly) return;
     if (this._busy) return;
@@ -1082,6 +1093,7 @@ _isoToDDMMYYYY(iso) {
     }
   }
 
+  // === CORE: Save / Patch Flow ===
   _collectEditorPatch() {
     const t = this.selectedTop;
     if (!t) return null;
@@ -1368,6 +1380,7 @@ _isoToDDMMYYYY(iso) {
     return s;
   }
 
+  // === CORE: Core Meta / Core Sync Helpers ===
   _getTopResponsible(top) {
     return {
       kind: top?.responsible_kind ?? top?.responsibleKind ?? "",
@@ -4276,6 +4289,7 @@ async _closeViewOnly() {
     return true;
   }
 
+  // === CORE: List Rendering ===
   _renderListOnly() {
     const list = this.listEl;
     list.innerHTML = "";
@@ -4748,6 +4762,7 @@ const textCol = document.createElement("div");
     }
   }
 
+  // === CORE: Editor State ===
   applyEditBoxState() {
     const t = this.selectedTop;
 
