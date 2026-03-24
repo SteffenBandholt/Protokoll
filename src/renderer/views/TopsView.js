@@ -7,13 +7,7 @@ import { shouldShowTopForMeeting, shouldGrayTopForMeeting } from "../utils/topVi
 import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
-import { attachAudioFeature } from "../features/audio/AudioFeature.js";
-import { DictationController } from "../features/audio-dictation/DictationController.js";
-import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
-import { CloseMeetingOutputFlow } from "../features/output/CloseMeetingOutputFlow.js";
-import { ResponsibleOptionsService } from "../features/assignments/ResponsibleOptionsService.js";
-import { ContactOptionsService } from "../features/assignments/ContactOptionsService.js";
-import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
+import AudioSuggestionsPanel from "../ui/AudioSuggestionsPanel.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
@@ -164,78 +158,34 @@ export default class TopsView {
 
     // Mail-Flow nach Protokoll beenden
     this._lastClosedMeetingForEmail = null;
-
+    this._audioPanel = null;
+    this._audioPanelBusy = false;
+    this._audioPanelStatusMessage = "";
+    this._audioDictationBusy = false;
+    this._audioDictationActive = false;
+    this._audioDictationTarget = null;
+    this._audioRecorder = null;
+    this._audioStream = null;
+    this._lastDictation = null;
+    this._termCorrections = new Map();
+    this._termPromptEl = null;
+    this._termPromptCleanup = null;
+    this._audioLicensed = false;
+    this._audioLicenseChecked = false;
+    this._audioLicenseMessage = "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    this._audioLicenseLoading = null;
+    this._audioDevOverride = false;
+    this._audioDevOverrideChecked = false;
+    this._audioDevOverrideLoading = null;
+    this._audioSuggestionsDevEnabled = false;
+    this._audioSuggestionsDevChecked = false;
+    this._audioSuggestionsDevLoading = null;
+    this._audioSuggestionMarkTimer = null;
     this._viewMenuOpen = false;
     this._viewMenuDocMouseDown = null;
     this._viewMenuEl = null;
     this._viewMenuBtn = null;
     this._projectTasksOverlayEl = null;
-
-    attachAudioFeature(this);
-
-    this.dictationController = new DictationController({
-      view: this,
-      ensureAudioAvailable: (options) => this._ensureAudioAvailable?.(options),
-    });
-    this.audioSuggestionsFlow = new AudioSuggestionsFlow({ view: this });
-    this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
-    this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
-    this.contactOptionsService = new ContactOptionsService({ view: this });
-    this.dialogs = new TopsViewDialogs({ view: this });
-
-    this._buildResponsibleDisplayLabel = (...args) =>
-      this.responsibleOptionsService.buildResponsibleDisplayLabel(...args);
-    this._normalizeResponsibleCandidates = (...args) =>
-      this.responsibleOptionsService.normalizeResponsibleCandidates(...args);
-    this._buildResponsibleOptionValue = (...args) =>
-      this.responsibleOptionsService.buildResponsibleOptionValue(...args);
-    this._parseResponsibleOptionValue = (...args) =>
-      this.responsibleOptionsService.parseResponsibleOptionValue(...args);
-    this._normalizeResponsibleKind = (...args) =>
-      this.responsibleOptionsService.normalizeResponsibleKind(...args);
-    this._resolveResponsibleSelection = (...args) =>
-      this.responsibleOptionsService.resolveResponsibleSelection(...args);
-    this._ensureProjectFirmsLoaded = (...args) =>
-      this.responsibleOptionsService.ensureProjectFirmsLoaded(...args);
-    this._computeRespOptionsKey = (...args) =>
-      this.responsibleOptionsService.computeRespOptionsKey(...args);
-    this._clearLegacyResponsibleOption = () =>
-      this.responsibleOptionsService.clearLegacyResponsibleOption(this.selResponsible);
-    this._setLegacyResponsibleOption = (label) =>
-      this.responsibleOptionsService.setLegacyResponsibleOption(this.selResponsible, label);    this._buildResponsibleOptionsIfNeeded = () =>
-      this.responsibleOptionsService.buildResponsibleOptionsIfNeeded(this.selResponsible);
-
-    this._sanitizeContactPersonLabel = (...args) =>
-      this.contactOptionsService.sanitizeContactPersonLabel(...args);
-    this._buildContactPersonDisplayLabel = (...args) =>
-      this.contactOptionsService.buildContactPersonDisplayLabel(...args);
-    this._getContactPersonLabelForSelection = (...args) =>
-      this.contactOptionsService.getContactPersonLabelForSelection(...args);
-    this._normalizeContactPersonCandidates = (...args) =>
-      this.contactOptionsService.normalizeContactPersonCandidates(...args);
-    this._buildContactPersonOptionValue = (...args) =>
-      this.contactOptionsService.buildContactPersonOptionValue(...args);
-    this._parseContactPersonOptionValue = (...args) =>
-      this.contactOptionsService.parseContactPersonOptionValue(...args);
-    this._findContactPersonOption = (...args) =>
-      this.contactOptionsService.findContactPersonOption(...args);
-    this._clearLegacyContactPersonOption = (...args) =>
-      this.contactOptionsService.clearLegacyContactPersonOption(...args);
-    this._setLegacyContactPersonOption = (...args) =>
-      this.contactOptionsService.setLegacyContactPersonOption(...args);
-    this._resolveContactPersonSelection = (...args) =>
-      this.contactOptionsService.resolveContactPersonSelection(...args);
-    this._loadContactPersonsForResponsible = (...args) =>
-      this.contactOptionsService.loadContactPersonsForResponsible(...args);
-    this._computeContactOptionsKey = (...args) =>
-      this.contactOptionsService.computeContactOptionsKey(...args);
-    this._buildContactOptionsIfNeeded = (...args) =>
-      this.contactOptionsService.buildContactOptionsIfNeeded(...args);
-    this._clearGapPopup = () => this.dialogs.clearGapPopup();
-    this._buildGapDetailsText = (...args) => this.dialogs.buildGapDetailsText(...args);
-    this._showNumberGapPopup = (...args) => this.dialogs.showNumberGapPopup(...args);
-        this._openMeetingKeywordPopup = (...args) => this.dialogs.openMeetingKeywordPopup(...args);
-    this._openCreateMeetingModal = (...args) => this.dialogs.openCreateMeetingModal(...args);
   }
 
   _updateTopBarProtocolTitle() {
@@ -580,6 +530,150 @@ _isoToDDMMYYYY(iso) {
   const d = iso.slice(8, 10);
   return `${d}.${m}.${y}`;
 }
+
+  async _openMeetingKeywordPopup() {
+    const api = window.bbmDb || {};
+    if (typeof api.meetingsUpdateTitle !== "function") {
+      alert("Meeting-Update ist nicht verfuegbar.");
+      return;
+    }
+
+    const parts = this._parseMeetingTitleParts();
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "1400";
+    overlay.tabIndex = -1;
+
+    const modal = document.createElement("div");
+    applyPopupCardStyle(modal);
+    modal.style.width = "min(560px, calc(100vw - 24px))";
+    modal.style.background = "#fff";
+    modal.style.padding = "12px";
+    modal.style.display = "grid";
+    modal.style.gap = "10px";
+
+    const title = document.createElement("div");
+    title.textContent = "Schlagwort bearbeiten";
+    title.style.fontWeight = "700";
+
+    const mkReadOnly = (labelText, value) => {
+      const row = document.createElement("div");
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "170px 1fr";
+      row.style.gap = "8px";
+      const lab = document.createElement("div");
+      lab.textContent = labelText;
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.readOnly = true;
+      inp.value = String(value || "");
+      inp.style.width = "100%";
+      row.append(lab, inp);
+      return row;
+    };
+
+    const rowKeyword = document.createElement("div");
+    rowKeyword.style.display = "grid";
+    rowKeyword.style.gridTemplateColumns = "170px 1fr";
+    rowKeyword.style.gap = "8px";
+    const keywordLabel = document.createElement("div");
+    keywordLabel.textContent = "Schlagwort";
+    const keywordInput = document.createElement("input");
+    keywordInput.type = "text";
+    keywordInput.value = parts.meetingKeyword || "";
+    keywordInput.maxLength = 120;
+    keywordInput.style.width = "100%";
+    rowKeyword.append(keywordLabel, keywordInput);
+
+    const actions = document.createElement("div");
+    actions.style.display = "flex";
+    actions.style.justifyContent = "flex-end";
+    actions.style.gap = "8px";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.type = "button";
+    btnCancel.textContent = "Abbrechen";
+    applyPopupButtonStyle(btnCancel);
+
+    const btnDelete = document.createElement("button");
+    btnDelete.type = "button";
+    btnDelete.textContent = "Loeschen";
+    applyPopupButtonStyle(btnDelete);
+
+    const btnSave = document.createElement("button");
+    btnSave.type = "button";
+    btnSave.textContent = "Speichern";
+    applyPopupButtonStyle(btnSave, { variant: "primary" });
+
+    actions.append(btnCancel, btnDelete, btnSave);
+
+    const close = () => {
+      try {
+        overlay.remove();
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    const applyKeyword = async (nextKeywordRaw) => {
+      const nextKeyword = String(nextKeywordRaw || "").trim();
+      const titleValue = parts.meetingDateText
+        ? (nextKeyword ? `${parts.meetingDateText} - ${nextKeyword}` : parts.meetingDateText)
+        : nextKeyword;
+      const res = await api.meetingsUpdateTitle({ meetingId: this.meetingId, title: titleValue });
+      if (!res?.ok) {
+        alert(res?.error || "Schlagwort konnte nicht gespeichert werden.");
+        return;
+      }
+      if (res.meeting) {
+        this.meetingMeta = res.meeting;
+        this.isReadOnly = this.meetingMeta ? Number(this.meetingMeta.is_closed) === 1 : false;
+      }
+      this._updateTopBarProtocolTitle();
+      close();
+    };
+
+    btnSave.onclick = async () => {
+      await applyKeyword(keywordInput.value);
+    };
+    btnDelete.onclick = async () => {
+      await applyKeyword("");
+    };
+    btnCancel.onclick = () => close();
+
+    overlay.addEventListener("mousedown", (e) => {
+      if (e.target === overlay) close();
+    });
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      close();
+    });
+
+    modal.append(
+      title,
+      mkReadOnly("Besprechungsnummer", parts.meetingIndex),
+      mkReadOnly("Datum", parts.meetingDateText),
+      rowKeyword,
+      actions
+    );
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    setTimeout(() => {
+      try {
+        keywordInput.focus();
+        keywordInput.select();
+      } catch (e) {
+        // ignore
+      }
+    }, 0);
+  }
 
   _readUiMode() {
     try {
@@ -1116,35 +1210,15 @@ _isoToDDMMYYYY(iso) {
         return;
       }
 
-      const t = this._findTopById(selectedInItems.id) || this.selectedTop;
-      if (t && nextPatch) {
-        if (nextPatch.title !== undefined) t.title = nextPatch.title;
-        if (nextPatch.longtext !== undefined) t.longtext = nextPatch.longtext;
-        if (nextPatch.due_date !== undefined) t.due_date = nextPatch.due_date;
-        if (nextPatch.status !== undefined) t.status = nextPatch.status;
-        if (nextPatch.completed_in_meeting_id !== undefined) {
-          t.completed_in_meeting_id = nextPatch.completed_in_meeting_id;
-        }
-        if (nextPatch.is_hidden !== undefined) t.is_hidden = nextPatch.is_hidden ? 1 : 0;
-        if (nextPatch.is_important !== undefined) t.is_important = nextPatch.is_important ? 1 : 0;
-        if (nextPatch.is_task !== undefined) t.is_task = nextPatch.is_task ? 1 : 0;
-        if (nextPatch.is_decision !== undefined) t.is_decision = nextPatch.is_decision ? 1 : 0;
-        if (nextPatch.responsible_kind !== undefined) t.responsible_kind = nextPatch.responsible_kind;
-        if (nextPatch.responsible_id !== undefined) t.responsible_id = nextPatch.responsible_id;
-        if (nextPatch.responsible_label !== undefined) t.responsible_label = nextPatch.responsible_label;
-        if (nextPatch.contact_person_kind !== undefined) {
-          t.contact_person_kind = nextPatch.contact_person_kind;
-        }
-        if (nextPatch.contact_person_id !== undefined) t.contact_person_id = nextPatch.contact_person_id;
-        if (nextPatch.contact_person_label !== undefined) {
-          t.contact_person_label = nextPatch.contact_person_label;
-        }
-      }
+      this._applyPatchToCurrentSelection(nextPatch);
 
       if (pulse) this._showSavedPulse();
 
       if (reload) {
         fireAndForget(() => this.reloadList(false), "TopsView reload after save");
+      } else {
+        this._renderListOnly();
+        this.applyEditBoxState();
       }
 
       return res;
@@ -1220,7 +1294,45 @@ _isoToDDMMYYYY(iso) {
   }
 
   _sanitizeResponsibleLabel(label) {
-    return this.responsibleOptionsService.sanitizeResponsibleLabel(label);
+    const s = (label ?? "").toString().trim();
+    if (!s) return "";
+    if (s === "?" || s === "-" || s === "—") return "";
+    if (/^\?+$/.test(s)) return "";
+    return s;
+  }
+
+  _sanitizeContactPersonLabel(label) {
+    const s = (label ?? "").toString().trim();
+    if (!s) return "";
+    if (s === "?" || s === "-") return "";
+    if (/^\?+$/.test(s)) return "";
+    return s;
+  }
+
+  _buildResponsibleDisplayLabel(row) {
+    const s = (row?.short || "").toString().trim();
+    if (s) return s;
+    const n = (row?.name || "").toString().trim();
+    if (n) return n;
+
+    const rawId = row?.id ?? row?.firm_id ?? row?.firmId ?? "";
+    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
+    if (id) return `Unbenannte Firma (ID: ${id})`;
+    return "Unbenannte Firma";
+  }
+
+  _buildContactPersonDisplayLabel(row) {
+    const name = (row?.name || "").toString().trim();
+    if (name) return name;
+    const first = (row?.first_name ?? row?.firstName ?? "").toString().trim();
+    const last = (row?.last_name ?? row?.lastName ?? "").toString().trim();
+    const combined = `${first} ${last}`.trim();
+    if (combined) return combined;
+
+    const rawId = row?.id ?? row?.person_id ?? row?.personId ?? "";
+    const id = rawId === null || rawId === undefined ? "" : String(rawId).trim();
+    if (id) return `Unbenannter Mitarbeiter (ID: ${id})`;
+    return "Unbenannter Mitarbeiter";
   }
 
   _parseActiveFlag(value) {
@@ -1235,7 +1347,556 @@ _isoToDDMMYYYY(iso) {
 
   _getResponsibleLabelForSelection(sel, parsed) {
     if (!parsed?.id) return null;
-    return this.responsibleOptionsService.getResponsibleLabelForSelection(sel, parsed);
+
+    const selectedText = this._sanitizeResponsibleLabel(sel?.selectedOptions?.[0]?.textContent || "");
+    if (selectedText) return selectedText;
+
+    const value = (sel?.value || "").toString();
+    const fromCandidates = (this.projectFirms || []).find((c) => (
+      this._buildResponsibleOptionValue(c?.kind, c?.id ?? c?.firm_id ?? c?.firmId ?? null) === value
+    ));
+    if (fromCandidates) return this._buildResponsibleDisplayLabel(fromCandidates);
+
+    return this._buildResponsibleDisplayLabel({ id: parsed.id, kind: parsed.kind });
+  }
+
+  _getContactPersonLabelForSelection(sel, parsed) {
+    if (!parsed?.id) return null;
+
+    const selectedText = this._sanitizeContactPersonLabel(sel?.selectedOptions?.[0]?.textContent || "");
+    if (selectedText) return selectedText;
+
+    const value = (sel?.value || "").toString();
+    const fromCandidates = (this.contactPersons || []).find((c) => (
+      this._buildContactPersonOptionValue(c?.kind, c?.id ?? c?.person_id ?? c?.personId ?? null) === value
+    ));
+    if (fromCandidates) return this._buildContactPersonDisplayLabel(fromCandidates);
+
+    return this._buildContactPersonDisplayLabel({ id: parsed.id, kind: parsed.kind });
+  }
+
+  _normalizeResponsibleCandidates(list) {
+    const out = [];
+    const seen = new Set();
+    for (const row of list || []) {
+      const activeRaw = row?.is_active ?? row?.isActive;
+      if (activeRaw !== undefined && activeRaw !== null) {
+        if (this._parseActiveFlag(activeRaw) === 0) continue;
+      }
+      const rawId = row?.id ?? row?.firm_id ?? row?.firmId ?? null;
+      if (rawId === null || rawId === undefined || rawId === "") continue;
+
+      const kindRaw = (row?.kind || "").toString().trim();
+      const kind = kindRaw || (this.isNewUi ? "project_firm" : "company");
+      const id = String(rawId).trim();
+      if (!id) continue;
+
+      const short = (row?.short || "").toString().trim();
+      const name = (row?.name || "").toString().trim();
+      const displayLabel = this._buildResponsibleDisplayLabel({ kind, id, short, name });
+      const key = `${kind}::${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      out.push({ kind, id, short, name, label: displayLabel, displayLabel });
+    }
+
+    out.sort((a, b) => {
+      const al = this._buildResponsibleDisplayLabel(a).toLocaleLowerCase("de-DE");
+      const bl = this._buildResponsibleDisplayLabel(b).toLocaleLowerCase("de-DE");
+      if (al < bl) return -1;
+      if (al > bl) return 1;
+      const ak = String(a?.kind || "");
+      const bk = String(b?.kind || "");
+      if (ak < bk) return -1;
+      if (ak > bk) return 1;
+      return String(a?.id || "").localeCompare(String(b?.id || ""));
+    });
+
+    return out;
+  }
+
+  _normalizeContactPersonCandidates(list, kind) {
+    const out = [];
+    const seen = new Set();
+    for (const row of list || []) {
+      const rawId = row?.id ?? row?.person_id ?? row?.personId ?? null;
+      if (rawId === null || rawId === undefined || rawId === "") continue;
+
+      const id = String(rawId).trim();
+      if (!id) continue;
+
+      const normalizedKind =
+        (kind || row?.kind || "").toString().trim() || (this.isNewUi ? "project_person" : "person");
+      const label = this._buildContactPersonDisplayLabel(row);
+      const key = `${normalizedKind}::${id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      out.push({ ...row, kind: normalizedKind, id, label, displayLabel: label });
+    }
+
+    out.sort((a, b) => {
+      const al = this._buildContactPersonDisplayLabel(a).toLocaleLowerCase("de-DE");
+      const bl = this._buildContactPersonDisplayLabel(b).toLocaleLowerCase("de-DE");
+      if (al < bl) return -1;
+      if (al > bl) return 1;
+      return String(a?.id || "").localeCompare(String(b?.id || ""));
+    });
+
+    return out;
+  }
+
+  _buildResponsibleOptionValue(kind, id) {
+    const idStr = id === null || id === undefined ? "" : String(id).trim();
+    if (!idStr) return "";
+    if (!this.isNewUi) return idStr;
+    const kindStr = (kind || "").toString().trim() || "project_firm";
+    return `${kindStr}::${idStr}`;
+  }
+
+  _parseResponsibleOptionValue(value) {
+    const raw = (value || "").toString().trim();
+    if (!raw) return null;
+    if (raw.startsWith("__legacy_responsible__")) return null;
+    if (!this.isNewUi) {
+      return { kind: "company", id: raw };
+    }
+
+    const sep = raw.indexOf("::");
+    if (sep <= 0) return null;
+    const kind = raw.slice(0, sep).trim();
+    const id = raw.slice(sep + 2).trim();
+    if (!kind || !id) return null;
+    return { kind, id };
+  }
+
+  _buildContactPersonOptionValue(kind, id) {
+    const idStr = id === null || id === undefined ? "" : String(id).trim();
+    if (!idStr) return "";
+    if (!this.isNewUi) return idStr;
+    const kindStr = (kind || "").toString().trim() || "project_person";
+    return `${kindStr}::${idStr}`;
+  }
+
+  _parseContactPersonOptionValue(value) {
+    const raw = (value || "").toString().trim();
+    if (!raw) return null;
+    if (raw.startsWith("__legacy_contact_person__")) return null;
+    if (!this.isNewUi) return { kind: "project_person", id: raw };
+
+    const sep = raw.indexOf("::");
+    if (sep <= 0) return null;
+    const kind = raw.slice(0, sep).trim();
+    const id = raw.slice(sep + 2).trim();
+    if (!kind || !id) return null;
+    return { kind, id };
+  }
+
+  _normalizeResponsibleKind(kind) {
+    const s = (kind || "").toString().trim().toLowerCase();
+    if (!s) return "";
+    if (s === "project_firm" || s === "global_firm") return s;
+    if (s.includes("global")) return "global_firm";
+    if (s.includes("project") || s.includes("local")) return "project_firm";
+    if (["company", "firma", "firm"].includes(s)) return "";
+    return s;
+  }
+
+  _findResponsibleOption(value) {
+    const sel = this.selResponsible;
+    if (!sel) return null;
+    const target = (value || "").toString();
+    return Array.from(sel.options || []).find((o) => String(o.value) === target) || null;
+  }
+
+  _findContactPersonOption(value) {
+    const sel = this.selContactPerson;
+    if (!sel) return null;
+    const target = (value || "").toString();
+    return Array.from(sel.options || []).find((o) => String(o.value) === target) || null;
+  }
+
+  _clearLegacyResponsibleOption() {
+    const sel = this.selResponsible;
+    if (!sel) return;
+    for (const opt of Array.from(sel.options || [])) {
+      if (opt?.dataset?.legacyResponsible === "1") {
+        opt.remove();
+      }
+    }
+    if (String(sel.value || "").startsWith("__legacy_responsible__")) {
+      sel.value = "";
+    }
+    this._respLegacyReadonly = false;
+  }
+
+  _clearLegacyContactPersonOption() {
+    const sel = this.selContactPerson;
+    if (!sel) return;
+    for (const opt of Array.from(sel.options || [])) {
+      if (opt?.dataset?.legacyContactPerson === "1") {
+        opt.remove();
+      }
+    }
+    if (String(sel.value || "").startsWith("__legacy_contact_person__")) {
+      sel.value = "";
+    }
+    this._contactLegacyReadonly = false;
+  }
+
+  _setLegacyResponsibleOption(label) {
+    const sel = this.selResponsible;
+    if (!sel) return;
+    const text = this._sanitizeResponsibleLabel(label);
+    if (!text) {
+      this._clearLegacyResponsibleOption();
+      return;
+    }
+
+    let opt = Array.from(sel.options || []).find((o) => o?.dataset?.legacyResponsible === "1") || null;
+    if (!opt) {
+      opt = document.createElement("option");
+      opt.dataset.legacyResponsible = "1";
+      sel.appendChild(opt);
+    }
+    opt.value = "__legacy_responsible__";
+    opt.textContent = text;
+    sel.value = opt.value;
+    this._respLegacyReadonly = true;
+  }
+
+  _setLegacyContactPersonOption(label) {
+    const sel = this.selContactPerson;
+    if (!sel) return;
+    const text = this._sanitizeContactPersonLabel(label);
+    if (!text) {
+      this._clearLegacyContactPersonOption();
+      return;
+    }
+
+    let opt = Array.from(sel.options || []).find((o) => o?.dataset?.legacyContactPerson === "1") || null;
+    if (!opt) {
+      opt = document.createElement("option");
+      opt.dataset.legacyContactPerson = "1";
+      sel.appendChild(opt);
+    }
+    opt.value = "__legacy_contact_person__";
+    opt.textContent = text;
+    sel.value = opt.value;
+    this._contactLegacyReadonly = true;
+  }
+
+  _resolveResponsibleSelection(top) {
+    const rid = (top?.responsible_id ?? "").toString().trim();
+    const rk = (top?.responsible_kind ?? "").toString().trim();
+    const rl = this._sanitizeResponsibleLabel(top?.responsible_label);
+    if (!rid) return { value: "", fallbackLabel: "" };
+    if (!this.isNewUi) return { value: rid, fallbackLabel: "" };
+
+    const candidates = this.projectFirms || [];
+    if (!candidates.length) {
+      return { value: "", fallbackLabel: rl || this._buildResponsibleDisplayLabel({ kind: rk, id: rid }) };
+    }
+
+    const exactKind = candidates.find((c) => String(c.kind) === rk && String(c.id) === rid);
+    if (exactKind) {
+      return { value: this._buildResponsibleOptionValue(exactKind.kind, exactKind.id), fallbackLabel: "" };
+    }
+
+    const mappedKind = this._normalizeResponsibleKind(rk);
+    if (mappedKind) {
+      const mapped = candidates.find((c) => String(c.kind) === mappedKind && String(c.id) === rid);
+      if (mapped) {
+        return { value: this._buildResponsibleOptionValue(mapped.kind, mapped.id), fallbackLabel: "" };
+      }
+    }
+
+    const sameId = candidates.filter((c) => String(c.id) === rid);
+    if (sameId.length === 1) {
+      const only = sameId[0];
+      return { value: this._buildResponsibleOptionValue(only.kind, only.id), fallbackLabel: "" };
+    }
+
+    if (sameId.length > 1 && rl) {
+      const rlNorm = rl.toLocaleLowerCase("de-DE");
+      const byLabel = sameId.find((c) => String(c.label || "").toLocaleLowerCase("de-DE") === rlNorm);
+      if (byLabel) {
+        return { value: this._buildResponsibleOptionValue(byLabel.kind, byLabel.id), fallbackLabel: "" };
+      }
+    }
+
+    if (rl) {
+      const rlNorm = rl.toLocaleLowerCase("de-DE");
+      const byAnyLabel = candidates.filter(
+        (c) => String(c.label || "").toLocaleLowerCase("de-DE") === rlNorm
+      );
+      if (byAnyLabel.length === 1) {
+        const one = byAnyLabel[0];
+        return { value: this._buildResponsibleOptionValue(one.kind, one.id), fallbackLabel: "" };
+      }
+    }
+
+    return { value: "", fallbackLabel: rl || this._buildResponsibleDisplayLabel({ kind: rk, id: rid }) };
+  }
+
+  async _ensureProjectFirmsLoaded() {
+    if (this._projectFirmsLoaded) return;
+    if (this._projectFirmsLoading) return await this._projectFirmsLoading;
+
+    const api = window.bbmDb || {};
+    this._projectFirmsLoading = (async () => {
+      if (!this.isNewUi) {
+        if (typeof api.projectFirmsListByProject === "function") {
+          const res = await api.projectFirmsListByProject(this.projectId);
+          if (res?.ok) {
+            const raw = (res.list || []).map((row) => ({
+              ...row,
+              kind: "company",
+              id: row?.id ?? row?.firm_id ?? row?.firmId ?? null,
+            }));
+            this.projectFirms = this._normalizeResponsibleCandidates(raw);
+          } else {
+            this.projectFirms = [];
+          }
+        } else {
+          this.projectFirms = [];
+        }
+        this._projectFirmsLoaded = true;
+        return;
+      }
+
+      let list = [];
+      if (this.isNewUi && typeof api.projectFirmsListFirmCandidatesByProject === "function") {
+        const res = await api.projectFirmsListFirmCandidatesByProject(this.projectId);
+        if (res?.ok) {
+          const raw = res.list || res.items || [];
+          list = this._normalizeResponsibleCandidates(raw);
+        }
+      }
+
+      if (!list.length && typeof api.projectFirmsListByProject === "function") {
+        const res = await api.projectFirmsListByProject(this.projectId);
+        if (res?.ok) {
+          const raw = (res.list || []).map((row) => ({
+            ...row,
+            kind: "company",
+            id: row?.id ?? row?.firm_id ?? row?.firmId ?? null,
+          }));
+          list = this._normalizeResponsibleCandidates(raw);
+        }
+      }
+
+      this.projectFirms = list;
+      this._projectFirmsLoaded = true;
+    })();
+
+    try {
+      await this._projectFirmsLoading;
+    } finally {
+      this._projectFirmsLoading = null;
+    }
+  }
+
+  _computeRespOptionsKey(list) {
+    const base = String(this.projectId || "");
+    const parts = (list || []).map((f) => {
+      const kind = (f?.kind || "").toString().trim();
+      const id = (f?.id ?? f?.firm_id ?? f?.firmId ?? "").toString().trim();
+      const label = this._buildResponsibleDisplayLabel(f);
+      return `${kind}|${id}|${label}`;
+    });
+    return `${base}::${parts.join("#")}`;
+  }
+
+  _buildResponsibleOptionsIfNeeded() {
+    if (!this.selResponsible) return;
+
+    const key = this._computeRespOptionsKey(this.projectFirms || []);
+    if (key === this._respOptionsKey) return;
+
+    const sel = this.selResponsible;
+    const current = (sel.value || "").toString();
+
+    sel.innerHTML = "";
+    this._respLegacyReadonly = false;
+
+    const optAll = document.createElement("option");
+    optAll.value = this._buildResponsibleOptionValue("all", "all");
+    optAll.textContent = "alle";
+    sel.appendChild(optAll);
+
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "-";
+    sel.appendChild(optEmpty);
+
+    for (const f of this.projectFirms || []) {
+      const value = this._buildResponsibleOptionValue(f?.kind, f?.id ?? f?.firm_id ?? f?.firmId ?? null);
+      if (!value) continue;
+      const label = this._buildResponsibleDisplayLabel(f);
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      opt.dataset.displayLabel = label;
+      sel.appendChild(opt);
+    }
+
+    this._respOptionsKey = key;
+
+    if (current && this._findResponsibleOption(current)) {
+      sel.value = current;
+    } else {
+      sel.value = "";
+    }
+  }
+
+  _resolveContactPersonSelection(top) {
+    const contact = this._getTopContactPerson(top);
+    const pid = (contact?.id ?? "").toString().trim();
+    const pk = (contact?.kind ?? "").toString().trim();
+    const pl = this._sanitizeContactPersonLabel(contact?.label);
+    if (!pid) return { value: "", fallbackLabel: "" };
+    if (!this.isNewUi) return { value: pid, fallbackLabel: "" };
+
+    const candidates = this.contactPersons || [];
+    if (!candidates.length) {
+      return { value: "", fallbackLabel: pl || this._buildContactPersonDisplayLabel({ kind: pk, id: pid }) };
+    }
+
+    const exactKind = candidates.find((c) => String(c.kind) === pk && String(c.id) === pid);
+    if (exactKind) {
+      return { value: this._buildContactPersonOptionValue(exactKind.kind, exactKind.id), fallbackLabel: "" };
+    }
+
+    const sameId = candidates.filter((c) => String(c.id) === pid);
+    if (sameId.length === 1) {
+      const only = sameId[0];
+      return { value: this._buildContactPersonOptionValue(only.kind, only.id), fallbackLabel: "" };
+    }
+
+    if (pl) {
+      const plNorm = pl.toLocaleLowerCase("de-DE");
+      const byLabel = candidates.filter(
+        (c) => String(c.label || "").toLocaleLowerCase("de-DE") === plNorm
+      );
+      if (byLabel.length === 1) {
+        const one = byLabel[0];
+        return { value: this._buildContactPersonOptionValue(one.kind, one.id), fallbackLabel: "" };
+      }
+    }
+
+    return { value: "", fallbackLabel: pl || this._buildContactPersonDisplayLabel({ kind: pk, id: pid }) };
+  }
+
+  async _loadContactPersonsForResponsible(parsed) {
+    const api = window.bbmDb || {};
+    const kind = (parsed?.kind || "").toString().trim();
+    const id = (parsed?.id || "").toString().trim();
+    if (!id || kind === "all") {
+      this.contactPersons = [];
+      this._contactSourceKey = "";
+      return [];
+    }
+
+    let list = [];
+    let normalizedKind = "project_person";
+    let activeCandidateSet = null;
+
+    if (this.projectId && typeof api.projectCandidatesList === "function") {
+      try {
+        const candidateRes = await api.projectCandidatesList({ projectId: this.projectId });
+        if (candidateRes?.ok) {
+          const rawCandidates = candidateRes.items || candidateRes.list || candidateRes.data || [];
+          activeCandidateSet = new Set(
+            (rawCandidates || [])
+              .filter((row) => Number(row?.is_active ?? row?.isActive ?? 1) === 1)
+              .map((row) => {
+                const candidateKind = String(row?.kind || "").trim();
+                const personId = String(row?.personId ?? row?.person_id ?? "").trim();
+                return candidateKind && personId ? `${candidateKind}::${personId}` : "";
+              })
+              .filter((key) => !!key)
+          );
+        }
+      } catch (_) {}
+    }
+
+    if (kind === "project_firm" || kind === "company") {
+      normalizedKind = "project_person";
+      if (typeof api.projectPersonsListByProjectFirm === "function") {
+        const res = await api.projectPersonsListByProjectFirm(id);
+        if (res?.ok) {
+          list = this._normalizeContactPersonCandidates(res.list || res.items || res.rows || [], normalizedKind);
+          if (activeCandidateSet) {
+            list = list.filter((row) => activeCandidateSet.has(`project_person::${String(row?.id || "").trim()}`));
+          }
+        }
+      }
+    } else if (kind === "global_firm" || kind === "firm") {
+      normalizedKind = "global_person";
+      if (typeof api.personsListByFirm === "function") {
+        const res = await api.personsListByFirm(id);
+        if (res?.ok) {
+          list = this._normalizeContactPersonCandidates(res.list || res.items || res.rows || [], normalizedKind);
+          if (activeCandidateSet) {
+            list = list.filter((row) => activeCandidateSet.has(`global_person::${String(row?.id || "").trim()}`));
+          }
+        }
+      }
+    }
+
+    this.contactPersons = list;
+    this._contactSourceKey = `${kind}::${id}`;
+    return list;
+  }
+
+  _computeContactOptionsKey(sourceKey, list) {
+    const base = String(sourceKey || "");
+    const parts = (list || []).map((p) => {
+      const kind = (p?.kind || "").toString().trim();
+      const id = (p?.id ?? p?.person_id ?? p?.personId ?? "").toString().trim();
+      const label = this._buildContactPersonDisplayLabel(p);
+      return `${kind}|${id}|${label}`;
+    });
+    return `${base}::${parts.join("#")}`;
+  }
+
+  _buildContactOptionsIfNeeded(sourceKey) {
+    if (!this.selContactPerson) return;
+
+    const key = this._computeContactOptionsKey(sourceKey, this.contactPersons || []);
+    if (key === this._contactOptionsKey) return;
+
+    const sel = this.selContactPerson;
+    const current = (sel.value || "").toString();
+
+    sel.innerHTML = "";
+    this._contactLegacyReadonly = false;
+
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "-";
+    sel.appendChild(optEmpty);
+
+    for (const p of this.contactPersons || []) {
+      const value = this._buildContactPersonOptionValue(p?.kind, p?.id ?? p?.person_id ?? p?.personId ?? null);
+      if (!value) continue;
+      const label = this._buildContactPersonDisplayLabel(p);
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      opt.dataset.displayLabel = label;
+      sel.appendChild(opt);
+    }
+
+    this._contactOptionsKey = key;
+
+    if (current && this._findContactPersonOption(current)) {
+      sel.value = current;
+    } else {
+      sel.value = "";
+    }
   }
 
   // ========= Layout helper (Sidebar/Header offsets) =========
@@ -1454,17 +2115,97 @@ _isoToDDMMYYYY(iso) {
   }
 
   _formatResponsible(top) {
-    const lbl = this._sanitizeResponsibleLabel(top?.responsible_label);
+    const res = this._getTopResponsible(top);
+    const lbl = this._sanitizeResponsibleLabel(res?.label);
     if (!lbl) return "—";
     const max = 22;
     return lbl.length <= max ? lbl : lbl.slice(0, max - 1) + "…";
   }
 
   _formatContactPerson(top) {
-    const lbl = this._sanitizeContactPersonLabel(top?.contact_person_label);
-    if (!lbl) return "—";
+    const contact = this._getTopContactPerson(top);
+    const lbl = this._sanitizeContactPersonLabel(contact?.label ?? "-");
+    if (!lbl || lbl === "-") return "—";
     const max = 22;
     return lbl.length <= max ? lbl : lbl.slice(0, max - 1) + "…";
+  }
+
+  _getTopResponsible(top) {
+    return {
+      kind: top?.responsible_kind ?? top?.responsibleKind ?? "",
+      id: top?.responsible_id ?? top?.responsibleId ?? "",
+      label: top?.responsible_label ?? top?.responsibleLabel ?? "",
+    };
+  }
+
+  _getTopContactPerson(top) {
+    return {
+      kind: top?.contact_person_kind ?? top?.contactPersonKind ?? top?.contact_kind ?? top?.contactKind ?? "",
+      id: top?.contact_person_id ?? top?.contactPersonId ?? "",
+      label: top?.contact_person_label ?? top?.contactPersonLabel ?? top?.contact_label ?? top?.contactLabel ?? "",
+    };
+  }
+
+  _getTopMeta(top) {
+    return {
+      dueDate: top?.due_date ?? top?.dueDate ?? "",
+      status: top?.status ?? "",
+      responsible: this._getTopResponsible(top),
+      contactPerson: this._getTopContactPerson(top),
+    };
+  }
+
+  _shouldShowMetaColumn(top) {
+    const lvl = Number(top?.level);
+    return Number.isFinite(lvl) && lvl >= 2 && lvl <= 4;
+  }
+
+  _applyPatchToLocalTop(top, patch) {
+    if (!top || !patch || typeof patch !== "object") return;
+
+    if (patch.title !== undefined) top.title = patch.title;
+    if (patch.longtext !== undefined) top.longtext = patch.longtext;
+    if (patch.due_date !== undefined) top.due_date = patch.due_date;
+    if (patch.status !== undefined) top.status = patch.status;
+    if (patch.completed_in_meeting_id !== undefined) {
+      top.completed_in_meeting_id = patch.completed_in_meeting_id;
+    }
+    if (patch.is_hidden !== undefined) top.is_hidden = patch.is_hidden ? 1 : 0;
+    if (patch.is_important !== undefined) top.is_important = patch.is_important ? 1 : 0;
+    if (patch.is_task !== undefined) top.is_task = patch.is_task ? 1 : 0;
+    if (patch.is_decision !== undefined) top.is_decision = patch.is_decision ? 1 : 0;
+
+    if (patch.responsible_kind !== undefined) top.responsible_kind = patch.responsible_kind;
+    if (patch.responsible_id !== undefined) top.responsible_id = patch.responsible_id;
+    if (patch.responsible_label !== undefined) top.responsible_label = patch.responsible_label;
+
+    if (patch.contact_person_kind !== undefined) {
+      top.contact_person_kind = patch.contact_person_kind;
+      top.contact_kind = patch.contact_person_kind;
+    }
+    if (patch.contact_kind !== undefined) {
+      top.contact_kind = patch.contact_kind;
+      top.contact_person_kind = patch.contact_kind;
+    }
+    if (patch.contact_person_id !== undefined) top.contact_person_id = patch.contact_person_id;
+    if (patch.contact_person_label !== undefined) {
+      top.contact_person_label = patch.contact_person_label;
+      top.contact_label = patch.contact_person_label;
+    }
+    if (patch.contact_label !== undefined) {
+      top.contact_label = patch.contact_label;
+      top.contact_person_label = patch.contact_label;
+    }
+  }
+
+  _applyPatchToCurrentSelection(patch) {
+    if (!patch || typeof patch !== "object") return;
+    const sel = this.selectedTop || null;
+    const selId = sel?.id ?? this.selectedTopId;
+    const inItems = selId ? this._findTopById(selId) : null;
+
+    if (sel) this._applyPatchToLocalTop(sel, patch);
+    if (inItems && inItems !== sel) this._applyPatchToLocalTop(inItems, patch);
   }
 
   _ampelBaseDate() {
@@ -1743,13 +2484,13 @@ _isoToDDMMYYYY(iso) {
 
     const hasMeeting = !!this.meetingId;
     const hasTops = hasMeeting && Array.isArray(this.items) && this.items.length > 0;
-    const on = !!this.showLongtextInList && hasTops;
+    const on = hasTops;
 
     // ✅ Platz immer reservieren -> keine Sprünge
-    this.topMetaEl.style.visibility = on ? "visible" : "hidden";
-    this.topMetaEl.style.pointerEvents = on ? "auto" : "none";
-    this.topMetaEl.style.opacity = on ? "0.65" : "0";
-    this.topMetaEl.style.borderLeft = on ? "1px solid rgba(0,0,0,0.08)" : "1px solid transparent";
+    this.topMetaEl.style.visibility = "visible";
+    this.topMetaEl.style.pointerEvents = "auto";
+    this.topMetaEl.style.opacity = "0.65";
+    this.topMetaEl.style.borderLeft = "1px solid rgba(0,0,0,0.08)";
 
     if (!on) {
       this.topMetaEl.textContent = "";
@@ -1768,6 +2509,1092 @@ _isoToDDMMYYYY(iso) {
     this.topMetaEl.append(mk("Fertig bis"), mk("Status"), mk("verantw"), mk("anspr"));
   }
 
+  _getAudioPanel() {
+    if (!this._audioPanel) {
+      this._audioPanel = new AudioSuggestionsPanel();
+    }
+    return this._audioPanel;
+  }
+
+  _formatAudioLicenseMessage(status = null) {
+    if (status?.valid) {
+      return "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    }
+
+    const reason = String(status?.reason || "").trim();
+    switch (reason) {
+      case "NO_LICENSE":
+        return "Audio erfordert eine gueltige Lizenz.";
+      case "LICENSE_EXPIRED":
+        return "Audio ist gesperrt, weil die Lizenz abgelaufen ist.";
+      case "WRONG_MACHINE":
+        return "Audio ist gesperrt, weil diese Lizenz zu einem anderen Rechner gehoert.";
+      case "PUBLIC_KEY_INVALID":
+      case "PUBLIC_KEY_MISSING":
+        return "Audio bleibt gesperrt, weil die lokale Signaturpruefung nicht vollstaendig eingerichtet ist.";
+      default:
+        return "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.";
+    }
+  }
+
+  _buildLockedAudioPanelState(message) {
+    return {
+      title: "Sprachdatei auswerten",
+      modeLabel: "Pruefmodus",
+      busy: false,
+      statusMessage: String(message || this._audioLicenseMessage || "").trim(),
+      suggestions: [],
+      audioImport: null,
+      transcript: null,
+      parentOptions: this._getAudioParentOptions(),
+      onImportAudio: async () => {},
+      onCreateDemoSuggestion: async () => {},
+      onApplySuggestion: async () => {},
+      onFocusSuggestion: async () => {},
+      onRejectSuggestion: async () => {},
+    };
+  }
+
+  _setAudioLicenseState(licensed, message = "") {
+    this._audioLicensed = !!licensed;
+    this._audioLicenseChecked = true;
+    this._audioLicenseMessage = this._audioLicensed
+      ? ""
+      : (String(message || "").trim() || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
+    this._updateDictationButtons();
+
+    if (this.root) {
+      this.applyEditBoxState();
+    }
+
+    if (this._audioPanel && !this._audioLicensed) {
+      this._audioPanelBusy = false;
+      this._audioPanelStatusMessage = this._audioLicenseMessage;
+      this._audioPanel.update(this._buildLockedAudioPanelState(this._audioPanelStatusMessage));
+    }
+  }
+
+  async _loadAudioLicenseState(force = false) {
+    if (!force && this._audioLicenseChecked) return this._audioLicensed;
+    if (!force && this._audioLicenseLoading) return this._audioLicenseLoading;
+
+    const task = (async () => {
+      const devOverride = await this._loadAudioDevOverrideState(force);
+      await this._loadAudioSuggestionsDevFlag(force);
+      if (devOverride) {
+        this._setAudioLicenseState(true, "");
+        return true;
+      }
+
+      const api = window.bbmDb || {};
+      if (typeof api.licenseGetStatus !== "function") {
+        this._setAudioLicenseState(false, "Lizenzstatus ist nicht verfuegbar. Audio bleibt gesperrt.");
+        return false;
+      }
+
+      try {
+        const res = await api.licenseGetStatus();
+        const features = Array.isArray(res?.features)
+          ? res.features.map((value) => String(value || "").trim().toLowerCase())
+          : [];
+        const licensed = !!res?.ok && !!res?.valid && features.includes("audio");
+        this._setAudioLicenseState(licensed, this._formatAudioLicenseMessage(res));
+        return licensed;
+      } catch (_err) {
+        this._setAudioLicenseState(false, "Lizenzstatus konnte nicht geladen werden. Audio bleibt gesperrt.");
+        return false;
+      } finally {
+        this._audioLicenseLoading = null;
+      }
+    })();
+
+    this._audioLicenseLoading = task;
+    return task;
+  }
+
+  async _loadAudioDevOverrideState(force = false) {
+    if (!force && this._audioDevOverrideChecked) return this._audioDevOverride;
+    if (!force && this._audioDevOverrideLoading) return this._audioDevOverrideLoading;
+
+    const task = (async () => {
+      const api = window.bbmDb || {};
+      const readDevFallback = async () => {
+        if (typeof api.appGetBuildChannel === "function") {
+          try {
+            const res = await api.appGetBuildChannel();
+            const channel = String(res?.channel || "").trim().toLowerCase();
+            if (res?.ok && channel === "dev") return true;
+          } catch (_err) {
+            // ignore
+          }
+        }
+        if (typeof api.appIsPackaged !== "function") return false;
+        try {
+          const packaged = await api.appIsPackaged();
+          return packaged === false;
+        } catch (_err) {
+          return false;
+        }
+      };
+
+      if (typeof api.devAudioUnlockStatus !== "function") {
+        this._audioDevOverride = await readDevFallback();
+        this._audioDevOverrideChecked = true;
+        this._updateDictationButtons();
+        return this._audioDevOverride;
+      }
+
+      try {
+        const res = await api.devAudioUnlockStatus();
+        const enabled = !!res?.ok && !!res?.enabled;
+        const fallback = enabled ? false : await readDevFallback();
+        this._audioDevOverride = enabled;
+        this._audioDevOverrideChecked = true;
+        this._updateDictationButtons();
+        if (fallback) {
+          this._audioDevOverride = true;
+          this._updateDictationButtons();
+          return true;
+        }
+        return enabled;
+      } catch (_err) {
+        this._audioDevOverride = await readDevFallback();
+        this._audioDevOverrideChecked = true;
+        this._updateDictationButtons();
+        return this._audioDevOverride;
+      } finally {
+        this._audioDevOverrideLoading = null;
+      }
+    })();
+
+    this._audioDevOverrideLoading = task;
+    return task;
+  }
+
+  async _loadAudioSuggestionsDevFlag(force = false) {
+    if (!force && this._audioSuggestionsDevChecked) return this._audioSuggestionsDevEnabled;
+    if (!force && this._audioSuggestionsDevLoading) return this._audioSuggestionsDevLoading;
+
+    const task = (async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.devAudioSuggestionsEnabled !== "function") {
+        this._audioSuggestionsDevEnabled = false;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      }
+
+      try {
+        const res = await api.devAudioSuggestionsEnabled();
+        this._audioSuggestionsDevEnabled = !!res?.ok && !!res?.enabled;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      } catch (_err) {
+        this._audioSuggestionsDevEnabled = false;
+        this._audioSuggestionsDevChecked = true;
+        this._applyReadOnlyState();
+        return this._audioSuggestionsDevEnabled;
+      } finally {
+        this._audioSuggestionsDevLoading = null;
+      }
+    })();
+
+    this._audioSuggestionsDevLoading = task;
+    return task;
+  }
+
+  async _ensureAudioAvailable({ alertOnFailure = true, force = false } = {}) {
+    const licensed = await this._loadAudioLicenseState(force);
+    if (licensed) return true;
+
+    if (alertOnFailure) {
+      alert(this._audioLicenseMessage || "Audio-Funktion ist fuer diese Lizenz nicht freigeschaltet.");
+    }
+    return false;
+  }
+
+  _updateDictationButtons() {
+    const effectiveTop = this.selectedTop || this._findTopById?.(this.selectedTopId) || null;
+    if (!this.selectedTop && effectiveTop) this.selectedTop = effectiveTop;
+    const baseDisabled = !!this._audioDictationBusy;
+    const audioLocked = !this._audioLicensed && !this._audioDevOverride;
+    const isRecording = !!this._audioDictationActive;
+    const activeTarget = this._audioDictationTarget;
+
+    if (this.btnTitleDictate) {
+      const disabled = baseDisabled || audioLocked || (isRecording && activeTarget !== "shortText");
+      this.btnTitleDictate.disabled = disabled;
+      this.btnTitleDictate.style.opacity = disabled ? "0.6" : "1";
+      this.btnTitleDictate.textContent =
+        isRecording && activeTarget === "shortText" ? "Stop" : "Diktat";
+      this.btnTitleDictate.style.background =
+        isRecording && activeTarget === "shortText" ? "#ffebee" : "#f7f9fb";
+      this.btnTitleDictate.style.color =
+        isRecording && activeTarget === "shortText" ? "#b71c1c" : "#0b4db4";
+      this.btnTitleDictate.title = audioLocked
+        ? this._audioLicenseMessage
+        : "Spracheingabe fuer Kurztext";
+    }
+
+    if (this.btnLongDictate) {
+      const disabled = baseDisabled || audioLocked || (isRecording && activeTarget !== "longText");
+      this.btnLongDictate.disabled = disabled;
+      this.btnLongDictate.style.opacity = disabled ? "0.6" : "1";
+      this.btnLongDictate.textContent =
+        isRecording && activeTarget === "longText" ? "Stop" : "Diktat";
+      this.btnLongDictate.style.background =
+        isRecording && activeTarget === "longText" ? "#ffebee" : "#f7f9fb";
+      this.btnLongDictate.style.color =
+        isRecording && activeTarget === "longText" ? "#b71c1c" : "#0b4db4";
+      this.btnLongDictate.title = audioLocked
+        ? this._audioLicenseMessage
+        : "Spracheingabe fuer Langtext";
+    }
+  }
+
+  _applyDictationTextToField(targetField, transcriptText) {
+    const text = String(transcriptText || "").trim();
+    if (!text) return;
+
+    if (targetField === "shortText") {
+      const next = this._normTitle(text);
+      if (this.inpTitle) {
+        this.inpTitle.value = this._clampStr(next, this._titleMax());
+        this.inpTitle.focus();
+        this.inpTitle.select?.();
+      }
+      this._lastDictation = { field: "shortText", text: next, at: Date.now() };
+    } else if (targetField === "longText") {
+      const current = this.taLongtext ? String(this.taLongtext.value || "") : "";
+      const joined = current ? `${current.replace(/\s+$/g, "")}\n${text}` : text;
+      const next = this._normLong(joined);
+      if (this.taLongtext) {
+        this.taLongtext.value = this._clampStr(next, this._longMax());
+        this.taLongtext.focus();
+      }
+      this._lastDictation = { field: "longText", text: text, at: Date.now() };
+    }
+
+    this._updateCharCounters();
+  }
+
+  _cleanupDictationText(text) {
+    let cleaned = String(text || "").trim();
+    if (!cleaned) return "";
+
+    cleaned = cleaned.replace(/\s{2,}/g, " ");
+    cleaned = cleaned.replace(/\s+([,.;:!?])/g, "$1");
+    cleaned = cleaned.replace(/([,.;:!?])([^\s])/g, "$1 $2");
+    cleaned = cleaned.replace(/([,.;:!?])\1+/g, "$1");
+    cleaned = cleaned.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+    cleaned = cleaned.replace(/\)\s*(\w)/g, ") $1");
+    cleaned = cleaned.replace(/\s+$/g, "").trim();
+
+    if (/^[a-z\u00e4\u00f6\u00fc]/.test(cleaned)) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.slice(1);
+    }
+
+    return this._applyDictationDictionary(cleaned);
+  }
+
+  _normalizeTerm(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  }
+
+  _applyDictationDictionary(text) {
+    let out = String(text || "");
+    const replaceWord = (pattern, replacement) => {
+      out = out.replace(pattern, (match) => {
+        const first = match[0];
+        if (first && first === first.toUpperCase()) {
+          return replacement[0].toUpperCase() + replacement.slice(1);
+        }
+        return replacement;
+      });
+    };
+
+    replaceWord(/\brohrbau\b/gi, "Rohbau");
+    replaceWord(/\bschallung\b/gi, "Schalung");
+    replaceWord(/\bbewehrung\b/gi, "Bewehrung");
+    replaceWord(/\bbetonage\b/gi, "Betonage");
+    replaceWord(/\bfreigabe\b/gi, "Freigabe");
+    replaceWord(/\bnachtrag\b/gi, "Nachtrag");
+    replaceWord(/\bschacht\s?hoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthoehen\b/gi, "Schachthöhen");
+    replaceWord(/\bschachthohen\b/gi, "Schachthöhen");
+    replaceWord(/\bsohlen\b/gi, "Sohlen");
+    replaceWord(/\babsteckung\b/gi, "Absteckung");
+    replaceWord(/\bgeruestpruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bgeruest pruefung\b/gi, "Gerüstprüfung");
+    replaceWord(/\bstatik\b/gi, "Statik");
+    replaceWord(/\bbauzaun\b/gi, "Bauzaun");
+
+    out = out.replace(/\bSchachthöhen\s+Sohlen\b/gi, "Schachthöhen (Sohlen)");
+    out = this._applyProjectTermCorrections(out);
+    return out;
+  }
+
+  _applyProjectTermCorrections(text) {
+    let out = String(text || "");
+    if (!this._termCorrections || this._termCorrections.size === 0) return out;
+
+    for (const [wrongTerm, correctTerm] of this._termCorrections.entries()) {
+      if (!wrongTerm || !correctTerm) continue;
+      const pattern = new RegExp(`\\b${wrongTerm.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "gi");
+      out = out.replace(pattern, (match) => {
+        const first = match[0];
+        if (first && first === first.toUpperCase()) {
+          return correctTerm[0].toUpperCase() + correctTerm.slice(1);
+        }
+        return correctTerm;
+      });
+    }
+
+    return out;
+  }
+
+  async _loadProjectTermCorrections(force = false) {
+    if (!this.projectId) return;
+    if (!force && this._termCorrections?.size) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioTermCorrectionsList !== "function") return;
+
+    try {
+      const res = await api.audioTermCorrectionsList({ projectId: this.projectId });
+      if (!res?.ok) return;
+      const map = new Map();
+      const list = Array.isArray(res.list) ? res.list : [];
+      for (const row of list) {
+        const wrong = String(row?.wrong_term || row?.wrongTerm || "").trim();
+        const correct = String(row?.correct_term || row?.correctTerm || "").trim();
+        if (!wrong || !correct) continue;
+        map.set(this._normalizeTerm(wrong), correct);
+      }
+      this._termCorrections = map;
+    } catch (_err) {
+      // ignore
+    }
+  }
+
+  _detectSimpleTermCorrection(originalText, editedText) {
+    const original = this._cleanupDictationText(originalText);
+    const edited = this._cleanupDictationText(editedText);
+    if (!original || !edited) return null;
+    if (original === edited) return null;
+
+    const wordRe = /[\p{L}\p{N}\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df-]+/gu;
+    const origWords = original.match(wordRe) || [];
+    const editWords = edited.match(wordRe) || [];
+    if (origWords.length === 0 || editWords.length === 0) return null;
+    if (origWords.length !== editWords.length) return null;
+
+    let diffIndex = -1;
+    for (let i = 0; i < origWords.length; i += 1) {
+      if (origWords[i].toLowerCase() !== editWords[i].toLowerCase()) {
+        if (diffIndex !== -1) return null;
+        diffIndex = i;
+      }
+    }
+    if (diffIndex === -1) return null;
+
+    const wrongTerm = origWords[diffIndex].trim();
+    const correctTerm = editWords[diffIndex].trim();
+    if (!wrongTerm || !correctTerm) return null;
+    if (wrongTerm.length < 3 || correctTerm.length < 3) return null;
+    if (wrongTerm.length > 40 || correctTerm.length > 40) return null;
+    if (wrongTerm.toLowerCase() === correctTerm.toLowerCase()) return null;
+
+    return { wrongTerm, correctTerm };
+  }
+
+  _showTermCorrectionPrompt({ field, wrongTerm, correctTerm, anchorEl }) {
+    if (!anchorEl) return;
+    if (this._termPromptEl) {
+      this._termPromptEl.remove();
+      this._termPromptEl = null;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.gap = "10px";
+    wrap.style.marginTop = "4px";
+    wrap.style.padding = "4px 8px";
+    wrap.style.border = "1px solid #ffe0b2";
+    wrap.style.background = "#fff8e1";
+    wrap.style.borderRadius = "6px";
+    wrap.style.fontSize = "12px";
+    wrap.style.color = "#5d4037";
+    wrap.style.zIndex = "5";
+
+    const text = document.createElement("div");
+    text.textContent = `Korrektur merken? '${wrongTerm}' → '${correctTerm}'`;
+
+    const btnYes = document.createElement("button");
+    btnYes.type = "button";
+    btnYes.textContent = "Merken";
+    btnYes.style.border = "1px solid #cfd8dc";
+    btnYes.style.background = "#f7f9fb";
+    btnYes.style.borderRadius = "6px";
+    btnYes.style.padding = "3px 8px";
+    btnYes.style.cursor = "pointer";
+
+    const btnNo = document.createElement("button");
+    btnNo.type = "button";
+    btnNo.textContent = "Nein";
+    btnNo.style.border = "1px solid #cfd8dc";
+    btnNo.style.background = "#f7f9fb";
+    btnNo.style.borderRadius = "6px";
+    btnNo.style.padding = "3px 8px";
+    btnNo.style.cursor = "pointer";
+
+    wrap.append(text, btnYes, btnNo);
+    anchorEl.insertAdjacentElement("afterend", wrap);
+    this._termPromptEl = wrap;
+
+    const cleanup = () => {
+      if (this._termPromptEl) this._termPromptEl.remove();
+      this._termPromptEl = null;
+      if (this._termPromptCleanup) this._termPromptCleanup = null;
+    };
+
+    btnNo.onclick = () => cleanup();
+    btnYes.onclick = async () => {
+      const api = window.bbmDb || {};
+      if (typeof api.audioTermCorrectionUpsert === "function" && this.projectId) {
+        await api.audioTermCorrectionUpsert({
+          projectId: this.projectId,
+          wrongTerm,
+          correctTerm,
+        });
+        this._termCorrections.set(this._normalizeTerm(wrongTerm), correctTerm);
+      }
+      cleanup();
+    };
+
+    this._termPromptCleanup = cleanup;
+  }
+
+  _maybeOfferTermCorrection(field, newValue, anchorEl) {
+    const last = this._lastDictation;
+    if (!last || last.field !== field) return;
+    const maxAgeMs = 10 * 60 * 1000;
+    if (Date.now() - (last.at || 0) > maxAgeMs) {
+      this._lastDictation = null;
+      return;
+    }
+
+    const correction = this._detectSimpleTermCorrection(last.text || "", newValue || "");
+    this._lastDictation = null;
+    if (!correction) return;
+
+    const normalizedWrong = this._normalizeTerm(correction.wrongTerm);
+    if (this._termCorrections.has(normalizedWrong)) return;
+    this._pendingTermPrompt = {
+      field,
+      wrongTerm: correction.wrongTerm,
+      correctTerm: correction.correctTerm,
+      topId: this.selectedTop?.id ?? null,
+      at: Date.now(),
+    };
+    this._showTermCorrectionPrompt({
+      field,
+      wrongTerm: correction.wrongTerm,
+      correctTerm: correction.correctTerm,
+      anchorEl,
+    });
+  }
+
+  _tryShowPendingTermPrompt() {
+    const pending = this._pendingTermPrompt;
+    if (!pending) return;
+    if (!this.selectedTop || !this._sameTopId(this.selectedTop.id, pending.topId)) return;
+    if (Date.now() - (pending.at || 0) > 2 * 60 * 1000) {
+      this._pendingTermPrompt = null;
+      return;
+    }
+    const anchorEl = pending.field === "shortText" ? this.inpTitle : this.taLongtext;
+    if (!anchorEl) return;
+    this._showTermCorrectionPrompt({
+      field: pending.field,
+      wrongTerm: pending.wrongTerm,
+      correctTerm: pending.correctTerm,
+      anchorEl,
+    });
+    this._pendingTermPrompt = null;
+  }
+
+  _deriveShortTextFromDictation(text) {
+    const cleaned = this._cleanupDictationText(text).replace(/^[.!?;,:-]+\s*/g, "").trim();
+    if (!cleaned) return "";
+
+    const dotIndex = cleaned.indexOf(".");
+    const commaIndex = cleaned.indexOf(",");
+    const cutIndex = dotIndex >= 0 ? dotIndex : commaIndex >= 0 ? commaIndex : -1;
+    let title =
+      cutIndex >= 0
+        ? cleaned.slice(0, cutIndex).trim()
+        : cleaned.length > 80
+        ? cleaned.slice(0, 80).trim()
+        : cleaned;
+
+    title = title.replace(/[.!?;,]+$/g, "").trim();
+    if (!title) return cleaned;
+
+    const stop = new Set([
+      "mit",
+      "ist",
+      "sind",
+      "wird",
+      "werden",
+      "war",
+      "waren",
+      "muss",
+      "muessen",
+      "soll",
+      "sollen",
+      "noch",
+      "zu",
+      "auf",
+      "fuer",
+      "von",
+      "im",
+      "am",
+      "an",
+      "der",
+      "die",
+      "das",
+      "und",
+      "oder",
+      "bei",
+      "beim",
+      "zum",
+      "zur",
+      "des",
+      "den",
+      "dem",
+    ]);
+
+    const words = title.split(/\s+/).filter(Boolean);
+    while (words.length > 2) {
+      const last = words[words.length - 1].toLowerCase();
+      if (!stop.has(last)) break;
+      words.pop();
+    }
+    const compact = words.join(" ").trim();
+    if (compact.length >= 6) return compact;
+    return title;
+  }
+
+  async _runFieldDictation(targetField) {
+    if (this._audioDictationActive && this._audioDictationTarget === targetField) {
+      await this._stopFieldDictation();
+      return;
+    }
+    await this._startFieldDictation(targetField);
+  }
+
+  async _startFieldDictation(targetField) {
+    if (!(await this._ensureAudioAvailable())) return;
+    if (this._audioDictationBusy || this._audioDictationActive) return;
+    if (!this.selectedTop) {
+      const fallbackTop = this._findTopById?.(this.selectedTopId) || null;
+      if (fallbackTop) this.selectedTop = fallbackTop;
+    }
+    if (!this.selectedTop) {
+      alert("Bitte zuerst einen TOP auswaehlen.");
+      return;
+    }
+
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      alert("Mikrofonaufnahme wird nicht unterstuetzt.");
+      return;
+    }
+
+    this._audioDictationBusy = true;
+    this._updateDictationButtons();
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
+      const mimeType =
+        preferredTypes.find((type) => window.MediaRecorder?.isTypeSupported?.(type)) || "";
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const chunks = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event?.data && event.data.size > 0) chunks.push(event.data);
+      };
+
+      recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        await this._handleDictationBlob(blob, recorder._bbmTargetField || targetField);
+      };
+
+      recorder.start();
+      recorder._bbmTargetField = targetField;
+      this._audioRecorder = recorder;
+      this._audioStream = stream;
+      this._audioDictationActive = true;
+      this._audioDictationTarget = targetField;
+    } catch (err) {
+      alert(err?.message || String(err));
+    } finally {
+      this._audioDictationBusy = false;
+      this._updateDictationButtons();
+    }
+  }
+
+  async _stopFieldDictation() {
+    if (!this._audioRecorder) return;
+    try {
+      this._audioRecorder.stop();
+    } catch (_err) {
+      // ignore
+    }
+    if (this._audioStream) {
+      this._audioStream.getTracks().forEach((track) => track.stop());
+    }
+    this._audioRecorder = null;
+    this._audioStream = null;
+    this._audioDictationActive = false;
+    this._audioDictationTarget = null;
+    this._updateDictationButtons();
+  }
+
+  async _handleDictationBlob(blob, targetField) {
+    if (!blob || !blob.size) {
+      alert("Aufnahme ist leer.");
+      return;
+    }
+
+    const api = window.bbmDb || {};
+    if (typeof api.audioTranscribeBlob !== "function") {
+      alert("Audio-Transkription ist nicht verfuegbar.");
+      return;
+    }
+
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = String(reader.result || "");
+        const payload = result.includes(",") ? result.split(",").pop() : result;
+        resolve(payload || "");
+      };
+      reader.onerror = () => reject(reader.error || new Error("Datei konnte nicht gelesen werden"));
+      reader.readAsDataURL(blob);
+    });
+
+    this._audioDictationBusy = true;
+    this._updateDictationButtons();
+
+    try {
+      const res = await api.audioTranscribeBlob({
+        meetingId: this.meetingId,
+        projectId: this.projectId || null,
+        mimeType: blob.type || "audio/webm",
+        base64,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Transkription fehlgeschlagen.");
+      }
+      const transcriptText = String(res?.transcript?.full_text || "").trim();
+      if (!transcriptText) {
+        alert("Transkription ist leer.");
+        return;
+      }
+      const cleanedText = this._cleanupDictationText(transcriptText);
+      if (targetField === "shortText") {
+        const shortText = this._deriveShortTextFromDictation(cleanedText) || cleanedText;
+        this._applyDictationTextToField("shortText", shortText);
+      } else {
+        this._applyDictationTextToField(targetField || "longText", cleanedText);
+      }
+    } catch (err) {
+      alert(err?.message || String(err));
+    } finally {
+      this._audioDictationBusy = false;
+      this._updateDictationButtons();
+    }
+  }
+
+  _manualAssignTitle() {
+    return "Manuell zuordnen";
+  }
+
+  _normalizeManualAssignTitle(value) {
+    return String(value || "").trim().toLocaleLowerCase("de-DE");
+  }
+
+  _findManualAssignTop() {
+    const target = this._normalizeManualAssignTitle(this._manualAssignTitle());
+    return (
+      (this.items || []).find((item) => {
+        return Number(item?.level) === 1 && this._normalizeManualAssignTitle(item?.title) === target;
+      }) || null
+    );
+  }
+
+  _hasManualAssignChildren() {
+    const manualAssignTop = this._findManualAssignTop();
+    if (!manualAssignTop?.id) return false;
+    const itemById = new Map((this.items || []).map((item) => [String(item.id), item]));
+    const rootId = String(manualAssignTop.id);
+    return (this.items || []).some((item) => {
+      if (Number(item?.is_hidden || 0) === 1) return false;
+      let parentId = String(item?.parent_top_id || "").trim();
+      while (parentId) {
+        if (parentId === rootId) return true;
+        parentId = String(itemById.get(parentId)?.parent_top_id || "").trim();
+      }
+      return false;
+    });
+  }
+
+  _getAudioParentOptions() {
+    const list = Array.isArray(this.items) ? this.items : [];
+    return list
+      .filter((item) => {
+        const level = Number(item?.level || 0);
+        return Number(item?.is_hidden || 0) !== 1 && level >= 1 && level < 4;
+      })
+      .map((item) => {
+        const level = Math.max(1, Number(item?.level || 1));
+        const prefix = level > 1 ? `${"  ".repeat(level - 1)}- ` : "";
+        const number = String(item?.number || "").trim();
+        const title = String(item?.title || "").trim();
+        const label = `${prefix}${number ? `${number} ` : ""}${title || item?.id || ""}`.trim();
+        return {
+          id: String(item.id),
+          label,
+          level,
+        };
+      });
+  }
+
+  async _focusAudioSuggestion(suggestion, options = {}) {
+    const overrideParentTopId = String(options?.overrideParentTopId || "").trim() || null;
+    const type = String(suggestion?.type || "").trim();
+
+    let targetTopId = null;
+    if (type === "append_to_top") {
+      targetTopId = String(suggestion?.target_top_id || suggestion?.targetTopId || "").trim() || null;
+    } else if (overrideParentTopId) {
+      targetTopId = overrideParentTopId;
+    } else if (type === "create_child_top") {
+      targetTopId = String(suggestion?.parent_top_id || suggestion?.parentTopId || "").trim() || null;
+    } else if (type === "manual_assign_child_top") {
+      targetTopId = String(this._findManualAssignTop()?.id || "").trim() || null;
+    }
+
+    if (!targetTopId) return;
+    const target = this._findTopById(targetTopId);
+    if (!target) return;
+
+    this.selectedTopId = target.id;
+    this.selectedTop = target;
+    this._userSelectedTop = true;
+    this.applyEditBoxState();
+    this._updateDictationButtons();
+    this._updateMoveControls();
+    this._updateDeleteControls();
+    this._updateCreateChildControls();
+    this._setMarkedTopIds([target.id]);
+
+    if (this._audioSuggestionMarkTimer) {
+      clearTimeout(this._audioSuggestionMarkTimer);
+      this._audioSuggestionMarkTimer = null;
+    }
+    this._audioSuggestionMarkTimer = setTimeout(() => {
+      this._clearMarkedTopIds();
+      this._audioSuggestionMarkTimer = null;
+    }, 2500);
+
+    this._renderListOnly();
+    requestAnimationFrame(() => this._scrollListToSelectedAndEnd());
+  }
+
+  async _warnAboutManualAssignBeforeClose() {
+    if (!this._hasManualAssignChildren()) return true;
+    return window.confirm(
+      "Im Bereich 'Manuell zuordnen' befinden sich noch nicht zugeordnete Punkte.\n\nTrotzdem abschließen?"
+    );
+  }
+
+  async _loadAudioSuggestions() {
+    if (!(await this._ensureAudioAvailable({ alertOnFailure: false }))) {
+      return { suggestions: [], audioImport: null, transcript: null };
+    }
+
+    if (!this.meetingId || typeof window?.bbmDb?.audioGetSuggestions !== "function") {
+      return { suggestions: [], audioImport: null, transcript: null };
+    }
+
+    const res = await window.bbmDb.audioGetSuggestions({
+      meetingId: this.meetingId,
+      status: "pending",
+    });
+    if (!res?.ok) throw new Error(res?.error || "Vorschl?ge konnten nicht geladen werden.");
+    return {
+      suggestions: Array.isArray(res.list) ? res.list : [],
+      audioImport: res.audioImport || null,
+      transcript: res.transcript || null,
+    };
+  }
+
+  async _refreshAudioPanel(options = {}) {
+    const panel = this._getAudioPanel();
+    const forceMessage =
+      options && Object.prototype.hasOwnProperty.call(options, "statusMessage")
+        ? options.statusMessage
+        : undefined;
+
+    if (!(await this._loadAudioLicenseState())) {
+      panel.update(
+        this._buildLockedAudioPanelState(
+          forceMessage !== undefined ? String(forceMessage || "") : this._audioLicenseMessage
+        )
+      );
+      return;
+    }
+
+    try {
+      const audioState = await this._loadAudioSuggestions();
+      const suggestions = Array.isArray(audioState?.suggestions) ? audioState.suggestions : [];
+      const fallbackMessage = suggestions.length
+        ? ""
+        : "Aktuell liegen keine Vorschl?ge vor. Die Transkription ist real angebunden, die Zuordnungslogik bleibt noch Platzhalter.";
+      panel.update({
+        title: "Sprachdatei auswerten",
+        modeLabel: "Pr?fmodus",
+        busy: !!this._audioPanelBusy,
+        statusMessage:
+          forceMessage !== undefined
+            ? String(forceMessage || "")
+            : (this._audioPanelStatusMessage || fallbackMessage),
+        suggestions,
+        audioImport: audioState?.audioImport || null,
+        transcript: audioState?.transcript || null,
+        parentOptions: this._getAudioParentOptions(),
+        onImportAudio: async () => this._runAudioImportFlow(),
+        onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+        onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+        onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
+        onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+      });
+    } catch (err) {
+      panel.update({
+        title: "Sprachdatei auswerten",
+        modeLabel: "Pr?fmodus",
+        busy: !!this._audioPanelBusy,
+        statusMessage: err?.message || String(err),
+        suggestions: [],
+        audioImport: null,
+        transcript: null,
+        parentOptions: this._getAudioParentOptions(),
+        onImportAudio: async () => this._runAudioImportFlow(),
+        onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+        onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+        onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
+        onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+      });
+    }
+  }
+
+  async _openAudioPanel() {
+    if (!this.meetingId || this.isReadOnly) return;
+    const panel = this._getAudioPanel();
+
+    if (!(await this._loadAudioLicenseState())) {
+      panel.open(this._buildLockedAudioPanelState(this._audioLicenseMessage));
+      return;
+    }
+    if (!(await this._loadAudioSuggestionsDevFlag())) {
+      alert("Audio-Suggestions sind nur in der Entwicklung verfuegbar.");
+      return;
+    }
+
+    panel.open({
+      title: "Sprachdatei auswerten",
+      modeLabel: "Pr?fmodus",
+      busy: !!this._audioPanelBusy,
+      statusMessage: this._audioPanelStatusMessage,
+      suggestions: [],
+      audioImport: null,
+      transcript: null,
+      parentOptions: this._getAudioParentOptions(),
+      onImportAudio: async () => this._runAudioImportFlow(),
+      onCreateDemoSuggestion: async (demoType) => this._createDemoAudioSuggestion(demoType),
+      onApplySuggestion: async (suggestion, extra = {}) => this._applyAudioSuggestion(suggestion, extra),
+      onFocusSuggestion: async (suggestion, extra = {}) => this._focusAudioSuggestion(suggestion, extra),
+      onRejectSuggestion: async (suggestion) => this._rejectAudioSuggestion(suggestion),
+    });
+    await this._refreshAudioPanel();
+  }
+
+  async _runAudioImportFlow() {
+    if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioAvailable())) return;
+    const api = window.bbmDb || {};
+    if (
+      typeof api.audioImport !== "function" ||
+      typeof api.audioTranscribe !== "function" ||
+      typeof api.audioAnalyze !== "function"
+    ) {
+      alert("Audio-Funktionen sind nicht verfügbar.");
+      return;
+    }
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Sprachdatei wird importiert...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const importRes = await api.audioImport({
+        meetingId: this.meetingId,
+        projectId: this.projectId || this.router?.currentProjectId || null,
+        processingMode: "review",
+      });
+      if (importRes?.canceled) {
+        this._audioPanelStatusMessage = "Auswahl abgebrochen.";
+        return;
+      }
+      if (!importRes?.ok || !importRes.audioImport?.id) {
+        throw new Error(importRes?.error || "Audio-Import fehlgeschlagen.");
+      }
+
+      const audioImportId = importRes.audioImport.id;
+      this._audioPanelStatusMessage = "Lokale Transkription wird gestartet...";
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+      const transcribeRes = await api.audioTranscribe({ audioImportId });
+      if (!transcribeRes?.ok) {
+        throw new Error(transcribeRes?.error || "Transkription fehlgeschlagen.");
+      }
+
+      this._audioPanelStatusMessage = "Zuordnungslogik wird als Platzhalter ausgef?hrt...";
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+      const analyzeRes = await api.audioAnalyze({
+        audioImportId,
+        processingMode: "review",
+      });
+      if (!analyzeRes?.ok) {
+        throw new Error(analyzeRes?.error || "Analyse fehlgeschlagen.");
+      }
+
+      this._audioPanelStatusMessage =
+        analyzeRes?.message ||
+        "Transkript gespeichert. Die TOP-Zuordnung bleibt in diesem Stand noch ein klar markierter Platzhalter.";
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _createDemoAudioSuggestion(demoType) {
+    if (!this.meetingId || this.isReadOnly) return;
+    if (!(await this._ensureAudioAvailable())) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioCreateDemoSuggestion !== "function") {
+      alert("audioCreateDemoSuggestion ist nicht verfügbar.");
+      return;
+    }
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Demo-Vorschlag wird angelegt...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioCreateDemoSuggestion({
+        meetingId: this.meetingId,
+        demoType,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Demo-Vorschlag konnte nicht angelegt werden.");
+      }
+      this._audioPanelStatusMessage = res?.message || "Demo-Vorschlag wurde zur Prüfung angelegt.";
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _applyAudioSuggestion(suggestion, options = {}) {
+    if (!(await this._ensureAudioAvailable())) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioApplySuggestion !== "function") {
+      alert("audioApplySuggestion ist nicht verf?gbar.");
+      return;
+    }
+
+    const suggestionId = String(suggestion?.id || "").trim();
+    if (!suggestionId) return;
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Vorschlag wird ?bernommen...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioApplySuggestion({
+        suggestionId,
+        overrideParentTopId: String(options?.overrideParentTopId || "").trim() || null,
+      });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Vorschlag konnte nicht ?bernommen werden.");
+      }
+      this._audioPanelStatusMessage = String(res?.message || "Vorschlag ?bernommen.");
+      await this.reloadList(true);
+      await this._focusAudioSuggestion(suggestion, options);
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
+
+  async _rejectAudioSuggestion(suggestion) {
+    if (!(await this._ensureAudioAvailable())) return;
+    const api = window.bbmDb || {};
+    if (typeof api.audioRejectSuggestion !== "function") {
+      alert("audioRejectSuggestion ist nicht verfügbar.");
+      return;
+    }
+
+    const suggestionId = String(suggestion?.id || "").trim();
+    if (!suggestionId) return;
+
+    this._audioPanelBusy = true;
+    this._audioPanelStatusMessage = "Vorschlag wird verworfen...";
+    await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+
+    try {
+      const res = await api.audioRejectSuggestion({ suggestionId });
+      if (!res?.ok) {
+        throw new Error(res?.error || "Vorschlag konnte nicht verworfen werden.");
+      }
+      this._audioPanelStatusMessage = String(res?.message || "Vorschlag verworfen.");
+    } catch (err) {
+      this._audioPanelStatusMessage = err?.message || String(err);
+    } finally {
+      this._audioPanelBusy = false;
+      await this._refreshAudioPanel({ statusMessage: this._audioPanelStatusMessage });
+    }
+  }
 
   render() {
     const root = document.createElement("div");
@@ -1822,9 +3649,7 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnEndMeeting);
     btnEndMeeting.onclick = async () => {
       if (this._busy) return;
-      await this.closeMeetingOutputFlow.run();
-      return;
-      if (!(await this.audioSuggestionsFlow?.warnAboutManualAssignBeforeClose?.())) return;
+      if (!(await this._warnAboutManualAssignBeforeClose())) return;
 
       const defDate = this._computeNextMeetingDefaultDateIso();
       const promptRes = await this.router?.promptNextMeetingSettings?.({
@@ -2025,7 +3850,7 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnAudioAnalyze);
     btnAudioAnalyze.onclick = async () => {
       if (this._busy || this.isReadOnly || !this.meetingId) return;
-      await this.audioSuggestionsFlow?.open?.();
+      await this._openAudioPanel();
     };
 
     const btnCloseMeeting = document.createElement("button");
@@ -2633,7 +4458,7 @@ _isoToDDMMYYYY(iso) {
     btnTitleDictate.style.color = "#0b4db4";
     styleBtnBase(btnTitleDictate);
     btnTitleDictate.onclick = async () => {
-      await this.dictationController.start({ target: "shortText", meetingId: this.meetingId, projectId: this.projectId || null });
+      await this._runFieldDictation("shortText");
     };
 
     titleLeft.append(lblTitleText, titleCount, btnTitleDictate);
@@ -2678,7 +4503,7 @@ _isoToDDMMYYYY(iso) {
     btnLongDictate.style.color = "#0b4db4";
     styleBtnBase(btnLongDictate);
     btnLongDictate.onclick = async () => {
-      await this.dictationController.start({ target: "longText", meetingId: this.meetingId, projectId: this.projectId || null });
+      await this._runFieldDictation("longText");
     };
 
     longLeft.append(lblLongText, longCount, btnLongDictate);
@@ -2962,7 +4787,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normTitle(inpTitle.value);
-      this.dictationController?.maybeOfferTermCorrection("shortText", v, inpTitle);
+      this._maybeOfferTermCorrection("shortText", v, inpTitle);
       inpTitle.value = this._clampStr(v, this._titleMax());
       this._updateCharCounters();
 
@@ -2975,7 +4800,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (inpTitle.disabled || !this.selectedTop) return;
         const v = this._normTitle(inpTitle.value);
-        this.dictationController?.maybeOfferTermCorrection("shortText", v, inpTitle);
+        this._maybeOfferTermCorrection("shortText", v, inpTitle);
         inpTitle.value = this._clampStr(v, this._titleMax());
         this._updateCharCounters();
 
@@ -3003,7 +4828,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normLong(taLong.value);
-      this.dictationController?.maybeOfferTermCorrection("longText", v, taLong);
+      this._maybeOfferTermCorrection("longText", v, taLong);
       taLong.value = this._clampStr(taLong.value, this._longMax());
       this._updateCharCounters();
 
@@ -3016,7 +4841,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (taLong.disabled || !this.selectedTop) return;
         const v = this._normLong(taLong.value);
-        this.dictationController?.maybeOfferTermCorrection("longText", v, taLong);
+        this._maybeOfferTermCorrection("longText", v, taLong);
         taLong.value = this._clampStr(taLong.value, this._longMax());
         this._updateCharCounters();
 
@@ -3308,7 +5133,7 @@ _isoToDDMMYYYY(iso) {
     }
 
     await this._loadProjectDates();
-    await this.dictationController?.loadProjectTermCorrections(true);
+    await this._loadProjectTermCorrections(true);
     await this._loadAmpelSetting();
     await this._loadTextLimitsSetting();
     await this.reloadList(true);
@@ -3444,9 +5269,6 @@ _renderIdleState() {
 }
 
 _openMailClient() {
-  if (this.closeMeetingOutputFlow?._openMailClient) {
-    return this.closeMeetingOutputFlow._openMailClient();
-  }
   // Öffnet den Standard-Mailclient (Windows Handler für MAILTO).
   const subject = encodeURIComponent("Baubesprechung");
   const body = encodeURIComponent("Hallo,\n\n");
@@ -3459,22 +5281,20 @@ _openMailClient() {
 }
 
 getSelectedClosedMeetingForEmail() {
-  if (this.closeMeetingOutputFlow?.getSelectedClosedMeetingForEmail) {
-    return this.closeMeetingOutputFlow.getSelectedClosedMeetingForEmail();
+  if (this._lastClosedMeetingForEmail && this._lastClosedMeetingForEmail.id) {
+    return this._lastClosedMeetingForEmail;
+  }
+  if (this.meetingMeta && Number(this.meetingMeta.is_closed) === 1) {
+    return { ...this.meetingMeta, id: this.meetingId };
   }
   return null;
 }
 
 async _maybePromptSendAfterClose({ printResults, meeting }) {
-  if (this.closeMeetingOutputFlow?._maybePromptSendAfterClose) {
-    await this.closeMeetingOutputFlow._maybePromptSendAfterClose({ printResults, meeting });
-  }
+  await this._openSendMailAfterClose({ printResults, meeting });
 }
 
 async _openSendMailAfterClose({ printResults, meeting }) {
-  if (this.closeMeetingOutputFlow?.mailFlow?.openSendMailAfterClose) {
-    return this.closeMeetingOutputFlow.mailFlow.openSendMailAfterClose({ printResults, meeting });
-  }
   const MainHeader = (await import("../ui/MainHeader.js")).default;
   const headerHelper = new MainHeader({ router: this.router });
   const meetingRef = meeting || this.getSelectedClosedMeetingForEmail() || { id: this.meetingId };
@@ -3770,6 +5590,155 @@ _writeCreateMeetingEditParticipants(val) {
   this._createMeetingEditParticipants = !!val;
 }
 
+_openCreateMeetingModal({ dateISO, keyword = "", editParticipants = true } = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "9999";
+
+    const panel = document.createElement("div");
+    panel.style.background = "#fff";
+    panel.style.borderRadius = "12px";
+    panel.style.boxShadow = "0 10px 30px rgba(0,0,0,0.25)";
+    panel.style.width = "min(520px, calc(100vw - 32px))";
+    panel.style.padding = "16px";
+
+    const h = document.createElement("div");
+    h.textContent = "Neue Besprechung";
+    h.style.fontWeight = "700";
+    h.style.fontSize = "16px";
+    h.style.marginBottom = "12px";
+    panel.appendChild(h);
+
+    const row = (labelText, inputEl) => {
+      const r = document.createElement("div");
+      r.style.display = "flex";
+      r.style.flexDirection = "column";
+      r.style.gap = "6px";
+      r.style.marginBottom = "12px";
+
+      const lab = document.createElement("div");
+      lab.textContent = labelText;
+      lab.style.fontSize = "12px";
+      lab.style.color = "#444";
+      r.appendChild(lab);
+
+      r.appendChild(inputEl);
+      return r;
+    };
+
+    const inpDate = document.createElement("input");
+    inpDate.type = "date";
+    if (typeof dateISO === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dateISO)) inpDate.value = dateISO;
+    inpDate.style.padding = "10px 12px";
+    inpDate.style.borderRadius = "10px";
+    inpDate.style.border = "1px solid rgba(0,0,0,0.2)";
+    panel.appendChild(row("Datum der Besprechung", inpDate));
+
+    const inpKw = document.createElement("input");
+    inpKw.type = "text";
+    inpKw.placeholder = "Schlagwort (optional)";
+    inpKw.value = String(keyword || "");
+    inpKw.style.padding = "10px 12px";
+    inpKw.style.borderRadius = "10px";
+    inpKw.style.border = "1px solid rgba(0,0,0,0.2)";
+    panel.appendChild(row("Schlagwort", inpKw));
+
+    const chkWrap = document.createElement("label");
+    chkWrap.style.display = "flex";
+    chkWrap.style.alignItems = "center";
+    chkWrap.style.gap = "10px";
+    chkWrap.style.margin = "6px 0 14px 0";
+    chkWrap.style.userSelect = "none";
+
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.checked = !!editParticipants;
+
+    const chkText = document.createElement("div");
+    chkText.textContent = "Teilnehmer nach dem Anlegen öffnen";
+    chkText.style.fontSize = "13px";
+
+    chkWrap.appendChild(chk);
+    chkWrap.appendChild(chkText);
+    panel.appendChild(chkWrap);
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.justifyContent = "flex-end";
+    btnRow.style.gap = "10px";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.textContent = "Abbrechen";
+    btnCancel.style.padding = "10px 14px";
+    btnCancel.style.borderRadius = "10px";
+    btnCancel.style.border = "1px solid rgba(0,0,0,0.2)";
+    btnCancel.style.background = "#fff";
+
+    const btnOk = document.createElement("button");
+    btnOk.textContent = "Übernehmen";
+    btnOk.style.padding = "10px 14px";
+    btnOk.style.borderRadius = "10px";
+    btnOk.style.border = "1px solid rgba(0,0,0,0.2)";
+    btnOk.style.background = "#fff";
+    btnOk.style.fontWeight = "700";
+
+    btnRow.appendChild(btnCancel);
+    btnRow.appendChild(btnOk);
+    panel.appendChild(btnRow);
+
+    const cleanup = (res) => {
+      try { overlay.remove(); } catch (e) {}
+      resolve(res);
+    };
+
+    btnCancel.onclick = () => cleanup(null);
+    overlay.onclick = (ev) => {
+      if (ev.target === overlay) cleanup(null);
+    };
+
+    const submit = () => {
+      const vDate = String(inpDate.value || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(vDate)) {
+        alert("Bitte ein gültiges Datum auswählen.");
+        return;
+      }
+      cleanup({
+        dateISO: vDate,
+        keyword: String(inpKw.value || "").trim(),
+        editParticipants: !!chk.checked,
+      });
+    };
+
+    btnOk.onclick = submit;
+    inpDate.onkeydown = (ev) => {
+      if (ev.key === "Enter") submit();
+      if (ev.key === "Escape") cleanup(null);
+    };
+    inpKw.onkeydown = (ev) => {
+      if (ev.key === "Enter") submit();
+      if (ev.key === "Escape") cleanup(null);
+    };
+    document.addEventListener("keydown", function escHandler(ev) {
+      if (ev.key === "Escape") {
+        document.removeEventListener("keydown", escHandler);
+        cleanup(null);
+      }
+    });
+
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+
+    // Fokus
+    setTimeout(() => { try { inpDate.focus(); } catch (e) {} }, 0);
+  });
+}
+
 async _createMeetingFromIdle() {
   const api = window.bbmDb || {};
   if (typeof api.meetingsCreate !== "function") {
@@ -3848,7 +5817,9 @@ async _createMeetingFromIdle() {
 
 async _enterIdleAfterClose() {
   // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
-  this.audioSuggestionsFlow?.onEnterIdleAfterClose?.();
+  if (this._audioPanel && typeof this._audioPanel.close === "function") {
+    this._audioPanel.close();
+  }
   this.meetingId = null;
   this.meetingMeta = null;
   this.selectedTopId = null;
@@ -3910,8 +5881,19 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
-    this.audioSuggestionsFlow?.applyReadOnlyState?.(ro, busy);
-    if (this.dictationController) this.dictationController.updateButtons({ readOnly: ro, busy, meetingId: this.meetingId });
+    if (this.btnAudioAnalyze) {
+      const audioLocked = !this._audioLicensed && !this._audioDevOverride;
+      const allowLegacy = !!this._audioSuggestionsDevEnabled;
+      this.btnAudioAnalyze.disabled = ro || busy || !this.meetingId || audioLocked || !allowLegacy;
+      this.btnAudioAnalyze.style.opacity = this.btnAudioAnalyze.disabled ? "0.65" : "1";
+      this.btnAudioAnalyze.style.display = allowLegacy ? "" : "none";
+      this.btnAudioAnalyze.title = audioLocked
+        ? this._audioLicenseMessage
+        : allowLegacy
+        ? "Audio-Suggestions (DEV)"
+        : "Audio-Mapping ist deaktiviert";
+    }
+      this._updateDictationButtons();
     if (this.btnTasks) {
       this.btnTasks.disabled = ro || busy || !this.meetingId;
       this.btnTasks.style.opacity = this.btnTasks.disabled ? "0.65" : "1";
@@ -4434,6 +6416,7 @@ async _closeViewOnly() {
       const isMarked = this._markTopIds && this._markTopIds.has(top.id);
 
       const isImportant = Number(top.is_important) === 1;
+      const meta = this._getTopMeta(top);
       const parseFlag = (v) => {
         if (v === true || v === false) return v;
         if (typeof v === "string") {
@@ -4450,7 +6433,7 @@ async _closeViewOnly() {
           top.frozen_is_carried_over ??
           top.frozenIsCarriedOver
       );
-      const statusLower = String(top.status || "").trim().toLowerCase();
+      const statusLower = String(meta.status || "").trim().toLowerCase();
       const isTask = statusLower === "todo" || parseFlag(top.is_task ?? top.isTask);
       const isTouched = parseFlag(
         top.is_touched ??
@@ -4626,7 +6609,7 @@ const textCol = document.createElement("div");
       }
 
       let metaCol = null;
-      if (this.showLongtextInList && !isLevel1) {
+      if (this._shouldShowMetaColumn(top)) {
         metaCol = document.createElement("div");
         metaCol.style.display = "flex";
         metaCol.style.flexDirection = "column";
@@ -4641,8 +6624,8 @@ const textCol = document.createElement("div");
         metaCol.style.paddingLeft = "10px";
         metaCol.style.borderLeft = "1px solid rgba(0,0,0,0.08)";
 
-        const due = this._formatDue(this._resolveDisplayDueForTop(top));
-        const st = this._formatStatus(top.status);
+        const due = this._formatDue(meta.dueDate || this._resolveDisplayDueForTop(top));
+        const st = this._formatStatus(meta.status);
         const resp = this._formatResponsible(top);
         const contact = this._formatContactPerson(top);
 
@@ -4907,7 +6890,8 @@ const textCol = document.createElement("div");
     }
 
     if (!t) {
-      this.dictationController?.onTopCleared();
+      if (this._termPromptCleanup) this._termPromptCleanup();
+      this._pendingTermPrompt = null;
       this.inpTitle.value = "";
       if (this.taLongtext) this.taLongtext.value = "";
       this.chkHidden.checked = false;
@@ -4978,14 +6962,16 @@ const textCol = document.createElement("div");
     if (this.chkTask) this.chkTask.checked = Number(t.is_task ?? t.isTask ?? 0) === 1;
     if (this.chkDecision) this.chkDecision.checked = Number(t.is_decision ?? t.isDecision ?? 0) === 1;
 
+    const meta = this._getTopMeta(t);
+
     if (this.inpDueDate) {
-      const dueRaw = t.due_date ?? t.dueDate ?? "";
+      const dueRaw = meta.dueDate;
       const dueVal = (dueRaw || "").toString();
       this.inpDueDate.value = dueVal ? dueVal.slice(0, 10) : "";
     }
 
       if (this.selStatus) {
-        const st = (t.status || "").toString().trim();
+        const st = (meta.status || "").toString().trim();
         const stLower = st.toLowerCase();
         if (!st && (Number(t.is_task ?? t.isTask ?? 0) === 1)) {
           this.selStatus.value = "todo";
@@ -4998,7 +6984,7 @@ const textCol = document.createElement("div");
     this._updateDueAmpelFromInputs();
     this._updateStatusMarkers();
     this._updateTodoStatusAvailability();
-    this.dictationController?.tryShowPendingTermPrompt();
+    this._tryShowPendingTermPrompt();
     this._clearLegacyResponsibleOption();
     this._clearLegacyContactPersonOption();
     this._respLegacyReadonly = false;
@@ -5215,10 +7201,154 @@ const textCol = document.createElement("div");
     if (this.listEl) this._renderListOnly();
   }
 
-  async destroy() {
-    await this.audioSuggestionsFlow?.destroy?.();
-    if (this.dictationController) this.dictationController.destroy();
+  _buildGapDetailsText(gap) {
+    const lvl = Number(gap?.level || 0);
+    const missingNumber = gap?.missingNumber ?? "?";
+    const lastNumber = gap?.lastNumber ?? "?";
+    const parentTopId = gap?.parentTopId ?? null;
 
+    if (!parentTopId) {
+      return [
+        `Betroffene Ebene: Level ${lvl}`,
+        `Bei Level 1 fehlt Nummer ${missingNumber}.`,
+        `Vorschlag: Letzten TOP (Nr. ${lastNumber}) in die Lücke setzen.`,
+      ];
+    }
+
+    const parent = (this.items || []).find((t) => String(t.id) === String(parentTopId));
+    const parentNum = parent?.displayNumber ?? parent?.number ?? "";
+    const parentTitle = parent?.title ? String(parent.title) : "";
+    const parentLabel = parent
+      ? `${parentNum ? `${parentNum}. ` : ""}${parentTitle || "TOP"}`
+      : `TOP ${parentTopId}`;
+
+    return [
+      `Betroffene Ebene: Level ${lvl}`,
+      `Unter TOP ${parentLabel} fehlt Nummer ${missingNumber}.`,
+      `Vorschlag: Letzten TOP (Nr. ${lastNumber}) in die Lücke setzen.`,
+    ];
+  }
+
+  async _showNumberGapPopup({ gap, onConfirm, onCancel }) {
+    this._clearGapPopup();
+
+    const overlay = document.createElement("div");
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.background = "rgba(0,0,0,0.35)";
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.zIndex = "20000";
+    overlay.tabIndex = -1;
+
+    const card = document.createElement("div");
+    card.style.width = "min(560px, 92vw)";
+    card.style.maxHeight = "80vh";
+    card.style.display = "flex";
+    card.style.flexDirection = "column";
+    card.style.background = "#fff";
+    card.style.borderRadius = "10px";
+    card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.2)";
+    applyPopupCardStyle(card);
+
+    const header = document.createElement("div");
+    header.style.padding = "14px 16px 10px 16px";
+    header.style.borderBottom = "1px solid rgba(0,0,0,0.08)";
+    header.style.fontWeight = "700";
+    header.textContent = "Nummernlücke gefunden";
+
+    const content = document.createElement("div");
+    content.style.padding = "12px 16px";
+    content.style.overflow = "auto";
+    content.style.flex = "1 1 auto";
+    content.style.lineHeight = "1.4";
+
+    const intro = document.createElement("div");
+    intro.textContent =
+      "Das Protokoll kann erst geschlossen werden, wenn die Nummerierung lückenlos ist.";
+    intro.style.marginBottom = "8px";
+    content.appendChild(intro);
+
+    const lines = this._buildGapDetailsText(gap);
+    for (const line of lines) {
+      const p = document.createElement("div");
+      p.textContent = line;
+      p.style.marginBottom = "6px";
+      content.appendChild(p);
+    }
+
+    const footer = document.createElement("div");
+    footer.style.display = "flex";
+    footer.style.justifyContent = "flex-end";
+    footer.style.gap = "8px";
+    footer.style.padding = "10px 16px";
+    footer.style.borderTop = "1px solid rgba(0,0,0,0.08)";
+    footer.style.background = "rgba(255,255,255,0.98)";
+
+    const btnCancel = document.createElement("button");
+    btnCancel.textContent = "Abbrechen";
+    applyPopupButtonStyle(btnCancel, { variant: "neutral" });
+
+    const btnOk = document.createElement("button");
+    btnOk.textContent = "Letzten TOP in Lücke setzen";
+    applyPopupButtonStyle(btnOk, { variant: "primary" });
+    const canRepair = !!gap?.lastTopId;
+    btnOk.disabled = !canRepair;
+    btnOk.style.opacity = canRepair ? "1" : "0.55";
+
+    btnCancel.onclick = () => {
+      this._clearGapPopup();
+      if (typeof onCancel === "function") onCancel();
+    };
+
+    btnOk.onclick = async () => {
+      if (!gap?.lastTopId) {
+        alert("Reparatur nicht möglich: letzter TOP nicht ermittelt");
+        return;
+      }
+      if (typeof onConfirm === "function") await onConfirm();
+    };
+
+    overlay.onclick = (e) => {
+      if (e.target === overlay) {
+        this._clearGapPopup();
+        if (typeof onCancel === "function") onCancel();
+      }
+    };
+    overlay.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      this._clearGapPopup();
+      if (typeof onCancel === "function") onCancel();
+    });
+
+    footer.append(btnCancel, btnOk);
+    card.append(header, content, footer);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    try {
+      overlay.focus();
+    } catch (_e) {
+      // ignore
+    }
+
+    this._gapPopupOverlay = overlay;
+  }
+
+  async destroy() {
+    try {
+      if (this._audioPanel && typeof this._audioPanel.destroy === "function") {
+        this._audioPanel.destroy();
+      }
+    } catch (_err) {
+      // ignore cleanup issues
+    }
+    if (this._audioSuggestionMarkTimer) {
+      clearTimeout(this._audioSuggestionMarkTimer);
+      this._audioSuggestionMarkTimer = null;
+    }
+    this._audioPanel = null;
     if (this._viewMenuDocMouseDown) {
       document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
       this._viewMenuDocMouseDown = null;
@@ -5230,6 +7360,3 @@ const textCol = document.createElement("div");
     this._closeProjectTasksPopup();
   }
 }
-
-
-

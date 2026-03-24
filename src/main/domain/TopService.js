@@ -2,6 +2,70 @@
 
 const { createAmpelService } = require("./AmpelService");
 
+function normalizeIncomingMeetingTopPatch(patch) {
+  if (!patch || typeof patch !== "object") return patch;
+
+  const normalized = { ...patch };
+  const pick = (keys) => {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(patch, key)) return patch[key];
+    }
+    return undefined;
+  };
+
+  const contactKind = pick(["contact_person_kind", "contactKind", "contact_kind"]);
+  if (contactKind !== undefined) normalized.contact_kind = contactKind;
+
+  const contactPersonId = pick(["contact_person_id", "contactPersonId"]);
+  if (contactPersonId !== undefined) normalized.contact_person_id = contactPersonId;
+
+  const contactLabel = pick(["contact_person_label", "contactLabel", "contact_label"]);
+  if (contactLabel !== undefined) normalized.contact_label = contactLabel;
+
+  const dueDate = pick(["due_date", "dueDate"]);
+  if (dueDate !== undefined) normalized.due_date = dueDate;
+
+  const completedInMeetingId = pick(["completed_in_meeting_id", "completedInMeetingId"]);
+  if (completedInMeetingId !== undefined) normalized.completed_in_meeting_id = completedInMeetingId;
+
+  const responsibleKind = pick(["responsible_kind", "responsibleKind"]);
+  if (responsibleKind !== undefined) normalized.responsible_kind = responsibleKind;
+
+  const responsibleId = pick(["responsible_id", "responsibleId"]);
+  if (responsibleId !== undefined) normalized.responsible_id = responsibleId;
+
+  const responsibleLabel = pick(["responsible_label", "responsibleLabel"]);
+  if (responsibleLabel !== undefined) normalized.responsible_label = responsibleLabel;
+
+  const isImportant = pick(["is_important", "isImportant"]);
+  if (isImportant !== undefined) normalized.is_important = isImportant;
+
+  const isTask = pick(["is_task", "isTask"]);
+  if (isTask !== undefined) normalized.is_task = isTask;
+
+  const isDecision = pick(["is_decision", "isDecision"]);
+  if (isDecision !== undefined) normalized.is_decision = isDecision;
+
+  return normalized;
+}
+
+function normalizeOutgoingMeetingTop(row) {
+  if (!row || typeof row !== "object") return row;
+
+  const contactKind = row.contact_kind ?? row.contact_person_kind ?? null;
+  const contactLabel = row.contact_label ?? row.contact_person_label ?? null;
+  const contactPersonKind = row.contact_person_kind ?? row.contact_kind ?? null;
+  const contactPersonLabel = row.contact_person_label ?? row.contact_label ?? null;
+
+  return {
+    ...row,
+    contact_kind: contactKind,
+    contact_label: contactLabel,
+    contact_person_kind: contactPersonKind,
+    contact_person_label: contactPersonLabel,
+  };
+}
+
 class TopService {
   constructor({ topsRepo, meetingsRepo, meetingTopsRepo }) {
     if (!topsRepo) throw new Error("TopService: topsRepo required");
@@ -250,7 +314,7 @@ class TopService {
       return 0;
     });
 
-    return withDisplay;
+    return withDisplay.map(normalizeOutgoingMeetingTop);
   }
 
   createTop(input) {
@@ -416,6 +480,8 @@ class TopService {
       delete patch.completed_in_meeting;
     }
 
+    patch = normalizeIncomingMeetingTopPatch(patch);
+
     const existingMt = this.meetingTopsRepo.getMeetingTop(meetingId, topId);
     if (!existingMt) throw new Error("TOP ist nicht Teil dieser Besprechung");
 
@@ -490,24 +556,9 @@ class TopService {
         ? patch.responsible_label
         : (patch.responsibleLabel !== undefined ? patch.responsibleLabel : undefined);
 
-    const ck =
-      patch.contact_person_kind !== undefined
-        ? patch.contact_person_kind
-        : (patch.contact_kind !== undefined
-          ? patch.contact_kind
-          : (patch.contactKind !== undefined ? patch.contactKind : undefined));
-
-    const cp =
-      patch.contact_person_id !== undefined
-        ? patch.contact_person_id
-        : (patch.contactPersonId !== undefined ? patch.contactPersonId : undefined);
-
-    const cl =
-      patch.contact_person_label !== undefined
-        ? patch.contact_person_label
-        : (patch.contact_label !== undefined
-          ? patch.contact_label
-          : (patch.contactLabel !== undefined ? patch.contactLabel : undefined));
+    const ck = patch.contact_kind;
+    const cp = patch.contact_person_id;
+    const cl = patch.contact_label;
 
     const imp =
       patch.is_important !== undefined
