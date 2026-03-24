@@ -4815,6 +4815,37 @@ const textCol = document.createElement("div");
     }
   }
 
+  _applyResponsibleSelectionToEditor(top) {
+    this._clearLegacyResponsibleOption();
+    this._respLegacyReadonly = false;
+
+    const topId = top.id;
+    const sameTopDirty = this._respDirty && this._sameTopId(this._respDirtyTopId, topId);
+
+    this._ensureProjectFirmsLoaded()
+      .then(() => {
+        this._buildResponsibleOptionsIfNeeded();
+        if (!sameTopDirty && this.selResponsible && !this._sameTopId(this._respLastSetTopId, topId)) {
+          const resolved = this._resolveResponsibleSelection(top);
+          if (resolved.value && this._findResponsibleOption(resolved.value)) {
+            this._clearLegacyResponsibleOption();
+            this.selResponsible.value = resolved.value;
+          } else if (resolved.fallbackLabel) {
+            this._setLegacyResponsibleOption(resolved.fallbackLabel);
+          } else {
+            this._clearLegacyResponsibleOption();
+            this.selResponsible.value = "";
+          }
+          this.selResponsible.disabled = !!this._respLegacyReadonly || this.isReadOnly || this._busy;
+          this._respLastSetTopId = topId;
+          this._respDirty = false;
+          this._respDirtyTopId = null;
+          this._applyProjectDueDefaults(top);
+        }
+      })
+      .catch(() => {});
+  }
+
   // === CORE: Editor State ===
   applyEditBoxState() {
     const t = this.selectedTop;
@@ -4904,34 +4935,7 @@ const textCol = document.createElement("div");
     this._updateStatusMarkers();
     this._updateTodoStatusAvailability();
     this.dictationController?.tryShowPendingTermPrompt();
-    this._clearLegacyResponsibleOption();
-    this._respLegacyReadonly = false;
-
-    const topId = t.id;
-    const sameTopDirty = this._respDirty && this._sameTopId(this._respDirtyTopId, topId);
-
-    this._ensureProjectFirmsLoaded()
-      .then(() => {
-        this._buildResponsibleOptionsIfNeeded();
-        if (!sameTopDirty && this.selResponsible && !this._sameTopId(this._respLastSetTopId, topId)) {
-          const resolved = this._resolveResponsibleSelection(t);
-          if (resolved.value && this._findResponsibleOption(resolved.value)) {
-            this._clearLegacyResponsibleOption();
-            this.selResponsible.value = resolved.value;
-          } else if (resolved.fallbackLabel) {
-            this._setLegacyResponsibleOption(resolved.fallbackLabel);
-          } else {
-            this._clearLegacyResponsibleOption();
-            this.selResponsible.value = "";
-          }
-          this.selResponsible.disabled = !!this._respLegacyReadonly || this.isReadOnly || this._busy;
-          this._respLastSetTopId = topId;
-          this._respDirty = false;
-          this._respDirtyTopId = null;
-          this._applyProjectDueDefaults(t);
-        }
-      })
-      .catch(() => {});
+    this._applyResponsibleSelectionToEditor(t);
 
     this._updateCharCounters();
 
