@@ -207,10 +207,13 @@ export default class TopsView {
 
     // === MODULE: Dialogs ===
     this.dialogs = new TopsViewDialogs({ view: this });
+    this._initDialogDelegates();
+  }
+
+  _initDialogDelegates() {
     this._clearGapPopup = () => this.dialogs.clearGapPopup();
     this._buildGapDetailsText = (...args) => this.dialogs.buildGapDetailsText(...args);
     this._showNumberGapPopup = (...args) => this.dialogs.showNumberGapPopup(...args);
-    this._openCreateMeetingModal = (...args) => this.dialogs.openCreateMeetingModal(...args);
   }
 
   _updateTopBarProtocolTitle() {
@@ -3702,7 +3705,7 @@ async _createMeetingFromIdle() {
   let keyword = "";
   let editParticipants = true;
 
-  const modalRes = await this._openCreateMeetingModal({ dateISO, keyword, editParticipants });
+  const modalRes = await this.dialogs.openCreateMeetingModal({ dateISO, keyword, editParticipants });
   if (!modalRes) return;
 
   const pickedISO = String(modalRes.dateISO || "").trim();
