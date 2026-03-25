@@ -191,6 +191,18 @@ export default class TopsView {
     this.closeMeetingOutputFlow = new CloseMeetingOutputFlow({ view: this, router });
   }
 
+  _startDictation(options) {
+    return this.dictationController?.start(options);
+  }
+
+  _updateDictationButtons(options) {
+    return this.dictationController?.updateButtons(options);
+  }
+
+  _destroyDictationController() {
+    return this.dictationController?.destroy();
+  }
+
   _runCloseMeetingOutputFlow() {
     return this.closeMeetingOutputFlow.run();
   }
@@ -2417,7 +2429,7 @@ _isoToDDMMYYYY(iso) {
     btnTitleDictate.style.color = "#0b4db4";
     styleBtnBase(btnTitleDictate);
     btnTitleDictate.onclick = async () => {
-      await this.dictationController.start({ target: "shortText", meetingId: this.meetingId, projectId: this.projectId || null });
+      await this._startDictation({ target: "shortText", meetingId: this.meetingId, projectId: this.projectId || null });
     };
 
     titleLeft.append(lblTitleText, titleCount, btnTitleDictate);
@@ -2462,7 +2474,7 @@ _isoToDDMMYYYY(iso) {
     btnLongDictate.style.color = "#0b4db4";
     styleBtnBase(btnLongDictate);
     btnLongDictate.onclick = async () => {
-      await this.dictationController.start({ target: "longText", meetingId: this.meetingId, projectId: this.projectId || null });
+      await this._startDictation({ target: "longText", meetingId: this.meetingId, projectId: this.projectId || null });
     };
 
     longLeft.append(lblLongText, longCount, btnLongDictate);
@@ -3271,7 +3283,7 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
     this.audioSuggestionsFlow?.applyReadOnlyState?.(ro, busy);
-    if (this.dictationController) this.dictationController.updateButtons({ readOnly: ro, busy, meetingId: this.meetingId });
+    this._updateDictationButtons({ readOnly: ro, busy, meetingId: this.meetingId });
     if (this.btnTasks) {
       this.btnTasks.disabled = ro || busy || !this.meetingId;
       this.btnTasks.style.opacity = this.btnTasks.disabled ? "0.65" : "1";
@@ -4482,7 +4494,7 @@ const textCol = document.createElement("div");
 
   async destroy() {
     await this.audioSuggestionsFlow?.destroy?.();
-    if (this.dictationController) this.dictationController.destroy();
+    this._destroyDictationController();
 
     if (this._viewMenuDocMouseDown) {
       document.removeEventListener("mousedown", this._viewMenuDocMouseDown, true);
