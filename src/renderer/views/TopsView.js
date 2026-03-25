@@ -3466,7 +3466,7 @@ async _createMeetingFromIdle() {
   let keyword = "";
   let editParticipants = true;
 
-  const modalRes = await this.dialogs.openCreateMeetingModal({ dateISO, keyword, editParticipants });
+  const modalRes = await this.dialogs.handleCreateMeeting({ dateISO, keyword, editParticipants });
   if (!modalRes) return;
 
   const pickedISO = String(modalRes.dateISO || "").trim();

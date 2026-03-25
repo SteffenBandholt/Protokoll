@@ -312,6 +312,10 @@ export class TopsViewDialogs {
     return this.openMeetingKeywordPopup();
   }
 
+  async handleCreateMeeting(params) {
+    return this.openCreateMeetingModal(params);
+  }
+
   openCreateMeetingModal({ dateISO, keyword = "", editParticipants = true } = {}) {
     return new Promise((resolve) => {
       const overlay = document.createElement("div");
