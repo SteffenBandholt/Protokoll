@@ -166,6 +166,10 @@ export class CloseMeetingOutputFlow {
     }
   }
 
+  openMailClient() {
+    return this._openMailClient();
+  }
+
   getSelectedClosedMeetingForEmail() {
     if (this.view._lastClosedMeetingForEmail && this.view._lastClosedMeetingForEmail.id) {
       return this.view._lastClosedMeetingForEmail;
@@ -174,5 +178,13 @@ export class CloseMeetingOutputFlow {
       return { ...this.view.meetingMeta, id: this.view.meetingId };
     }
     return null;
+  }
+
+  async maybePromptSendAfterClose({ printResults, meeting }) {
+    return this.mailFlow.maybePromptSendAfterClose({ printResults, meeting });
+  }
+
+  async openSendMailAfterClose({ printResults, meeting }) {
+    return this.mailFlow.openSendMailAfterClose({ printResults, meeting });
   }
 }
