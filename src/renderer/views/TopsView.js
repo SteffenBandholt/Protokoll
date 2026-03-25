@@ -761,44 +761,6 @@ _isoToDDMMYYYY(iso) {
     } catch (_err) {}
   }
 
-  async _loadListFontScaleSetting(force = false) {
-    if (this._listFontScaleLoaded && !force) return;
-    const api = window.bbmDb || {};
-    if (typeof api.appSettingsGetMany !== "function") {
-      this.listFontScale = "medium";
-      this._listFontScaleLoaded = true;
-      return;
-    }
-    const res = await api.appSettingsGetMany(["tops.fontscale.list"]);
-    if (!res?.ok) {
-      this.listFontScale = "medium";
-      this._listFontScaleLoaded = true;
-      return;
-    }
-    const raw = String(res?.data?.["tops.fontscale.list"] || "").trim().toLowerCase();
-    this.listFontScale = ["small", "medium", "large"].includes(raw) ? raw : "medium";
-    this._listFontScaleLoaded = true;
-  }
-
-  async _loadEditFontScaleSetting(force = false) {
-    if (this._editFontScaleLoaded && !force) return;
-    const api = window.bbmDb || {};
-    if (typeof api.appSettingsGetMany !== "function") {
-      this.editFontScale = "small";
-      this._editFontScaleLoaded = true;
-      return;
-    }
-    const res = await api.appSettingsGetMany(["tops.fontscale.editbox"]);
-    if (!res?.ok) {
-      this.editFontScale = "small";
-      this._editFontScaleLoaded = true;
-      return;
-    }
-    const raw = String(res?.data?.["tops.fontscale.editbox"] || "").trim().toLowerCase();
-    this.editFontScale = ["small", "large"].includes(raw) ? raw : "small";
-    this._editFontScaleLoaded = true;
-  }
-
   _getListFontSizes() {
     const scale = (this.listFontScale || "medium").toString().toLowerCase();
     if (scale === "small") {
@@ -1685,12 +1647,12 @@ _isoToDDMMYYYY(iso) {
     if (!this._fontScaleListenerBound) {
       this._fontScaleListenerBound = true;
       this._onFontScaleChanged = () => {
-        this._loadListFontScaleSetting(true)
+        this.settingsService.loadListFontScaleSetting(true)
           .then(() => {
             if (this.listEl) this._renderListOnly();
           })
           .catch(() => {});
-        this._loadEditFontScaleSetting(true)
+        this.settingsService.loadEditFontScaleSetting(true)
           .then(() => {
             this._applyEditFontSizes();
           })
@@ -1881,13 +1843,13 @@ _isoToDDMMYYYY(iso) {
       })
       .catch(() => {});
 
-    this._loadListFontScaleSetting()
+    this.settingsService.loadListFontScaleSetting()
       .then(() => {
         this._renderListOnly();
       })
       .catch(() => {});
 
-    this._loadEditFontScaleSetting()
+    this.settingsService.loadEditFontScaleSetting()
       .then(() => {
         this._applyEditFontSizes();
       })

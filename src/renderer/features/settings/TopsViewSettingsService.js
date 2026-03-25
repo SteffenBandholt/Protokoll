@@ -125,4 +125,42 @@ export class TopsViewSettingsService {
     if (this.view.listEl) this.view._renderListOnly();
     this.view._updateTopBarMetaLabels();
   }
+
+  async loadListFontScaleSetting(force = false) {
+    if (this.view._listFontScaleLoaded && !force) return;
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") {
+      this.view.listFontScale = "medium";
+      this.view._listFontScaleLoaded = true;
+      return;
+    }
+    const res = await api.appSettingsGetMany(["tops.fontscale.list"]);
+    if (!res?.ok) {
+      this.view.listFontScale = "medium";
+      this.view._listFontScaleLoaded = true;
+      return;
+    }
+    const raw = String(res?.data?.["tops.fontscale.list"] || "").trim().toLowerCase();
+    this.view.listFontScale = ["small", "medium", "large"].includes(raw) ? raw : "medium";
+    this.view._listFontScaleLoaded = true;
+  }
+
+  async loadEditFontScaleSetting(force = false) {
+    if (this.view._editFontScaleLoaded && !force) return;
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") {
+      this.view.editFontScale = "small";
+      this.view._editFontScaleLoaded = true;
+      return;
+    }
+    const res = await api.appSettingsGetMany(["tops.fontscale.editbox"]);
+    if (!res?.ok) {
+      this.view.editFontScale = "small";
+      this.view._editFontScaleLoaded = true;
+      return;
+    }
+    const raw = String(res?.data?.["tops.fontscale.editbox"] || "").trim().toLowerCase();
+    this.view.editFontScale = ["small", "large"].includes(raw) ? raw : "small";
+    this.view._editFontScaleLoaded = true;
+  }
 }
