@@ -12,6 +12,7 @@ import { DictationController } from "../features/audio-dictation/DictationContro
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
 import { CloseMeetingOutputFlow } from "../features/output/CloseMeetingOutputFlow.js";
 import { ResponsibleOptionsService } from "../features/assignments/ResponsibleOptionsService.js";
+import { ResponsibleAssignmentAdapter } from "../features/assignments/ResponsibleAssignmentAdapter.js";
 import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
@@ -197,6 +198,7 @@ export default class TopsView {
   _initAssignmentsModule() {
     // === MODULE: Assignments ===
     this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
+    this.responsibleAssignmentAdapter = new ResponsibleAssignmentAdapter({ view: this });
     this.responsibleEditor = new ResponsibleEditorController({ view: this });
     this.topEditor = new TopEditorController({ view: this });
     this._initAssignmentDelegates();
@@ -219,18 +221,26 @@ export default class TopsView {
       this.responsibleOptionsService.parseResponsibleOptionValue(...args);
     this._normalizeResponsibleKind = (...args) =>
       this.responsibleOptionsService.normalizeResponsibleKind(...args);
-    this._resolveResponsibleSelection = (...args) =>
-      this.responsibleOptionsService.resolveResponsibleSelection(...args);
     this._ensureProjectFirmsLoaded = (...args) =>
       this.responsibleOptionsService.ensureProjectFirmsLoaded(...args);
     this._computeRespOptionsKey = (...args) =>
       this.responsibleOptionsService.computeRespOptionsKey(...args);
+    this._findResponsibleOption = (value) =>
+      this.responsibleOptionsService.findResponsibleOption(this.selResponsible, value);
     this._clearLegacyResponsibleOption = () =>
       this.responsibleOptionsService.clearLegacyResponsibleOption(this.selResponsible);
     this._setLegacyResponsibleOption = (label) =>
       this.responsibleOptionsService.setLegacyResponsibleOption(this.selResponsible, label);
     this._buildResponsibleOptionsIfNeeded = () =>
       this.responsibleOptionsService.buildResponsibleOptionsIfNeeded(this.selResponsible);
+    this._readResponsibleFromTop = (...args) =>
+      this.responsibleAssignmentAdapter.readFromTop(...args);
+    this._writeResponsibleToSelect = (...args) =>
+      this.responsibleAssignmentAdapter.writeToSelect(...args);
+    this._readResponsibleFromSelect = (...args) =>
+      this.responsibleAssignmentAdapter.readFromSelect(...args);
+    this._responsibleToPatch = (...args) =>
+      this.responsibleAssignmentAdapter.toPatch(...args);
   }
 
   _initDialogDelegates() {
@@ -1548,9 +1558,9 @@ _isoToDDMMYYYY(iso) {
 
   _hasTodoResponsibleSelection() {
     if (!this.selResponsible) return false;
-    const parsed = this._parseResponsibleOptionValue(this.selResponsible.value);
-    if (!parsed || !parsed.id || parsed.kind === "all") return false;
-    const lbl = this._getResponsibleLabelForSelection(this.selResponsible, parsed);
+    const responsible = this._readResponsibleFromSelect(this.selResponsible, this.projectFirms || []);
+    if (!responsible?.id || responsible.kind === "all") return false;
+    const lbl = responsible.label;
     const txt = (lbl || "").toString().trim();
     return !!txt && txt !== "-";
   }
@@ -1578,12 +1588,12 @@ _isoToDDMMYYYY(iso) {
 
   _isResponsibleAllSelection() {
     if (!this.selResponsible) return false;
+    const responsible = this._readResponsibleFromSelect(this.selResponsible, this.projectFirms || []);
+    if (responsible?.kind === "all") return true;
     const val = (this.selResponsible.value || "").toString();
-    const parsed = this._parseResponsibleOptionValue(val);
-    if (parsed && parsed.kind === "all") return true;
     const opt = this.selResponsible.selectedOptions?.[0];
     const lbl = (opt?.textContent || "").trim().toLowerCase();
-    return !parsed && !val && lbl === "alle";
+    return !responsible && !val && lbl === "alle";
   }
 
   _applyProjectDueDefaults(top) {
@@ -2845,8 +2855,7 @@ _isoToDDMMYYYY(iso) {
       if (selResponsible.disabled) return;
       if (!this.selectedTop) return;
 
-      const val = (selResponsible.value || "").toString();
-      const parsed = this._parseResponsibleOptionValue(val);
+      const responsible = this._readResponsibleFromSelect(selResponsible, this.projectFirms || []);
       this._respDirty = true;
       this._respDirtyTopId = this.selectedTop.id;
       const currentTopId = this.selectedTop.id;
@@ -2855,8 +2864,8 @@ _isoToDDMMYYYY(iso) {
       if (
         !dueDirtySameTop &&
         this.inpDueDate &&
-        parsed?.kind === "all" &&
-        parsed?.id === "all" &&
+        responsible?.kind === "all" &&
+        responsible?.id === "all" &&
         this.projectEndDate
       ) {
         const currentDue = (this.inpDueDate.value || "").trim();
@@ -2867,20 +2876,14 @@ _isoToDDMMYYYY(iso) {
         }
       }
 
-      if (!parsed?.id) {
+      if (!responsible?.id) {
         const res = await this._saveMeetingTopPatch(
-          {
-            responsible_kind: null,
-            responsible_id: null,
-            responsible_label: null,
-          },
+          this._responsibleToPatch(null),
           { reload: false, pulse: true }
         );
         if (res?.ok) {
           if (this.selectedTop) {
-            this.selectedTop.responsible_kind = null;
-            this.selectedTop.responsible_id = null;
-            this.selectedTop.responsible_label = null;
+            Object.assign(this.selectedTop, this._responsibleToPatch(null));
           }
           this._respDirty = false;
           this._respDirtyTopId = null;
@@ -2896,20 +2899,13 @@ _isoToDDMMYYYY(iso) {
         return;
       }
 
-      const lbl = this._getResponsibleLabelForSelection(selResponsible, parsed);
       const res = await this._saveMeetingTopPatch(
-        {
-          responsible_kind: parsed.kind || "company",
-          responsible_id: String(parsed.id),
-          responsible_label: lbl,
-        },
+        this._responsibleToPatch(responsible),
         { reload: false, pulse: true }
       );
       if (res?.ok) {
         if (this.selectedTop) {
-          this.selectedTop.responsible_kind = parsed.kind || "company";
-          this.selectedTop.responsible_id = String(parsed.id);
-          this.selectedTop.responsible_label = lbl;
+          Object.assign(this.selectedTop, this._responsibleToPatch(responsible));
         }
         this._respDirty = false;
         this._respDirtyTopId = null;

@@ -11,10 +11,7 @@ export class TopEditorController {
       due_date:
         this.view.inpDueDate && !this.view.inpDueDate.disabled ? this.view.inpDueDate.value : undefined,
       status: this.view.selStatus && !this.view.selStatus.disabled ? this.view.selStatus.value : undefined,
-      responsible_value:
-        this.view.selResponsible && !this.view.selResponsible.disabled
-          ? this.view.selResponsible.value
-          : undefined,
+      responsible_value: this.view.selResponsible ? this.view.selResponsible.value : undefined,
       is_hidden: this.view.chkHidden && !this.view.chkHidden.disabled ? this.view.chkHidden.checked : undefined,
       is_important:
         this.view.chkImportant && !this.view.chkImportant.disabled
@@ -66,17 +63,8 @@ export class TopEditorController {
     }
 
     if (values.responsible_value !== undefined) {
-      const parsed = this.view._parseResponsibleOptionValue(values.responsible_value);
-      if (parsed?.id) {
-        const lbl = this.view._getResponsibleLabelForSelection(this.view.selResponsible, parsed);
-        patch.responsible_kind = parsed.kind || "company";
-        patch.responsible_id = String(parsed.id);
-        patch.responsible_label = lbl;
-      } else {
-        patch.responsible_kind = null;
-        patch.responsible_id = null;
-        patch.responsible_label = null;
-      }
+      const responsible = this.view._readResponsibleFromSelect(this.view.selResponsible, this.view.projectFirms || []);
+      Object.assign(patch, this.view._responsibleToPatch(responsible));
     }
 
     return patch;
