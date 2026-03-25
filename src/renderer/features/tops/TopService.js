@@ -10,4 +10,8 @@ export class TopService {
   async listByMeeting(meetingId) {
     return window.bbmDb.topsListByMeeting(meetingId);
   }
+
+  async updateTop(payload) {
+    return window.bbmDb.meetingTopsUpdate(payload);
+  }
 }

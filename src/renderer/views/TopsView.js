@@ -1005,7 +1005,7 @@ _isoToDDMMYYYY(iso) {
 
     this._setBusy(true);
     try {
-      const res = await window.bbmDb.meetingTopsUpdate({
+      const res = await this.topService.updateTop({
         meetingId: this.meetingId,
         topId: selectedInItems.id,
         patch: nextPatch,
