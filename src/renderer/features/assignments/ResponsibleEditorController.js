@@ -17,7 +17,13 @@ export class ResponsibleEditorController {
     this.view.selResponsible.disabled = isDisabled ? true : !!this.view._respLegacyReadonly;
   }
 
-  applySelectionToEditor(top) {
+  applyStateFlags() {
+    if (!this.view.selResponsible) return;
+    this.view.selResponsible.disabled =
+      !!this.view._respLegacyReadonly || this.view.isReadOnly || this.view._busy;
+  }
+
+  syncStateAfterSelection(top) {
     this.view._clearLegacyResponsibleOption();
     this.view._respLegacyReadonly = false;
 
@@ -42,8 +48,7 @@ export class ResponsibleEditorController {
             this.view._clearLegacyResponsibleOption();
             this.view.selResponsible.value = "";
           }
-          this.view.selResponsible.disabled =
-            !!this.view._respLegacyReadonly || this.view.isReadOnly || this.view._busy;
+          this.applyStateFlags();
           this.view._respLastSetTopId = topId;
           this.view._respDirty = false;
           this.view._respDirtyTopId = null;

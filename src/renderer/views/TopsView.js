@@ -4689,7 +4689,7 @@ const textCol = document.createElement("div");
     this._updateStatusMarkers();
     this._updateTodoStatusAvailability();
     this.dictationController?.tryShowPendingTermPrompt();
-    this.responsibleEditor.applySelectionToEditor(t);
+    this.responsibleEditor.syncStateAfterSelection(t);
 
     this._updateCharCounters();
 
