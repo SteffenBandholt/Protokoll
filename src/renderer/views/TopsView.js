@@ -195,6 +195,22 @@ export default class TopsView {
     return this.dictationController?.start(options);
   }
 
+  _maybeOfferDictationTermCorrection(...args) {
+    return this.dictationController?.maybeOfferTermCorrection(...args);
+  }
+
+  _loadProjectTermCorrections(...args) {
+    return this.dictationController?.loadProjectTermCorrections(...args);
+  }
+
+  _tryShowPendingTermPrompt() {
+    return this.dictationController?.tryShowPendingTermPrompt();
+  }
+
+  _onTopCleared() {
+    return this.dictationController?.onTopCleared();
+  }
+
   _updateDictationButtons(options) {
     return this.dictationController?.updateButtons(options);
   }
@@ -2750,7 +2766,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normTitle(inpTitle.value);
-      this.dictationController?.maybeOfferTermCorrection("shortText", v, inpTitle);
+      this._maybeOfferDictationTermCorrection("shortText", v, inpTitle);
       inpTitle.value = this._clampStr(v, this._titleMax());
       this._updateCharCounters();
 
@@ -2763,7 +2779,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (inpTitle.disabled || !this.selectedTop) return;
         const v = this._normTitle(inpTitle.value);
-        this.dictationController?.maybeOfferTermCorrection("shortText", v, inpTitle);
+        this._maybeOfferDictationTermCorrection("shortText", v, inpTitle);
         inpTitle.value = this._clampStr(v, this._titleMax());
         this._updateCharCounters();
 
@@ -2791,7 +2807,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
 
       const v = this._normLong(taLong.value);
-      this.dictationController?.maybeOfferTermCorrection("longText", v, taLong);
+      this._maybeOfferDictationTermCorrection("longText", v, taLong);
       taLong.value = this._clampStr(taLong.value, this._longMax());
       this._updateCharCounters();
 
@@ -2804,7 +2820,7 @@ _isoToDDMMYYYY(iso) {
       blurGuard(async () => {
         if (taLong.disabled || !this.selectedTop) return;
         const v = this._normLong(taLong.value);
-        this.dictationController?.maybeOfferTermCorrection("longText", v, taLong);
+        this._maybeOfferDictationTermCorrection("longText", v, taLong);
         taLong.value = this._clampStr(taLong.value, this._longMax());
         this._updateCharCounters();
 
@@ -2992,7 +3008,7 @@ _isoToDDMMYYYY(iso) {
     }
 
     await this._loadProjectDates();
-    await this.dictationController?.loadProjectTermCorrections(true);
+    await this._loadProjectTermCorrections(true);
     await this._loadAmpelSetting();
     await this._loadTextLimitsSetting();
     await this.reloadList(true);
@@ -4322,7 +4338,7 @@ const textCol = document.createElement("div");
     }
 
     if (!t) {
-      this.dictationController?.onTopCleared();
+      this._onTopCleared();
       this.inpTitle.value = "";
       if (this.taLongtext) this.taLongtext.value = "";
       this.chkHidden.checked = false;
@@ -4383,7 +4399,7 @@ const textCol = document.createElement("div");
     this._updateDueAmpelFromInputs();
     this._updateStatusMarkers();
     this._updateTodoStatusAvailability();
-    this.dictationController?.tryShowPendingTermPrompt();
+    this._tryShowPendingTermPrompt();
     this.responsibleEditor.syncStateAfterSelection(t);
 
     this._updateCharCounters();
