@@ -1282,28 +1282,6 @@ _isoToDDMMYYYY(iso) {
     return lvl >= 2 && lvl <= 4;
   }
 
-  _applyPatchToLocalTop(top, patch) {
-    if (!top || !patch || typeof patch !== "object") return;
-
-    const applyField = (field, altField) => {
-      if (patch[field] !== undefined) top[field] = patch[field];
-      else if (altField && patch[altField] !== undefined) top[field] = patch[altField];
-    };
-
-    applyField("title");
-    applyField("longtext");
-    applyField("due_date", "dueDate");
-    applyField("status");
-    applyField("completed_in_meeting_id");
-    applyField("is_hidden");
-    applyField("is_important");
-    applyField("is_task");
-    applyField("is_decision");
-    applyField("responsible_kind");
-    applyField("responsible_id");
-    applyField("responsible_label");
-  }
-
   _formatResponsible(top) {
     const resp = this._getTopResponsible(top);
     const lbl = this._sanitizeResponsibleLabel(resp.label);
