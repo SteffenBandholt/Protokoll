@@ -1012,8 +1012,8 @@ _isoToDDMMYYYY(iso) {
       });
 
       if (!res?.ok) {
-        alert(res?.error || "Fehler beim Speichern");
-        return;
+        this._handleSaveTopError({ res });
+        return res;
       }
 
       this._handleSaveTopSuccess({ nextPatch, reload, pulse, res });
@@ -1025,6 +1025,10 @@ _isoToDDMMYYYY(iso) {
 
   _handleSaveTopSuccess({ nextPatch, reload, pulse, res }) {
     this.topPatchService.applyPatchAndRefresh(nextPatch, { reload, pulse });
+  }
+
+  _handleSaveTopError({ res }) {
+    alert(res?.error || "Fehler beim Speichern");
   }
 
   // === CORE: Save / Patch Flow ===
