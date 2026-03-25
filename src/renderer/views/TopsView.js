@@ -1016,11 +1016,15 @@ _isoToDDMMYYYY(iso) {
         return;
       }
 
-      this.topPatchService.applyPatchAndRefresh(nextPatch, { reload, pulse });
+      this._handleSaveTopSuccess({ nextPatch, reload, pulse, res });
       return res;
     } finally {
       this._setBusy(false);
     }
+  }
+
+  _handleSaveTopSuccess({ nextPatch, reload, pulse, res }) {
+    this.topPatchService.applyPatchAndRefresh(nextPatch, { reload, pulse });
   }
 
   // === CORE: Save / Patch Flow ===
