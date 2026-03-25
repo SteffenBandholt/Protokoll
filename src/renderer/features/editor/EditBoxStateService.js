@@ -40,4 +40,34 @@ export class EditBoxStateService {
       this.view.btnSaveTop.style.opacity = "1";
     }
   }
+
+  applyValuesToEditBox(top) {
+    const meta = this.view._getTopMeta(top);
+    const titleVal = this.view._clampStr(top.title || "", this.view._titleMax());
+    this.view.inpTitle.value = titleVal;
+
+    if (this.view.taLongtext) {
+      this.view.taLongtext.value = this.view._clampStr(top.longtext || "", this.view._longMax());
+    }
+
+    this.view.chkHidden.checked = Number(top.is_hidden) === 1;
+    if (this.view.chkImportant) this.view.chkImportant.checked = Number(top.is_important) === 1;
+    if (this.view.chkTask) this.view.chkTask.checked = Number(top.is_task ?? top.isTask ?? 0) === 1;
+    if (this.view.chkDecision) this.view.chkDecision.checked = Number(top.is_decision ?? top.isDecision ?? 0) === 1;
+
+    if (this.view.inpDueDate) {
+      const dueRaw = meta.dueDate ?? "";
+      const dueVal = (dueRaw || "").toString();
+      this.view.inpDueDate.value = dueVal ? dueVal.slice(0, 10) : "";
+    }
+
+    if (this.view.selStatus) {
+      const st = (meta.status || "").toString().trim();
+      if (!st && Number(top.is_task ?? top.isTask ?? 0) === 1) {
+        this.view.selStatus.value = "todo";
+      } else {
+        this.view.selStatus.value = st ? st : "alle";
+      }
+    }
+  }
 }

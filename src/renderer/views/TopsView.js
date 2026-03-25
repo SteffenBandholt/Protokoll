@@ -4070,34 +4070,7 @@ const textCol = document.createElement("div");
       return;
     }
 
-    const meta = this._getTopMeta(t);
-    const titleVal = this._clampStr(t.title || "", this._titleMax());
-    this.inpTitle.value = titleVal;
-
-    if (this.taLongtext) {
-      this.taLongtext.value = this._clampStr(t.longtext || "", this._longMax());
-    }
-
-    this.chkHidden.checked = Number(t.is_hidden) === 1;
-    if (this.chkImportant) this.chkImportant.checked = Number(t.is_important) === 1;
-    if (this.chkTask) this.chkTask.checked = Number(t.is_task ?? t.isTask ?? 0) === 1;
-    if (this.chkDecision) this.chkDecision.checked = Number(t.is_decision ?? t.isDecision ?? 0) === 1;
-
-    if (this.inpDueDate) {
-      const dueRaw = meta.dueDate ?? "";
-      const dueVal = (dueRaw || "").toString();
-      this.inpDueDate.value = dueVal ? dueVal.slice(0, 10) : "";
-    }
-
-      if (this.selStatus) {
-        const st = (meta.status || "").toString().trim();
-        const stLower = st.toLowerCase();
-        if (!st && (Number(t.is_task ?? t.isTask ?? 0) === 1)) {
-          this.selStatus.value = "todo";
-        } else {
-          this.selStatus.value = st ? st : "alle";
-        }
-      }
+    this.editBoxStateService.applyValuesToEditBox(t);
 
     this._applyProjectDueDefaults(t);
     this._updateDueAmpelFromInputs();
