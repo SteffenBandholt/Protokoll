@@ -967,62 +967,6 @@ _isoToDDMMYYYY(iso) {
     this._updateDeleteControls();
   }
 
-  // === CORE: Save / Patch Flow ===
-  async _saveMeetingTopPatch(patch, { reload = true, pulse = false } = {}) {
-    if (this.isReadOnly) return;
-    if (this._busy) return;
-
-    const selected = this.selectedTop || this._findTopById(this.selectedTopId);
-    const selectedTopId = selected?.id ?? this.selectedTopId;
-    if (!selectedTopId) return;
-    const selectedInItems = this._findTopById(selectedTopId);
-    if (!selectedInItems) return;
-
-    const nextPatch = patch && typeof patch === "object" ? { ...patch } : {};
-
-    if (this.inpTitle?.disabled) delete nextPatch.title;
-    if (this.taLongtext?.disabled) delete nextPatch.longtext;
-    if (this.inpDueDate?.disabled) delete nextPatch.due_date;
-    if (this.selStatus?.disabled) {
-      delete nextPatch.status;
-      delete nextPatch.completed_in_meeting_id;
-    }
-    if (this.selResponsible?.disabled) {
-      delete nextPatch.responsible_kind;
-      delete nextPatch.responsible_id;
-      delete nextPatch.responsible_label;
-    }
-    if (this.chkHidden?.disabled) delete nextPatch.is_hidden;
-    if (this.chkImportant?.disabled) delete nextPatch.is_important;
-    if (this.chkTask?.disabled) delete nextPatch.is_task;
-    if (this.chkDecision?.disabled) delete nextPatch.is_decision;
-
-    if (Number(selectedInItems.is_carried_over) === 1) {
-      delete nextPatch.title;
-    }
-
-    if (Object.keys(nextPatch).length === 0) return;
-
-    this._setBusy(true);
-    try {
-      const res = await this.topService.updateTop({
-        meetingId: this.meetingId,
-        topId: selectedInItems.id,
-        patch: nextPatch,
-      });
-
-      if (!res?.ok) {
-        this._handleSaveTopError({ res });
-        return res;
-      }
-
-      this._handleSaveTopSuccess({ nextPatch, reload, pulse, res });
-      return res;
-    } finally {
-      this._setBusy(false);
-    }
-  }
-
   _handleSaveTopSuccess({ nextPatch, reload, pulse, res }) {
     this.topPatchService.applyPatchAndRefresh(nextPatch, { reload, pulse });
   }
@@ -2159,7 +2103,7 @@ _isoToDDMMYYYY(iso) {
       const patch = this.topPatchService.collectEditorPatch();
       if (!patch) return;
 
-      await this._saveMeetingTopPatch(patch, { reload: true, pulse: true });
+      await this.topPatchService.saveMeetingTopPatch(patch, { reload: true, pulse: true });
     };
 
     const btnTrashTop = document.createElement("button");
@@ -2599,7 +2543,7 @@ _isoToDDMMYYYY(iso) {
       inpTitle.value = this._clampStr(v, this._titleMax());
       this._updateCharCounters();
 
-      await this._saveMeetingTopPatch({ title: v }, { reload: true, pulse: false });
+      await this.topPatchService.saveMeetingTopPatch({ title: v }, { reload: true, pulse: false });
       this.btnL1?.focus();
     });
 
@@ -2612,7 +2556,7 @@ _isoToDDMMYYYY(iso) {
         inpTitle.value = this._clampStr(v, this._titleMax());
         this._updateCharCounters();
 
-        await this._saveMeetingTopPatch({ title: v }, { reload: true, pulse: false });
+        await this.topPatchService.saveMeetingTopPatch({ title: v }, { reload: true, pulse: false });
       })
     );
 
@@ -2640,7 +2584,7 @@ _isoToDDMMYYYY(iso) {
       taLong.value = this._clampStr(taLong.value, this._longMax());
       this._updateCharCounters();
 
-      await this._saveMeetingTopPatch({ longtext: v }, { reload: true, pulse: false });
+      await this.topPatchService.saveMeetingTopPatch({ longtext: v }, { reload: true, pulse: false });
       this.btnL1?.focus();
     });
 
@@ -2653,7 +2597,7 @@ _isoToDDMMYYYY(iso) {
         taLong.value = this._clampStr(taLong.value, this._longMax());
         this._updateCharCounters();
 
-        await this._saveMeetingTopPatch({ longtext: v }, { reload: true, pulse: false });
+        await this.topPatchService.saveMeetingTopPatch({ longtext: v }, { reload: true, pulse: false });
       })
     );
 
@@ -2664,7 +2608,7 @@ _isoToDDMMYYYY(iso) {
       const dueVal = (inpDueDate.value || "").trim();
       this._dueDirty = true;
       this._dueDirtyTopId = this.selectedTop.id;
-      await this._saveMeetingTopPatch({ due_date: dueVal || null }, { reload: true, pulse: true });
+      await this.topPatchService.saveMeetingTopPatch({ due_date: dueVal || null }, { reload: true, pulse: true });
     });
 
     selStatus.addEventListener("change", async () => {
@@ -2694,7 +2638,7 @@ _isoToDDMMYYYY(iso) {
       const completedIn = this._isDoneStatus(st) ? this.meetingId : null;
       this._updateStatusMarkers();
       this._updateDueAmpelFromInputs();
-      await this._saveMeetingTopPatch(
+      await this.topPatchService.saveMeetingTopPatch(
         {
           status: st,
           due_date: dueVal || null,
@@ -2733,7 +2677,7 @@ _isoToDDMMYYYY(iso) {
       }
 
       if (!responsible?.id) {
-        const res = await this._saveMeetingTopPatch(
+        const res = await this.topPatchService.saveMeetingTopPatch(
           this._responsibleToPatch(null),
           { reload: false, pulse: true }
         );
@@ -2750,12 +2694,12 @@ _isoToDDMMYYYY(iso) {
         if (!this._hasTodoResponsibleSelection() && (this.selStatus?.value || "").toLowerCase() === "todo") {
           this.selStatus.value = "-";
           this._updateStatusMarkers();
-          await this._saveMeetingTopPatch({ status: "-", is_task: 0 }, { reload: true, pulse: true });
+          await this.topPatchService.saveMeetingTopPatch({ status: "-", is_task: 0 }, { reload: true, pulse: true });
         }
         return;
       }
 
-      const res = await this._saveMeetingTopPatch(
+      const res = await this.topPatchService.saveMeetingTopPatch(
         this._responsibleToPatch(responsible),
         { reload: false, pulse: true }
       );
@@ -2776,7 +2720,7 @@ _isoToDDMMYYYY(iso) {
       if (chkImportant.disabled) return;
       if (!this.selectedTop) return;
 
-      await this._saveMeetingTopPatch(
+      await this.topPatchService.saveMeetingTopPatch(
         { is_important: chkImportant.checked ? 1 : 0 },
         { reload: true, pulse: true }
       );
@@ -2789,7 +2733,7 @@ _isoToDDMMYYYY(iso) {
 
       const hideNow = chkHidden.checked;
       const selectedId = this.selectedTop.id;
-      const savePromise = this._saveMeetingTopPatch(
+      const savePromise = this.topPatchService.saveMeetingTopPatch(
         { is_hidden: hideNow ? 1 : 0 },
         { reload: false, pulse: false }
       );
@@ -3275,7 +3219,7 @@ async _closeViewOnly() {
     this._deleteInFlight = true;
     this._updateDeleteControls();
 
-    const savePromise = this._saveMeetingTopPatch(
+    const savePromise = this.topPatchService.saveMeetingTopPatch(
       { is_hidden: 1 },
       { reload: false, pulse: false }
     );
@@ -3349,7 +3293,7 @@ async _closeViewOnly() {
     this._deleteInFlight = true;
     this._updateDeleteControls();
 
-    const savePromise = this._saveMeetingTopPatch(
+    const savePromise = this.topPatchService.saveMeetingTopPatch(
       { is_hidden: 1 },
       { reload: false, pulse: false }
     );
