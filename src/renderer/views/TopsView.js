@@ -3713,7 +3713,7 @@ async _closeViewOnly() {
     let needsReload = false;
     this._setBusy(true);
     try {
-      const res = await window.bbmDb.topsMove({
+      const res = await this.topService.moveTop({
         topId: t.id,
         targetParentId: targetParentId || null,
       });
