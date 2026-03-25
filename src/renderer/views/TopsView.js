@@ -16,6 +16,7 @@ import { ResponsibleAssignmentAdapter } from "../features/assignments/Responsibl
 import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
+import { TopService } from "../features/tops/TopService.js";
 import { TopTrashService } from "../features/tops/TopTrashService.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
@@ -246,6 +247,7 @@ export default class TopsView {
     this.responsibleAssignmentAdapter = new ResponsibleAssignmentAdapter({ view: this });
     this.responsibleEditor = new ResponsibleEditorController({ view: this });
     this.topEditor = new TopEditorController({ view: this });
+    this.topService = new TopService();
     this.topTrash = new TopTrashService();
     this._initAssignmentDelegates();
   }
@@ -4466,7 +4468,7 @@ const textCol = document.createElement("div");
     let shouldReloadAfterCreate = false;
     this._setBusy(true);
     try {
-      const res = await window.bbmDb.topsCreate({
+      const res = await this.topService.createTop({
         projectId: this.projectId,
         meetingId: this.meetingId,
         level,
