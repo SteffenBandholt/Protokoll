@@ -1304,18 +1304,6 @@ _isoToDDMMYYYY(iso) {
     applyField("responsible_label");
   }
 
-  _applyPatchToCurrentSelection(patch) {
-    if (!patch) return;
-    if (this.selectedTop) {
-      this._applyPatchToLocalTop(this.selectedTop, patch);
-    }
-    const selId = this.selectedTop?.id;
-    const inList = this.items.find((it) => this._sameTopId(it?.id, selId));
-    if (inList && inList !== this.selectedTop) {
-      this._applyPatchToLocalTop(inList, patch);
-    }
-  }
-
   _formatResponsible(top) {
     const resp = this._getTopResponsible(top);
     const lbl = this._sanitizeResponsibleLabel(resp.label);

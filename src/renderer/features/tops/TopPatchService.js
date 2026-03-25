@@ -10,8 +10,20 @@ export class TopPatchService {
     return this.view.topEditor.buildPatch(values);
   }
 
+  applyPatchToCurrentSelection(patch) {
+    if (!patch) return;
+    if (this.view.selectedTop) {
+      this.view._applyPatchToLocalTop(this.view.selectedTop, patch);
+    }
+    const selId = this.view.selectedTop?.id;
+    const inList = this.view.items.find((it) => this.view._sameTopId(it?.id, selId));
+    if (inList && inList !== this.view.selectedTop) {
+      this.view._applyPatchToLocalTop(inList, patch);
+    }
+  }
+
   async applyPatchAndRefresh(nextPatch, { reload, pulse }) {
-    this.view._applyPatchToCurrentSelection(nextPatch);
+    this.applyPatchToCurrentSelection(nextPatch);
 
     if (pulse) this.view._showSavedPulse();
 
