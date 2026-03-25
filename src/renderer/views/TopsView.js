@@ -795,33 +795,6 @@ _isoToDDMMYYYY(iso) {
     }
   }
 
-  async _loadLongtextSetting() {
-    if (this._longtextSettingLoaded) return;
-    const key = "tops.showLongtextInList";
-    const api = window.bbmDb || {};
-    if (typeof api.appSettingsGetMany === "function") {
-      const res = await api.appSettingsGetMany([key]);
-      if (res?.ok) {
-        const data = res.data || {};
-        this.showLongtextInList = this._parseBool(data[key], this.showLongtextInList);
-      }
-      this._longtextSettingLoaded = true;
-      this._emitLongtextStateChanged();
-      return;
-    }
-
-    try {
-      const raw = window.localStorage?.getItem?.(key);
-      if (raw != null) {
-        this.showLongtextInList = this._parseBool(raw, this.showLongtextInList);
-      }
-    } catch (_e) {
-      // ignore
-    }
-    this._longtextSettingLoaded = true;
-    this._emitLongtextStateChanged();
-  }
-
   _emitLongtextStateChanged() {
     try {
       window.dispatchEvent(
@@ -830,20 +803,6 @@ _isoToDDMMYYYY(iso) {
         })
       );
     } catch (_err) {}
-  }
-
-  async _saveLongtextSetting() {
-    const key = "tops.showLongtextInList";
-    const api = window.bbmDb || {};
-    if (typeof api.appSettingsSetMany === "function") {
-      await api.appSettingsSetMany({ [key]: this.showLongtextInList ? "1" : "0" });
-      return;
-    }
-    try {
-      window.localStorage?.setItem?.(key, this.showLongtextInList ? "1" : "0");
-    } catch (_e) {
-      // ignore
-    }
   }
 
   async _loadListFontScaleSetting(force = false) {
@@ -1923,7 +1882,7 @@ _isoToDDMMYYYY(iso) {
       updateLongToggleUi();
       this._renderListOnly();
       this._emitLongtextStateChanged();
-      this._saveLongtextSetting().catch(() => {});
+      this.settingsService.saveLongtextSetting().catch(() => {});
     };
 
     btnLongToggle.addEventListener("keydown", (e) => {
@@ -1959,7 +1918,7 @@ _isoToDDMMYYYY(iso) {
       btnProjectTasks.click();
     });
 
-    this._loadLongtextSetting()
+    this.settingsService.loadLongtextSetting()
       .then(() => {
         updateLongToggleUi();
         this._renderListOnly();

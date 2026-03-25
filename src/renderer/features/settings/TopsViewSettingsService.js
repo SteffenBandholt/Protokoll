@@ -40,4 +40,45 @@ export class TopsViewSettingsService {
       alert(res?.error || "Speichern fehlgeschlagen");
     }
   }
+
+  async loadLongtextSetting() {
+    if (this.view._longtextSettingLoaded) return;
+    const key = "tops.showLongtextInList";
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany === "function") {
+      const res = await api.appSettingsGetMany([key]);
+      if (res?.ok) {
+        const data = res.data || {};
+        this.view.showLongtextInList = this.view._parseBool(data[key], this.view.showLongtextInList);
+      }
+      this.view._longtextSettingLoaded = true;
+      this.view._emitLongtextStateChanged();
+      return;
+    }
+
+    try {
+      const raw = window.localStorage?.getItem?.(key);
+      if (raw != null) {
+        this.view.showLongtextInList = this.view._parseBool(raw, this.view.showLongtextInList);
+      }
+    } catch (_e) {
+      // ignore
+    }
+    this.view._longtextSettingLoaded = true;
+    this.view._emitLongtextStateChanged();
+  }
+
+  async saveLongtextSetting() {
+    const key = "tops.showLongtextInList";
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsSetMany === "function") {
+      await api.appSettingsSetMany({ [key]: this.view.showLongtextInList ? "1" : "0" });
+      return;
+    }
+    try {
+      window.localStorage?.setItem?.(key, this.view.showLongtextInList ? "1" : "0");
+    } catch (_e) {
+      // ignore
+    }
+  }
 }
