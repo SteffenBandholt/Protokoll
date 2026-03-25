@@ -724,50 +724,6 @@ _isoToDDMMYYYY(iso) {
     } catch (_err) {}
   }
 
-  async _loadTextLimitsSetting() {
-    const DEFAULT_TITLE_MAX = 100;
-    const DEFAULT_LONG_MAX = 500;
-    const parseLimit = (val, min, max, fallback) => {
-      const n = Math.floor(Number(val));
-      if (!Number.isFinite(n) || n <= 0) return fallback;
-      return Math.max(min, Math.min(max, n));
-    };
-
-    const api = window.bbmDb || {};
-    if (typeof api.appSettingsGetMany !== "function") {
-      this.titleMax = DEFAULT_TITLE_MAX;
-      this.longMax = DEFAULT_LONG_MAX;
-      return;
-    }
-
-    const res = await api.appSettingsGetMany(["tops.titleMax", "tops.longMax"]);
-    if (!res?.ok) {
-      this.titleMax = DEFAULT_TITLE_MAX;
-      this.longMax = DEFAULT_LONG_MAX;
-      return;
-    }
-
-    const data = res.data || {};
-    const titleMax = parseLimit(data["tops.titleMax"], 1, 5000, DEFAULT_TITLE_MAX);
-    const longMax = parseLimit(data["tops.longMax"], 1, 20000, DEFAULT_LONG_MAX);
-
-    this.titleMax = titleMax;
-    this.longMax = longMax;
-
-    if (this.inpTitle) {
-      this.inpTitle.maxLength = this._titleMax();
-      this.inpTitle.value = this._clampStr(this.inpTitle.value, this._titleMax());
-    }
-    if (this.taLongtext) {
-      this.taLongtext.maxLength = this._longMax();
-      this.taLongtext.value = this._clampStr(this.taLongtext.value, this._longMax());
-    }
-
-    this._updateCharCounters();
-    if (this.listEl) this._renderListOnly();
-    this._updateTopBarMetaLabels();
-  }
-
   async _loadProjectDates() {
     this.projectStartDate = null;
     this.projectEndDate = null;
@@ -1744,7 +1700,7 @@ _isoToDDMMYYYY(iso) {
     }
     if (!this._topsLimitsListenerBound) {
       this._onTopLimitsChanged = async () => {
-        await this._loadTextLimitsSetting();
+        await this.settingsService.loadTextLimitsSetting();
       };
       window.addEventListener("bbm:tops-limits-changed", this._onTopLimitsChanged);
       this._topsLimitsListenerBound = true;
@@ -2963,7 +2919,7 @@ _isoToDDMMYYYY(iso) {
     await this._loadProjectDates();
     await this._loadProjectTermCorrections(true);
     await this._loadAmpelSetting();
-    await this._loadTextLimitsSetting();
+    await this.settingsService.loadTextLimitsSetting();
     await this.reloadList(true);
     this._ensureProjectFirmsLoaded().catch(() => {});
     this.applyEditBoxState();
