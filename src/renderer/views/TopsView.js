@@ -16,6 +16,7 @@ import { ResponsibleAssignmentAdapter } from "../features/assignments/Responsibl
 import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
+import { TopsViewSettingsService } from "../features/settings/TopsViewSettingsService.js";
 import { TopGapFlow } from "../features/tops/TopGapFlow.js";
 import { TopService } from "../features/tops/TopService.js";
 import { TopTrashService } from "../features/tops/TopTrashService.js";
@@ -167,6 +168,7 @@ export default class TopsView {
     this._viewMenuEl = null;
     this._viewMenuBtn = null;
     this._projectTasksOverlayEl = null;
+    this.settingsService = new TopsViewSettingsService({ view: this });
 
     this._initModules(router);
   }
@@ -709,29 +711,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _loadAmpelSetting() {
-    const api = window.bbmDb || {};
-    if (typeof api.appSettingsGetMany !== "function") {
-      this.showAmpelInList = true;
-      this._applyAmpelVisibility();
-      if (typeof this._updateAmpelToggleUi === "function") this._updateAmpelToggleUi();
-      this._emitAmpelStateChanged();
-      return;
-    }
-
-    const res = await api.appSettingsGetMany(["tops.ampelEnabled"]);
-    if (!res?.ok) {
-      this.showAmpelInList = true;
-      this._applyAmpelVisibility();
-      if (typeof this._updateAmpelToggleUi === "function") this._updateAmpelToggleUi();
-      this._emitAmpelStateChanged();
-      return;
-    }
-
-    const data = res.data || {};
-    this.showAmpelInList = this._parseBool(data["tops.ampelEnabled"], true);
-    this._applyAmpelVisibility();
-    if (typeof this._updateAmpelToggleUi === "function") this._updateAmpelToggleUi();
-    this._emitAmpelStateChanged();
+    return this.settingsService.loadAmpelSetting();
   }
 
   _emitAmpelStateChanged() {
@@ -994,15 +974,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _saveAmpelSetting() {
-    const api = window.bbmDb || {};
-    if (typeof api.appSettingsSetMany !== "function") return;
-
-    const res = await api.appSettingsSetMany({
-      "tops.ampelEnabled": this.showAmpelInList ? "true" : "false",
-    });
-    if (!res?.ok) {
-      alert(res?.error || "Speichern fehlgeschlagen");
-    }
+    return this.settingsService.saveAmpelSetting();
   }
 
   _applyAmpelVisibility() {
