@@ -246,7 +246,6 @@ export default class TopsView {
   _initDialogDelegates() {
     this._clearGapPopup = () => this.dialogs.clearGapPopup();
     this._buildGapDetailsText = (...args) => this.dialogs.buildGapDetailsText(...args);
-    this._showNumberGapPopup = (...args) => this.dialogs.showNumberGapPopup(...args);
   }
 
   _updateTopBarProtocolTitle() {

@@ -144,6 +144,35 @@ export class TopsViewDialogs {
     this.view._gapPopupOverlay = overlay;
   }
 
+  async handleNumberGap({ gap, markTopIds, onResolved }) {
+    this.view._setMarkedTopIds(markTopIds || []);
+    await this.showNumberGapPopup({
+      gap,
+      onCancel: () => {
+        this.view._clearMarkedTopIds();
+      },
+      onConfirm: async () => {
+        const fixRes = await window.bbmDb.meetingTopsFixNumberGap({
+          meetingId: this.view.meetingId,
+          level: gap?.level,
+          parentTopId: gap?.parentTopId ?? null,
+          fromTopId: gap?.lastTopId,
+          toNumber: gap?.missingNumber,
+        });
+
+        if (!fixRes?.ok) {
+          alert(fixRes?.error || fixRes?.errorCode || "Reparatur fehlgeschlagen");
+          return;
+        }
+
+        this.clearGapPopup();
+        this.view._clearMarkedTopIds();
+        await this.view.reloadList(true);
+        if (typeof onResolved === "function") await onResolved();
+      },
+    });
+  }
+
   async openMeetingKeywordPopup() {
     const api = window.bbmDb || {};
     if (typeof api.meetingsUpdateTitle !== "function") {

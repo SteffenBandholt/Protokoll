@@ -137,29 +137,10 @@ export class CloseMeetingOutputFlow {
 
       if (res?.errorCode === "NUM_GAP") {
         const gap = (res.gaps || [])[0] || null;
-        this.view._setMarkedTopIds(res.markTopIds || []);
-        await this.view._showNumberGapPopup({
+        await this.view.dialogs.handleNumberGap({
           gap,
-          onCancel: () => {
-            this.view._clearMarkedTopIds();
-          },
-          onConfirm: async () => {
-            const fixRes = await window.bbmDb.meetingTopsFixNumberGap({
-              meetingId: this.view.meetingId,
-              level: gap?.level,
-              parentTopId: gap?.parentTopId ?? null,
-              fromTopId: gap?.lastTopId,
-              toNumber: gap?.missingNumber,
-            });
-
-            if (!fixRes?.ok) {
-              alert(fixRes?.error || fixRes?.errorCode || "Reparatur fehlgeschlagen");
-              return;
-            }
-
-            this.view._clearGapPopup();
-            this.view._clearMarkedTopIds();
-            await this.view.reloadList(true);
+          markTopIds: res.markTopIds || [],
+          onResolved: async () => {
             await attemptClose();
           },
         });
