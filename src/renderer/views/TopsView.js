@@ -17,6 +17,7 @@ import { ResponsibleEditorController } from "../features/assignments/Responsible
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
 import { TopsViewSettingsService } from "../features/settings/TopsViewSettingsService.js";
+import { TopPatchService } from "../features/tops/TopPatchService.js";
 import { TopGapFlow } from "../features/tops/TopGapFlow.js";
 import { TopService } from "../features/tops/TopService.js";
 import { TopTrashService } from "../features/tops/TopTrashService.js";
@@ -169,6 +170,7 @@ export default class TopsView {
     this._viewMenuBtn = null;
     this._projectTasksOverlayEl = null;
     this.settingsService = new TopsViewSettingsService({ view: this });
+    this.topPatchService = new TopPatchService({ view: this });
 
     this._initModules(router);
   }
@@ -1035,11 +1037,6 @@ _isoToDDMMYYYY(iso) {
   }
 
   // === CORE: Save / Patch Flow ===
-  _collectEditorPatch() {
-    const values = this.topEditor.readValues();
-    return this.topEditor.buildPatch(values);
-  }
-
   _sanitizeResponsibleLabel(label) {
     return this.responsibleOptionsService.sanitizeResponsibleLabel(label);
   }
@@ -2198,7 +2195,7 @@ _isoToDDMMYYYY(iso) {
       if (this.isReadOnly) return;
       if (!this.selectedTop) return;
 
-      const patch = this._collectEditorPatch();
+      const patch = this.topPatchService.collectEditorPatch();
       if (!patch) return;
 
       await this._saveMeetingTopPatch(patch, { reload: true, pulse: true });
