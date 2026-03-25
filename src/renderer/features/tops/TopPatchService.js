@@ -54,15 +54,23 @@ export class TopPatchService {
       });
 
       if (!res?.ok) {
-        this.view._handleSaveTopError({ res });
+        this.handleSaveTopError({ res });
         return res;
       }
 
-      this.view._handleSaveTopSuccess({ nextPatch, reload, pulse, res });
+      this.handleSaveTopSuccess({ nextPatch, reload, pulse, res });
       return res;
     } finally {
       this.view._setBusy(false);
     }
+  }
+
+  handleSaveTopSuccess({ nextPatch, reload, pulse, res }) {
+    this.applyPatchAndRefresh(nextPatch, { reload, pulse });
+  }
+
+  handleSaveTopError({ res }) {
+    alert(res?.error || "Fehler beim Speichern");
   }
 
   applyPatchToLocalTop(top, patch) {

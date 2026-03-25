@@ -967,14 +967,6 @@ _isoToDDMMYYYY(iso) {
     this._updateDeleteControls();
   }
 
-  _handleSaveTopSuccess({ nextPatch, reload, pulse, res }) {
-    this.topPatchService.applyPatchAndRefresh(nextPatch, { reload, pulse });
-  }
-
-  _handleSaveTopError({ res }) {
-    alert(res?.error || "Fehler beim Speichern");
-  }
-
   // === CORE: Save / Patch Flow ===
   _sanitizeResponsibleLabel(label) {
     return this.responsibleOptionsService.sanitizeResponsibleLabel(label);
