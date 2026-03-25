@@ -151,9 +151,9 @@ export class ResponsibleOptionsService {
   }
 
   resolveResponsibleSelection(top) {
-    const rid = (top?.responsible_id ?? "").toString().trim();
-    const rk = (top?.responsible_kind ?? "").toString().trim();
-    const rl = this.sanitizeResponsibleLabel(top?.responsible_label);
+    const rid = (top?.responsible_id ?? top?.responsibleId ?? "").toString().trim();
+    const rk = (top?.responsible_kind ?? top?.responsibleKind ?? "").toString().trim();
+    const rl = this.sanitizeResponsibleLabel(top?.responsible_label ?? top?.responsibleLabel);
     if (!rid) return { value: "", fallbackLabel: "" };
     if (!this.view.isNewUi) return { value: rid, fallbackLabel: "" };
 
