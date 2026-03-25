@@ -6,4 +6,8 @@ export class TopService {
   async moveTop(payload) {
     return window.bbmDb.topsMove(payload);
   }
+
+  async listByMeeting(meetingId) {
+    return window.bbmDb.topsListByMeeting(meetingId);
+  }
 }

@@ -3748,7 +3748,7 @@ async _closeViewOnly() {
     let res = null;
     try {
       res = await Promise.race([
-        window.bbmDb.topsListByMeeting(this.meetingId),
+        this.topService.listByMeeting(this.meetingId),
         new Promise((resolve) => {
           setTimeout(() => resolve({ ok: false, error: "Timeout", _timeout: true }), 8000);
         }),
