@@ -16,6 +16,7 @@ import { ResponsibleAssignmentAdapter } from "../features/assignments/Responsibl
 import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
+import { TopTrashService } from "../features/tops/TopTrashService.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
 import { fireAndForget } from "../utils/async.js";
 
@@ -245,6 +246,7 @@ export default class TopsView {
     this.responsibleAssignmentAdapter = new ResponsibleAssignmentAdapter({ view: this });
     this.responsibleEditor = new ResponsibleEditorController({ view: this });
     this.topEditor = new TopEditorController({ view: this });
+    this.topTrash = new TopTrashService();
     this._initAssignmentDelegates();
   }
 
@@ -3491,7 +3493,7 @@ async _closeViewOnly() {
       }
 
       if (typeof window.bbmDb?.topsMarkTrashed === "function") {
-        const markRes = await window.bbmDb.topsMarkTrashed({ topId: currentId });
+        const markRes = await this.topTrash.markTrashed(currentId);
         if (markRes?.ok === false) {
           console.warn("[tops] topsMarkTrashed failed:", markRes.error);
         }
@@ -3565,7 +3567,7 @@ async _closeViewOnly() {
         return;
       }
       if (typeof window.bbmDb?.topsMarkTrashed === "function") {
-        const markRes = await window.bbmDb.topsMarkTrashed({ topId: currentId });
+        const markRes = await this.topTrash.markTrashed(currentId);
         if (markRes?.ok === false) {
           console.warn("[tops] topsMarkTrashed failed:", markRes.error);
         }
