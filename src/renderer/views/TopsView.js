@@ -1023,19 +1023,6 @@ _isoToDDMMYYYY(iso) {
     }
   }
 
-  _applyPatchAndRefresh(nextPatch, { reload, pulse }) {
-    this._applyPatchToCurrentSelection(nextPatch);
-
-    if (pulse) this._showSavedPulse();
-
-    if (reload) {
-      fireAndForget(() => this.reloadList(false), "TopsView reload after save");
-    } else {
-      this._renderListOnly();
-      this.applyEditBoxState();
-    }
-  }
-
   // === CORE: Save / Patch Flow ===
   _sanitizeResponsibleLabel(label) {
     return this.responsibleOptionsService.sanitizeResponsibleLabel(label);

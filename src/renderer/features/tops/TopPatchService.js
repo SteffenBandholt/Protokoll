@@ -1,3 +1,5 @@
+import { fireAndForget } from "../../utils/async.js";
+
 export class TopPatchService {
   constructor({ view }) {
     this.view = view;
@@ -9,6 +11,15 @@ export class TopPatchService {
   }
 
   async applyPatchAndRefresh(nextPatch, { reload, pulse }) {
-    return this.view._applyPatchAndRefresh(nextPatch, { reload, pulse });
+    this.view._applyPatchToCurrentSelection(nextPatch);
+
+    if (pulse) this.view._showSavedPulse();
+
+    if (reload) {
+      fireAndForget(() => this.view.reloadList(false), "TopsView reload after save");
+    } else {
+      this.view._renderListOnly();
+      this.view.applyEditBoxState();
+    }
   }
 }
