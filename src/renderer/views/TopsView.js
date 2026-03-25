@@ -16,6 +16,7 @@ import { ResponsibleAssignmentAdapter } from "../features/assignments/Responsibl
 import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
+import { TopGapFlow } from "../features/tops/TopGapFlow.js";
 import { TopService } from "../features/tops/TopService.js";
 import { TopTrashService } from "../features/tops/TopTrashService.js";
 import { POPOVER_MENU } from "../ui/zIndex.js";
@@ -247,6 +248,7 @@ export default class TopsView {
     this.responsibleAssignmentAdapter = new ResponsibleAssignmentAdapter({ view: this });
     this.responsibleEditor = new ResponsibleEditorController({ view: this });
     this.topEditor = new TopEditorController({ view: this });
+    this.topGapFlow = new TopGapFlow({ view: this });
     this.topService = new TopService();
     this.topTrash = new TopTrashService();
     this._initAssignmentDelegates();
@@ -3501,7 +3503,7 @@ async _closeViewOnly() {
         }
       }
       await this.reloadList(false);
-      await this._autoFixNumberGapsAfterDelete();
+      await this.topGapFlow.autoFixAfterDelete();
     } finally {
       this._deleteInFlight = false;
       this._updateDeleteControls();
@@ -3575,7 +3577,7 @@ async _closeViewOnly() {
         }
       }
       await this.reloadList(false);
-      await this._autoFixNumberGapsAfterDelete();
+      await this.topGapFlow.autoFixAfterDelete();
     } finally {
       this._deleteInFlight = false;
       this._updateDeleteControls();
@@ -3645,31 +3647,6 @@ async _closeViewOnly() {
     return gaps[0] || null;
   }
 
-  async _autoFixNumberGapsAfterDelete() {
-    if (this.isReadOnly) return;
-    if (typeof window.bbmDb?.meetingTopsFixNumberGap !== "function") return;
-
-    const maxSteps = 20;
-    for (let i = 0; i < maxSteps; i += 1) {
-      const gap = this._firstNumberGapFromItems();
-      if (!gap?.lastTopId) break;
-
-      const fixRes = await window.bbmDb.meetingTopsFixNumberGap({
-        meetingId: this.meetingId,
-        level: gap.level,
-        parentTopId: gap.parentTopId ?? null,
-        fromTopId: gap.lastTopId,
-        toNumber: gap.missingNumber,
-      });
-      if (!fixRes?.ok) {
-        console.warn("[tops] auto fixNumberGap failed:", fixRes?.error || fixRes?.errorCode);
-        break;
-      }
-
-      await this.reloadList(false);
-    }
-  }
-
   _updateMoveControls() {
     const t = this.selectedTop;
     const canMove = !this._busy && !this.isReadOnly && !!t && this._isBlue(t) && !this._selectedHasChildren();
@@ -3732,7 +3709,7 @@ async _closeViewOnly() {
           // Nach dem Schieben kann in der Ursprungs-Gruppe eine Nummernlücke entstehen.
           // Die bestehende Auto-Fix-Prozedur (meetingTopsFixNumberGap) schließt diese Lücke(n) sofort.
           await this.reloadList(true);
-          await this._autoFixNumberGapsAfterDelete();
+          await this.topGapFlow.autoFixAfterDelete();
         });
       }
     }
