@@ -2160,7 +2160,7 @@ _isoToDDMMYYYY(iso) {
     topsText.style.cursor = "pointer";
     topsText.title = "Schlagwort bearbeiten";
     topsText.onclick = async () => {
-      await this.dialogs.openMeetingKeywordPopup();
+      await this.dialogs.handleOpenMeetingKeyword();
     };
 
     const spacer = document.createElement("div");

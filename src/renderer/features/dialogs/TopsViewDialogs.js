@@ -308,6 +308,10 @@ export class TopsViewDialogs {
     }, 0);
   }
 
+  async handleOpenMeetingKeyword() {
+    return this.openMeetingKeywordPopup();
+  }
+
   openCreateMeetingModal({ dateISO, keyword = "", editParticipants = true } = {}) {
     return new Promise((resolve) => {
       const overlay = document.createElement("div");
