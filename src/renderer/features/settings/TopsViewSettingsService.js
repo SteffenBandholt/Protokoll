@@ -163,4 +163,68 @@ export class TopsViewSettingsService {
     this.view.editFontScale = ["small", "large"].includes(raw) ? raw : "small";
     this.view._editFontScaleLoaded = true;
   }
+
+  async loadLevel1CollapsedSetting() {
+    const pid = this.view.projectId ? String(this.view.projectId) : "";
+    if (!pid) {
+      this.view.level1Collapsed = new Set();
+      this.view._level1CollapsedLoaded = true;
+      this.view._level1CollapsedProjectId = null;
+      return;
+    }
+
+    if (this.view._level1CollapsedLoaded && this.view._level1CollapsedProjectId === pid) return;
+
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsGetMany !== "function") {
+      this.view.level1Collapsed = new Set();
+      this.view._level1CollapsedLoaded = true;
+      this.view._level1CollapsedProjectId = pid;
+      return;
+    }
+
+    const res = await api.appSettingsGetMany(["tops.level1Collapsed"]);
+    if (!res?.ok) {
+      this.view.level1Collapsed = new Set();
+      this.view._level1CollapsedLoaded = true;
+      this.view._level1CollapsedProjectId = pid;
+      return;
+    }
+
+    const raw = String(res?.data?.["tops.level1Collapsed"] || "").trim();
+    let map = {};
+    try {
+      const parsed = JSON.parse(raw || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        map = parsed;
+      }
+    } catch (e) {
+      map = {};
+    }
+
+    this.view._level1CollapsedMap = map;
+    const list = Array.isArray(map[pid]) ? map[pid] : [];
+    this.view.level1Collapsed = new Set(list.map((x) => String(x)));
+    this.view._level1CollapsedLoaded = true;
+    this.view._level1CollapsedProjectId = pid;
+  }
+
+  async saveLevel1CollapsedSetting() {
+    const pid = this.view.projectId ? String(this.view.projectId) : "";
+    if (!pid) return;
+
+    const api = window.bbmDb || {};
+    if (typeof api.appSettingsSetMany !== "function") return;
+
+    if (!this.view._level1CollapsedMap || typeof this.view._level1CollapsedMap !== "object") {
+      this.view._level1CollapsedMap = {};
+    }
+
+    this.view._level1CollapsedMap[pid] = Array.from(this.view.level1Collapsed || []);
+    const payload = {
+      "tops.level1Collapsed": JSON.stringify(this.view._level1CollapsedMap),
+    };
+
+    await api.appSettingsSetMany(payload);
+  }
 }
