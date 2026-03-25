@@ -219,6 +219,22 @@ export default class TopsView {
     return this.dictationController?.destroy();
   }
 
+  _openAudioSuggestions() {
+    return this.audioSuggestionsFlow?.open?.();
+  }
+
+  _applyAudioReadOnlyState(...args) {
+    return this.audioSuggestionsFlow?.applyReadOnlyState?.(...args);
+  }
+
+  _onEnterIdleAfterClose() {
+    return this.audioSuggestionsFlow?.onEnterIdleAfterClose?.();
+  }
+
+  _destroyAudioSuggestions() {
+    return this.audioSuggestionsFlow?.destroy?.();
+  }
+
   _runCloseMeetingOutputFlow() {
     return this.closeMeetingOutputFlow.run();
   }
@@ -1837,7 +1853,7 @@ _isoToDDMMYYYY(iso) {
     styleBtnBase(btnAudioAnalyze);
     btnAudioAnalyze.onclick = async () => {
       if (this._busy || this.isReadOnly || !this.meetingId) return;
-      await this.audioSuggestionsFlow?.open?.();
+      await this._openAudioSuggestions();
     };
 
     const btnCloseMeeting = document.createElement("button");
@@ -3236,7 +3252,7 @@ async _createMeetingFromIdle() {
 
 async _enterIdleAfterClose() {
   // Nach dem fachlichen Beenden des Protokolls im TopsView bleiben und Idle anzeigen.
-  this.audioSuggestionsFlow?.onEnterIdleAfterClose?.();
+  this._onEnterIdleAfterClose();
   this.meetingId = null;
   this.meetingMeta = null;
   this.selectedTopId = null;
@@ -3298,7 +3314,7 @@ async _closeViewOnly() {
       this.btnEndMeeting.style.opacity = this.btnEndMeeting.disabled ? "0.65" : "1";
       this.btnEndMeeting.style.display = ro ? "none" : "";
     }
-    this.audioSuggestionsFlow?.applyReadOnlyState?.(ro, busy);
+    this._applyAudioReadOnlyState(ro, busy);
     this._updateDictationButtons({ readOnly: ro, busy, meetingId: this.meetingId });
     if (this.btnTasks) {
       this.btnTasks.disabled = ro || busy || !this.meetingId;
@@ -4509,7 +4525,7 @@ const textCol = document.createElement("div");
   }
 
   async destroy() {
-    await this.audioSuggestionsFlow?.destroy?.();
+    await this._destroyAudioSuggestions();
     this._destroyDictationController();
 
     if (this._viewMenuDocMouseDown) {
