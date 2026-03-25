@@ -1016,7 +1016,7 @@ _isoToDDMMYYYY(iso) {
         return;
       }
 
-      this._applyPatchAndRefresh(nextPatch, { reload, pulse });
+      this.topPatchService.applyPatchAndRefresh(nextPatch, { reload, pulse });
       return res;
     } finally {
       this._setBusy(false);
