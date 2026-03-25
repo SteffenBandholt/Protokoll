@@ -23,6 +23,19 @@ export class ResponsibleEditorController {
       !!this.view._respLegacyReadonly || this.view.isReadOnly || this.view._busy;
   }
 
+  applyResolvedSelection(top) {
+    const resolved = this.view._resolveResponsibleSelection(top);
+    if (resolved.value && this.view._findResponsibleOption(resolved.value)) {
+      this.view._clearLegacyResponsibleOption();
+      this.view.selResponsible.value = resolved.value;
+    } else if (resolved.fallbackLabel) {
+      this.view._setLegacyResponsibleOption(resolved.fallbackLabel);
+    } else {
+      this.view._clearLegacyResponsibleOption();
+      this.view.selResponsible.value = "";
+    }
+  }
+
   syncStateAfterSelection(top) {
     this.view._clearLegacyResponsibleOption();
     this.view._respLegacyReadonly = false;
@@ -38,16 +51,7 @@ export class ResponsibleEditorController {
           this.view.selResponsible &&
           !this.view._sameTopId(this.view._respLastSetTopId, topId)
         ) {
-          const resolved = this.view._resolveResponsibleSelection(top);
-          if (resolved.value && this.view._findResponsibleOption(resolved.value)) {
-            this.view._clearLegacyResponsibleOption();
-            this.view.selResponsible.value = resolved.value;
-          } else if (resolved.fallbackLabel) {
-            this.view._setLegacyResponsibleOption(resolved.fallbackLabel);
-          } else {
-            this.view._clearLegacyResponsibleOption();
-            this.view.selResponsible.value = "";
-          }
+          this.applyResolvedSelection(top);
           this.applyStateFlags();
           this.view._respLastSetTopId = topId;
           this.view._respDirty = false;
