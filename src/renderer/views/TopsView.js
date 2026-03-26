@@ -14,7 +14,9 @@ import { CloseMeetingOutputFlow } from "../features/output/CloseMeetingOutputFlo
 import { ResponsibleOptionsService } from "../features/assignments/ResponsibleOptionsService.js";
 import { ResponsibleAssignmentAdapter } from "../features/assignments/ResponsibleAssignmentAdapter.js";
 import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
+import { TopResponsibleService } from "../features/assignments/TopResponsibleService.js";
 import { EditBoxStateService } from "../features/editor/EditBoxStateService.js";
+import { TopMetaColumnRenderer } from "../features/list/TopMetaColumnRenderer.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
 import { TopsViewSettingsService } from "../features/settings/TopsViewSettingsService.js";
@@ -173,6 +175,7 @@ export default class TopsView {
     this.settingsService = new TopsViewSettingsService({ view: this });
     this.topPatchService = new TopPatchService({ view: this });
     this.editBoxStateService = new EditBoxStateService({ view: this });
+    this.topMetaColumnRenderer = new TopMetaColumnRenderer({ view: this });
 
     this._initModules(router);
   }
@@ -252,6 +255,7 @@ export default class TopsView {
     // === MODULE: Assignments ===
     this.responsibleOptionsService = new ResponsibleOptionsService({ view: this });
     this.responsibleAssignmentAdapter = new ResponsibleAssignmentAdapter({ view: this });
+    this.responsibleService = new TopResponsibleService({ view: this });
     this.responsibleEditor = new ResponsibleEditorController({ view: this });
     this.topEditor = new TopEditorController({ view: this });
     this.topGapFlow = new TopGapFlow({ view: this });
@@ -295,8 +299,6 @@ export default class TopsView {
       this.responsibleAssignmentAdapter.writeToSelect(...args);
     this._readResponsibleFromSelect = (...args) =>
       this.responsibleAssignmentAdapter.readFromSelect(...args);
-    this._responsibleToPatch = (...args) =>
-      this.responsibleAssignmentAdapter.toPatch(...args);
   }
 
   _initDialogDelegates() {
@@ -970,10 +972,6 @@ _isoToDDMMYYYY(iso) {
   }
 
   // === CORE: Save / Patch Flow ===
-  _sanitizeResponsibleLabel(label) {
-    return this.responsibleOptionsService.sanitizeResponsibleLabel(label);
-  }
-
   _parseActiveFlag(value) {
     if (value === undefined || value === null || value === "") return 1;
     if (typeof value === "boolean") return value ? 1 : 0;
@@ -1205,16 +1203,8 @@ _isoToDDMMYYYY(iso) {
   }
 
   // === CORE: Core Meta / Core Sync Helpers ===
-  _getTopResponsible(top) {
-    return {
-      kind: top?.responsible_kind ?? top?.responsibleKind ?? "",
-      id: top?.responsible_id ?? top?.responsibleId ?? "",
-      label: top?.responsible_label ?? top?.responsibleLabel ?? "",
-    };
-  }
-
   _getTopMeta(top) {
-    const responsible = this._getTopResponsible(top);
+    const responsible = this.responsibleService.getFromTop(top);
     return {
       dueDate: top?.due_date ?? top?.dueDate ?? "",
       status: top?.status ?? "",
@@ -1226,14 +1216,6 @@ _isoToDDMMYYYY(iso) {
     const lvl = Number(top?.level);
     if (!Number.isFinite(lvl)) return false;
     return lvl >= 2 && lvl <= 4;
-  }
-
-  _formatResponsible(top) {
-    const resp = this._getTopResponsible(top);
-    const lbl = this._sanitizeResponsibleLabel(resp.label);
-    if (!lbl) return "—";
-    const max = 22;
-    return lbl.length <= max ? lbl : lbl.slice(0, max - 1) + "…";
   }
 
   _ampelBaseDate() {
@@ -2672,12 +2654,12 @@ _isoToDDMMYYYY(iso) {
 
       if (!responsible?.id) {
         const res = await this.topPatchService.saveMeetingTopPatch(
-          this._responsibleToPatch(null),
+          this.responsibleService.toPatch(null),
           { reload: false, pulse: true }
         );
         if (res?.ok) {
           if (this.selectedTop) {
-            Object.assign(this.selectedTop, this._responsibleToPatch(null));
+            Object.assign(this.selectedTop, this.responsibleService.toPatch(null));
           }
           this._respDirty = false;
           this._respDirtyTopId = null;
@@ -2694,12 +2676,12 @@ _isoToDDMMYYYY(iso) {
       }
 
       const res = await this.topPatchService.saveMeetingTopPatch(
-        this._responsibleToPatch(responsible),
+        this.responsibleService.toPatch(responsible),
         { reload: false, pulse: true }
       );
       if (res?.ok) {
         if (this.selectedTop) {
-          Object.assign(this.selectedTop, this._responsibleToPatch(responsible));
+          Object.assign(this.selectedTop, this.responsibleService.toPatch(responsible));
         }
         this._respDirty = false;
         this._respDirtyTopId = null;
@@ -3538,103 +3520,6 @@ async _closeViewOnly() {
     return true;
   }
 
-  _buildMetaColumn(top, ampelCompute) {
-    if (!this._shouldShowMetaColumn(top)) return null;
-
-    const meta = this._getTopMeta(top);
-    const statusLower = String(meta.status || "").trim().toLowerCase();
-    const isTask = statusLower === "todo" || this._parseActiveFlag(top.is_task ?? top.isTask) === 1;
-
-    const metaCol = document.createElement("div");
-    metaCol.style.display = "flex";
-    metaCol.style.flexDirection = "column";
-    metaCol.style.alignItems = "flex-start";
-    metaCol.style.textAlign = "left";
-    metaCol.style.gap = "2px";
-    metaCol.style.flex = `0 0 ${this.META_COL_W}px`;
-    metaCol.style.width = `${this.META_COL_W}px`;
-    metaCol.style.fontSize = "12px";
-    metaCol.style.opacity = "0.65";
-    metaCol.style.fontVariantNumeric = "tabular-nums";
-    metaCol.style.paddingLeft = "10px";
-    metaCol.style.borderLeft = "1px solid rgba(0,0,0,0.08)";
-
-    const due = this._formatDue(meta.dueDate || this._resolveDisplayDueForTop(top));
-    const st = this._formatStatus(meta.status);
-    const resp = this._formatResponsible(top);
-
-    const dueRow = document.createElement("div");
-    dueRow.style.display = "flex";
-    dueRow.style.alignItems = "center";
-    dueRow.style.justifyContent = "space-between";
-    dueRow.style.gap = "8px";
-    dueRow.style.width = "100%";
-
-    const dueTxt = document.createElement("span");
-    dueTxt.textContent = `${due}`;
-    dueTxt.style.whiteSpace = "nowrap";
-    dueTxt.style.overflow = "hidden";
-    dueTxt.style.textOverflow = "ellipsis";
-    dueTxt.style.flex = "1 1 auto";
-    dueTxt.style.minWidth = "0";
-
-    const ampelColor = ampelCompute(top);
-    const dot = this.showAmpelInList ? this._makeAmpelDot(ampelColor, 10) : null;
-    if (dot) dot.title = ampelColor ? String(ampelColor) : "";
-
-    dueRow.append(dueTxt);
-    if (dot) dueRow.append(dot);
-
-    const stRow = document.createElement("div");
-    stRow.style.display = "flex";
-    stRow.style.alignItems = "center";
-    stRow.style.gap = "8px";
-    stRow.style.width = "100%";
-
-    const stTxt = document.createElement("span");
-    stTxt.textContent = `${st}`;
-    stTxt.style.whiteSpace = "nowrap";
-    stTxt.style.overflow = "hidden";
-    stTxt.style.textOverflow = "ellipsis";
-    stTxt.style.flex = "1 1 auto";
-    stTxt.style.minWidth = "0";
-    stRow.append(stTxt);
-
-    if (isTask) {
-      const taskMarker = document.createElement("img");
-      taskMarker.src = TODO_PNG;
-      taskMarker.alt = "ToDo";
-      taskMarker.title = "ToDo";
-      taskMarker.style.width = "14px";
-      taskMarker.style.height = "14px";
-      taskMarker.style.flex = "0 0 14px";
-      taskMarker.style.objectFit = "contain";
-      stRow.append(taskMarker);
-    }
-
-    if (this._shouldShowDecisionFlag(st)) {
-      const flag = document.createElement("img");
-      flag.src = RED_FLAG_PNG;
-      flag.alt = "Festlegung";
-      flag.title = "Festlegung";
-      flag.style.width = "14px";
-      flag.style.height = "14px";
-      flag.style.flex = "0 0 14px";
-      flag.style.objectFit = "contain";
-      stRow.append(flag);
-    }
-
-    const respRow = document.createElement("div");
-    respRow.textContent = `${resp}`;
-    respRow.style.whiteSpace = "nowrap";
-    respRow.style.overflow = "hidden";
-    respRow.style.textOverflow = "ellipsis";
-
-    metaCol.append(dueRow, stRow, respRow);
-
-    return metaCol;
-  }
-
   // === CORE: List Rendering ===
   _renderListOnly() {
     const list = this.listEl;
@@ -3854,7 +3739,7 @@ const textCol = document.createElement("div");
         textCol.append(longDiv);
       }
 
-      const metaCol = this._buildMetaColumn(top, ampelCompute);
+      const metaCol = this.topMetaColumnRenderer.buildMetaColumn(top, ampelCompute);
 
       row.append(numBlock, textCol);
       if (metaCol) row.append(metaCol);
@@ -4022,96 +3907,7 @@ const textCol = document.createElement("div");
 
   // === CORE: Editor State ===
   applyEditBoxState() {
-    const t = this.selectedTop;
-
-    if (!t) {
-      this._dueDirty = false;
-      this._dueDirtyTopId = null;
-    } else if (!this._sameTopId(this._dueDirtyTopId, t.id)) {
-      this._dueDirty = false;
-      this._dueDirtyTopId = null;
-    }
-
-    const isLevel1 = Number(t?.level) === 1;
-    if (this.editMetaCol) this.editMetaCol.style.display = isLevel1 ? "none" : "";
-    if (this.editMetaSep) this.editMetaSep.style.display = isLevel1 ? "none" : "";
-
-    if (this.boxTitleEl) {
-      const num = t?.displayNumber ?? t?.number ?? "";
-      this.boxTitleEl.textContent = num ? `TOP ${num} bearbeiten` : "TOP bearbeiten";
-    }
-
-    if (!t) {
-      this._onTopCleared();
-      this.inpTitle.value = "";
-      if (this.taLongtext) this.taLongtext.value = "";
-      this.chkHidden.checked = false;
-      if (this.chkImportant) this.chkImportant.checked = false;
-      if (this.chkTask) this.chkTask.checked = false;
-      if (this.chkDecision) this.chkDecision.checked = false;
-
-      if (this.inpDueDate) this.inpDueDate.value = "";
-      if (this.selStatus) this.selStatus.value = "alle";
-      this.responsibleEditor.clearSelectionInEditor();
-      this._updateDueAmpelFromInputs();
-      this._updateStatusMarkers();
-
-      this.editBoxStateService.applyEditBoxDisabledState(true);
-      if (this.btnTrashTop) {
-        this.btnTrashTop.disabled = true;
-        this.btnTrashTop.style.opacity = "0.55";
-      }
-
-      this.moveModeActive = false;
-      this._updateDeleteControls();
-      this._updateCreateChildControls();
-      this._updateCharCounters();
-      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
-      return;
-    }
-
-    this.editBoxStateService.applyValuesToEditBox(t);
-
-    this._applyProjectDueDefaults(t);
-    this._updateDueAmpelFromInputs();
-    this._updateStatusMarkers();
-    this._updateTodoStatusAvailability();
-    this._tryShowPendingTermPrompt();
-    this.responsibleEditor.syncStateAfterSelection(t);
-
-    this._updateCharCounters();
-
-    if (this.isReadOnly || this._busy) {
-      this.editBoxStateService.applyEditBoxDisabledState(true);
-      if (this.btnTrashTop) {
-        this.btnTrashTop.disabled = true;
-        this.btnTrashTop.style.opacity = "0.55";
-      }
-
-      this.moveModeActive = false;
-      this._updateMoveControls();
-      this._updateDeleteControls();
-      this._updateCreateChildControls();
-      if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
-      return;
-    }
-
-    this.editBoxStateService.applyEditBoxDisabledState(false);
-    if (this.btnTrashTop) {
-      const canTrash = this._canTrashSelected();
-      this.btnTrashTop.disabled = !canTrash;
-      this.btnTrashTop.style.opacity = canTrash ? "1" : "0.55";
-      if (!canTrash && Number(t?.is_carried_over) === 1) {
-        this.btnTrashTop.title = "Uebernommene TOPs koennen nicht geloescht werden.";
-      } else {
-        this.btnTrashTop.title = "In Papierkorb (wie Ausblenden)";
-      }
-    }
-
-    this._updateMoveControls();
-    this._updateCreateChildControls();
-    this._updateDeleteControls();
-    if (this._updateTaskDecisionUi) this._updateTaskDecisionUi();
+    return this.editBoxStateService.applyState(this.selectedTop);
   }
 
   async createTop(level, parentTopId) {
