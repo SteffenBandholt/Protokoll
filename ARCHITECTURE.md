@@ -1,297 +1,309 @@
 # ARCHITECTURE.md
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-Dieses Dokument beschreibt die aktuelle Architektur der App.
+## Zweck
+
+Diese Datei beschreibt die Zielrichtung für die schrittweise Weiterentwicklung der bestehenden Electron-/Vanilla-JS-Anwendung zu einer besser wartbaren React-Architektur.
+
+Sie ist keine Aufforderung für einen Big-Bang-Umbau.  
+Alle Änderungen erfolgen inkrementell und mit möglichst geringem Risiko.
 
 ---
 
-# Renderer
+## Ausgangslage
 
-UI und Interaktionen laufen im Renderer.
+Die aktuelle Anwendung ist eine Electron-App mit klassischem Renderer-Aufbau und stark DOM-zentrierter UI-Logik.
 
-Wichtige Dateien:
+Bekannte Struktur:
 
-src/renderer/views
-src/renderer/ui
-src/renderer/app
+- `src/main/`  
+  Electron-Main-Prozess und Preload
 
----
+- `src/main/preload.js`  
+  Bridge zwischen Renderer und Electron-/IPC-Funktionen  
+  Exponiert u. a.:
+  - `window.bbmDb`
+  - `window.bbmPrint`
+  - `window.bbmMail`
 
-# Router
+- `src/renderer/main.js`  
+  Aufbau der Renderer-App-Shell, globale UI-Initialisierung, Header/Sidebar-Verdrahtung
 
-Router verbindet Renderer und Main-Prozess.
+- `src/renderer/app/Router.js`  
+  Navigation, Kontextverwaltung, View-Wechsel, Lazy-Loading von Views
 
-src/renderer/app/Router.js
+- `src/renderer/views/`  
+  Seitenlogik als Klassen
 
----
+- `src/renderer/ui/`  
+  UI-Bausteine, Modals, Popups, Hilfslogik
 
-# Main-Prozess
+- `src/renderer/features/`  
+  fachliche Teilfunktionen
 
-Systemzugriffe laufen im Main-Prozess.
+Es existiert bereits mindestens ein React-Integrationspfad unter:
 
-src/main/main.js
+- `src/renderer/ui/react/`
 
----
-
-# Drucksystem
-
-Der produktive PDF-Druck läuft über:
-
-PrintModal.js
-
-Nicht über print/v2.
-
-print/v2 enthält Layout-Komponenten, die teilweise vom Renderer genutzt werden können, ist aber kein vollständiger Druckworkflow.
-
----
-
-# PDF-Dateien
-
-Erzeugt werden:
-=======
-=======
->>>>>>> Stashed changes
-Vor Änderungen an Workflow, Druck, Routing oder TOP-Logik diese Datei lesen.
-
-Für Arbeitsregeln gilt AGENTS.md.
-Für Projektkontext gilt UEBERGABE.txt.
-
-============================================================
-Renderer
-============================================================
-
-UI-Komponenten:
-
-src/renderer/ui/
-
-Views:
-
-src/renderer/views/
-
-Routing:
-
-src/renderer/app/Router.js
-
-============================================================
-Main-Prozess
-============================================================
-
-IPC-Handler:
-
-src/main/ipc/
-
-PDF / Druck:
-
-printIpc.js
-
-============================================================
-Drucklogik
-============================================================
-Dokumenttypen:
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
-
-- Protokoll
-- Firmenliste
-- ToDo-Liste
-
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-Speicherorte:
-
-Protokoll → /Protokolle
-Listen → /Listen
+Dieser vorhandene React-Pfad ist bevorzugt als Blaupause zu prüfen, bevor neue Integrationsmuster eingeführt werden.
 
 ---
 
-# Mailversand
+## Zielarchitektur
 
-Der Mailversand erzeugt:
+### Kurzfassung
 
-- Outlook Draft
+Die Anwendung soll schrittweise in eine Struktur überführt werden, in der:
 
-oder
-
-- Fallback
-
-Anhänge müssen exakt der Auswahl im Versandpopup entsprechen.
+1. React UI-Rendering und lokalen UI-Zustand übernimmt
+2. Legacy-Business-Logik nicht unnötig neu erfunden wird
+3. Electron-/IPC-Zugriffe klar getrennt bleiben
+4. bestehende Legacy-Bereiche kontrolliert weiterlaufen können
+5. neue React-Bausteine parallel zu Legacy-Views eingeführt werden können
 
 ---
 
-# Wichtig
+## Architekturprinzipien
 
-Bei Fehlern immer zuerst prüfen:
+### 1. Inselstrategie statt Komplettumbau
 
-- welche Datei tatsächlich aktiv ist
-- welcher Renderer die Ausgabe erzeugt
-- wo der Rückgabepfad endet
-=======
-=======
->>>>>>> Stashed changes
-Regeln:
+React wird zunächst als klar abgegrenzte Insel in die bestehende App integriert.
 
-Offene Besprechung
-→ Vorschau
+Geeignete erste Kandidaten:
+- Dialoge
+- Popups
+- Auswahlkomponenten
+- lokal gekapselte UI-Bereiche
+- kleine Teilbereiche einzelner Views
 
-Geschlossene Besprechung
-→ PDF-Datei im Projektordner
+Nicht als erste Kandidaten:
+- kompletter Router
+- globale App-Shell
+- flächiger Austausch aller View-Klassen
+- globale Zustandsneustrukturierung in einem Schritt
 
-============================================================
-Workflow
-============================================================
+---
 
-Protokoll beenden:
+### 2. Trennung von UI und Seiteneffekten
 
-1. Meeting schließen
-2. Protokoll-PDF erzeugen
-3. Idle-Status
+Ziel ist eine klarere Trennung zwischen:
 
-============================================================
-TOP-LOGIK
-============================================================
+- Rendering
+- lokalem UI-Zustand
+- fachlicher Logik
+- Datenzugriff
+- Electron-/IPC-Kommunikation
 
-Neuer TOP:
+React-Komponenten sollen möglichst nicht direkt alle Seiteneffekte und Infrastrukturdetails in sich bündeln.
 
-- blau
-- Stern
+---
 
-Übernommener TOP geändert:
+### 3. Bestehende Integrationen respektieren
 
-- blau
-- Stern
+Vorhandene Integrationen wie:
 
-# Textbaustein für ARCHITECTURE.md
+- `window.bbmDb`
+- `window.bbmPrint`
+- `window.bbmMail`
+- bestehende Router-Methoden
+- bestehende View-Lifecycle-Muster
 
-============================================================
-DRUCKARCHITEKTUR (STAND AKTUELL)
-============================================================
+werden zunächst respektiert und nur dann angepasst, wenn es für einen konkreten Migrationsschritt nötig ist.
 
-Produktiver Druckpfad
+---
 
-Die aktuelle PDF-Erzeugung läuft vollständig über die Altlogik in PrintModal.js.
+### 4. Adapter statt harter Brüche
 
-Dokumenttypen:
+Wo Legacy und React zusammenarbeiten müssen, sind kleine Adapter oder Brücken erlaubt und erwünscht.
 
-- Protokoll
-- Firmenliste
-- ToDo-Liste
+Beispiele:
+- Legacy-Code öffnet eine React-Komponente in einem Dialog-Container
+- Router übergibt Kontextdaten an eine React-Insel
+- React ruft bestehende Actions/Services auf, statt Business-Logik neu zu erfinden
 
-Ablauf
+Nicht erwünscht:
+- globale Architekturbrüche ohne Not
+- gleichzeitiger Austausch mehrerer Schichten
 
-Renderer:
-PrintModal.js
+---
 
-→ ruft
+### 5. Lokaler Zustand vor globalem Store
 
-window.bbmPrint.printPdf(...)
+Es soll nicht vorschnell ein globaler Store eingeführt werden.
 
-→ IPC:
-src/main/ipc/printIpc.js
+Reihenfolge:
+1. lokaler Komponenten-Zustand
+2. props / klarer Datendurchfluss
+3. gezielte Context-Nutzung nur bei echtem Bedarf
+4. globaler Store erst dann, wenn die Problemgröße das wirklich rechtfertigt
 
-→ tatsächliche PDF-Erzeugung
+---
 
-Hauptfunktionen
+## Zielbild pro Schicht
 
-_printMeeting()    → Protokoll
-_printFirmsPdf()   → Firmenliste
-_printTodoPdf()    → ToDo-Liste
+### UI / Darstellung
+Soll zunehmend in React-Komponenten liegen.
 
-Alle drei Funktionen rufen am Ende dieselbe Druckschnittstelle auf:
+Eigenschaften:
+- deklaratives Rendering
+- lokale Zustandsverwaltung
+- nachvollziehbare Ein-/Ausgaben
+- möglichst wenig direkte DOM-Manipulation
 
-window.bbmPrint.printPdf()
+---
 
-============================================================
-AUTOMATISCHER DRUCKWORKFLOW
-============================================================
+### View-Komposition
+Legacy-Views dürfen übergangsweise bestehen bleiben, sollen aber nach und nach eher zu Containern/Koordinatoren werden statt komplettes DOM selbst zusammenzubauen.
 
-Beim Klick auf
+Langfristige Richtung:
+- View-Klasse koordiniert
+- React rendert UI-Teilbereiche
+- Seiteneffekte und Datenzugriffe werden gezielter ausgelagert
 
-"Protokoll beenden"
+---
 
-werden automatisch drei PDFs nacheinander erzeugt:
+### Routing / Navigation
+Der bestehende Router bleibt zunächst bestehen.
 
-1. Protokoll → Projektordner
-2. Firmenliste → Projektordner / Listen
-3. ToDo-Liste → Projektordner / Listen
+Ziel:
+- keine frühe Router-Neuerfindung
+- React-Komponenten werden zunächst innerhalb der bestehenden Navigationsstruktur verwendet
+- Router-Ablösung erst dann, wenn ein signifikanter Teil der UI bereits stabil in React läuft
 
-Dieser Ablauf wird aktuell über die bestehende Altlogik gesteuert.
+---
 
-Wichtig:
+### Datenzugriff / IPC
+Preload-Bridge und IPC-Schnittstellen bleiben vorerst die maßgebliche Infrastruktur.
 
-- keine Vorschau
-- direkter Dateidruck
-- feste Reihenfolge
+Ziel:
+- keine direkte Vermischung von React-Migration und IPC-Neudesign
+- bestehende IPC-Zugriffe möglichst stabil halten
+- falls nötig, dünne Service-/Adapter-Schicht zwischen UI und `window.bbm*` schaffen
 
-============================================================
-MANUELLER DRUCK
-============================================================
+---
 
-Über den Header:
+## Empfohlene Migrationsreihenfolge
 
-"Drucken"
+### Phase 1 – React-Inseln
+- kleine Dialoge
+- Popups
+- Auswahl- oder Bestätigungs-Flows
+- einzelne lokale UI-Bausteine
 
-werden Vorschauen erzeugt für:
+### Phase 2 – Teilbereiche einzelner Views
+- begrenzte UI-Sektionen mit klaren Props
+- wenig Router-Kopplung
+- wenig globale Seiteneffekte
 
-- Protokoll
-- Firmenliste
-- ToDo-Liste
+### Phase 3 – Koordination und Entkopplung
+- View-Klassen vereinfachen
+- Logik sauberer zwischen UI, Services und Koordination trennen
+- wiederverwendbare React-Bausteine etablieren
 
-Diese laufen ebenfalls über PrintModal.
+### Phase 4 – Größere Strukturanpassungen
+- erst jetzt über Router-Nähe, globaleren Zustand oder Shell-Umbau nachdenken
+- nur auf Basis echter Notwendigkeit, nicht aus Dogma
 
-============================================================
-PRINT/V2
-============================================================
+---
 
-Im Repository existiert ein neuer Ansatz:
+## Erlaubte Muster
 
-src/renderer/print/v2/
+Bevorzugt:
 
-Dieser enthält eine geplante vereinheitlichte Druckpipeline für Layout und Rendering.
+- React als isolierte Render-Insel
+- kleine Host-/Mount-Funktionen für React-Komponenten
+- Übergabe klarer Parameter statt versteckter Globals
+- Wiederverwendung vorhandener React-Loader-/Bootstrap-Muster
+- Legacy-Callback oder Adapter, wenn dadurch das Risiko sinkt
 
-Aktueller Status:
+Ebenfalls okay:
+- temporäre Mischformen, wenn sie sauber eingegrenzt sind
+- schmale Brücken zwischen Legacy und React
 
-- nicht produktiv angebunden
-- wird aktuell von keinem Workflow verwendet
+---
 
-Die bestehende Anwendung nutzt ausschließlich die Altlogik über PrintModal.
+## Unerwünschte Muster
 
-============================================================
-LANGFRISTIGE ZIELRICHTUNG
-============================================================
+Vermeiden:
 
-Langfristig könnte die Ausgabeerzeugung schrittweise auf die print/v2-Pipeline umgestellt werden.
+- direkte Großumbauten über mehrere Architektur-Schichten gleichzeitig
+- großflächige DOM-Manipulation innerhalb neuer React-Komponenten
+- unklare Mischzustände ohne klaren Besitz von State
+- neue Abhängigkeiten oder Frameworks ohne klaren Mehrwert
+- Refactors, die nur „moderner aussehen“, aber das Risiko erhöhen
+- das Nachbauen des bestehenden Chaos in React-Komponenten
 
-Dabei sollte gelten:
+---
 
-- Workflow/Trigger bleiben getrennt von Rendering
-- Rendering erfolgt über eine gemeinsame Pipeline
-- Dokumenttypen werden über Parameter gesteuert
-  (z. B. protocol, firms, todo)
+## Definition einer guten React-Insel
 
-Dieser Umbau ist aktuell nicht umgesetzt.
+Eine React-Insel ist gut, wenn sie:
 
-============================================================
-WICHTIG FÜR ÄNDERUNGEN
-============================================================
+1. klar abgegrenzt ist
+2. einen kleinen, verständlichen Zweck hat
+3. wenig globale Abhängigkeiten besitzt
+4. keine Änderung am globalen Router erzwingt
+5. bestehende Business-Logik weiterverwenden kann
+6. mit wenig Seiteneffekten integrierbar ist
+7. sich leicht manuell testen lässt
 
-Bei Anpassungen am Drucksystem gilt:
+---
 
-- Änderungen zuerst im bestehenden PrintModal-Workflow prüfen
-- print/v2 nur verwenden, wenn bewusst ein Refactor geplant ist
-- automatische PDF-Erzeugung bei "Protokoll beenden" darf nicht beschädigt werden
+## Definition of Done für Architektursicht
 
-============================================================
-ZIEL
-============================================================
+Ein Migrationsschritt ist architektonisch gelungen, wenn:
 
-Änderungen sollen möglichst lokal erfolgen.
+1. React-Anteil sinnvoll erweitert wurde
+2. Risiko begrenzt blieb
+3. keine unnötigen globalen Umbauten passiert sind
+4. Legacy-/React-Grenzen nachvollziehbar sind
+5. bestehendes Verhalten erhalten blieb
+6. die Änderung eine Blaupause für weitere Schritte liefert
 
-<<<<<<< Updated upstream
-Keine Änderungen an globaler Drucklogik ohne Auftrag.
->>>>>>> Stashed changes
-=======
-Keine Änderungen an globaler Drucklogik ohne Auftrag.
->>>>>>> Stashed changes
+---
+
+## Entscheidungskriterien bei mehreren Optionen
+
+Wenn es mehrere technische Wege gibt, ist zu bevorzugen:
+
+1. der kleinere und reversiblere Eingriff
+2. der Weg mit weniger Router-/Shell-Kopplung
+3. der Weg mit weniger IPC-/Infrastrukturänderung
+4. der Weg, der vorhandene React-Muster wiederverwendet
+5. der Weg, der manuell leicht testbar ist
+
+---
+
+## Dokumentationspflicht bei neuen Mustern
+
+Wenn ein neuer React-Integrationsweg eingeführt wird, soll dokumentiert werden:
+
+- wo er verwendet wird
+- wie Legacy-Code ihn aufruft
+- welche Daten reingehen
+- welche Events/Callbacks rausgehen
+- ob das Muster für weitere Migrationen taugt
+
+---
+
+## Praktische Leitfrage vor jeder größeren Änderung
+
+Vor jeder Änderung soll geprüft werden:
+
+- Ist das wirklich der kleinste sinnvolle Schritt?
+- Muss dafür Router, Shell oder IPC angefasst werden?
+- Gibt es schon ein bestehendes React-Muster im Projekt?
+- Kann dieselbe Wirkung mit einer kleineren React-Insel erreicht werden?
+- Wird hier echte Struktur verbessert oder nur Technik ausgetauscht?
+
+---
+
+## Schlussregel
+
+Das Ziel ist nicht, möglichst schnell „alles in React“ zu haben.
+
+Das Ziel ist:
+- weniger Kopplung
+- besser wartbare UI
+- kontrollierte Migration
+- stabile App während des Umbaus
+- wiederverwendbare Migrationsmuster statt hektischer Komplettsanierung

@@ -17,6 +17,7 @@ import { ResponsibleEditorController } from "../features/assignments/Responsible
 import { TopResponsibleService } from "../features/assignments/TopResponsibleService.js";
 import { EditBoxStateService } from "../features/editor/EditBoxStateService.js";
 import { TopMetaColumnRenderer } from "../features/list/TopMetaColumnRenderer.js";
+import { renderTopTextColumn } from "../features/list/TopTextColumnRenderer.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
 import { TopsViewSettingsService } from "../features/settings/TopsViewSettingsService.js";
@@ -3707,37 +3708,21 @@ async _closeViewOnly() {
       }
 
       numBlock.appendChild(numWrap);
-const textCol = document.createElement("div");
-      textCol.style.display = "flex";
-      textCol.style.flexDirection = "column";
-      textCol.style.gap = "4px";
-      textCol.style.flex = "1 1 auto";
-      textCol.style.minWidth = "0";
-
-      const shortLine = document.createElement("div");
-      shortLine.textContent = `${top.title || ""}`;
-      shortLine.style.color = shortColor;
-      shortLine.style.fontSize = isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`;
-      shortLine.style.whiteSpace = "nowrap";
-      shortLine.style.overflow = "hidden";
-      shortLine.style.textOverflow = "ellipsis";
-
-      textCol.append(shortLine);
-
       let lt = top.longtext ? String(top.longtext) : "";
       if (isOld && isTouched && changedDate) {
         lt = `${lt}${lt ? "\n" : ""}(Text geändert ${changedDate})`;
       }
 
-      if (this.showLongtextInList && lt) {
-        const longDiv = document.createElement("div");
-        longDiv.textContent = this._clampStr(lt, this._longMax());
-        longDiv.style.fontSize = `${fontSizes.long}px`;
-        longDiv.style.opacity = "0.85";
-        longDiv.style.whiteSpace = "pre-wrap";
-        longDiv.style.color = longColor;
-        textCol.append(longDiv);
-      }
+      const textCol = renderTopTextColumn({
+        titleText: `${top.title || ""}`,
+        titleColor: shortColor,
+        titleFontSize: isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`,
+        showLongtextInList: this.showLongtextInList,
+        longtext: lt,
+        longtextDisplayText: this._clampStr(lt, this._longMax()),
+        longtextFontSizePx: fontSizes.long,
+        longtextColor: longColor,
+      });
 
       const metaCol = this.topMetaColumnRenderer.buildMetaColumn(top, ampelCompute);
 
