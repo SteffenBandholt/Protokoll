@@ -7,6 +7,8 @@ import { shouldShowTopForMeeting, shouldGrayTopForMeeting } from "../utils/topVi
 import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
+import { mountTopsIdlePanel } from "../ui/react/mountTopsIdlePanel.js";
+import { mountProtocolTitle } from "../ui/react/mountProtocolTitle.js";
 import { attachAudioFeature } from "../features/audio/AudioFeature.js";
 import { DictationController } from "../features/audio-dictation/DictationController.js";
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
@@ -21,6 +23,10 @@ import { renderTopTextColumn } from "../features/list/TopTextColumnRenderer.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
 import { TopsViewSettingsService } from "../features/settings/TopsViewSettingsService.js";
+import { IdleCreateMeetingService } from "../features/tops/IdleCreateMeetingService.js";
+import { IdleProtocolService } from "../features/tops/IdleProtocolService.js";
+import { ProjectTasksService } from "../features/tops/ProjectTasksService.js";
+import { ProtocolTitleService } from "../features/tops/ProtocolTitleService.js";
 import { TopPatchService } from "../features/tops/TopPatchService.js";
 import { TopGapFlow } from "../features/tops/TopGapFlow.js";
 import { TopService } from "../features/tops/TopService.js";
@@ -113,6 +119,10 @@ export default class TopsView {
     // Labels in topbar (when longtext on)
     this.topMetaEl = null;
     this.topsTitleEl = null;
+    this._protocolTitleReactMount = null;
+    this._protocolTitleReactPending = false;
+    this._topsIdleReactMount = null;
+    this._topsIdleReactPending = false;
 
     // Save button
     this.btnSaveTop = null;
@@ -261,6 +271,21 @@ export default class TopsView {
     this.topEditor = new TopEditorController({ view: this });
     this.topGapFlow = new TopGapFlow({ view: this });
     this.topService = new TopService();
+    this.idleCreateMeetingService = new IdleCreateMeetingService({
+      getDbApi: () => window.bbmDb || {},
+      formatDateForTitle: (value) => this._isoToDDMMYYYY(value),
+    });
+    this.idleProtocolService = new IdleProtocolService({
+      getDbApi: () => window.bbmDb || {},
+    });
+    this.projectTasksService = new ProjectTasksService({
+      getDbApi: () => window.bbmDb || {},
+      formatDate: (value) => this._formatDateToDdMmYyyy(value),
+      formatStatus: (value) => this._formatStatus(value),
+    });
+    this.protocolTitleService = new ProtocolTitleService({
+      formatDate: (value) => this._formatDateToDdMmYyyy(value),
+    });
     this.topTrash = new TopTrashService();
     this._initAssignmentDelegates();
   }
@@ -282,6 +307,8 @@ export default class TopsView {
       this.responsibleOptionsService.parseResponsibleOptionValue(...args);
     this._normalizeResponsibleKind = (...args) =>
       this.responsibleOptionsService.normalizeResponsibleKind(...args);
+    this._sanitizeResponsibleLabel = (...args) =>
+      this.responsibleOptionsService.sanitizeResponsibleLabel(...args);
     this._ensureProjectFirmsLoaded = (...args) =>
       this.responsibleOptionsService.ensureProjectFirmsLoaded(...args);
     this._computeRespOptionsKey = (...args) =>
@@ -308,90 +335,75 @@ export default class TopsView {
   }
 
   _updateTopBarProtocolTitle() {
-    // Idle-State: kein aktives Protokoll
-    if (!this.meetingId) {
-      const host = this.topsTitleEl;
-      host.innerHTML = "";
-      host.style.display = "flex";
-      host.style.flexDirection = "column";
-      host.style.alignItems = "flex-start";
-      host.style.gap = "1px";
-      host.style.lineHeight = "1.1";
-
-      const labelLine = document.createElement("div");
-      labelLine.textContent = "Protokoll";
-      labelLine.style.color = "#000";
-      labelLine.style.fontWeight = "600";
-      host.appendChild(labelLine);
-
-      const line1 = document.createElement("div");
-      line1.textContent = this._idleHasProtocols ? "kein Protokoll aktiv" : "kein Protokoll vorhanden";
-      line1.style.color = "#616161";
-      line1.style.fontWeight = "700";
-      host.appendChild(line1);
-
-      host.title = "";
-      host.style.cursor = "default";
-      return;
-    }
-
-    if (!this.topsTitleEl) return;
-    const isClosedMeeting = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
-    const parts = this._parseMeetingTitleParts();
-    const meetingIndex = parts.meetingIndex;
-    const meetingDateText = parts.meetingDateText;
-    const meetingKeyword = parts.meetingKeyword;
-
     const host = this.topsTitleEl;
-    host.innerHTML = "";
+    if (!host) return;
+
+    const model = this.protocolTitleService.buildTitleModel({
+      meetingId: this.meetingId,
+      meetingMeta: this.meetingMeta,
+      isReadOnly: this.isReadOnly,
+      idleHasProtocols: this._idleHasProtocols,
+    });
+
     host.style.display = "flex";
     host.style.flexDirection = "column";
     host.style.alignItems = "flex-start";
     host.style.gap = "1px";
     host.style.lineHeight = "1.1";
     host.style.fontSize = "10pt";
+    host.title = model.title || "";
+    host.style.cursor = model.cursor || "default";
 
-    const labelLine = document.createElement("div");
-    labelLine.textContent = "Protokoll";
-    labelLine.style.color = "#000";
-    labelLine.style.fontWeight = "600";
-    labelLine.style.fontSize = "10pt";
-    host.appendChild(labelLine);
-
-    const firstLineBase =
-      meetingIndex && meetingDateText
-        ? `${meetingIndex} - ${meetingDateText}`
-        : meetingIndex || meetingDateText || "";
-    const firstLineSafe = firstLineBase || "Protokoll";
-
-    const line1 = document.createElement("div");
-    if (isClosedMeeting) {
-      line1.textContent = `${firstLineSafe} (geschlossen) read only`.trim();
-      line1.style.color = "#b71c1c";
-      line1.style.fontWeight = "700";
-      line1.style.fontSize = "10pt";
-    } else {
-      const green = document.createElement("span");
-      green.textContent = firstLineSafe;
-      green.style.color = "#1b5e20";
-      green.style.fontWeight = "700";
-      green.style.fontSize = "10pt";
-      line1.appendChild(green);
-    }
-    host.appendChild(line1);
-
-    if (meetingKeyword) {
-      const line2 = document.createElement("div");
-      line2.textContent = meetingKeyword;
-      line2.style.color = isClosedMeeting ? "#b71c1c" : "#1b5e20";
-      line2.style.fontWeight = "700";
-      line2.style.fontSize = "10pt";
-      host.appendChild(line2);
+    if (this._protocolTitleReactMount) {
+      this._protocolTitleReactMount.render(model);
+      return;
     }
 
-    const titleText = [line1.textContent || "", meetingKeyword].filter(Boolean).join(" | ");
-    host.title = titleText;
-    host.style.cursor = "pointer";
+    if (this._protocolTitleReactPending) {
+      return;
+    }
+
+    host.innerHTML = "";
+    this._protocolTitleReactPending = true;
+    mountProtocolTitle(host, model)
+      .then((mount) => {
+        this._protocolTitleReactPending = false;
+        if (!mount) return;
+        if (this.topsTitleEl !== host) {
+          mount.unmount();
+          return;
+        }
+        if (this._protocolTitleReactMount) {
+          mount.unmount();
+          return;
+        }
+        this._protocolTitleReactMount = mount;
+      })
+      .catch(() => {
+        this._protocolTitleReactPending = false;
+        if (this._protocolTitleReactMount || this.topsTitleEl !== host) return;
+        host.innerHTML = "";
+
+        const labelLine = document.createElement("div");
+        labelLine.textContent = model.label || "Protokoll";
+        labelLine.style.color = "#000";
+        labelLine.style.fontWeight = "600";
+        labelLine.style.fontSize = "10pt";
+        host.appendChild(labelLine);
+
+        for (const line of model.lines || []) {
+          const lineEl = document.createElement("div");
+          lineEl.textContent = line?.text || "";
+          lineEl.style.color = line?.color || "#000";
+          lineEl.style.fontWeight = line?.fontWeight || "600";
+          lineEl.style.fontSize = line?.fontSize || "10pt";
+          host.appendChild(lineEl);
+        }
+      });
+  }
+
+  _parseMeetingTitleParts(meetingMeta = this.meetingMeta) {
+    return this.protocolTitleService.parseMeetingTitleParts(meetingMeta);
   }
 
   _formatDateToDdMmYyyy(raw) {
@@ -417,13 +429,9 @@ export default class TopsView {
   async _openProjectTasksPopup() {
     if (this._projectTasksOverlayEl) return;
 
-    const api = window.bbmDb || {};
-    if (typeof api.meetingsListProjectTasks !== "function") {
-      alert("Aufgabenliste ist nicht verfuegbar.");
-      return;
-    }
-    if (!this.projectId) {
-      alert("Projekt nicht gefunden.");
+    const taskLoadResult = await this.projectTasksService.loadForProject(this.projectId);
+    if (!taskLoadResult?.ok) {
+      alert(taskLoadResult?.error || "Aufgaben konnten nicht geladen werden.");
       return;
     }
 
@@ -495,7 +503,7 @@ export default class TopsView {
         return el;
       };
 
-      for (const t of list) {
+      for (const task of list) {
         const item = document.createElement("div");
         item.style.border = "1px solid #e5e7eb";
         item.style.borderRadius = "8px";
@@ -504,7 +512,7 @@ export default class TopsView {
         item.style.gap = "6px";
 
         const titleEl = document.createElement("div");
-        titleEl.textContent = String(t?.title || t?.short_text || t?.shortText || "(ohne Bezeichnung)");
+        titleEl.textContent = task.title;
         titleEl.style.fontWeight = "600";
 
         const meta = document.createElement("div");
@@ -514,22 +522,15 @@ export default class TopsView {
         meta.style.fontSize = "12px";
         meta.style.color = "#374151";
 
-        const resp = String(t?.responsible_label || t?.responsibleLabel || "").trim() || "-";
-        const dueRaw = t?.due_date ?? t?.dueDate ?? "";
-        const due = this._formatDateToDdMmYyyy(dueRaw) || String(dueRaw || "").trim() || "-";
-        const statusRaw = String(t?.status || "").trim();
-        const status = this._formatStatus(statusRaw);
-        const meetingRef = String(t?.meeting_id ?? t?.meetingId ?? "").trim() || "-";
-
-        if (statusRaw && statusRaw.toLowerCase() !== "erledigt") {
+        if (task.isPending) {
           item.style.borderColor = "#b6d4ff";
           item.style.background = "#eef7ff";
         }
 
-        meta.append(mkMeta("Verantw.", resp));
-        meta.append(mkMeta("Faellig", due));
-        meta.append(mkMeta("Status", status));
-        meta.append(mkMeta("Meeting", meetingRef));
+        meta.append(mkMeta("Verantw.", task.responsible));
+        meta.append(mkMeta("Faellig", task.due));
+        meta.append(mkMeta("Status", task.status));
+        meta.append(mkMeta("Meeting", task.meetingRef));
 
         item.append(titleEl, meta);
         wrap.appendChild(item);
@@ -557,74 +558,8 @@ export default class TopsView {
       // ignore
     }
 
-    try {
-      const res = await api.meetingsListProjectTasks({ projectId: this.projectId });
-      if (!res?.ok) {
-        body.textContent = res?.error || "Aufgaben konnten nicht geladen werden.";
-        return;
-      }
-      renderTasks(res.list || []);
-    } catch (err) {
-      body.textContent = err?.message || "Aufgaben konnten nicht geladen werden.";
-    }
+    renderTasks(taskLoadResult.list || []);
   }
-
-  _parseMeetingTitleParts() {
-    const meetingIndexRaw = Number(this.meetingMeta?.meeting_index);
-    const hasMeetingIndex = Number.isFinite(meetingIndexRaw) && meetingIndexRaw > 0;
-    const meetingIndexInt = hasMeetingIndex ? Math.trunc(meetingIndexRaw) : 0;
-    const meetingIndex = hasMeetingIndex ? `#${meetingIndexInt}` : "";
-    let meetingTitle = String(this.meetingMeta?.title || "").trim();
-
-    if (hasMeetingIndex) {
-      const leadingIndexPattern = new RegExp(`^#\\s*${meetingIndexInt}(?:\\s*[-–—:]\\s*|\\s+)`, "i");
-      if (leadingIndexPattern.test(meetingTitle)) {
-        meetingTitle = meetingTitle.replace(leadingIndexPattern, "").trim();
-      } else if (new RegExp(`^#\\s*${meetingIndexInt}$`, "i").test(meetingTitle)) {
-        meetingTitle = "";
-      }
-    }
-
-    const titleNormalized = meetingTitle.replace(/^#\d+\s*(?:-\s*)?/i, "").trim();
-    let meetingDateText = "";
-    let meetingKeyword = "";
-
-    if (titleNormalized) {
-      const directDate = titleNormalized.match(/^(\d{2}\.\d{2}\.\d{4})(?:\s*-\s*(.*))?$/);
-      if (directDate) {
-        meetingDateText = directDate[1];
-        meetingKeyword = String(directDate[2] || "").trim();
-      } else {
-        const dateInText = titleNormalized.match(/(\d{2}\.\d{2}\.\d{4})/);
-        if (dateInText) {
-          meetingDateText = dateInText[1];
-          const idx = titleNormalized.indexOf(dateInText[1]);
-          const after = titleNormalized.slice(idx + dateInText[1].length).replace(/^\s*-\s*/, "").trim();
-          meetingKeyword = after;
-        } else {
-          meetingKeyword = titleNormalized;
-        }
-      }
-    }
-
-    if (!meetingDateText) {
-      const m = this.meetingMeta || {};
-      meetingDateText = this._formatDateToDdMmYyyy(
-        m.meeting_date || m.meetingDate || m.date || m.created_at || m.createdAt || m.updated_at || m.updatedAt || ""
-      );
-    }
-
-    if (meetingKeyword) {
-      meetingKeyword = meetingKeyword.replace(/^#\d+\s*(?:-\s*)?/i, "").trim();
-    }
-
-    return {
-      meetingIndex,
-      meetingDateText: String(meetingDateText || "").trim(),
-      meetingKeyword: String(meetingKeyword || "").trim(),
-    };
-  }
-
 
 // ---- Date helpers (kompatibel) ----
 _todayISO() {
@@ -901,6 +836,21 @@ _isoToDDMMYYYY(iso) {
       }
       await fn();
     };
+  }
+
+  async _flushPendingLongtextIfNeeded({ reload = false } = {}) {
+    if (this.isReadOnly || this._busy) return false;
+    if (!this.selectedTop || !this.taLongtext || this.taLongtext.disabled) return true;
+
+    const currentLongtext = this._normLong(this.taLongtext.value);
+    const selectedLongtext = this._normLong(this.selectedTop?.longtext);
+    if (currentLongtext === selectedLongtext) return true;
+
+    await this.topPatchService.saveMeetingTopPatch(
+      { longtext: currentLongtext },
+      { reload, pulse: false }
+    );
+    return true;
   }
 
   _topIdKey(id) {
@@ -1947,6 +1897,8 @@ _isoToDDMMYYYY(iso) {
     topsText.style.cursor = "pointer";
     topsText.title = "Schlagwort bearbeiten";
     topsText.onclick = async () => {
+      const canContinue = await this._flushPendingLongtextIfNeeded();
+      if (!canContinue) return;
       await this.dialogs.handleOpenMeetingKeyword();
     };
 
@@ -2076,6 +2028,9 @@ _isoToDDMMYYYY(iso) {
     btnSaveTop.onclick = async () => {
       if (this.isReadOnly) return;
       if (!this.selectedTop) return;
+
+      const flushedLongtext = await this._flushPendingLongtextIfNeeded({ reload: false });
+      if (!flushedLongtext) return;
 
       const patch = this.topPatchService.collectEditorPatch();
       if (!patch) return;
@@ -2555,26 +2510,16 @@ _isoToDDMMYYYY(iso) {
       // Ctrl/Cmd+Enter -> speichern (ohne Zeilenumbruch)
       e.preventDefault();
       this._suppressBlurOnce = true;
-
-      const v = this._normLong(taLong.value);
-      this._maybeOfferDictationTermCorrection("longText", v, taLong);
-      taLong.value = this._clampStr(taLong.value, this._longMax());
-      this._updateCharCounters();
-
-      await this.topPatchService.saveMeetingTopPatch({ longtext: v }, { reload: true, pulse: false });
+      const flushedLongtext = await this._flushPendingLongtextIfNeeded({ reload: true });
+      if (!flushedLongtext) return;
       this.btnL1?.focus();
     });
 
     taLong.addEventListener(
       "blur",
       blurGuard(async () => {
-        if (taLong.disabled || !this.selectedTop) return;
-        const v = this._normLong(taLong.value);
-        this._maybeOfferDictationTermCorrection("longText", v, taLong);
-        taLong.value = this._clampStr(taLong.value, this._longMax());
-        this._updateCharCounters();
-
-        await this.topPatchService.saveMeetingTopPatch({ longtext: v }, { reload: true, pulse: false });
+        const flushedLongtext = await this._flushPendingLongtextIfNeeded({ reload: true });
+        if (!flushedLongtext) return;
       })
     );
 
@@ -2767,30 +2712,19 @@ _isoToDDMMYYYY(iso) {
   }
 
 
-async _refreshIdleProtocolPresence() {
+  async _refreshIdleProtocolPresence() {
   // Prüft, ob im Projekt bereits Protokolle (Meetings) existieren.
   // Ergebnis steuert, ob im Idle-State zusätzlich "E-Mail senden" angeboten wird.
-  this._idleHasProtocols = false;
-
-  const pid = this.projectId;
-  if (!pid) return;
-
-  const api = window.bbmDb || {};
-  if (typeof api.meetingsListByProject !== "function") {
-    // Ohne API können wir es nicht sicher sagen -> konservativ: false
-    return;
-  }
-
-  try {
-    const res = await api.meetingsListByProject(pid);
-    if (res && res.ok) {
-      const list = Array.isArray(res.list) ? res.list : [];
-      this._idleHasProtocols = list.length > 0;
-    }
-  } catch (e) {
-    // ignore
-  }
+  this._idleHasProtocols = await this.idleProtocolService.hasProtocols(this.projectId);
 }
+
+  _unmountTopsIdlePanel() {
+    if (this._topsIdleReactMount) {
+      this._topsIdleReactMount.unmount();
+      this._topsIdleReactMount = null;
+    }
+    this._topsIdleReactPending = false;
+  }
 
 _renderIdleState() {
   // UI im Idle-State: kein aktives Protokoll.
@@ -2819,6 +2753,7 @@ _renderIdleState() {
 
     // Liste leeren und Idle Buttons anzeigen
     if (this.listEl) {
+      this._unmountTopsIdlePanel();
       this.listEl.innerHTML = "";
       const li = document.createElement("li");
       li.style.listStyle = "none";
@@ -2842,48 +2777,84 @@ _renderIdleState() {
       img.style.maxWidth = "70%";
       img.style.height = "auto";
       img.style.objectFit = "contain";
-      wrap.appendChild(img);
-
-      const btnNew = document.createElement("button");
-      btnNew.type = "button";
-      btnNew.textContent = "Protokoll neu";
-      btnNew.style.display = "inline-flex";
-      btnNew.style.alignItems = "center";
-      btnNew.style.justifyContent = "center";
-      btnNew.style.border = "none";
-      btnNew.style.background = "transparent";
-      btnNew.style.color = "#111827";
-      btnNew.style.padding = "0 2px 2px";
-      btnNew.style.margin = "0";
-      btnNew.style.minHeight = "0";
-      btnNew.style.lineHeight = "1.25";
-      btnNew.style.fontSize = "14px";
-      btnNew.style.fontWeight = "700";
-      btnNew.style.borderRadius = "0";
-      btnNew.style.borderBottom = "2px solid currentColor";
-      btnNew.style.borderBottomColor = "currentColor";
-      btnNew.style.cursor = this._busy ? "default" : "pointer";
-      btnNew.style.whiteSpace = "nowrap";
-      btnNew.disabled = !!this._busy;
-      btnNew.onmouseenter = () => {
-        if (btnNew.disabled) return;
-        btnNew.style.borderBottomColor = "#ff8c00";
-      };
-      btnNew.onmouseleave = () => {
-        btnNew.style.borderBottomColor = "currentColor";
-      };
-      btnNew.onclick = () => {
-        if (this._busy) return;
-        this._createMeetingFromIdle().catch((e) => {
-          console.error("[TopsView] _createMeetingFromIdle failed:", e);
-          alert(e && e.message ? e.message : String(e));
-        });
-      };
-      wrap.appendChild(btnNew);
+      const host = document.createElement("div");
+      host.style.width = "100%";
+      wrap.appendChild(host);
 
       li.appendChild(wrap);
       this.listEl.appendChild(li);
       this.listEl.style.paddingBottom = "16px";
+
+      const model = {
+        imageSrc: EMPTY_LEVEL1_HINT_PNG,
+        imageAlt: "Hinweis Protokoll neu",
+        primaryActionLabel: "Protokoll neu",
+        primaryActionDisabled: !!this._busy,
+      };
+
+      this._topsIdleReactPending = true;
+      mountTopsIdlePanel(host, {
+        model,
+        onCreateMeeting: () => {
+          if (this._busy) return;
+          this._createMeetingFromIdle().catch((e) => {
+            console.error("[TopsView] _createMeetingFromIdle failed:", e);
+            alert(e && e.message ? e.message : String(e));
+          });
+        },
+      })
+        .then((mount) => {
+          this._topsIdleReactPending = false;
+          if (!mount) return;
+          if (this._topsIdleReactMount) {
+            mount.unmount();
+            return;
+          }
+          this._topsIdleReactMount = mount;
+        })
+        .catch(() => {
+          this._topsIdleReactPending = false;
+          if (this._topsIdleReactMount) return;
+          host.innerHTML = "";
+          host.appendChild(img);
+
+          const btnNew = document.createElement("button");
+          btnNew.type = "button";
+          btnNew.textContent = "Protokoll neu";
+          btnNew.style.display = "inline-flex";
+          btnNew.style.alignItems = "center";
+          btnNew.style.justifyContent = "center";
+          btnNew.style.border = "none";
+          btnNew.style.background = "transparent";
+          btnNew.style.color = "#111827";
+          btnNew.style.padding = "0 2px 2px";
+          btnNew.style.margin = "0";
+          btnNew.style.minHeight = "0";
+          btnNew.style.lineHeight = "1.25";
+          btnNew.style.fontSize = "14px";
+          btnNew.style.fontWeight = "700";
+          btnNew.style.borderRadius = "0";
+          btnNew.style.borderBottom = "2px solid currentColor";
+          btnNew.style.borderBottomColor = "currentColor";
+          btnNew.style.cursor = this._busy ? "default" : "pointer";
+          btnNew.style.whiteSpace = "nowrap";
+          btnNew.disabled = !!this._busy;
+          btnNew.onmouseenter = () => {
+            if (btnNew.disabled) return;
+            btnNew.style.borderBottomColor = "#ff8c00";
+          };
+          btnNew.onmouseleave = () => {
+            btnNew.style.borderBottomColor = "currentColor";
+          };
+          btnNew.onclick = () => {
+            if (this._busy) return;
+            this._createMeetingFromIdle().catch((e) => {
+              console.error("[TopsView] _createMeetingFromIdle failed:", e);
+              alert(e && e.message ? e.message : String(e));
+            });
+          };
+          host.appendChild(btnNew);
+        });
     }
 
     this._updateTopBarProtocolTitle();
@@ -2909,12 +2880,6 @@ _writeCreateMeetingEditParticipants(val) {
 
 
 async _createMeetingFromIdle() {
-  const api = window.bbmDb || {};
-  if (typeof api.meetingsCreate !== "function") {
-    alert("meetingsCreate ist nicht verfügbar (Preload/IPC fehlt).");
-    return;
-  }
-
   const pid = this.projectId;
   if (!pid) {
     alert("Kein Projekt ausgewählt.");
@@ -2936,34 +2901,19 @@ async _createMeetingFromIdle() {
   editParticipants = modalRes.editParticipants !== false;
   this._writeCreateMeetingEditParticipants(editParticipants);
 
-  // nextIndex ermitteln
-  let nextIndex = 1;
-  if (typeof api.meetingsListByProject === "function") {
-    try {
-      const res = await api.meetingsListByProject(pid);
-      if (res && res.ok) {
-        const list = Array.isArray(res.list) ? res.list : [];
-        const maxIdx = list.reduce((mx, x) => Math.max(mx, Number(x.meeting_index || 0)), 0);
-        nextIndex = (maxIdx || 0) + 1;
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  const dd = this._isoToDDMMYYYY(dateISO);
-  const idx = `#${nextIndex}`;
-  const title = keyword ? `${idx} ${dd} - ${keyword}` : `${idx} ${dd}`;
-
-  const createRes = await api.meetingsCreate({ projectId: pid, title });
-  if (!createRes || !createRes.ok) {
-    const msg = (createRes && createRes.error) ? createRes.error : "Besprechung anlegen fehlgeschlagen";
-    console.error("[TopsView] meetingsCreate failed", { pid, dateISO, keyword, title, error: msg });
+  const createResult = await this.idleCreateMeetingService.createMeetingForProject({
+    projectId: pid,
+    dateISO,
+    keyword,
+  });
+  if (!createResult?.ok) {
+    const msg = createResult?.error || "Besprechung anlegen fehlgeschlagen";
+    console.error("[TopsView] meetingsCreate failed", { pid, dateISO, keyword, title: createResult?.title, error: msg });
     alert("Besprechung konnte nicht angelegt werden.");
     return;
   }
 
-  const mid = createRes && createRes.meeting ? createRes.meeting.id : null;
+  const mid = createResult.meetingId;
   if (!mid) {
     alert("Besprechung angelegt, aber keine ID erhalten.");
     return;
@@ -2999,19 +2949,7 @@ async _enterIdleAfterClose() {
 
 async _findOpenMeetingIdForProject() {
   const pid = this.projectId || this.router?.currentProjectId || null;
-  const api = window.bbmDb || {};
-  if (!pid || typeof api.meetingsListByProject !== "function") return null;
-
-  try {
-    const res = await api.meetingsListByProject(pid);
-    if (!res?.ok) return null;
-    const list = Array.isArray(res.list) ? res.list : [];
-    const openMeeting = list.find((m) => Number(m?.is_closed) === 0);
-    return openMeeting?.id || null;
-  } catch (err) {
-    console.warn("[TopsView] _findOpenMeetingIdForProject failed:", err);
-    return null;
-  }
+  return this.idleProtocolService.findOpenMeetingId(pid);
 }
 
 async _closeViewOnly() {
@@ -3446,6 +3384,7 @@ async _closeViewOnly() {
   async reloadList(keepSelection) {
     const list = this.listEl;
     if (!list) return;
+    this._unmountTopsIdlePanel();
 
     this._reloadSeq = (this._reloadSeq || 0) + 1;
     const seq = this._reloadSeq;
@@ -3745,6 +3684,9 @@ async _closeViewOnly() {
       li.onclick = async () => {
         if (this._busy) return;
 
+        const canContinue = await this._flushPendingLongtextIfNeeded();
+        if (!canContinue) return;
+
         if (this.moveModeActive && movingTop && !this.isReadOnly) {
           const okTarget = this._isAllowedTarget(top, movingTop);
           if (!okTarget) return;
@@ -3967,6 +3909,12 @@ async _closeViewOnly() {
   }
 
   async destroy() {
+    this._unmountTopsIdlePanel();
+    if (this._protocolTitleReactMount) {
+      this._protocolTitleReactMount.unmount();
+      this._protocolTitleReactMount = null;
+    }
+    this._protocolTitleReactPending = false;
     await this._destroyAudioSuggestions();
     this._destroyDictationController();
 
