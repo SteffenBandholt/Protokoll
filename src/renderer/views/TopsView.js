@@ -2726,6 +2726,77 @@ _isoToDDMMYYYY(iso) {
     this._topsIdleReactPending = false;
   }
 
+  _mountTopsIdlePanel(host, fallbackImage) {
+    if (!host || this._topsIdleReactPending) return;
+
+    this._topsIdleReactPending = true;
+    mountTopsIdlePanel(host, {
+      hasProtocols: !!this._idleHasProtocols,
+      busy: !!this._busy,
+      imageSrc: EMPTY_LEVEL1_HINT_PNG,
+      imageAlt: "Hinweis Protokoll neu",
+      onCreateMeeting: () => {
+        if (this._busy) return;
+        this._createMeetingFromIdle().catch((e) => {
+          console.error("[TopsView] _createMeetingFromIdle failed:", e);
+          alert(e && e.message ? e.message : String(e));
+        });
+      },
+    })
+      .then((mount) => {
+        this._topsIdleReactPending = false;
+        if (!mount) return;
+        if (this._topsIdleReactMount) {
+          mount.unmount();
+          return;
+        }
+        this._topsIdleReactMount = mount;
+      })
+      .catch(() => {
+        this._topsIdleReactPending = false;
+        if (this._topsIdleReactMount) return;
+        host.innerHTML = "";
+        if (fallbackImage) host.appendChild(fallbackImage);
+
+        const btnNew = document.createElement("button");
+        btnNew.type = "button";
+        btnNew.textContent = "Protokoll neu";
+        btnNew.style.display = "inline-flex";
+        btnNew.style.alignItems = "center";
+        btnNew.style.justifyContent = "center";
+        btnNew.style.border = "none";
+        btnNew.style.background = "transparent";
+        btnNew.style.color = "#111827";
+        btnNew.style.padding = "0 2px 2px";
+        btnNew.style.margin = "0";
+        btnNew.style.minHeight = "0";
+        btnNew.style.lineHeight = "1.25";
+        btnNew.style.fontSize = "14px";
+        btnNew.style.fontWeight = "700";
+        btnNew.style.borderRadius = "0";
+        btnNew.style.borderBottom = "2px solid currentColor";
+        btnNew.style.borderBottomColor = "currentColor";
+        btnNew.style.cursor = this._busy ? "default" : "pointer";
+        btnNew.style.whiteSpace = "nowrap";
+        btnNew.disabled = !!this._busy;
+        btnNew.onmouseenter = () => {
+          if (btnNew.disabled) return;
+          btnNew.style.borderBottomColor = "#ff8c00";
+        };
+        btnNew.onmouseleave = () => {
+          btnNew.style.borderBottomColor = "currentColor";
+        };
+        btnNew.onclick = () => {
+          if (this._busy) return;
+          this._createMeetingFromIdle().catch((e) => {
+            console.error("[TopsView] _createMeetingFromIdle failed:", e);
+            alert(e && e.message ? e.message : String(e));
+          });
+        };
+        host.appendChild(btnNew);
+      });
+  }
+
 _renderIdleState() {
   // UI im Idle-State: kein aktives Protokoll.
   // Regeln:
@@ -2785,76 +2856,7 @@ _renderIdleState() {
       this.listEl.appendChild(li);
       this.listEl.style.paddingBottom = "16px";
 
-      const model = {
-        imageSrc: EMPTY_LEVEL1_HINT_PNG,
-        imageAlt: "Hinweis Protokoll neu",
-        primaryActionLabel: "Protokoll neu",
-        primaryActionDisabled: !!this._busy,
-      };
-
-      this._topsIdleReactPending = true;
-      mountTopsIdlePanel(host, {
-        model,
-        onCreateMeeting: () => {
-          if (this._busy) return;
-          this._createMeetingFromIdle().catch((e) => {
-            console.error("[TopsView] _createMeetingFromIdle failed:", e);
-            alert(e && e.message ? e.message : String(e));
-          });
-        },
-      })
-        .then((mount) => {
-          this._topsIdleReactPending = false;
-          if (!mount) return;
-          if (this._topsIdleReactMount) {
-            mount.unmount();
-            return;
-          }
-          this._topsIdleReactMount = mount;
-        })
-        .catch(() => {
-          this._topsIdleReactPending = false;
-          if (this._topsIdleReactMount) return;
-          host.innerHTML = "";
-          host.appendChild(img);
-
-          const btnNew = document.createElement("button");
-          btnNew.type = "button";
-          btnNew.textContent = "Protokoll neu";
-          btnNew.style.display = "inline-flex";
-          btnNew.style.alignItems = "center";
-          btnNew.style.justifyContent = "center";
-          btnNew.style.border = "none";
-          btnNew.style.background = "transparent";
-          btnNew.style.color = "#111827";
-          btnNew.style.padding = "0 2px 2px";
-          btnNew.style.margin = "0";
-          btnNew.style.minHeight = "0";
-          btnNew.style.lineHeight = "1.25";
-          btnNew.style.fontSize = "14px";
-          btnNew.style.fontWeight = "700";
-          btnNew.style.borderRadius = "0";
-          btnNew.style.borderBottom = "2px solid currentColor";
-          btnNew.style.borderBottomColor = "currentColor";
-          btnNew.style.cursor = this._busy ? "default" : "pointer";
-          btnNew.style.whiteSpace = "nowrap";
-          btnNew.disabled = !!this._busy;
-          btnNew.onmouseenter = () => {
-            if (btnNew.disabled) return;
-            btnNew.style.borderBottomColor = "#ff8c00";
-          };
-          btnNew.onmouseleave = () => {
-            btnNew.style.borderBottomColor = "currentColor";
-          };
-          btnNew.onclick = () => {
-            if (this._busy) return;
-            this._createMeetingFromIdle().catch((e) => {
-              console.error("[TopsView] _createMeetingFromIdle failed:", e);
-              alert(e && e.message ? e.message : String(e));
-            });
-          };
-          host.appendChild(btnNew);
-        });
+      this._mountTopsIdlePanel(host, img);
     }
 
     this._updateTopBarProtocolTitle();

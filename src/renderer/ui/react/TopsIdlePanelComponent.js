@@ -1,6 +1,6 @@
 export function createTopsIdlePanelComponent(React) {
-  return function TopsIdlePanelComponent({ model, onCreateMeeting }) {
-    const disabled = !!model?.primaryActionDisabled;
+  return function TopsIdlePanelComponent({ hasProtocols, busy, imageSrc, imageAlt, onCreateMeeting }) {
+    const disabled = !!busy;
 
     return React.createElement(
       "div",
@@ -15,10 +15,10 @@ export function createTopsIdlePanelComponent(React) {
           opacity: "0.95",
         },
       },
-      model?.imageSrc
+      imageSrc
         ? React.createElement("img", {
-            src: model.imageSrc,
-            alt: model.imageAlt || "Idle-Hinweis",
+            src: imageSrc,
+            alt: imageAlt || "Idle-Hinweis",
             style: {
               width: "220px",
               maxWidth: "70%",
@@ -32,6 +32,7 @@ export function createTopsIdlePanelComponent(React) {
         {
           type: "button",
           disabled,
+          title: hasProtocols ? "Neues Protokoll anlegen" : "Erstes Protokoll anlegen",
           onClick: () => {
             if (disabled || typeof onCreateMeeting !== "function") return;
             onCreateMeeting();
@@ -63,7 +64,7 @@ export function createTopsIdlePanelComponent(React) {
             whiteSpace: "nowrap",
           },
         },
-        model?.primaryActionLabel || "Protokoll neu"
+        "Protokoll neu"
       )
     );
   };
