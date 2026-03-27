@@ -2033,7 +2033,8 @@ _isoToDDMMYYYY(iso) {
       const flushedLongtext = await this._flushPendingLongtextIfNeeded({ reload: false });
       if (!flushedLongtext) return;
 
-      const patch = this.topPatchService.collectEditorPatch();
+      const values = this._getEditorValues();
+      const patch = this.topEditor.buildPatch(values);
       if (!patch) return;
 
       await this.topPatchService.saveMeetingTopPatch(patch, { reload: true, pulse: true });
@@ -3437,9 +3438,24 @@ async _closeViewOnly() {
 
   await this.router?.showProjects?.();
 }
+
+  _getEditorValues() {
+    return this.topEditor?.readValues?.() || {};
+  }
+
+  _applyEditorValues(values = {}) {
+    if (values.title !== undefined && this.inpTitle) this.inpTitle.value = values.title;
+    if (values.longtext !== undefined && this.taLongtext) this.taLongtext.value = values.longtext;
+  }
+
+  _setEditorEnabled(enabled) {
+    this.editBoxStateService?.applyEditBoxDisabledState(!enabled);
+  }
+
   _applyReadOnlyState() {
     const ro = !!this.isReadOnly;
     const busy = !!this._busy;
+    this._setEditorEnabled(!(ro || busy));
     if (this.btnL1) this.btnL1.disabled = ro || busy;
     this._updateCreateChildControls();
 
@@ -4330,6 +4346,10 @@ async _closeViewOnly() {
   // === CORE: Editor State ===
   applyEditBoxState() {
     const viewModel = this._buildEditBoxViewModel();
+    this._applyEditorValues({
+      title: viewModel.titleValue,
+      longtext: viewModel.longtextValue,
+    });
     return this.editBoxStateService.applyState(viewModel.top);
   }
 
