@@ -49,7 +49,9 @@ export function createTopsEditorComponent(React) {
         { style: { display: "flex", flexDirection: "column", gap: "2px" } },
         React.createElement("div", null, `Auswahl: ${hasSelection ? "ja" : "nein"}`),
         React.createElement("div", null, `ReadOnly: ${readOnly ? "ja" : "nein"}`),
-        React.createElement("div", null, `Busy: ${busy ? "ja" : "nein"}`)
+        React.createElement("div", null, `Busy: ${busy ? "ja" : "nein"}`),
+        React.createElement("div", null, `Titel: ${title || "(leer)"}`),
+        React.createElement("div", null, `Status: ${statusValue || "(leer)"}`)
       ),
       React.createElement(
         "div",
@@ -68,3 +70,4 @@ export function createTopsEditorComponent(React) {
     );
   };
 }
+
