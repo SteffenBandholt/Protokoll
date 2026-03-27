@@ -326,6 +326,8 @@ export default class TopsView {
       this.responsibleAssignmentAdapter.writeToSelect(...args);
     this._readResponsibleFromSelect = (...args) =>
       this.responsibleAssignmentAdapter.readFromSelect(...args);
+    this._responsibleToPatch = (...args) =>
+      this.responsibleAssignmentAdapter.toPatch(...args);
   }
 
   _initDialogDelegates() {
@@ -2812,6 +2814,16 @@ _isoToDDMMYYYY(iso) {
       );
       const isLevel1 = Number(top.level) === 1;
       const isDone = shouldGrayTopForMeeting(top, meeting);
+      const longtextChangedRaw =
+        top.longtext_changed_at ??
+        top.longtextChangedAt ??
+        top.frozen_changed_at ??
+        top.frozenChangedAt ??
+        top.changed_at ??
+        top.changedAt ??
+        null;
+      const longtextChangedDate = longtextChangedRaw ? this._formatDue(longtextChangedRaw) : "";
+      const isLongtextChanged = isOld && (isTouched || !!longtextChangedRaw);
       const changedRaw =
         top.updated_at ??
         top.updatedAt ??
@@ -2853,6 +2865,7 @@ _isoToDDMMYYYY(iso) {
             : isOld
               ? (isTouched ? "blue" : "black")
               : "blue";
+      const effectiveLongColor = isLongtextChanged ? "blue" : longColor;
 
       const baseBg = isLevel1 ? "#f3f3f3" : "transparent";
       let background = isSelected ? "#dff0ff" : baseBg;
@@ -2880,8 +2893,22 @@ _isoToDDMMYYYY(iso) {
 
       const num = top.displayNumber ?? top.number ?? "";
       let lt = top.longtext ? String(top.longtext) : "";
-      if (isOld && isTouched && changedDate) {
-        lt = `${lt}${lt ? "\n" : ""}(Text geaendert ${changedDate})`;
+      if (isLongtextChanged && longtextChangedDate) {
+        lt = `${lt}${lt ? "\n" : ""}(Text geändert am: ${longtextChangedDate})`;
+        // Debug-Ausgabe für Fälle mit geändertem Langtext bei übernommenen/read-only TOPs
+        console.log("[TOPS DEBUG LONGTEXT CHANGE]", {
+          id: top.id,
+          number: top.number ?? top.displayNumber,
+          is_carried_over: top.is_carried_over ?? top.isCarriedOver ?? top.frozen_is_carried_over ?? top.frozenIsCarriedOver,
+          is_touched: top.is_touched ?? top.isTouched ?? top.frozen_is_touched ?? top.frozenIsTouched,
+          updated_at: top.updated_at ?? top.updatedAt,
+          changed_at: top.changed_at ?? top.changedAt,
+          frozen_changed_at: top.frozen_changed_at ?? top.frozenChangedAt,
+          longtext_changed_at: top.longtext_changed_at ?? top.longtextChangedAt,
+          status: top.status ?? meta.status,
+          title: top.title,
+          longtext: top.longtext,
+        });
       }
 
       const st = this._formatStatus(meta.status);
@@ -3006,9 +3033,9 @@ _isoToDDMMYYYY(iso) {
           text: lt,
           displayText: this._clampStr(lt, this._longMax()),
           fontSizePx: fontSizes.long,
-          color: longColor,
+          color: effectiveLongColor,
           style: {
-            color: longColor,
+            color: effectiveLongColor,
             fontSize: `${fontSizes.long}px`,
             lineHeight: "1.25",
             whiteSpace: "pre-wrap",
@@ -3970,6 +3997,16 @@ async _closeViewOnly() {
       );
       const isLevel1 = Number(top.level) === 1;
       const isDone = shouldGrayTopForMeeting(top, meeting);
+      const longtextChangedRaw =
+        top.longtext_changed_at ??
+        top.longtextChangedAt ??
+        top.frozen_changed_at ??
+        top.frozenChangedAt ??
+        top.changed_at ??
+        top.changedAt ??
+        null;
+      const longtextChangedDate = longtextChangedRaw ? this._formatDue(longtextChangedRaw) : "";
+      const isLongtextChanged = isOld && (isTouched || !!longtextChangedRaw);
       const changedRaw =
         top.updated_at ??
         top.updatedAt ??
@@ -4011,6 +4048,7 @@ async _closeViewOnly() {
             : isOld
               ? (isTouched ? "blue" : "black")
               : "blue";
+      const effectiveLongColor = isLongtextChanged ? "blue" : longColor;
 
       const baseBg = isLevel1 ? "#f3f3f3" : "transparent";
       li.style.background = isSelected ? "#dff0ff" : baseBg;
@@ -4104,8 +4142,8 @@ async _closeViewOnly() {
 
       numBlock.appendChild(numWrap);
       let lt = top.longtext ? String(top.longtext) : "";
-      if (isOld && isTouched && changedDate) {
-        lt = `${lt}${lt ? "\n" : ""}(Text geändert ${changedDate})`;
+      if (isLongtextChanged && longtextChangedDate) {
+        lt = `${lt}${lt ? "\n" : ""}(Text geändert am: ${longtextChangedDate})`;
       }
 
       const textCol = renderTopTextColumn({
@@ -4116,7 +4154,7 @@ async _closeViewOnly() {
         longtext: lt,
         longtextDisplayText: this._clampStr(lt, this._longMax()),
         longtextFontSizePx: fontSizes.long,
-        longtextColor: longColor,
+        longtextColor: effectiveLongColor,
       });
 
       const metaCol = this.topMetaColumnRenderer.buildMetaColumn(top, ampelCompute);
@@ -4433,4 +4471,3 @@ async _closeViewOnly() {
     this._closeProjectTasksPopup();
   }
 }
-
