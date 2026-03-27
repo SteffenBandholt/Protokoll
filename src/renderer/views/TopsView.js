@@ -3458,6 +3458,29 @@ async _closeViewOnly() {
     return !!this._busy;
   }
 
+  _buildEditorReactProps() {
+    const vm = this._buildEditBoxViewModel();
+    const ui = this._buildEditorUiState();
+    const values = this._getEditorValues();
+
+    return {
+      top: vm.top,
+      hasSelection: vm.isSelected,
+      title: vm.titleValue ?? values.title,
+      longtext: vm.longtextValue ?? values.longtext,
+      dueValue: vm.dueValue,
+      statusValue: vm.statusValue,
+      responsibleValue: vm.responsibleValue,
+      checkboxState: vm.checkboxState,
+      metaVisible: vm.metaVisible,
+      disabledState: vm.disabledState,
+      readOnly: ui.readOnly,
+      busy: ui.busy,
+      onSave: this._onSaveClicked,
+      onChange: this._onEditorChanged,
+    };
+  }
+
   _hasCurrentTopSelection() {
     return !!this._getCurrentTop();
   }
