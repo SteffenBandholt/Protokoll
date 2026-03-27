@@ -15,6 +15,8 @@ export function createTopsEditorComponent(React) {
     onSave,
     onChange,
     onStatusChange,
+    onTitleChange,
+    onLongtextChange,
   }) {
     const { useState, useEffect } = React;
 
@@ -26,17 +28,36 @@ export function createTopsEditorComponent(React) {
       if (typeof onChange === "function") onChange();
     };
 
-    const handleTitleChange = (event) => {
-      if (typeof onChange === "function") onChange(event.target.value);
-    };
-
     const currentStatus =
       typeof statusValue === "string" ? statusValue.trim() : statusValue ? String(statusValue).trim() : "";
     const [statusLocal, setStatusLocal] = useState(currentStatus);
+    const [titleLocal, setTitleLocal] = useState(title || "");
+    const [longtextLocal, setLongtextLocal] = useState(longtext || "");
+    useEffect(() => {
+      setLongtextLocal(longtext || "");
+    }, [longtext]);
 
     useEffect(() => {
       setStatusLocal(currentStatus);
     }, [currentStatus]);
+
+    useEffect(() => {
+      setTitleLocal(title || "");
+    }, [title]);
+
+    const handleLongtextChange = (event) => {
+      const next = event.target.value;
+      setLongtextLocal(next);
+      if (typeof onLongtextChange === "function") onLongtextChange(next);
+      if (typeof onChange === "function") onChange(next);
+    };
+
+    const handleTitleChange = (event) => {
+      const next = event.target.value;
+      setTitleLocal(next);
+      if (typeof onTitleChange === "function") onTitleChange(next);
+      if (typeof onChange === "function") onChange(next);
+    };
 
     const baseOptions = ["", "offen", "in Bearbeitung", "erledigt"];
     const options =
@@ -78,16 +99,16 @@ export function createTopsEditorComponent(React) {
         React.createElement("div", null, `Auswahl: ${hasSelection ? "ja" : "nein"}`),
         React.createElement("div", null, `ReadOnly: ${readOnly ? "ja" : "nein"}`),
         React.createElement("div", null, `Busy: ${busy ? "ja" : "nein"}`),
-        React.createElement(
-          "div",
-          { style: { display: "flex", flexDirection: "column", gap: "2px" } },
-          React.createElement("div", { style: { fontWeight: 600 } }, "Titel"),
-          React.createElement("input", {
-            type: "text",
-            value: title || "",
-            onChange: handleTitleChange,
-            disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
-            placeholder: "(leer)",
+          React.createElement(
+            "div",
+            { style: { display: "flex", flexDirection: "column", gap: "2px" } },
+            React.createElement("div", { style: { fontWeight: 600 } }, "Titel"),
+            React.createElement("input", {
+              type: "text",
+              value: titleLocal,
+              onChange: handleTitleChange,
+              disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+              placeholder: "(leer)",
             style: {
               minHeight: "24px",
               border: "1px solid rgba(0,0,0,0.15)",
@@ -136,9 +157,14 @@ export function createTopsEditorComponent(React) {
           "div",
           { style: { display: "flex", flexDirection: "column", gap: "2px" } },
           React.createElement("div", { style: { fontWeight: 600 } }, "Langtext"),
-          React.createElement("div", {
+          React.createElement("textarea", {
+            value: longtextLocal,
+            onChange: handleLongtextChange,
+            disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+            placeholder: "(leer)",
+            rows: 4,
             style: {
-              minHeight: "48px",
+              minHeight: "60px",
               border: "1px solid rgba(0,0,0,0.15)",
               borderRadius: "4px",
               padding: "6px",
@@ -146,11 +172,10 @@ export function createTopsEditorComponent(React) {
               color: "#111",
               fontSize: "11px",
               lineHeight: "1.35",
-              whiteSpace: "pre-wrap",
-              overflow: "hidden",
+              width: "100%",
+              boxSizing: "border-box",
+              resize: "vertical",
             },
-            title: (longtext || "").slice(0, 120),
-            children: `${(longtext || "").slice(0, 120)}${(longtext || "").length > 120 ? "..." : ""}`,
           })
         )
       ),
@@ -171,4 +196,3 @@ export function createTopsEditorComponent(React) {
     );
   };
 }
-

@@ -3490,6 +3490,8 @@ async _closeViewOnly() {
       onSave: this._onSaveClicked,
       onChange: this._onEditorChanged,
       onStatusChange: this._onReactStatusChange,
+      onTitleChange: this._onReactTitleChange,
+      onLongtextChange: this._onReactLongtextChange,
     };
   }
 
@@ -3526,6 +3528,16 @@ async _closeViewOnly() {
     this.selStatus.value = nextValue || "";
     this._updateStatusMarkers();
     this._updateDueAmpelFromInputs?.();
+  };
+
+  _onReactTitleChange = (nextValue) => {
+    if (this.inpTitle) this.inpTitle.value = nextValue ?? "";
+    this._updateCharCounters();
+  };
+
+  _onReactLongtextChange = (nextValue) => {
+    if (this.taLongtext) this.taLongtext.value = nextValue ?? "";
+    this._updateCharCounters();
   };
 
   _onSaveClicked = async () => {
