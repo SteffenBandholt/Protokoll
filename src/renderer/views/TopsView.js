@@ -9,6 +9,7 @@ import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { mountTopsIdlePanel } from "../ui/react/mountTopsIdlePanel.js";
 import { mountProtocolTitle } from "../ui/react/mountProtocolTitle.js";
+import { mountTopsList } from "../ui/react/mountTopsList.js";
 import { attachAudioFeature } from "../features/audio/AudioFeature.js";
 import { DictationController } from "../features/audio-dictation/DictationController.js";
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
@@ -18,8 +19,6 @@ import { ResponsibleAssignmentAdapter } from "../features/assignments/Responsibl
 import { ResponsibleEditorController } from "../features/assignments/ResponsibleEditorController.js";
 import { TopResponsibleService } from "../features/assignments/TopResponsibleService.js";
 import { EditBoxStateService } from "../features/editor/EditBoxStateService.js";
-import { TopMetaColumnRenderer } from "../features/list/TopMetaColumnRenderer.js";
-import { renderTopTextColumn } from "../features/list/TopTextColumnRenderer.js";
 import { TopEditorController } from "../features/editor/TopEditorController.js";
 import { TopsViewDialogs } from "../features/dialogs/TopsViewDialogs.js";
 import { TopsViewSettingsService } from "../features/settings/TopsViewSettingsService.js";
@@ -123,6 +122,8 @@ export default class TopsView {
     this._protocolTitleReactPending = false;
     this._topsIdleReactMount = null;
     this._topsIdleReactPending = false;
+    this._topsListReactMount = null;
+    this._topsListReactPending = false;
 
     // Save button
     this.btnSaveTop = null;
@@ -186,8 +187,6 @@ export default class TopsView {
     this.settingsService = new TopsViewSettingsService({ view: this });
     this.topPatchService = new TopPatchService({ view: this });
     this.editBoxStateService = new EditBoxStateService({ view: this });
-    this.topMetaColumnRenderer = new TopMetaColumnRenderer({ view: this });
-
     this._initModules(router);
   }
 
@@ -2726,6 +2725,448 @@ _isoToDDMMYYYY(iso) {
     this._topsIdleReactPending = false;
   }
 
+  _unmountTopsList() {
+    if (this._topsListReactMount) {
+      this._topsListReactMount.unmount();
+      this._topsListReactMount = null;
+    }
+    this._topsListReactPending = false;
+  }
+
+  async _handleSelectTopFromList(topId) {
+    if (this._busy) return;
+
+    const canContinue = await this._flushPendingLongtextIfNeeded();
+    if (!canContinue) return;
+
+    const top = (this.items || []).find((item) => this._sameTopId(item?.id, topId));
+    if (!top) return;
+
+    const movingTop = this.moveModeActive ? this.selectedTop : null;
+    if (this.moveModeActive && movingTop && !this.isReadOnly) {
+      const okTarget = this._isAllowedTarget(top, movingTop);
+      if (!okTarget) return;
+      await this.performMove(top.id);
+      return;
+    }
+
+    this.selectedTopId = top.id;
+    this.selectedTop = top;
+    this._userSelectedTop = true;
+
+    this._updateMoveControls();
+    this.applyEditBoxState();
+    this._renderListOnly();
+  }
+
+  _toggleLevel1Collapse(topId) {
+    const topIdKey = String(topId || "");
+    if (!topIdKey) return;
+    if (this.level1Collapsed.has(topIdKey)) this.level1Collapsed.delete(topIdKey);
+    else this.level1Collapsed.add(topIdKey);
+    this._saveLevel1CollapsedSetting().catch(() => {});
+    this._renderListOnly();
+  }
+
+  _buildTopsListViewModel() {
+    const items = [];
+    const sourceItems = Array.isArray(this.items) ? this.items : [];
+    const hasLevel1Top = sourceItems.some((top) => Number(top?.level) === 1);
+    const movingTop = this.moveModeActive ? this.selectedTop : null;
+    const fontSizes = this._getListFontSizes();
+    const ampelCompute = createAmpelComputer(sourceItems, this._ampelBaseDate());
+    const meeting = this.meetingMeta || { id: this.meetingId };
+    const isMeetingClosed = Number(meeting?.is_closed) === 1;
+
+    let collapsedParentId = null;
+    for (const top of sourceItems) {
+      if (this._shouldHideTopInList(top)) continue;
+
+      const isSelected = this._sameTopId(top.id, this.selectedTopId);
+      const isMarked = this._markTopIds && this._markTopIds.has(top.id);
+      const isImportant = Number(top.is_important) === 1;
+      const parseFlag = (v) => {
+        if (v === true || v === false) return v;
+        if (typeof v === "string") {
+          const s = v.trim().toLowerCase();
+          return s === "1" || s === "true";
+        }
+        const n = Number(v);
+        return Number.isFinite(n) ? n === 1 : false;
+      };
+
+      const meta = this._getTopMeta(top);
+      const isOld = parseFlag(
+        top.is_carried_over ??
+          top.isCarriedOver ??
+          top.frozen_is_carried_over ??
+          top.frozenIsCarriedOver
+      );
+      const statusLower = String(meta.status || "").trim().toLowerCase();
+      const isTask = statusLower === "todo" || parseFlag(top.is_task ?? top.isTask);
+      const isTouched = parseFlag(
+        top.is_touched ??
+          top.isTouched ??
+          top.frozen_is_touched ??
+          top.frozenIsTouched
+      );
+      const isLevel1 = Number(top.level) === 1;
+      const isDone = shouldGrayTopForMeeting(top, meeting);
+      const changedRaw =
+        top.updated_at ??
+        top.updatedAt ??
+        top.changed_at ??
+        top.changedAt ??
+        top.frozen_changed_at ??
+        top.frozenChangedAt ??
+        top.longtext_changed_at ??
+        top.longtextChangedAt ??
+        top.created_at ??
+        top.createdAt ??
+        null;
+      const changedDate = changedRaw ? this._formatDue(changedRaw) : "";
+
+      const topIdKey = String(top.id);
+      const isCollapsed = isLevel1 && this.level1Collapsed.has(topIdKey);
+      if (isLevel1) {
+        collapsedParentId = isCollapsed ? topIdKey : null;
+      } else if (collapsedParentId) {
+        continue;
+      }
+
+      const doneColor = "#9e9e9e";
+      const shortColor = isMeetingClosed
+        ? (isImportant ? "#c62828" : "black")
+        : isDone
+          ? doneColor
+          : isImportant
+            ? "#c62828"
+            : isOld
+              ? "black"
+              : "blue";
+      const longColor = isMeetingClosed
+        ? (isImportant ? "#c62828" : "black")
+        : isDone
+          ? doneColor
+          : isImportant
+            ? "#c62828"
+            : isOld
+              ? (isTouched ? "blue" : "black")
+              : "blue";
+
+      const baseBg = isLevel1 ? "#f3f3f3" : "transparent";
+      let background = isSelected ? "#dff0ff" : baseBg;
+      let border = isSelected ? "1px solid #7aa7ff" : "1px solid transparent";
+      let boxShadow = "none";
+      if (isMarked) {
+        border = "1px solid #f9a825";
+        boxShadow = "0 0 0 2px rgba(249, 168, 37, 0.25)";
+        if (!isSelected) background = "#fff8e1";
+      }
+
+      let outline = "none";
+      let opacity = "1";
+      let clickAction = "select";
+      if (this.moveModeActive && movingTop && !this.isReadOnly) {
+        const okTarget = this._isAllowedTarget(top, movingTop);
+        if (okTarget) {
+          outline = "2px dashed #7aa7ff";
+          background = "#eef7ff";
+          clickAction = "move";
+        } else {
+          opacity = "0.6";
+        }
+      }
+
+      const num = top.displayNumber ?? top.number ?? "";
+      let lt = top.longtext ? String(top.longtext) : "";
+      if (isOld && isTouched && changedDate) {
+        lt = `${lt}${lt ? "\n" : ""}(Text geaendert ${changedDate})`;
+      }
+
+      const st = this._formatStatus(meta.status);
+      const resp = this.responsibleService.format(top);
+      const due = this._formatDue(meta.dueDate || this._resolveDisplayDueForTop(top));
+      const ampelColor = this.showAmpelInList ? ampelCompute(top) : null;
+      const icons = [];
+      if (isTask) {
+        icons.push({
+          src: TODO_PNG,
+          alt: "ToDo",
+          title: "ToDo",
+          style: {
+            width: "14px",
+            height: "14px",
+            flex: "0 0 14px",
+            objectFit: "contain",
+          },
+        });
+      }
+      if (this._shouldShowDecisionFlag(st)) {
+        icons.push({
+          src: RED_FLAG_PNG,
+          alt: "Festlegung",
+          title: "Festlegung",
+          style: {
+            width: "14px",
+            height: "14px",
+            flex: "0 0 14px",
+            objectFit: "contain",
+          },
+        });
+      }
+
+      items.push({
+        id: top.id,
+        isSelected,
+        isCollapsed,
+        isLevel1,
+        isMoveTarget: clickAction === "move",
+        canToggleCollapse: isLevel1,
+        canSelect: true,
+        clickAction,
+        rowStyle: {
+          listStyle: "none",
+          padding: "6px 8px",
+          margin: "4px 0",
+          borderRadius: "6px",
+          cursor: "pointer",
+          background,
+          border,
+          fontWeight: isSelected ? "700" : "400",
+          boxShadow,
+          opacity,
+          outline,
+        },
+        numberText: `${num}.`,
+        numberColumn: {
+          width: this.NUM_COL_W,
+          fontSize: isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`,
+          style: {
+            flex: `0 0 ${this.NUM_COL_W}px`,
+            width: `${this.NUM_COL_W}px`,
+            minWidth: `${this.NUM_COL_W}px`,
+            fontVariantNumeric: "tabular-nums",
+            opacity: "0.85",
+            textAlign: "left",
+            fontSize: isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+          },
+        },
+        toggle: isLevel1
+          ? {
+              text: isCollapsed ? "+" : "-",
+              title: isCollapsed ? "Unterpunkte einblenden" : "Unterpunkte ausblenden",
+              buttonStyle: {
+                width: "18px",
+                height: "18px",
+                minWidth: "18px",
+                borderRadius: "4px",
+                border: "1px solid #cfd8dc",
+                background: "#fff",
+                cursor: "pointer",
+                fontWeight: "700",
+                lineHeight: "1",
+              },
+            }
+          : null,
+        changeHint: isOld && changedDate
+          ? changedDate && changedDate !== "-"
+            ? `(Text geaendert\n${changedDate})`
+            : "(Text geaendert)"
+          : "",
+        star:
+          !isOld && !isTouched
+            ? {
+                text: "*",
+                title: !isOld ? "Neuer TOP" : "Uebernommener, geaenderter TOP",
+                fontSize: isLevel1
+                  ? `${Math.max(fontSizes.l1 - 1, 12)}px`
+                  : `${Math.max(fontSizes.l24 - 1, 12)}px`,
+              }
+            : null,
+        title: {
+          text: `${top.title || ""}`,
+          color: shortColor,
+          fontSize: isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`,
+          fontWeight: isSelected ? "700" : "400",
+          style: {
+            color: shortColor,
+            fontSize: isLevel1 ? `${fontSizes.l1}px` : `${fontSizes.l24}px`,
+            fontWeight: isSelected ? "700" : "400",
+            lineHeight: "1.2",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          },
+        },
+        longtext: {
+          show: !!this.showLongtextInList && !!lt,
+          text: lt,
+          displayText: this._clampStr(lt, this._longMax()),
+          fontSizePx: fontSizes.long,
+          color: longColor,
+          style: {
+            color: longColor,
+            fontSize: `${fontSizes.long}px`,
+            lineHeight: "1.25",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            opacity: "0.95",
+          },
+        },
+        meta: this._shouldShowMetaColumn(top)
+          ? {
+              width: this.META_COL_W,
+              due,
+              status: st,
+              responsible: `${resp}`,
+              ampelColor: ampelColor ? this._ampelColorPx(ampelColor) : null,
+              icons,
+              containerStyle: {
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                textAlign: "left",
+                gap: "2px",
+                flex: `0 0 ${this.META_COL_W}px`,
+                width: `${this.META_COL_W}px`,
+                fontSize: "12px",
+                opacity: "0.65",
+                fontVariantNumeric: "tabular-nums",
+                paddingLeft: "10px",
+                borderLeft: "1px solid rgba(0,0,0,0.08)",
+              },
+              dueRowStyle: {
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
+                width: "100%",
+              },
+              statusRowStyle: {
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                width: "100%",
+              },
+              textStyle: {
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                flex: "1 1 auto",
+                minWidth: "0",
+              },
+              responsibleStyle: {
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              },
+            }
+          : null,
+      });
+    }
+
+    return {
+      items,
+      selectedTopId: this.selectedTopId,
+      emptyState: hasLevel1Top
+        ? null
+        : {
+            imageSrc: EMPTY_LEVEL1_HINT_PNG,
+            imageAlt: "Hinweis erstes Level 1",
+            prefixText: "Mit Button",
+            buttonText: "+Titel",
+            suffixText: "den ersten Titel anlegen",
+            disabled: this.isReadOnly || this._busy,
+            wrapperStyle: {
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+              padding: "22px 10px",
+              opacity: "0.95",
+            },
+            hintStyle: {
+              fontSize: "14px",
+              fontWeight: "600",
+              textAlign: "center",
+              color: "#1f2937",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+            },
+            imageStyle: {
+              width: "220px",
+              maxWidth: "70%",
+              height: "auto",
+              objectFit: "contain",
+            },
+            buttonStyle: {
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "none",
+              background: "transparent",
+              color: "var(--header-text)",
+              padding: "0 2px 2px",
+              margin: "0",
+              minHeight: "0",
+              lineHeight: "1.2",
+              fontSize: "13px",
+              fontWeight: "700",
+              borderRadius: "0",
+              borderBottom: "2pt solid currentColor",
+              borderBottomColor: "currentColor",
+              cursor: this.isReadOnly || this._busy ? "default" : "pointer",
+              whiteSpace: "nowrap",
+            },
+          },
+    };
+  }
+
+  _renderTopsListReact() {
+    const host = this.listEl;
+    if (!host || this._topsListReactPending) return;
+
+    const props = {
+      ...this._buildTopsListViewModel(),
+      onSelectTop: (topId) => this._handleSelectTopFromList(topId),
+      onToggleCollapse: (topId) => this._toggleLevel1Collapse(topId),
+      onMoveTarget: (topId) => this._handleSelectTopFromList(topId),
+      onCreateFirstTop: () => {
+        if (this.isReadOnly || this._busy) return;
+        this.createTop(1, null);
+      },
+    };
+
+    if (this._topsListReactMount) {
+      this._topsListReactMount.render(props);
+      return;
+    }
+
+    host.innerHTML = "";
+    this._topsListReactPending = true;
+    mountTopsList(host, props)
+      .then((mount) => {
+        this._topsListReactPending = false;
+        if (!mount) return;
+        if (this._topsListReactMount) {
+          mount.unmount();
+          return;
+        }
+        this._topsListReactMount = mount;
+      })
+      .catch((err) => {
+        this._topsListReactPending = false;
+        console.error("[TopsView] mountTopsList failed:", err);
+      });
+  }
+
   _mountTopsIdlePanel(host, fallbackImage) {
     if (!host || this._topsIdleReactPending) return;
 
@@ -2824,6 +3265,7 @@ _renderIdleState() {
 
     // Liste leeren und Idle Buttons anzeigen
     if (this.listEl) {
+      this._unmountTopsList();
       this._unmountTopsIdlePanel();
       this.listEl.innerHTML = "";
       const li = document.createElement("li");
@@ -3386,6 +3828,7 @@ async _closeViewOnly() {
   async reloadList(keepSelection) {
     const list = this.listEl;
     if (!list) return;
+    this._unmountTopsList();
     this._unmountTopsIdlePanel();
 
     this._reloadSeq = (this._reloadSeq || 0) + 1;
@@ -3440,7 +3883,6 @@ async _closeViewOnly() {
       this.selectedTop = null;
     }
 
-    list.innerHTML = "";
     this._renderListOnly();
     this.applyEditBoxState();
     this._applyReadOnlyState();
@@ -3465,6 +3907,18 @@ async _closeViewOnly() {
   // === CORE: List Rendering ===
   _renderListOnly() {
     const list = this.listEl;
+    if (!list) return;
+    this._renderTopsListReact();
+    this._updateMoveControls();
+    this._updateDeleteControls();
+    this._updateTopBarMetaLabels();
+
+    requestAnimationFrame(() => {
+      this._syncPinnedBars();
+    });
+    return;
+
+    /*
     list.innerHTML = "";
     const hasLevel1Top = (this.items || []).some((top) => Number(top?.level) === 1);
 
@@ -3789,6 +4243,7 @@ async _closeViewOnly() {
     requestAnimationFrame(() => {
       this._syncPinnedBars();
     });
+    */
   }
 
   _scrollListToSelectedAndEnd() {
@@ -3836,7 +4291,53 @@ async _closeViewOnly() {
 
   // === CORE: Editor State ===
   applyEditBoxState() {
-    return this.editBoxStateService.applyState(this.selectedTop);
+    const viewModel = this._buildEditBoxViewModel();
+    return this.editBoxStateService.applyState(viewModel.top);
+  }
+
+  _buildEditBoxViewModel() {
+    const top = this.selectedTop || null;
+
+    const meta = top ? this._getTopMeta(top) : null;
+    const isSelected = !!top;
+    const isLevel1 = Number(top?.level) === 1;
+
+    const titleValue = this._clampStr(top?.title || "", this._titleMax());
+    const longtextValue = this._clampStr(top?.longtext || "", this._longMax());
+
+    const checkboxState = {
+      hidden: Number(top?.is_hidden) === 1,
+      important: Number(top?.is_important) === 1,
+      task: Number(top?.is_task ?? top?.isTask ?? 0) === 1,
+      decision: Number(top?.is_decision ?? top?.isDecision ?? 0) === 1,
+    };
+
+    const statusValue = meta?.status ? String(meta.status).trim() : "";
+    const dueValue = meta?.dueDate ? String(meta.dueDate).slice(0, 10) : "";
+
+    const responsibleValue = this._readResponsibleFromSelect?.(
+      this.selResponsible,
+      this.projectFirms || []
+    );
+
+    const disabledState = {
+      readOnly: this.isReadOnly,
+      busy: !!this._busy,
+    };
+
+    return {
+      top,
+      isSelected,
+      isLevel1,
+      titleValue,
+      longtextValue,
+      checkboxState,
+      dueValue,
+      statusValue,
+      responsibleValue,
+      metaVisible: !isLevel1,
+      disabledState,
+    };
   }
 
   async createTop(level, parentTopId) {
@@ -3911,6 +4412,7 @@ async _closeViewOnly() {
   }
 
   async destroy() {
+    this._unmountTopsList();
     this._unmountTopsIdlePanel();
     if (this._protocolTitleReactMount) {
       this._protocolTitleReactMount.unmount();
@@ -3931,3 +4433,4 @@ async _closeViewOnly() {
     this._closeProjectTasksPopup();
   }
 }
+
