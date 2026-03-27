@@ -1537,7 +1537,7 @@ _isoToDDMMYYYY(iso) {
     btnAudioAnalyze.style.display = "none";
     styleBtnBase(btnAudioAnalyze);
     btnAudioAnalyze.onclick = async () => {
-      if (this._busy || this.isReadOnly || !this.meetingId) return;
+      if (this._isEditorBusy() || this.isReadOnly || !this.meetingId) return;
       await this._openAudioSuggestions();
     };
 
@@ -1567,7 +1567,7 @@ _isoToDDMMYYYY(iso) {
     btnChild.style.background = "#f3f3f3";
     styleBtnBase(btnChild);
     btnChild.onclick = () => {
-      const activeTop = this.selectedTop || this._findTopById(this.selectedTopId);
+      const activeTop = this._getCurrentTop() || this._findTopById(this.selectedTopId);
 
       if (!activeTop) {
         alert("Bitte zuerst einen TOP auswaehlen. '+ TOP' legt nur Level 2 bis 4 an.");
@@ -2516,7 +2516,7 @@ _isoToDDMMYYYY(iso) {
     inpDueDate.addEventListener("change", async () => {
       if (this.isReadOnly) return;
       if (inpDueDate.disabled) return;
-      if (!this.selectedTop) return;
+      if (!this._hasCurrentTopSelection()) return;
       const dueVal = (inpDueDate.value || "").trim();
       this._dueDirty = true;
       this._dueDirtyTopId = this.selectedTop.id;
@@ -2526,7 +2526,7 @@ _isoToDDMMYYYY(iso) {
     selStatus.addEventListener("change", async () => {
       if (this.isReadOnly) return;
       if (selStatus.disabled) return;
-      if (!this.selectedTop) return;
+      if (!this._hasCurrentTopSelection()) return;
       const rawStatus = (selStatus.value || "").trim();
       const st = rawStatus && rawStatus.toLowerCase() === "alle" ? "" : rawStatus;
       const stLower = (st || "").toString().trim().toLowerCase();
@@ -2565,7 +2565,7 @@ _isoToDDMMYYYY(iso) {
     selResponsible.addEventListener("change", async () => {
       if (this.isReadOnly || this._isEditorBusy()) return;
       if (selResponsible.disabled) return;
-      if (!this.selectedTop) return;
+      if (!this._hasCurrentTopSelection()) return;
 
       const responsible = this._readResponsibleFromSelect(selResponsible, this.projectFirms || []);
       this._respDirty = true;
@@ -2630,7 +2630,7 @@ _isoToDDMMYYYY(iso) {
     chkImportant.addEventListener("change", async () => {
       if (this.isReadOnly) return;
       if (chkImportant.disabled) return;
-      if (!this.selectedTop) return;
+      if (!this._hasCurrentTopSelection()) return;
 
       await this.topPatchService.saveMeetingTopPatch(
         { is_important: chkImportant.checked ? 1 : 0 },
@@ -2641,7 +2641,7 @@ _isoToDDMMYYYY(iso) {
     chkHidden.addEventListener("change", async () => {
       if (this.isReadOnly) return;
       if (chkHidden.disabled) return;
-      if (!this.selectedTop) return;
+      if (!this._hasCurrentTopSelection()) return;
 
       const hideNow = chkHidden.checked;
       const selectedId = this.selectedTop.id;
@@ -3423,7 +3423,7 @@ async _closeViewOnly() {
 
   _buildEditorUiState() {
     const top = this._getCurrentTop();
-    const hasSelection = !!top;
+    const hasSelection = this._hasCurrentTopSelection();
     const isLevel1 = Number(top?.level) === 1;
     const readOnly = this._isEditorReadOnly();
     const busy = this._isEditorBusy();
@@ -3456,6 +3456,10 @@ async _closeViewOnly() {
 
   _isEditorBusy() {
     return !!this._busy;
+  }
+
+  _hasCurrentTopSelection() {
+    return !!this._getCurrentTop();
   }
 
   _applyEditorValues(values = {}) {
