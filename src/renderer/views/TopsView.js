@@ -3537,7 +3537,7 @@ async _closeViewOnly() {
 
   _onReactLongtextChange = (nextValue) => {
     if (this.taLongtext) this.taLongtext.value = nextValue ?? "";
-    this._updateCharCounters();
+    this._onEditorChanged();
   };
 
   _onSaveClicked = async () => {
