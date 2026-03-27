@@ -2519,7 +2519,8 @@ _isoToDDMMYYYY(iso) {
 
     // Hidden host for future React editor (keine sichtbare Änderung)
     const reactHost = document.createElement("div");
-    reactHost.style.display = "none";
+    reactHost.style.display = "block";
+    reactHost.style.marginTop = "6px";
     this._topsEditorReactHost = reactHost;
     box.appendChild(reactHost);
 
@@ -4601,3 +4602,4 @@ async _closeViewOnly() {
     }
   }
 }
+

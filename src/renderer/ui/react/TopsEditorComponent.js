@@ -23,51 +23,37 @@ export function createTopsEditorComponent(React) {
       if (typeof onChange === "function") onChange();
     };
 
-    const infoLine = hasSelection
-      ? `TOP ${top?.displayNumber ?? top?.number ?? ""}`.trim()
-      : "Kein TOP ausgewählt";
-
     return React.createElement(
       "div",
       {
         style: {
           display: "flex",
           flexDirection: "column",
-          gap: "6px",
+          gap: "4px",
           padding: "8px",
-          border: "1px dashed rgba(0,0,0,0.1)",
+          border: "1px solid rgba(0,0,0,0.08)",
           borderRadius: "6px",
-          background: "#fff",
-          opacity: busy ? 0.65 : 1,
+          background: "#f9fafb",
+          fontSize: "11px",
+          color: "#111",
+          opacity: busy ? 0.75 : 1,
         },
       },
       React.createElement(
         "div",
         { style: { fontWeight: 700, fontSize: "12px" } },
-        infoLine
+        "React Editor vorbereitet"
       ),
       React.createElement(
         "div",
-        { style: { display: "flex", flexDirection: "column", gap: "4px" } },
-        React.createElement("div", null, `Titel: ${title || ""}`),
-        React.createElement("div", null, `Langtext: ${longtext ? longtext.slice(0, 80) : ""}`),
-        React.createElement("div", null, `Fällig: ${dueValue || ""}`),
-        React.createElement("div", null, `Status: ${statusValue || ""}`),
-        React.createElement("div", null, `Verantwortlich: ${responsibleValue || ""}`),
-        React.createElement(
-          "div",
-          null,
-          `Checkboxen: hidden=${checkboxState?.hidden ? "1" : "0"}, important=${checkboxState?.important ? "1" : "0"}, task=${checkboxState?.task ? "1" : "0"}, decision=${checkboxState?.decision ? "1" : "0"}`
-        ),
-        React.createElement(
-          "div",
-          null,
-          `Meta sichtbar: ${metaVisible ? "ja" : "nein"} | readOnly=${readOnly ? "ja" : "nein"} | busy=${busy ? "ja" : "nein"}`
-        )
+        { style: { display: "flex", flexDirection: "column", gap: "2px" } },
+        React.createElement("div", null, `Auswahl: ${hasSelection ? "ja" : "nein"}`),
+        React.createElement("div", null, `ReadOnly: ${readOnly ? "ja" : "nein"}`),
+        React.createElement("div", null, `Busy: ${busy ? "ja" : "nein"}`)
       ),
       React.createElement(
         "div",
-        { style: { display: "flex", gap: "8px" } },
+        { style: { display: "flex", gap: "8px", marginTop: "4px" } },
         React.createElement(
           "button",
           {
