@@ -1,0 +1,181 @@
+# BBM Umbaukonzept – Vanilla zu React (inkrementell)
+
+## Ziel dieses Dokuments
+
+Dieses Dokument definiert den konkreten Umbaupfad der bestehenden Electron-App von einer Vanilla-JS-Architektur hin zu einer React-basierten UI.
+
+Ziel ist **kein Rewrite**, sondern eine **schrittweise Migration**, bei der die Anwendung jederzeit lauffähig bleibt.
+
+---
+
+# 🎯 Gesamtziel
+
+Die Anwendung soll so umgebaut werden, dass:
+
+* React die UI schrittweise übernimmt
+* Vanilla-Code auf eine Host-/Koordinationsrolle reduziert wird
+* keine direkten DB-/IPC-Zugriffe in React stattfinden
+* Änderungen lokal und risikoarm möglich sind
+
+---
+
+# 🧭 Grundprinzipien
+
+* **Kein Big Bang**
+* **Keine globalen Umbauten**
+* **Immer lauffähiger Zustand**
+* **Kleine, testbare Schritte**
+* **TopsView bleibt zunächst Host**
+
+---
+
+# 🧱 Phase 1 – Fundament stabilisieren
+
+## Ziel
+
+Vorbereitung der Migration, ohne funktionale Risiken einzugehen.
+
+## Maßnahmen
+
+* Services aus `TopsView` auslagern
+* Erste React-Insel integrieren (Topbar / Protokolltitel)
+* Zweite React-Insel integrieren (Idle-Bereich)
+* Save-Flow stabilisieren
+* React ausschließlich über Props + Callbacks anbinden
+* Keine direkte Nutzung von `window.bbmDb`, `bbmPrint`, `bbmMail` in React
+
+## Ergebnis
+
+* Erste funktionierende React-Integration
+* Stabiler Save-Flow
+* Grundlegendes Host/React-Muster etabliert
+
+---
+
+# 🧩 Phase 2 – TopsView entknoten
+
+## Ziel
+
+Den Monolithen `TopsView` in klar getrennte UI-Bereiche aufteilen, sodass React schrittweise übernehmen kann.
+
+## Aktuelle Struktur
+
+`TopsView` enthält derzeit:
+
+* Topbar (teilweise React)
+* Idle-Bereich (React)
+* TOP-Liste (Vanilla)
+* Editor / Bearbeitungsbereich (Vanilla)
+* Aktionslogik (Create, Save, Move, etc.)
+
+## Vorgehen
+
+### Schritt 2.1 – TOP-Liste als React-Insel
+
+* DOM-Rendering der Liste entfernen
+* React-Komponente für Liste erstellen
+* Daten in TopsView vorbereiten (keine Logik in React)
+* Callbacks über Props übergeben
+
+### Schritt 2.2 – Listen-Logik im Host bündeln
+
+* Anzeigezustände (selected, collapsed, moveMode, etc.) im Host berechnen
+* React bekommt fertige Datenstruktur
+
+### Schritt 2.3 – Editor entknoten (noch nicht React)
+
+* Editor-Logik trennen:
+
+  * Daten
+  * Zustand
+  * Aktionen
+* Save-Flow unverändert lassen
+* Keine direkte React-Migration an dieser Stelle
+
+### Schritt 2.4 – Editor als React-Insel
+
+* Erst nach Entkopplung
+* Props + Callbacks wie bei Liste
+* Keine DB-/IPC-Zugriffe in React
+
+## Ergebnis
+
+* `TopsView` ist kein Monolith mehr
+* UI besteht aus klaren React-Inseln
+* Vanilla übernimmt nur noch Host-/Koordinationslogik
+
+---
+
+# 🚀 Phase 3 – React-Übernahme skalieren
+
+## Ziel
+
+Die Anwendung systematisch weiter in Richtung React entwickeln.
+
+## Maßnahmen
+
+* Weitere Views nach gleichem Muster umbauen
+* Neue UI ausschließlich in React entwickeln
+* Gemeinsame Komponenten aufbauen:
+
+  * Buttons
+  * Formfelder
+  * Listen
+  * Layouts
+* State-Strukturen vereinheitlichen (schrittweise)
+
+## Ergebnis
+
+* React wird Standard für UI
+* Vanilla-Code reduziert sich auf Infrastruktur/Bridge
+* Änderungen werden einfacher und risikoärmer
+
+---
+
+# 🧾 Definition von „Erreicht“
+
+Das Ziel dieses Konzepts gilt als erreicht, wenn:
+
+* `TopsView` als Host funktioniert
+* Haupt-UI-Bereiche als React-Komponenten umgesetzt sind
+* keine direkte DB-/IPC-Nutzung in React erfolgt
+* Save-Flow stabil bleibt
+* keine globalen Seiteneffekte auftreten
+
+---
+
+# ⚠️ Nicht-Ziele
+
+Dieses Konzept beinhaltet **nicht**:
+
+* kompletten Rewrite der Anwendung
+* sofortige Umstellung aller Views
+* Umbau von Router, Main oder Preload
+* vollständige Entfernung von Vanilla-Code
+
+---
+
+# 🧭 Arbeitsweise
+
+Jeder Schritt muss:
+
+* isoliert sein
+* testbar sein
+* rückbaubar sein
+* keine neuen Risiken erzeugen
+
+Wenn Instabilität entsteht:
+
+→ sofort stoppen
+→ stabilisieren
+→ erst dann weitergehen
+
+---
+
+# 🔚 Fazit
+
+Dieses Konzept beschreibt keinen einmaligen Umbau, sondern einen kontrollierten Übergang.
+
+Ziel ist nicht „alles React“, sondern:
+
+👉 eine Anwendung, die strukturell so aufgebaut ist, dass React die UI sicher und schrittweise übernehmen kann.
