@@ -2026,19 +2026,7 @@ _isoToDDMMYYYY(iso) {
       this._suppressBlurOnce = true;
     });
 
-    btnSaveTop.onclick = async () => {
-      if (this.isReadOnly) return;
-      if (!this.selectedTop) return;
-
-      const flushedLongtext = await this._flushPendingLongtextIfNeeded({ reload: false });
-      if (!flushedLongtext) return;
-
-      const values = this._getEditorValues();
-      const patch = this.topEditor.buildPatch(values);
-      if (!patch) return;
-
-      await this.topPatchService.saveMeetingTopPatch(patch, { reload: true, pulse: true });
-    };
+    btnSaveTop.onclick = this._onSaveClicked;
 
     const btnTrashTop = document.createElement("button");
     btnTrashTop.textContent = "Papierkorb";
@@ -2463,7 +2451,7 @@ _isoToDDMMYYYY(iso) {
     const blurGuard = this._blurGuard.bind(this);
 
     inpTitle.addEventListener("input", () => {
-      this._updateCharCounters();
+      this._onEditorChanged();
     });
 
     inpTitle.addEventListener("keydown", async (e) => {
@@ -2495,7 +2483,7 @@ _isoToDDMMYYYY(iso) {
     );
 
     taLong.addEventListener("input", () => {
-      this._updateCharCounters();
+      this._onEditorChanged();
     });
 
     // ✅ Änderung: Enter erzeugt Zeilenumbruch; Ctrl/Cmd+Enter speichert
@@ -2753,13 +2741,7 @@ _isoToDDMMYYYY(iso) {
       return;
     }
 
-    this.selectedTopId = top.id;
-    this.selectedTop = top;
-    this._userSelectedTop = true;
-
-    this._updateMoveControls();
-    this.applyEditBoxState();
-    this._renderListOnly();
+    this._onTopSelected(top);
   }
 
   _toggleLevel1Collapse(topId) {
@@ -3468,6 +3450,35 @@ async _closeViewOnly() {
   _setEditorEnabled(enabled) {
     this.editBoxStateService?.applyEditBoxDisabledState(!enabled);
   }
+
+  _onTopSelected(top) {
+    if (!top) return;
+    this.selectedTopId = top.id;
+    this.selectedTop = top;
+    this._userSelectedTop = true;
+
+    this._updateMoveControls();
+    this.applyEditBoxState();
+    this._renderListOnly();
+  }
+
+  _onEditorChanged() {
+    this._updateCharCounters();
+  }
+
+  _onSaveClicked = async () => {
+    if (this.isReadOnly) return;
+    if (!this.selectedTop) return;
+
+    const flushedLongtext = await this._flushPendingLongtextIfNeeded({ reload: false });
+    if (!flushedLongtext) return;
+
+    const values = this._getEditorValues();
+    const patch = this.topEditor.buildPatch(values);
+    if (!patch) return;
+
+    await this.topPatchService.saveMeetingTopPatch(patch, { reload: true, pulse: true });
+  };
 
   _applyReadOnlyState() {
     const { readOnly: ro, busy } = this._buildEditorUiState();
