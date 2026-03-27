@@ -2767,7 +2767,7 @@ _isoToDDMMYYYY(iso) {
     for (const top of sourceItems) {
       if (this._shouldHideTopInList(top)) continue;
 
-      const isSelected = this._sameTopId(top.id, this.selectedTopId);
+      const isSelected = this._sameTopId(top.id, this._getCurrentTopId());
       const isMarked = this._markTopIds && this._markTopIds.has(top.id);
       const isImportant = Number(top.is_important) === 1;
       const parseFlag = (v) => {
@@ -3444,6 +3444,10 @@ async _closeViewOnly() {
 
   _getCurrentTop() {
     return this.selectedTop;
+  }
+
+  _getCurrentTopId() {
+    return this.selectedTopId;
   }
 
   _applyEditorValues(values = {}) {
@@ -4334,7 +4338,7 @@ async _closeViewOnly() {
   _scrollListToSelectedAndEnd() {
     const list = this.listEl;
     if (!list) return;
-    const id = this.selectedTopId;
+    const id = this._getCurrentTopId();
     if (!id) return;
 
     const li = list.querySelector(`li[data-top-id="${id}"]`);
