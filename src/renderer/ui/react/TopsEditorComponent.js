@@ -23,6 +23,10 @@ export function createTopsEditorComponent(React) {
       if (typeof onChange === "function") onChange();
     };
 
+    const handleTitleChange = (event) => {
+      if (typeof onChange === "function") onChange(event.target.value);
+    };
+
     return React.createElement(
       "div",
       {
@@ -54,7 +58,12 @@ export function createTopsEditorComponent(React) {
           "div",
           { style: { display: "flex", flexDirection: "column", gap: "2px" } },
           React.createElement("div", { style: { fontWeight: 600 } }, "Titel"),
-          React.createElement("div", {
+          React.createElement("input", {
+            type: "text",
+            value: title || "",
+            onChange: handleTitleChange,
+            disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+            placeholder: "(leer)",
             style: {
               minHeight: "24px",
               border: "1px solid rgba(0,0,0,0.15)",
@@ -62,12 +71,10 @@ export function createTopsEditorComponent(React) {
               padding: "4px 6px",
               background: "#fff",
               color: "#111",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+              fontSize: "11px",
+              width: "100%",
+              boxSizing: "border-box",
             },
-            title: title || "(leer)",
-            children: title || "(leer)",
           })
         ),
         React.createElement("div", null, `Status: ${statusValue || "(leer)"}`),
