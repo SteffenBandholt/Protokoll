@@ -51,7 +51,12 @@ export function createTopsEditorComponent(React) {
         React.createElement("div", null, `ReadOnly: ${readOnly ? "ja" : "nein"}`),
         React.createElement("div", null, `Busy: ${busy ? "ja" : "nein"}`),
         React.createElement("div", null, `Titel: ${title || "(leer)"}`),
-        React.createElement("div", null, `Status: ${statusValue || "(leer)"}`)
+        React.createElement("div", null, `Status: ${statusValue || "(leer)"}`),
+        React.createElement(
+          "div",
+          null,
+          `Longtext: ${(longtext || "").slice(0, 120)}${(longtext || "").length > 120 ? "…" : ""}`
+        )
       ),
       React.createElement(
         "div",
