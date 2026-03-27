@@ -3425,7 +3425,7 @@ async _closeViewOnly() {
     const top = this._getCurrentTop();
     const hasSelection = !!top;
     const isLevel1 = Number(top?.level) === 1;
-    const readOnly = !!this.isReadOnly;
+    const readOnly = this._isEditorReadOnly();
     const busy = !!this._busy;
 
     return {
@@ -3448,6 +3448,10 @@ async _closeViewOnly() {
 
   _getCurrentTopId() {
     return this.selectedTopId;
+  }
+
+  _isEditorReadOnly() {
+    return !!this.isReadOnly;
   }
 
   _applyEditorValues(values = {}) {
