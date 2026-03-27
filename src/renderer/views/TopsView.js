@@ -3532,7 +3532,7 @@ async _closeViewOnly() {
 
   _onReactTitleChange = (nextValue) => {
     if (this.inpTitle) this.inpTitle.value = nextValue ?? "";
-    this._updateCharCounters();
+    this._onEditorChanged();
   };
 
   _onReactLongtextChange = (nextValue) => {
