@@ -3422,7 +3422,7 @@ async _closeViewOnly() {
 }
 
   _buildEditorUiState() {
-    const top = this.selectedTop;
+    const top = this._getCurrentTop();
     const hasSelection = !!top;
     const isLevel1 = Number(top?.level) === 1;
     const readOnly = !!this.isReadOnly;
@@ -3440,6 +3440,10 @@ async _closeViewOnly() {
 
   _getEditorValues() {
     return this.topEditor?.readValues?.() || {};
+  }
+
+  _getCurrentTop() {
+    return this.selectedTop;
   }
 
   _applyEditorValues(values = {}) {
