@@ -3489,6 +3489,7 @@ async _closeViewOnly() {
       busy: ui.busy,
       onSave: this._onSaveClicked,
       onChange: this._onEditorChanged,
+      onStatusChange: this._onReactStatusChange,
     };
   }
 
@@ -3519,6 +3520,13 @@ async _closeViewOnly() {
   _onEditorChanged() {
     this._updateCharCounters();
   }
+
+  _onReactStatusChange = (nextValue) => {
+    if (!this.selStatus) return;
+    this.selStatus.value = nextValue || "";
+    this._updateStatusMarkers();
+    this._updateDueAmpelFromInputs?.();
+  };
 
   _onSaveClicked = async () => {
     if (this.isReadOnly) return;
