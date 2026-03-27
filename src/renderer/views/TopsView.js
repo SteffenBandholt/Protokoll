@@ -3439,6 +3439,23 @@ async _closeViewOnly() {
   await this.router?.showProjects?.();
 }
 
+  _buildEditorUiState() {
+    const top = this.selectedTop;
+    const hasSelection = !!top;
+    const isLevel1 = Number(top?.level) === 1;
+    const readOnly = !!this.isReadOnly;
+    const busy = !!this._busy;
+
+    return {
+      hasSelection,
+      isLevel1,
+      metaVisible: !isLevel1,
+      readOnly,
+      busy,
+      controlsDisabled: !hasSelection || readOnly || busy,
+    };
+  }
+
   _getEditorValues() {
     return this.topEditor?.readValues?.() || {};
   }
@@ -3453,8 +3470,7 @@ async _closeViewOnly() {
   }
 
   _applyReadOnlyState() {
-    const ro = !!this.isReadOnly;
-    const busy = !!this._busy;
+    const { readOnly: ro, busy } = this._buildEditorUiState();
     this._setEditorEnabled(!(ro || busy));
     if (this.btnL1) this.btnL1.disabled = ro || busy;
     this._updateCreateChildControls();
