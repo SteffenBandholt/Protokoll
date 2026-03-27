@@ -15,6 +15,8 @@ export function createTopsEditorComponent(React) {
     onSave,
     onChange,
   }) {
+    const { useState, useEffect } = React;
+
     const handleSave = () => {
       if (typeof onSave === "function") onSave();
     };
@@ -25,6 +27,26 @@ export function createTopsEditorComponent(React) {
 
     const handleTitleChange = (event) => {
       if (typeof onChange === "function") onChange(event.target.value);
+    };
+
+    const currentStatus =
+      typeof statusValue === "string" ? statusValue.trim() : statusValue ? String(statusValue).trim() : "";
+    const [statusLocal, setStatusLocal] = useState(currentStatus);
+
+    useEffect(() => {
+      setStatusLocal(currentStatus);
+    }, [currentStatus]);
+
+    const baseOptions = ["", "offen", "in Bearbeitung", "erledigt"];
+    const options =
+      statusLocal && !baseOptions.includes(statusLocal)
+        ? ["", statusLocal, "offen", "in Bearbeitung", "erledigt"]
+        : baseOptions;
+
+    const handleStatusChange = (event) => {
+      const next = event.target.value;
+      setStatusLocal(next);
+      if (typeof onChange === "function") onChange(next);
     };
 
     return React.createElement(
@@ -81,21 +103,32 @@ export function createTopsEditorComponent(React) {
           "div",
           { style: { display: "flex", flexDirection: "column", gap: "2px" } },
           React.createElement("div", { style: { fontWeight: 600 } }, "Status"),
-          React.createElement("div", {
-            style: {
-              minHeight: "24px",
-              border: "1px solid rgba(0,0,0,0.15)",
-              borderRadius: "4px",
-              padding: "4px 6px",
-              background: "#fff",
-              color: "#111",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+          React.createElement(
+            "select",
+            {
+              value: statusLocal,
+              onChange: handleStatusChange,
+              disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+              style: {
+                minHeight: "26px",
+                border: "1px solid rgba(0,0,0,0.15)",
+                borderRadius: "4px",
+                padding: "4px 6px",
+                background: "#fff",
+                color: "#111",
+                fontSize: "11px",
+                width: "100%",
+                boxSizing: "border-box",
+              },
             },
-            title: statusValue || "(leer)",
-            children: statusValue || "(leer)",
-          })
+            ...options.map((opt) =>
+              React.createElement(
+                "option",
+                { key: opt || "(leer)", value: opt },
+                opt || "(leer)"
+              )
+            )
+          )
         ),
         React.createElement(
           "div",
