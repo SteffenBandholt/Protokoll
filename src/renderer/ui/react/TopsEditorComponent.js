@@ -99,8 +99,24 @@ export function createTopsEditorComponent(React) {
         ),
         React.createElement(
           "div",
-          null,
-          `Longtext: ${(longtext || "").slice(0, 120)}${(longtext || "").length > 120 ? "…" : ""}`
+          { style: { display: "flex", flexDirection: "column", gap: "2px" } },
+          React.createElement("div", { style: { fontWeight: 600 } }, "Langtext"),
+          React.createElement("div", {
+            style: {
+              minHeight: "48px",
+              border: "1px solid rgba(0,0,0,0.15)",
+              borderRadius: "4px",
+              padding: "6px",
+              background: "#fff",
+              color: "#111",
+              fontSize: "11px",
+              lineHeight: "1.35",
+              whiteSpace: "pre-wrap",
+              overflow: "hidden",
+            },
+            title: (longtext || "").slice(0, 120),
+            children: `${(longtext || "").slice(0, 120)}${(longtext || "").length > 120 ? "..." : ""}`,
+          })
         )
       ),
       React.createElement(
