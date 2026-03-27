@@ -10,6 +10,7 @@ import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonSty
 import { mountTopsIdlePanel } from "../ui/react/mountTopsIdlePanel.js";
 import { mountProtocolTitle } from "../ui/react/mountProtocolTitle.js";
 import { mountTopsList } from "../ui/react/mountTopsList.js";
+import { mountTopsEditor } from "../ui/react/mountTopsEditor.js";
 import { attachAudioFeature } from "../features/audio/AudioFeature.js";
 import { DictationController } from "../features/audio-dictation/DictationController.js";
 import { AudioSuggestionsFlow } from "../features/audio-suggestions/AudioSuggestionsFlow.js";
@@ -123,6 +124,9 @@ export default class TopsView {
     this._topsIdleReactMount = null;
     this._topsIdleReactPending = false;
     this._topsListReactMount = null;
+    this._topsEditorReactHost = null;
+    this._topsEditorReactMount = null;
+    this._topsEditorReactPending = false;
     this._topsListReactPending = false;
 
     // Save button
@@ -2513,6 +2517,12 @@ _isoToDDMMYYYY(iso) {
       })
     );
 
+    // Hidden host for future React editor (keine sichtbare Änderung)
+    const reactHost = document.createElement("div");
+    reactHost.style.display = "none";
+    this._topsEditorReactHost = reactHost;
+    box.appendChild(reactHost);
+
     inpDueDate.addEventListener("change", async () => {
       if (this.isReadOnly) return;
       if (inpDueDate.disabled) return;
@@ -4420,6 +4430,9 @@ async _closeViewOnly() {
       title: viewModel.titleValue,
       longtext: viewModel.longtextValue,
     });
+    if (this._topsEditorReactHost) {
+      this._mountTopsEditorReact(this._topsEditorReactHost, this._buildEditorReactProps());
+    }
     return this.editBoxStateService.applyState(viewModel.top);
   }
 
@@ -4542,6 +4555,7 @@ async _closeViewOnly() {
   async destroy() {
     this._unmountTopsList();
     this._unmountTopsIdlePanel();
+    this._unmountTopsEditorReact();
     if (this._protocolTitleReactMount) {
       this._protocolTitleReactMount.unmount();
       this._protocolTitleReactMount = null;
@@ -4559,5 +4573,31 @@ async _closeViewOnly() {
       this._viewMenuEl.parentNode.removeChild(this._viewMenuEl);
     }
     this._closeProjectTasksPopup();
+  }
+
+  _unmountTopsEditorReact() {
+    if (this._topsEditorReactMount) {
+      this._topsEditorReactMount.unmount();
+      this._topsEditorReactMount = null;
+    }
+    this._topsEditorReactPending = false;
+    this._topsEditorReactHost = null;
+  }
+
+  async _mountTopsEditorReact(host, props) {
+    if (!host || this._topsEditorReactPending) return null;
+    this._topsEditorReactPending = true;
+    try {
+      const mount = await mountTopsEditor(host, props);
+      this._topsEditorReactPending = false;
+      if (!mount) return null;
+      this._topsEditorReactMount = mount;
+      this._topsEditorReactHost = host;
+      return mount;
+    } catch (err) {
+      this._topsEditorReactPending = false;
+      console.error("[TopsView] mountTopsEditor failed:", err);
+      return null;
+    }
   }
 }
