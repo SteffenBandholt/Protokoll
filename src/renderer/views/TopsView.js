@@ -840,7 +840,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _flushPendingLongtextIfNeeded({ reload = false } = {}) {
-    if (this.isReadOnly || this._busy) return false;
+    if (this.isReadOnly || this._isEditorBusy()) return false;
     if (!this.selectedTop || !this.taLongtext || this.taLongtext.disabled) return true;
 
     const currentLongtext = this._normLong(this.taLongtext.value);
@@ -1524,7 +1524,7 @@ _isoToDDMMYYYY(iso) {
     btnEndMeeting.style.border = "1px solid rgba(0,0,0,0.25)";
     styleBtnBase(btnEndMeeting);
     btnEndMeeting.onclick = async () => {
-      if (this._busy) return;
+      if (this._isEditorBusy()) return;
       await this._runCloseMeetingOutputFlow();
       return;
     };
@@ -1548,7 +1548,7 @@ _isoToDDMMYYYY(iso) {
     btnCloseMeeting.style.border = "1px solid rgba(0,0,0,0.25)";
     styleBtnBase(btnCloseMeeting);
     btnCloseMeeting.onclick = async () => {
-      if (this._busy) return;
+      if (this._isEditorBusy()) return;
       await this._closeViewOnly();
     };
 
@@ -2563,7 +2563,7 @@ _isoToDDMMYYYY(iso) {
     });
 
     selResponsible.addEventListener("change", async () => {
-      if (this.isReadOnly || this._busy) return;
+      if (this.isReadOnly || this._isEditorBusy()) return;
       if (selResponsible.disabled) return;
       if (!this.selectedTop) return;
 
@@ -2725,7 +2725,7 @@ _isoToDDMMYYYY(iso) {
   }
 
   async _handleSelectTopFromList(topId) {
-    if (this._busy) return;
+    if (this._isEditorBusy()) return;
 
     const canContinue = await this._flushPendingLongtextIfNeeded();
     if (!canContinue) return;
@@ -2864,15 +2864,15 @@ _isoToDDMMYYYY(iso) {
       let opacity = "1";
       let clickAction = "select";
       if (this.moveModeActive && movingTop && !this.isReadOnly) {
-        const okTarget = this._isAllowedTarget(top, movingTop);
-        if (okTarget) {
-          outline = "2px dashed #7aa7ff";
-          background = "#eef7ff";
-          clickAction = "move";
-        } else {
-          opacity = "0.6";
-        }
+      const okTarget = this._isAllowedTarget(top, movingTop);
+      if (okTarget) {
+        outline = "2px dashed #7aa7ff";
+        background = "#eef7ff";
+        clickAction = "move";
+      } else {
+        opacity = "0.6";
       }
+    }
 
       const num = top.displayNumber ?? top.number ?? "";
       let lt = top.longtext ? String(top.longtext) : "";
@@ -3149,7 +3149,7 @@ _isoToDDMMYYYY(iso) {
       onToggleCollapse: (topId) => this._toggleLevel1Collapse(topId),
       onMoveTarget: (topId) => this._handleSelectTopFromList(topId),
       onCreateFirstTop: () => {
-        if (this.isReadOnly || this._busy) return;
+        if (this.isReadOnly || this._isEditorBusy()) return;
         this.createTop(1, null);
       },
     };
@@ -3187,7 +3187,7 @@ _isoToDDMMYYYY(iso) {
       imageSrc: EMPTY_LEVEL1_HINT_PNG,
       imageAlt: "Hinweis Protokoll neu",
       onCreateMeeting: () => {
-        if (this._busy) return;
+        if (this._isEditorBusy()) return;
         this._createMeetingFromIdle().catch((e) => {
           console.error("[TopsView] _createMeetingFromIdle failed:", e);
           alert(e && e.message ? e.message : String(e));
@@ -3426,7 +3426,7 @@ async _closeViewOnly() {
     const hasSelection = !!top;
     const isLevel1 = Number(top?.level) === 1;
     const readOnly = this._isEditorReadOnly();
-    const busy = !!this._busy;
+    const busy = this._isEditorBusy();
 
     return {
       hasSelection,
@@ -3452,6 +3452,10 @@ async _closeViewOnly() {
 
   _isEditorReadOnly() {
     return !!this.isReadOnly;
+  }
+
+  _isEditorBusy() {
+    return !!this._busy;
   }
 
   _applyEditorValues(values = {}) {
@@ -4231,7 +4235,7 @@ async _closeViewOnly() {
       }
 
       li.onclick = async () => {
-        if (this._busy) return;
+        if (this._isEditorBusy()) return;
 
         const canContinue = await this._flushPendingLongtextIfNeeded();
         if (!canContinue) return;
@@ -4316,7 +4320,7 @@ async _closeViewOnly() {
         hintBtn.style.borderBottomColor = "currentColor";
       };
       hintBtn.addEventListener("click", () => {
-        if (this.isReadOnly || this._busy) return;
+        if (this.isReadOnly || this._isEditorBusy()) return;
         this.createTop(1, null);
       });
 
