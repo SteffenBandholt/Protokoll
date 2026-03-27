@@ -77,7 +77,26 @@ export function createTopsEditorComponent(React) {
             },
           })
         ),
-        React.createElement("div", null, `Status: ${statusValue || "(leer)"}`),
+        React.createElement(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: "2px" } },
+          React.createElement("div", { style: { fontWeight: 600 } }, "Status"),
+          React.createElement("div", {
+            style: {
+              minHeight: "24px",
+              border: "1px solid rgba(0,0,0,0.15)",
+              borderRadius: "4px",
+              padding: "4px 6px",
+              background: "#fff",
+              color: "#111",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            },
+            title: statusValue || "(leer)",
+            children: statusValue || "(leer)",
+          })
+        ),
         React.createElement(
           "div",
           null,
