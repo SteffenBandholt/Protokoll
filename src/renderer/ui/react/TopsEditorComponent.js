@@ -14,6 +14,7 @@ export function createTopsEditorComponent(React) {
     busy,
     onSave,
     onChange,
+    onStatusChange,
   }) {
     const { useState, useEffect } = React;
 
@@ -46,6 +47,7 @@ export function createTopsEditorComponent(React) {
     const handleStatusChange = (event) => {
       const next = event.target.value;
       setStatusLocal(next);
+      if (typeof onStatusChange === "function") onStatusChange(next);
       if (typeof onChange === "function") onChange(next);
     };
 
