@@ -155,6 +155,54 @@ export function createTopsEditorComponent(React) {
         ),
         React.createElement(
           "div",
+          { style: { display: "flex", gap: "6px" } },
+          React.createElement(
+            "div",
+            { style: { display: "flex", flexDirection: "column", gap: "2px", flex: 1 } },
+            React.createElement("div", { style: { fontWeight: 600 } }, "Fälligkeit"),
+            React.createElement("input", {
+              type: "text",
+              value: dueValue || "(keine Angabe)",
+              readOnly: true,
+              disabled: true,
+              style: {
+                minHeight: "24px",
+                border: "1px solid rgba(0,0,0,0.15)",
+                borderRadius: "4px",
+                padding: "4px 6px",
+                background: "#f5f6f8",
+                color: "#111",
+                fontSize: "11px",
+                width: "100%",
+                boxSizing: "border-box",
+              },
+            })
+          ),
+          React.createElement(
+            "div",
+            { style: { display: "flex", flexDirection: "column", gap: "2px", flex: 1 } },
+            React.createElement("div", { style: { fontWeight: 600 } }, "Verantwortlich"),
+            React.createElement("input", {
+              type: "text",
+              value: responsibleValue || "(keine Angabe)",
+              readOnly: true,
+              disabled: true,
+              style: {
+                minHeight: "24px",
+                border: "1px solid rgba(0,0,0,0.15)",
+                borderRadius: "4px",
+                padding: "4px 6px",
+                background: "#f5f6f8",
+                color: "#111",
+                fontSize: "11px",
+                width: "100%",
+                boxSizing: "border-box",
+              },
+            })
+          )
+        ),
+        React.createElement(
+          "div",
           { style: { display: "flex", flexDirection: "column", gap: "2px" } },
           React.createElement("div", { style: { fontWeight: 600 } }, "Langtext"),
           React.createElement("textarea", {
