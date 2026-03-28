@@ -84,14 +84,19 @@ export function createTopsEditorComponent(React) {
       if (typeof onDueDateChange === "function") onDueDateChange(next);
     };
 
+    const responsibleDisplay =
+      typeof responsibleValue === "string" && responsibleValue.trim()
+        ? responsibleValue.trim()
+        : "(keine Angabe)";
+
     return React.createElement(
       "div",
       {
         style: {
           display: "flex",
           flexDirection: "column",
-          gap: "4px",
-          padding: "8px",
+          gap: "8px",
+          padding: "10px",
           border: "1px solid rgba(0,0,0,0.08)",
           borderRadius: "6px",
           background: "#f9fafb",
@@ -100,32 +105,52 @@ export function createTopsEditorComponent(React) {
           opacity: busy ? 0.75 : 1,
         },
       },
+      React.createElement("div", { style: { fontWeight: 700, fontSize: "12px" } }, "React Editor vorbereitet"),
       React.createElement(
         "div",
-        { style: { fontWeight: 700, fontSize: "12px" } },
-        "React Editor vorbereitet"
+        {
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+            padding: "8px",
+            background: "#fff",
+            border: "1px solid rgba(0,0,0,0.06)",
+            borderRadius: "5px",
+          },
+        },
+        React.createElement("div", null, `Auswahl: ${hasSelection ? "ja" : "nein"}`),
+        React.createElement("div", null, `ReadOnly: ${readOnly ? "ja" : "nein"}`),
+        React.createElement("div", null, `Busy: ${busy ? "ja" : "nein"}`)
       ),
       React.createElement(
         "div",
-        { style: { display: "flex", flexDirection: "column", gap: "2px" } },
-        React.createElement("div", null, `Auswahl: ${hasSelection ? "ja" : "nein"}`),
-        React.createElement("div", null, `ReadOnly: ${readOnly ? "ja" : "nein"}`),
-        React.createElement("div", null, `Busy: ${busy ? "ja" : "nein"}`),
-          React.createElement(
-            "div",
-            { style: { display: "flex", flexDirection: "column", gap: "2px" } },
-            React.createElement("div", { style: { fontWeight: 600 } }, "Titel"),
-            React.createElement("input", {
-              type: "text",
-              value: titleLocal,
-              onChange: handleTitleChange,
-              disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
-              placeholder: "(leer)",
+        {
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+            padding: "8px",
+            background: "#fff",
+            border: "1px solid rgba(0,0,0,0.06)",
+            borderRadius: "5px",
+          },
+        },
+        React.createElement(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: "3px" } },
+          React.createElement("div", { style: { fontWeight: 600 } }, "Titel"),
+          React.createElement("input", {
+            type: "text",
+            value: titleLocal,
+            onChange: handleTitleChange,
+            disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+            placeholder: "(leer)",
             style: {
               minHeight: "24px",
               border: "1px solid rgba(0,0,0,0.15)",
               borderRadius: "4px",
-              padding: "4px 6px",
+              padding: "6px 8px",
               background: "#fff",
               color: "#111",
               fontSize: "11px",
@@ -136,7 +161,7 @@ export function createTopsEditorComponent(React) {
         ),
         React.createElement(
           "div",
-          { style: { display: "flex", flexDirection: "column", gap: "2px" } },
+          { style: { display: "flex", flexDirection: "column", gap: "3px" } },
           React.createElement("div", { style: { fontWeight: 600 } }, "Status"),
           React.createElement(
             "select",
@@ -148,7 +173,7 @@ export function createTopsEditorComponent(React) {
                 minHeight: "26px",
                 border: "1px solid rgba(0,0,0,0.15)",
                 borderRadius: "4px",
-                padding: "4px 6px",
+                padding: "6px 8px",
                 background: "#fff",
                 color: "#111",
                 fontSize: "11px",
@@ -164,81 +189,102 @@ export function createTopsEditorComponent(React) {
               )
             )
           )
+        )
+      ),
+      React.createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            gap: "8px",
+            padding: "8px",
+            background: "#fff",
+            border: "1px solid rgba(0,0,0,0.06)",
+            borderRadius: "5px",
+          },
+        },
+        React.createElement(
+          "div",
+          { style: { display: "flex", flexDirection: "column", gap: "3px", flex: 1 } },
+          React.createElement("div", { style: { fontWeight: 600 } }, "Fälligkeit"),
+          React.createElement("input", {
+            type: "text",
+            value: dueLocal,
+            onChange: handleDueChange,
+            disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+            placeholder: "(leer)",
+            style: {
+              minHeight: "24px",
+              border: "1px solid rgba(0,0,0,0.15)",
+              borderRadius: "4px",
+              padding: "6px 8px",
+              background: "#fff",
+              color: "#111",
+              fontSize: "11px",
+              width: "100%",
+              boxSizing: "border-box",
+            },
+          })
         ),
         React.createElement(
           "div",
-          { style: { display: "flex", gap: "6px" } },
+          { style: { display: "flex", flexDirection: "column", gap: "3px", flex: 1 } },
+          React.createElement("div", { style: { fontWeight: 600 } }, "Verantwortlich"),
           React.createElement(
             "div",
-            { style: { display: "flex", flexDirection: "column", gap: "2px", flex: 1 } },
-            React.createElement("div", { style: { fontWeight: 600 } }, "Fälligkeit"),
-            React.createElement("input", {
-              type: "text",
-              value: dueLocal,
-              onChange: handleDueChange,
-              disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
-              placeholder: "(leer)",
+            {
               style: {
                 minHeight: "24px",
                 border: "1px solid rgba(0,0,0,0.15)",
                 borderRadius: "4px",
-                padding: "4px 6px",
-                background: "#fff",
-                color: "#111",
-                fontSize: "11px",
-                width: "100%",
-                boxSizing: "border-box",
-              },
-            })
-          ),
-          React.createElement(
-            "div",
-            { style: { display: "flex", flexDirection: "column", gap: "2px", flex: 1 } },
-            React.createElement("div", { style: { fontWeight: 600 } }, "Verantwortlich"),
-            React.createElement("input", {
-              type: "text",
-              value: responsibleValue || "(keine Angabe)",
-              readOnly: true,
-              disabled: true,
-              style: {
-                minHeight: "24px",
-                border: "1px solid rgba(0,0,0,0.15)",
-                borderRadius: "4px",
-                padding: "4px 6px",
+                padding: "6px 8px",
                 background: "#f5f6f8",
                 color: "#111",
                 fontSize: "11px",
                 width: "100%",
                 boxSizing: "border-box",
+                display: "flex",
+                alignItems: "center",
               },
-            })
-          )
-        ),
-        React.createElement(
-          "div",
-          { style: { display: "flex", flexDirection: "column", gap: "2px" } },
-          React.createElement("div", { style: { fontWeight: 600 } }, "Langtext"),
-          React.createElement("textarea", {
-            value: longtextLocal,
-            onChange: handleLongtextChange,
-            disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
-            placeholder: "(leer)",
-            rows: 4,
-            style: {
-              minHeight: "60px",
-              border: "1px solid rgba(0,0,0,0.15)",
-              borderRadius: "4px",
-              padding: "6px",
-              background: "#fff",
-              color: "#111",
-              fontSize: "11px",
-              lineHeight: "1.35",
-              width: "100%",
-              boxSizing: "border-box",
-              resize: "vertical",
             },
-          })
+            responsibleDisplay
+          )
         )
+      ),
+      React.createElement(
+        "div",
+        {
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+            padding: "8px",
+            background: "#fff",
+            border: "1px solid rgba(0,0,0,0.06)",
+            borderRadius: "5px",
+          },
+        },
+        React.createElement("div", { style: { fontWeight: 600 } }, "Langtext"),
+        React.createElement("textarea", {
+          value: longtextLocal,
+          onChange: handleLongtextChange,
+          disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+          placeholder: "(leer)",
+          rows: 4,
+          style: {
+            minHeight: "60px",
+            border: "1px solid rgba(0,0,0,0.15)",
+            borderRadius: "4px",
+            padding: "8px",
+            background: "#fff",
+            color: "#111",
+            fontSize: "11px",
+            lineHeight: "1.4",
+            width: "100%",
+            boxSizing: "border-box",
+            resize: "vertical",
+          },
+        })
       ),
       React.createElement(
         "div",
