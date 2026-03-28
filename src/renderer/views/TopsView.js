@@ -2262,6 +2262,7 @@ _isoToDDMMYYYY(iso) {
     inpDueDate.style.flex = "1 1 auto";
     inpDueDate.style.marginLeft = "-3mm";
     inpDueDate.style.width = "calc(100% + 3mm)";
+    inpDueDate.style.display = "none"; // Legacy-Feld bleibt im DOM, aber unsichtbar
     const dueAmpel = this._makeAmpelDot("grau", 11);
     dueAmpel.style.display = this.showAmpelInList ? "inline-block" : "none";
     dueRow.append(inpDueDate, dueAmpel);
