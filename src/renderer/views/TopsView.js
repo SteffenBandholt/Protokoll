@@ -4607,6 +4607,16 @@ async _closeViewOnly() {
 
   async _mountTopsEditorReact(host, props) {
     if (!host || this._topsEditorReactPending) return null;
+
+    if (this._topsEditorReactMount) {
+      // Wenn bereits gemountet, bestehende Instanz wiederverwenden oder sauber ersetzen
+      if (this._topsEditorReactHost === host && typeof this._topsEditorReactMount.render === "function") {
+        this._topsEditorReactMount.render(props);
+        return this._topsEditorReactMount;
+      }
+      this._unmountTopsEditorReact();
+    }
+
     this._topsEditorReactPending = true;
     try {
       const mount = await mountTopsEditor(host, props);
@@ -4622,4 +4632,3 @@ async _closeViewOnly() {
     }
   }
 }
-
