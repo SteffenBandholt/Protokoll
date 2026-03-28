@@ -15,6 +15,7 @@ export function createTopsEditorComponent(React) {
     onSave,
     onChange,
     onStatusChange,
+    onDueDateChange,
     onTitleChange,
     onLongtextChange,
   }) {
@@ -33,6 +34,7 @@ export function createTopsEditorComponent(React) {
     const [statusLocal, setStatusLocal] = useState(currentStatus);
     const [titleLocal, setTitleLocal] = useState(title || "");
     const [longtextLocal, setLongtextLocal] = useState(longtext || "");
+    const [dueLocal, setDueLocal] = useState(dueValue || "");
     useEffect(() => {
       setLongtextLocal(longtext || "");
     }, [longtext]);
@@ -44,6 +46,10 @@ export function createTopsEditorComponent(React) {
     useEffect(() => {
       setTitleLocal(title || "");
     }, [title]);
+
+    useEffect(() => {
+      setDueLocal(dueValue || "");
+    }, [dueValue]);
 
     const handleLongtextChange = (event) => {
       const next = event.target.value;
@@ -70,6 +76,12 @@ export function createTopsEditorComponent(React) {
       setStatusLocal(next);
       if (typeof onStatusChange === "function") onStatusChange(next);
       if (typeof onChange === "function") onChange(next);
+    };
+
+    const handleDueChange = (event) => {
+      const next = event.target.value;
+      setDueLocal(next);
+      if (typeof onDueDateChange === "function") onDueDateChange(next);
     };
 
     return React.createElement(
@@ -162,15 +174,16 @@ export function createTopsEditorComponent(React) {
             React.createElement("div", { style: { fontWeight: 600 } }, "Fälligkeit"),
             React.createElement("input", {
               type: "text",
-              value: dueValue || "(keine Angabe)",
-              readOnly: true,
-              disabled: true,
+              value: dueLocal,
+              onChange: handleDueChange,
+              disabled: disabledState?.readOnly || disabledState?.busy || readOnly || busy,
+              placeholder: "(leer)",
               style: {
                 minHeight: "24px",
                 border: "1px solid rgba(0,0,0,0.15)",
                 borderRadius: "4px",
                 padding: "4px 6px",
-                background: "#f5f6f8",
+                background: "#fff",
                 color: "#111",
                 fontSize: "11px",
                 width: "100%",

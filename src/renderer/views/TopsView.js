@@ -3490,6 +3490,7 @@ async _closeViewOnly() {
       onSave: this._onSaveClicked,
       onChange: this._onEditorChanged,
       onStatusChange: this._onReactStatusChange,
+      onDueDateChange: this._onReactDueDateChange,
       onTitleChange: this._onReactTitleChange,
       onLongtextChange: this._onReactLongtextChange,
     };
@@ -3544,6 +3545,12 @@ async _closeViewOnly() {
 
     this.selStatus.value = value;
     this._updateStatusMarkers();
+    this._updateDueAmpelFromInputs?.();
+  };
+
+  _onReactDueDateChange = (nextValue) => {
+    if (!this.inpDueDate) return;
+    this.inpDueDate.value = nextValue ?? "";
     this._updateDueAmpelFromInputs?.();
   };
 
