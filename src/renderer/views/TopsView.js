@@ -2205,6 +2205,7 @@ _isoToDDMMYYYY(iso) {
     taLong.maxLength = this._longMax();
     // Hinweis: Enter = neue Zeile, Ctrl/Cmd+Enter = Speichern
     taLong.title = "Enter: neue Zeile · Ctrl/Cmd+Enter: speichern";
+    taLong.style.display = "none"; // Legacy-Langtext unsichtbar lassen, im DOM behalten
 
     longWrap.append(longLabelRow, taLong);
 
