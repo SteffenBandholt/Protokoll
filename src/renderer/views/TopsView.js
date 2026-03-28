@@ -2114,6 +2114,7 @@ _isoToDDMMYYYY(iso) {
     titleWrap.style.display = "flex";
     titleWrap.style.flexDirection = "column";
     titleWrap.style.gap = "2px";
+    titleWrap.style.display = "none"; // Legacy-Titelfeld im Layout ausblenden, bleibt technisch vorhanden
 
     const titleLabelRow = document.createElement("div");
     titleLabelRow.style.display = "flex";
