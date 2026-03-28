@@ -3525,7 +3525,24 @@ async _closeViewOnly() {
 
   _onReactStatusChange = (nextValue) => {
     if (!this.selStatus) return;
-    this.selStatus.value = nextValue || "";
+    const value = nextValue ?? "";
+
+    const hasOption = Array.from(this.selStatus.options || []).some((opt) => opt.value === value);
+    if (!hasOption && value) {
+      // Fallback: Option ergänzen, damit der Wert gesetzt werden kann (nur UI, kein Save-Trigger)
+      // Entfernt vorherige temporäre Reakt-Optionen, damit keine Duplikate entstehen.
+      Array.from(this.selStatus.options || [])
+        .filter((opt) => opt.dataset?.reactTemp === "1" && opt.value !== value)
+        .forEach((opt) => opt.remove());
+
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = value;
+      opt.dataset.reactTemp = "1";
+      this.selStatus.appendChild(opt);
+    }
+
+    this.selStatus.value = value;
     this._updateStatusMarkers();
     this._updateDueAmpelFromInputs?.();
   };
