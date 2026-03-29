@@ -9,7 +9,7 @@ import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { mountTopsIdlePanel } from "../ui/react/mountTopsIdlePanel.js";
 import { mountTopsIdleState } from "../ui/react/mountTopsIdleState.js";
-import { mountProtocolTitle } from "../ui/react/mountProtocolTitle.js";
+import { mountTopsProtocolTitleDisplay } from "../ui/react/mountTopsProtocolTitleDisplay.js";
 import { mountTopsList } from "../ui/react/mountTopsList.js";
 import { attachAudioFeature } from "../features/audio/AudioFeature.js";
 import { DictationController } from "../features/audio-dictation/DictationController.js";
@@ -356,8 +356,18 @@ export default class TopsView {
     host.title = model.title || "";
     host.style.cursor = model.cursor || "default";
 
+    const lines = Array.isArray(model.lines) ? model.lines : [];
+    const firstLine = lines[0]?.text || "";
+    const secondLine = lines[1]?.text || "";
+    const isClosed = Number(this.meetingMeta?.is_closed) === 1 || !!this.isReadOnly;
+
     if (this._protocolTitleReactMount) {
-      this._protocolTitleReactMount.render(model);
+      this._protocolTitleReactMount.render({
+        label: model.label || "Protokoll",
+        line1: firstLine,
+        line2: secondLine,
+        isClosed,
+      });
       return;
     }
 
@@ -367,7 +377,12 @@ export default class TopsView {
 
     host.innerHTML = "";
     this._protocolTitleReactPending = true;
-    mountProtocolTitle(host, model)
+    mountTopsProtocolTitleDisplay(host, {
+      label: model.label || "Protokoll",
+      line1: firstLine,
+      line2: secondLine,
+      isClosed,
+    })
       .then((mount) => {
         this._protocolTitleReactPending = false;
         if (!mount) return;
