@@ -8,6 +8,7 @@ import { ampelHexFrom } from "../utils/ampelColors.js";
 import { createAmpelComputer } from "../utils/ampelLogic.js";
 import { applyPopupButtonStyle, applyPopupCardStyle } from "../ui/popupButtonStyles.js";
 import { mountTopsIdlePanel } from "../ui/react/mountTopsIdlePanel.js";
+import { mountTopsIdleState } from "../ui/react/mountTopsIdleState.js";
 import { mountProtocolTitle } from "../ui/react/mountProtocolTitle.js";
 import { mountTopsList } from "../ui/react/mountTopsList.js";
 import { attachAudioFeature } from "../features/audio/AudioFeature.js";
@@ -3273,7 +3274,7 @@ _renderIdleState() {
     dis(this.btnEndMeeting);
     dis(this.btnAudioAnalyze);
 
-    // Liste leeren und Idle Buttons anzeigen
+    // Liste leeren und Idle React-State anzeigen
     if (this.listEl) {
       this._unmountTopsList();
       this._unmountTopsIdlePanel();
@@ -3284,31 +3285,25 @@ _renderIdleState() {
       li.style.display = "flex";
       li.style.justifyContent = "center";
 
-      const wrap = document.createElement("div");
-      wrap.style.display = "flex";
-      wrap.style.flexDirection = "column";
-      wrap.style.alignItems = "center";
-      wrap.style.gap = "10px";
-      wrap.style.maxWidth = "520px";
-      wrap.style.width = "100%";
-      wrap.style.opacity = "0.95";
-
-      const img = document.createElement("img");
-      img.src = EMPTY_LEVEL1_HINT_PNG;
-      img.alt = "Hinweis Protokoll neu";
-      img.style.width = "220px";
-      img.style.maxWidth = "70%";
-      img.style.height = "auto";
-      img.style.objectFit = "contain";
       const host = document.createElement("div");
       host.style.width = "100%";
-      wrap.appendChild(host);
-
-      li.appendChild(wrap);
+      li.appendChild(host);
       this.listEl.appendChild(li);
       this.listEl.style.paddingBottom = "16px";
 
-      this._mountTopsIdlePanel(host, img);
+      mountTopsIdleState(host, {
+        hasProtocols: !!this._idleHasProtocols,
+        busy: !!this._busy,
+        onCreateMeeting: () => {
+          if (this._isEditorBusy()) return;
+          this._createMeetingFromIdle().catch((e) => {
+            console.error("[TopsView] _createMeetingFromIdle failed:", e);
+            alert(e && e.message ? e.message : String(e));
+          });
+        },
+      }).then((mount) => {
+        this._topsIdleReactMount = mount;
+      });
     }
 
     this._updateTopBarProtocolTitle();
